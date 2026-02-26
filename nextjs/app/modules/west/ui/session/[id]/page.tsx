@@ -2,12 +2,13 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Edit2, Save, StickyNote, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, StickyNote, Plus, Trash2, X } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
 import { SessionExerciseWithSets } from "../../../types/sessionExercise";
 import { Exercise } from "../../../types/exercise";
+import SessionNavbar from "./SessionNavbar";
 import DeleteSessionModal from "./DeleteSessionModal";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,6 +35,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   // DERIVED
   const displayExercises = isEditingExercises ? editedExercises : sessionExercises;  // Determine which exercises to render
+  const isEditing = isEditingSession || isEditingExercises;
+  const isSaving = isSavingSession || isSavingExercises;
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -139,9 +142,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         return;
       }
 
-      toast.success("Session updated successfully");
       setIsEditingSession(false);
-      fetchSessionData();
 
     } catch (error) {
       toast.error("Failed to update session");
@@ -205,10 +206,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         return;
       }
 
-      toast.success("Exercises updated successfully");
       setIsEditingExercises(false);
       setEditedExercises([]);
-      fetchSessionData();
 
     } catch (error) {
       toast.error("Failed to update exercises");
@@ -337,6 +336,24 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setEditedExercises(updated);
   };
 
+  // NAVBAR HANDLERS
+  const handleEdit = () => {
+    handleStartEditSession();
+    handleStartEditExercises();
+  };
+
+  const handleCancel = () => {
+    handleCancelEditSession();
+    handleCancelEditExercises();
+  };
+
+  const handleSave = async () => {
+    await handleSaveSession();
+    await handleSaveExercises();
+    toast.success("Session saved");
+    fetchSessionData();
+  };
+
   // LOADING PLACEHOLDER
   if (isLoading) {
     return (
@@ -356,6 +373,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     <div className="page">
 
       <Toaster />
+
+      {/* SESSION NAVBAR */}
+      {session && (
+        <SessionNavbar
+          isEditing={isEditing}
+          isSaving={isSaving}
+          onDelete={() => setIsDeleteModalOpen(true)}
+          onEdit={handleEdit}
+          onCancel={handleCancel}
+          onSave={handleSave}
+        />
+      )}
 
       <main className="page-container">
 
@@ -387,55 +416,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                 {/* TITLE */}
                 <h2 className="text-card-title">Session Info</h2>
-
-                {/* VIEW MODE ACTIONS */}
-                {!isEditingSession && (
-                  <div className="flex items-center space-x-2">
-
-                    {/* DELETE BUTTON */}
-                    <Button
-                      onClick={() => setIsDeleteModalOpen(true)}
-                      className="btn-delete !p-2"
-                      title="Delete session"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-
-                    {/* EDIT BUTTON */}
-                    <Button
-                      onClick={handleStartEditSession}
-                      className="btn-primary !p-2"
-                      title="Edit session info"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                )}
-
-                {/* EDIT MODE ACTIONS */}
-                {isEditingSession && (
-                  <div className="flex items-center space-x-2">
-
-                    {/* CANCEL BUTTON */}
-                    <Button
-                      onClick={handleCancelEditSession}
-                      disabled={isSavingSession}
-                      className="btn-link"
-                    >
-                      <span>Cancel</span>
-                    </Button>
-
-                    {/* SAVE BUTTON */}
-                    <Button
-                      onClick={handleSaveSession}
-                      disabled={isSavingSession}
-                      className="btn-success"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>{isSavingSession ? "Saving..." : "Save"}</span>
-                    </Button>
-                  </div>
-                )}
               </div>
 
               {/* CARD CONTENT */}
@@ -509,42 +489,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
               {/* TITLE */}
               <h2 className="text-card-title">Exercises ({displayExercises.length})</h2>
-
-              {/* VIEW MODE ACTIONS */}
-              {!isEditingExercises && session && (
-                <Button
-                  onClick={handleStartEditExercises}
-                  className="btn-primary !p-2"
-                  title="Edit exercises"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </Button>
-              )}
-
-              {/* EDIT MODE ACTIONS */}
-              {isEditingExercises && (
-                <div className="flex items-center space-x-2">
-
-                  {/* CANCEL BUTTON */}
-                  <Button
-                    onClick={handleCancelEditExercises}
-                    disabled={isSavingExercises}
-                    className="btn-link"
-                  >
-                    <span>Cancel</span>
-                  </Button>
-
-                  {/* SAVE BUTTON */}
-                  <Button
-                    onClick={handleSaveExercises}
-                    disabled={isSavingExercises}
-                    className="btn-success"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{isSavingExercises ? "Saving..." : "Save"}</span>
-                  </Button>
-                </div>
-              )}
             </div>
 
             {/* CARD CONTENT */}
