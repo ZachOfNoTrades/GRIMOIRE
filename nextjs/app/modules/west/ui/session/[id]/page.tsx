@@ -2,7 +2,8 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Dumbbell, Calendar, StickyNote } from "lucide-react";
+import { ArrowLeft, Edit2, Save, StickyNote } from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
 import { SessionExerciseWithSets } from "../../../types/sessionExercise";
@@ -14,8 +15,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [sessionExercises, setSessionExercises] = useState<SessionExerciseWithSets[]>([]);
 
+  // INPUT
+  const [editedExercises, setEditedExercises] = useState<SessionExerciseWithSets[]>([]);
+
   // STATE
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const router = useRouter();
 
@@ -57,6 +63,79 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     });
   };
 
+  const handleStartEdit = () => {
+    // Deep copy exercises for editing
+    setEditedExercises(JSON.parse(JSON.stringify(sessionExercises)));
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditedExercises([]);
+  };
+
+  const handleSaveEdit = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editedExercises),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.message || "Failed to update exercises");
+        return;
+      }
+
+      toast.success("Exercises updated successfully");
+      setIsEditing(false);
+      setEditedExercises([]);
+      fetchSessionData();
+
+    } catch (error) {
+      toast.error("Failed to update exercises");
+      console.error("Error saving session exercises:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateExerciseNotes = (exerciseIndex: number, notes: string) => {
+    const updated = [...editedExercises];
+    updated[exerciseIndex] = {
+      ...updated[exerciseIndex],
+      notes: notes || null,
+    };
+    setEditedExercises(updated);
+  };
+
+  const updateSetField = (exerciseIndex: number, setIndex: number, field: string, value: string) => {
+    const updated = [...editedExercises];
+    const set = { ...updated[exerciseIndex].sets[setIndex] };
+
+    if (field === "weight") {
+      set.weight = parseFloat(value) || 0;
+    } else if (field === "reps") {
+      set.reps = parseInt(value) || 0;
+    } else if (field === "rpe") {
+      set.rpe = value === "" ? null : parseFloat(value) || null;
+    } else if (field === "notes") {
+      set.notes = value || null;
+    }
+
+    updated[exerciseIndex] = {
+      ...updated[exerciseIndex],
+      sets: [
+        ...updated[exerciseIndex].sets.slice(0, setIndex),
+        set,
+        ...updated[exerciseIndex].sets.slice(setIndex + 1),
+      ],
+    };
+    setEditedExercises(updated);
+  };
+
   // LOADING PLACEHOLDER
   if (isLoading) {
     return (
@@ -70,27 +149,70 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  // Determine which exercises to render
+  const displayExercises = isEditing ? editedExercises : sessionExercises;
+
   return (
 
     // BACKGROUND
     <div className="page">
 
+      <Toaster />
+
       <main className="page-container">
 
         {/* HEADER */}
-        <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
 
-          {/* BACK BUTTON */}
-          <Button
-            onClick={() => router.push("/modules/west/ui/history")}
-            className="btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </Button>
+            {/* BACK BUTTON */}
+            <Button
+              onClick={() => router.push("/modules/west/ui/history")}
+              className="btn-link !pl-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </Button>
 
-          {/* TITLE */}
-          <h1 className="text-page-title">{session ? session.name : "Session Not Found"}</h1>
+            {/* TITLE */}
+            <h1 className="text-page-title">{session ? session.name : "Session Not Found"}</h1>
+          </div>
+
+          {/* VIEW MODE ACTION GROUP */}
+          {!isEditing && session && sessionExercises.length > 0 && (
+            <Button
+              onClick={handleStartEdit}
+              className="btn-primary !p-3"
+              title="Edit exercises"
+            >
+              <Edit2 className="w-4 h-4" />
+            </Button>
+          )}
+
+          {/* EDIT MODE ACTION GROUP */}
+          {isEditing && (
+            <div className="flex items-center space-x-2">
+
+              {/* CANCEL BUTTON */}
+              <Button
+                onClick={handleCancelEdit}
+                disabled={isSaving}
+                className="btn-link"
+              >
+                <span>Cancel</span>
+              </Button>
+
+              {/* SAVE BUTTON */}
+              <Button
+                onClick={handleSaveEdit}
+                disabled={isSaving}
+                className="btn-success"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSaving ? "Saving..." : "Save"}</span>
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* CARDS */}
@@ -109,19 +231,22 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
               <div className="card-content">
 
                 {/* DATE */}
-                <div className="text-secondary">
-                  <span>{formatDate(session.session_date)}</span>
+                <div>
+                  <label className="text-secondary">Date</label>
+                  <p className="text-primary">{formatDate(session.session_date)}</p>
                 </div>
 
                 {/* EXERCISE COUNT */}
-                <div className="text-secondary">
-                  <span>{sessionExercises.length} exercises</span>
+                <div>
+                  <label className="text-secondary">Exercises</label>
+                  <p className="text-primary">{sessionExercises.length}</p>
                 </div>
 
                 {/* SESSION NOTES */}
                 {session.notes && (
-                  <div className="text-secondary">
-                    <span>{session.notes}</span>
+                  <div>
+                    <label className="text-secondary">Notes</label>
+                    <p className="text-primary">{session.notes}</p>
                   </div>
                 )}
               </div>
@@ -129,7 +254,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           )}
 
           {/* EXERCISES */}
-          {sessionExercises.length === 0 ? (
+          {displayExercises.length === 0 ? (
 
             // EMPTY STATE
             <div className="card">
@@ -138,7 +263,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           ) : (
 
             // EXERCISE CARDS
-            sessionExercises.map((exercise) => (
+            displayExercises.map((exercise, exerciseIndex) => (
 
               // EXERCISE CARD
               <div key={exercise.id} className="card">
@@ -153,11 +278,26 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 </div>
 
                 {/* EXERCISE NOTES */}
-                {exercise.notes && (
-                  <div className="text-secondary flex items-center gap-1 mb-4">
-                    <StickyNote className="w-3 h-3" />
-                    <span>{exercise.notes}</span>
+                {isEditing ? (
+
+                  // EDITABLE EXERCISE NOTES
+                  <div className="mb-4">
+                    <label className="text-secondary">Notes</label>
+                    <input
+                      type="text"
+                      placeholder="Exercise notes..."
+                      value={exercise.notes || ""}
+                      onChange={(e) => updateExerciseNotes(exerciseIndex, e.target.value)}
+                      className="input-field"
+                    />
                   </div>
+                ) : (
+                  exercise.notes && (
+                    <div className="text-secondary flex items-center gap-1 mb-4">
+                      <StickyNote className="w-3 h-3" />
+                      <span>{exercise.notes}</span>
+                    </div>
+                  )
                 )}
 
                 {/* SETS */}
@@ -165,9 +305,75 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                   // NO SETS PLACEHOLDER
                   <p className="text-secondary">No sets recorded</p>
+                ) : isEditing ? (
+
+                  // EDITABLE SET ROWS
+                  <div className="space-y-4">
+                    {exercise.sets.map((set, setIndex) => (
+
+                      // EDITABLE SET ROW
+                      <div key={set.id} className="flex items-center gap-2">
+
+                        {/* WEIGHT INPUT */}
+                        <div className="flex flex-col">
+                          <label className="text-secondary">Weight</label>
+                          <input
+                            type="number"
+                            value={set.weight}
+                            onChange={(e) => updateSetField(exerciseIndex, setIndex, "weight", e.target.value)}
+                            className="input-field !max-w-10 text-center"
+                            step="0.5"
+                            min="0"
+                          />
+                        </div>
+                        <span className="text-secondary mt-5">x</span>
+
+                        {/* REPS INPUT */}
+                        <div className="flex flex-col">
+                          <label className="text-secondary">Reps</label>
+                          <input
+                            type="number"
+                            value={set.reps}
+                            onChange={(e) => updateSetField(exerciseIndex, setIndex, "reps", e.target.value)}
+                            className="input-field !max-w-10 text-center"
+                            min="0"
+                          />
+                        </div>
+                        <span className="text-secondary mt-5">@</span>
+
+                        {/* RPE INPUT */}
+                        <div className="flex flex-col">
+                          <label className="text-secondary">RPE</label>
+                          <input
+                            type="number"
+                            value={set.rpe ?? ""}
+                            onChange={(e) => updateSetField(exerciseIndex, setIndex, "rpe", e.target.value)}
+                            className="input-field !max-w-10 text-center"
+                            placeholder="-"
+                            step="0.5"
+                            min="1"
+                            max="10"
+                          />
+                        </div>
+                        <span className="text-secondary mt-5">-</span>
+
+                        {/* SET NOTES INPUT */}
+                        <div className="flex flex-col flex-1">
+                          <label className="text-secondary">Notes</label>
+                          <input
+                            type="text"
+                            value={set.notes || ""}
+                            onChange={(e) => updateSetField(exerciseIndex, setIndex, "notes", e.target.value)}
+                            className="input-field"
+                            placeholder="-"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
 
-                  // SET ROWS
+                  // READ-ONLY SET ROWS
                   <div className="flex flex-col gap-1">
                     {exercise.sets.map((set) => (
 

@@ -1,5 +1,5 @@
 import { getWestConnection, closeWestConnection } from './db';
-import { SessionExerciseWithSets, SessionExerciseSet } from '../types/sessionExercise';
+import { SessionExerciseWithSets } from '../types/sessionExercise';
 
 export async function getSessionExercisesBySessionId(sessionId: string): Promise<SessionExerciseWithSets[]> {
   let pool;
@@ -74,6 +74,62 @@ export async function getSessionExercisesBySessionId(sessionId: string): Promise
     return Array.from(exerciseMap.values());
   } catch (error) {
     console.error('Error fetching session exercises:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+export async function updateSessionExercises(exercises: SessionExerciseWithSets[]): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      for (const exercise of exercises) {
+
+        // Update exercise notes
+        await transaction.request()
+          .input('exerciseId', exercise.id)
+          .input('exerciseNotes', exercise.notes)
+          .query(`
+            UPDATE session_exercises
+            SET notes = @exerciseNotes,
+                modified_at = GETDATE()
+            WHERE id = @exerciseId
+          `);
+
+        // Update each set
+        for (const set of exercise.sets) {
+          await transaction.request()
+            .input('setId', set.id)
+            .input('weight', set.weight)
+            .input('reps', set.reps)
+            .input('rpe', set.rpe)
+            .input('setNotes', set.notes)
+            .query(`
+              UPDATE session_exercise_sets
+              SET weight = @weight,
+                  reps = @reps,
+                  rpe = @rpe,
+                  notes = @setNotes,
+                  modified_at = GETDATE()
+              WHERE id = @setId
+            `);
+        }
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error updating session exercises:', error);
     throw error;
   } finally {
     if (pool) {

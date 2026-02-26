@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionExercisesBySessionId } from '../../../../lib/sessionExerciseFunctions';
+import { getSessionExercisesBySessionId, updateSessionExercises } from '../../../../lib/sessionExerciseFunctions';
 
 export async function GET(
   request: Request,
@@ -15,6 +15,29 @@ export async function GET(
     console.error('Error in GET /api/sessions/[id]/exercises:', error);
     return NextResponse.json(
       { error: 'Failed to fetch session exercises' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const exercises = await request.json();
+
+    await updateSessionExercises(exercises);
+
+    // Return the updated exercises
+    const updatedExercises = await getSessionExercisesBySessionId(id);
+    return NextResponse.json(updatedExercises);
+
+  } catch (error) {
+    console.error('Error in PUT /api/sessions/[id]/exercises:', error);
+    return NextResponse.json(
+      { error: 'Failed to update session exercises' },
       { status: 500 }
     );
   }
