@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
 import { SessionExerciseWithSets } from "../../../types/sessionExercise";
 import { Exercise } from "../../../types/exercise";
+import DeleteSessionModal from "./DeleteSessionModal";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -28,6 +29,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isEditingExercises, setIsEditingExercises] = useState(false);
   const [isSavingExercises, setIsSavingExercises] = useState(false);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // DERIVED
   const displayExercises = isEditingExercises ? editedExercises : sessionExercises;  // Determine which exercises to render
@@ -145,6 +148,27 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       console.error("Error saving session:", error);
     } finally {
       setIsSavingSession(false);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    setIsDeletingSession(true);
+    try {
+      const response = await fetch(`/modules/west/api/sessions/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to delete session");
+        return;
+      }
+
+      toast.success("Session deleted");
+      router.back();
+    } catch (error) {
+      toast.error("Failed to delete session");
+      console.error("Error deleting session:", error);
     }
   };
 
@@ -366,13 +390,26 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                 {/* VIEW MODE ACTIONS */}
                 {!isEditingSession && (
-                  <Button
-                    onClick={handleStartEditSession}
-                    className="btn-primary !p-2"
-                    title="Edit session info"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center space-x-2">
+
+                    {/* DELETE BUTTON */}
+                    <Button
+                      onClick={() => setIsDeleteModalOpen(true)}
+                      className="btn-delete !p-2"
+                      title="Delete session"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+
+                    {/* EDIT BUTTON */}
+                    <Button
+                      onClick={handleStartEditSession}
+                      className="btn-primary !p-2"
+                      title="Edit session info"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
 
                 {/* EDIT MODE ACTIONS */}
@@ -709,6 +746,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </main>
+
+      {/* DELETE SESSION MODAL */}
+      <DeleteSessionModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteSession}
+        sessionName={session?.name || ""}
+        isDeleting={isDeletingSession}
+      />
     </div>
   );
 }

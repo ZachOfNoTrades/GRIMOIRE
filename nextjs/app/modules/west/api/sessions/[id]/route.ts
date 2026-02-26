@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getWorkoutSessionById, updateWorkoutSession } from '../../../lib/workoutSessionFunctions';
+import { getWorkoutSessionById, updateWorkoutSession, deleteWorkoutSession } from '../../../lib/workoutSessionFunctions';
 
 export async function GET(
   request: Request,
@@ -54,6 +54,33 @@ export async function PUT(
 
     return NextResponse.json(
       { error: 'Failed to update workout session' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+
+    await deleteWorkoutSession(id);
+    return NextResponse.json({ success: true });
+
+  } catch (error) {
+    console.error('Error in DELETE /api/sessions/[id]:', error);
+
+    if (error instanceof Error && error.message.includes('No workout session found')) {
+      return NextResponse.json(
+        { error: 'Workout session not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to delete workout session' },
       { status: 500 }
     );
   }

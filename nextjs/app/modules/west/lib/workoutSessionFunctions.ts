@@ -98,6 +98,57 @@ export async function updateWorkoutSession(id: string, name: string, notes: stri
   }
 }
 
+export async function deleteWorkoutSession(id: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Delete sets for all exercises in this session
+      await transaction.request()
+        .input('id', id)
+        .query(`
+          DELETE FROM session_exercise_sets
+          WHERE session_exercise_id IN (
+            SELECT id FROM session_exercises WHERE session_id = @id
+          )
+        `);
+
+      // Delete exercises for this session
+      await transaction.request()
+        .input('id', id)
+        .query(`
+          DELETE FROM session_exercises WHERE session_id = @id
+        `);
+
+      // Delete the session
+      const result = await transaction.request()
+        .input('id', id)
+        .query(`
+          DELETE FROM workout_sessions WHERE id = @id
+        `);
+
+      if (result.rowsAffected[0] === 0) {
+        throw new Error(`No workout session found for id: '${id}'`);
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deleting workout session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 export async function getWorkoutSessionCount(): Promise<number> {
   let pool;
   try {
