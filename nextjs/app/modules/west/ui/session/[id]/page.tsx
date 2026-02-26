@@ -2,11 +2,12 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Edit2, Save, StickyNote } from "lucide-react";
+import { ArrowLeft, Edit2, Save, StickyNote, Plus } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
 import { SessionExerciseWithSets } from "../../../types/sessionExercise";
+import { Exercise } from "../../../types/exercise";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -14,6 +15,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   // DATA
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [sessionExercises, setSessionExercises] = useState<SessionExerciseWithSets[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
 
   // INPUT
   const [editedExercises, setEditedExercises] = useState<SessionExerciseWithSets[]>([]);
@@ -28,6 +30,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   // LOAD DATA
   useEffect(() => {
     fetchSessionData();
+    fetchExercises();
   }, [id]);
 
   const fetchSessionData = async () => {
@@ -54,6 +57,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  const fetchExercises = async () => {
+    try {
+      const response = await fetch("/modules/west/api/exercises");
+      if (response.ok) {
+        const data = await response.json();
+        setExercises(data);
+      }
+    } catch (error) {
+      console.error("Error fetching exercises:", error);
+    }
+  };
+
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString("en-US", {
       weekday: "long",
@@ -75,6 +90,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleSaveEdit = async () => {
+    const hasUnselectedExercise = editedExercises.some((e) => !e.exercise_id);
+    if (hasUnselectedExercise) {
+      toast.error("Please select an exercise for all entries");
+      return;
+    }
+
     setIsSaving(true);
     try {
       const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
@@ -102,11 +123,73 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  const handleAddExercise = () => {
+    const exerciseId = crypto.randomUUID();
+    const newExercise = {
+      id: exerciseId,
+      session_id: id,
+      exercise_id: "",
+      exercise_name: "",
+      order_index: editedExercises.length + 1,
+      notes: null,
+      created_at: new Date(),
+      modified_at: new Date(),
+      sets: [{
+        id: crypto.randomUUID(),
+        session_exercise_id: exerciseId,
+        set_number: 1,
+        reps: 0,
+        weight: 0,
+        rpe: null,
+        notes: null,
+        created_at: new Date(),
+        modified_at: new Date(),
+      }],
+    };
+    setEditedExercises((prev) => [...prev, newExercise]);
+  };
+
+  const handleAddSet = (exerciseIndex: number) => {
+    const exercise = editedExercises[exerciseIndex];
+    const newSet = {
+      id: crypto.randomUUID(),
+      session_exercise_id: exercise.id,
+      set_number: exercise.sets.length + 1,
+      reps: 0,
+      weight: 0,
+      rpe: null,
+      notes: null,
+      created_at: new Date(),
+      modified_at: new Date(),
+    };
+
+    const updated = [...editedExercises];
+    updated[exerciseIndex] = {
+      ...updated[exerciseIndex],
+      sets: [...updated[exerciseIndex].sets, newSet],
+    };
+    setEditedExercises(updated);
+  };
+
   const updateExerciseNotes = (exerciseIndex: number, notes: string) => {
     const updated = [...editedExercises];
     updated[exerciseIndex] = {
       ...updated[exerciseIndex],
       notes: notes || null,
+    };
+    setEditedExercises(updated);
+  };
+
+  // When user changes session set group's exercise, this updates the associated exercise
+  const updateExerciseId = (exerciseIndex: number, exerciseId: string) => {
+    const selectedExercise = exercises.find((e) => e.id === exerciseId);
+    if (!selectedExercise) return;
+
+    const updated = [...editedExercises];
+    updated[exerciseIndex] = {
+      ...updated[exerciseIndex],
+      exercise_id: exerciseId,
+      exercise_name: selectedExercise.name,
     };
     setEditedExercises(updated);
   };
@@ -179,7 +262,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* VIEW MODE ACTION GROUP */}
-          {!isEditing && session && sessionExercises.length > 0 && (
+          {!isEditing && session && (
             <Button
               onClick={handleStartEdit}
               className="btn-primary !p-3"
@@ -272,9 +355,22 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 <div className="card-header">
 
                   {/* EXERCISE NAME */}
-                  <h3 className="text-card-title">
-                    {exercise.exercise_name}
-                  </h3>
+                  {isEditing ? (
+                    <select
+                      value={exercise.exercise_id}
+                      onChange={(e) => updateExerciseId(exerciseIndex, e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="" disabled>Select an exercise...</option>
+                      {exercises.map((ex) => (
+                        <option key={ex.id} value={ex.id}>{ex.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <h3 className="text-card-title">
+                      {exercise.exercise_name}
+                    </h3>
+                  )}
                 </div>
 
                 {/* EXERCISE NOTES */}
@@ -301,11 +397,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 )}
 
                 {/* SETS */}
-                {exercise.sets.length === 0 ? (
-
-                  // NO SETS PLACEHOLDER
-                  <p className="text-secondary">No sets recorded</p>
-                ) : isEditing ? (
+                {isEditing ? (
 
                   // EDITABLE SET ROWS
                   <div className="space-y-4">
@@ -370,7 +462,20 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                       </div>
                     ))}
+
+                    {/* ADD SET BUTTON */}
+                    <Button
+                      onClick={() => handleAddSet(exerciseIndex)}
+                      className="btn-link"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add Set</span>
+                    </Button>
                   </div>
+                ) : exercise.sets.length === 0 ? (
+
+                  // NO SETS PLACEHOLDER
+                  <p className="text-secondary">No sets recorded</p>
                 ) : (
 
                   // READ-ONLY SET ROWS
@@ -388,6 +493,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
             ))
+          )}
+
+          {/* ADD EXERCISE BUTTON */}
+          {isEditing && (
+            <Button
+              onClick={handleAddExercise}
+              className="btn-link"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Exercise</span>
+            </Button>
           )}
         </div>
       </main>

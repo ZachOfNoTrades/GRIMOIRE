@@ -92,33 +92,51 @@ export async function updateSessionExercises(exercises: SessionExerciseWithSets[
     try {
       for (const exercise of exercises) {
 
-        // Update exercise notes
+        // Upsert session exercise
         await transaction.request()
-          .input('exerciseId', exercise.id)
+          .input('sessionExerciseId', exercise.id)
+          .input('sessionId', exercise.session_id)
+          .input('exerciseId', exercise.exercise_id)
+          .input('orderIndex', exercise.order_index)
           .input('exerciseNotes', exercise.notes)
           .query(`
-            UPDATE session_exercises
-            SET notes = @exerciseNotes,
+            MERGE INTO session_exercises AS target
+            USING (SELECT @sessionExerciseId AS id) AS source
+            ON target.id = source.id
+            WHEN MATCHED THEN
+              UPDATE SET
+                exercise_id = @exerciseId,
+                notes = @exerciseNotes,
                 modified_at = GETDATE()
-            WHERE id = @exerciseId
+            WHEN NOT MATCHED THEN
+              INSERT (id, session_id, exercise_id, order_index, notes)
+              VALUES (@sessionExerciseId, @sessionId, @exerciseId, @orderIndex, @exerciseNotes);
           `);
 
-        // Update each set
+        // Upsert each set
         for (const set of exercise.sets) {
           await transaction.request()
             .input('setId', set.id)
-            .input('weight', set.weight)
+            .input('sessionExerciseId', exercise.id)
+            .input('setNumber', set.set_number)
             .input('reps', set.reps)
+            .input('weight', set.weight)
             .input('rpe', set.rpe)
             .input('setNotes', set.notes)
             .query(`
-              UPDATE session_exercise_sets
-              SET weight = @weight,
+              MERGE INTO session_exercise_sets AS target
+              USING (SELECT @setId AS id) AS source
+              ON target.id = source.id
+              WHEN MATCHED THEN
+                UPDATE SET
+                  weight = @weight,
                   reps = @reps,
                   rpe = @rpe,
                   notes = @setNotes,
                   modified_at = GETDATE()
-              WHERE id = @setId
+              WHEN NOT MATCHED THEN
+                INSERT (id, session_exercise_id, set_number, reps, weight, rpe, notes)
+                VALUES (@setId, @sessionExerciseId, @setNumber, @reps, @weight, @rpe, @setNotes);
             `);
         }
       }
