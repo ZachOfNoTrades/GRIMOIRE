@@ -80,7 +80,7 @@ export default function HistoryPage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.back()}
+            onClick={() => router.push("/modules/west/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -157,7 +157,11 @@ export default function HistoryPage() {
                     filteredSessions.map((session) => (
 
                       // TABLE ROW
-                      <tr key={session.id} className="table-row">
+                      <tr
+                        key={session.id}
+                        className="table-row-clickable"
+                        onClick={() => router.push(`/modules/west/ui/history/${session.id}`)}
+                      >
                         <td className="table-cell">{session.name}</td>
                         <td className="table-cell">{formatDate(session.session_date)}</td>
                       </tr>
