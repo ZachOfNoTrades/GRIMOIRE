@@ -21,17 +21,74 @@ BEGIN TRY
     END
 
     -- =============================
+    -- Programs
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='programs' AND xtype='U')
+    BEGIN
+        CREATE TABLE programs (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            name NVARCHAR(255) NOT NULL,
+            description NVARCHAR(MAX),
+            status TINYINT NOT NULL DEFAULT 0, -- 0 = Not Started, 1 = In Progress, 2 = Complete
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE()
+        );
+    END
+
+    -- =============================
+    -- Blocks
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='blocks' AND xtype='U')
+    BEGIN
+        CREATE TABLE blocks (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            program_id UNIQUEIDENTIFIER NOT NULL,
+            name NVARCHAR(255) NOT NULL,
+            order_index INT NOT NULL,
+            description NVARCHAR(MAX),
+            tag NVARCHAR(100), -- short label, e.g. "Hypertrophy", "Deload", "Peaking"
+            color NVARCHAR(7), -- hex color code, e.g. "#3B82F6"
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT FK_blocks_program FOREIGN KEY (program_id) REFERENCES programs(id)
+        );
+    END
+
+    -- =============================
+    -- Weeks
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='weeks' AND xtype='U')
+    BEGIN
+        CREATE TABLE weeks (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            block_id UNIQUEIDENTIFIER NOT NULL,
+            week_number INT NOT NULL,
+            name NVARCHAR(255),
+            description NVARCHAR(MAX),
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT FK_weeks_block FOREIGN KEY (block_id) REFERENCES blocks(id)
+        );
+    END
+
+    -- =============================
     -- Workout Sessions
     -- =============================
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='workout_sessions' AND xtype='U')
     BEGIN
         CREATE TABLE workout_sessions (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            week_id UNIQUEIDENTIFIER NULL,
+            order_index INT NULL,
             name NVARCHAR(255) NOT NULL,
             session_date DATE NOT NULL,
             notes NVARCHAR(MAX),
             created_at DATETIME2 DEFAULT GETDATE(),
-            modified_at DATETIME2 DEFAULT GETDATE()
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT FK_workout_sessions_week FOREIGN KEY (week_id) REFERENCES weeks(id)
         );
     END
 
