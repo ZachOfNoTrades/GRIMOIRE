@@ -40,6 +40,7 @@ export interface ProgramWeek {
   description: string | null;
   is_current: boolean;
   is_completed: boolean;
+  volume: number; // total working set volume (reps * weight) for the week
   sessions: ProgramSession[];
 }
 

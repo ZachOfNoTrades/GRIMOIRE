@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { Dumbbell, Plus } from "lucide-react";
+import { Dumbbell, Layers, Plus } from "lucide-react";
+import { Program } from "../../types/program";
+import ProgramDashboard from "../../components/ProgramDashboard";
 
 export default function WestHomePage() {
 
   // DATA
   const [exerciseCount, setExerciseCount] = useState(0);
+  const [currentProgram, setCurrentProgram] = useState<Program | null>(null);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -25,10 +28,19 @@ export default function WestHomePage() {
 
   const fetchData = async () => {
     try {
-      const response = await fetch("/modules/west/api/exercises");
-      if (response.ok) {
-        const data = await response.json();
+      const [exercisesResponse, programResponse] = await Promise.all([
+        fetch("/modules/west/api/exercises"),
+        fetch("/modules/west/api/programs/current"),
+      ]);
+
+      if (exercisesResponse.ok) {
+        const data = await exercisesResponse.json();
         setExerciseCount(data.length);
+      }
+
+      if (programResponse.ok) {
+        const data = await programResponse.json();
+        setCurrentProgram(data);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -96,6 +108,38 @@ export default function WestHomePage() {
             {isCreatingSession ? "Creating..." : "New Session"}
           </Button>
         </div>
+
+        {/* PROGRAM DASHBOARD */}
+        {(isLoading || currentProgram) && (
+          <div
+            className="card cursor-pointer mb-6"
+            onClick={() => currentProgram && router.push(`/modules/west/ui/programs/${currentProgram.id}`)}
+          >
+
+            {/* HEADER */}
+            <div className="card-header">
+
+              {/* PROGRAM NAME */}
+              <h2 className="text-card-title">
+                <Layers className="w-5 h-5" />
+                {currentProgram ? currentProgram.name : "Loading program..."}
+              </h2>
+            </div>
+
+            {/* CHART */}
+            <div className="card-content">
+              {isLoading ? (
+
+                // LOADING PLACEHOLDER
+                <p className="text-secondary text-center py-8">Loading...</p>
+              ) : currentProgram && (
+
+                // CHART CONTENT
+                <ProgramDashboard program={currentProgram} />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* NAVIGATION CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

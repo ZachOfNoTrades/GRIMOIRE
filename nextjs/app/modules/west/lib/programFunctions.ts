@@ -26,6 +26,29 @@ export async function getAllPrograms(): Promise<ProgramSummary[]> {
   }
 }
 
+export async function getCurrentProgramId(): Promise<string | null> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request().query(`
+      SELECT id FROM programs WHERE is_current = 1
+    `);
+
+    if (result.recordset.length === 0) {
+      return null;
+    }
+
+    return result.recordset[0].id;
+  } catch (error) {
+    console.error('Error fetching current program id:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 export async function getProgramById(programId: string): Promise<Program> {
   let pool;
   try {
@@ -55,6 +78,13 @@ export async function getProgramById(programId: string): Promise<Program> {
           w.description     AS week_description,
           w.is_current      AS week_is_current,
           w.is_completed    AS week_is_completed,
+          COALESCE((
+            SELECT SUM(ses.reps * ses.weight)
+            FROM session_exercise_sets ses
+            JOIN session_exercises se ON ses.session_exercise_id = se.id
+            JOIN workout_sessions ws2 ON se.session_id = ws2.id
+            WHERE ws2.week_id = w.id AND ses.is_warmup = 0
+          ), 0)             AS week_volume,
           ws.id             AS session_id,
           ws.name           AS session_name,
           ws.session_date,
@@ -121,6 +151,7 @@ export async function getProgramById(programId: string): Promise<Program> {
           description: row.week_description,
           is_current: row.week_is_current,
           is_completed: row.week_is_completed,
+          volume: row.week_volume,
           sessions: [],
         };
         weekMap.set(row.week_id, week);
