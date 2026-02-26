@@ -24,6 +24,30 @@ export async function getAllWorkoutSessions(): Promise<WorkoutSession[]> {
   }
 }
 
+export async function createWorkoutSession(name: string, sessionDate: string): Promise<string> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('name', name)
+      .input('sessionDate', sessionDate)
+      .query(`
+        INSERT INTO workout_sessions (name, session_date)
+        OUTPUT INSERTED.id
+        VALUES (@name, @sessionDate)
+      `);
+
+    return result.recordset[0].id;
+  } catch (error) {
+    console.error('Error creating workout session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 export async function getWorkoutSessionById(id: string): Promise<WorkoutSession> {
   let pool;
   try {

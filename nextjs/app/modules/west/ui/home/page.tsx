@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Dumbbell, History } from "lucide-react";
+import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
+import { Dumbbell, Plus } from "lucide-react";
 
 export default function WestHomePage() {
 
@@ -11,6 +14,9 @@ export default function WestHomePage() {
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+
+  const router = useRouter();
 
   // LOAD DATA
   useEffect(() => {
@@ -29,7 +35,37 @@ export default function WestHomePage() {
     } finally {
       setIsLoading(false);
     }
-  }
+  };
+
+  // Create a new workout session and navigate to it
+  const handleAddSession = async () => {
+    setIsCreatingSession(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const response = await fetch("/modules/west/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `Workout ${today}`,
+          sessionDate: today,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to create session");
+        return;
+      }
+
+      const { id } = await response.json();
+      router.push(`/modules/west/ui/session/${id}?new=true`);
+    } catch (error) {
+      console.error("Error creating session:", error);
+      toast.error("Failed to create session");
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
 
   return (
 
@@ -47,6 +83,18 @@ export default function WestHomePage() {
             <Dumbbell className="w-8 h-8" />
             Workout Tracker
           </h1>
+        </div>
+
+        {/* ADD SESSION BUTTON */}
+        <div className="mb-6">
+          <Button
+            className="btn-primary"
+            onClick={handleAddSession}
+            disabled={isCreatingSession}
+          >
+            <Plus className="w-4 h-4" />
+            {isCreatingSession ? "Creating..." : "New Session"}
+          </Button>
         </div>
 
         {/* NAVIGATION CARDS */}

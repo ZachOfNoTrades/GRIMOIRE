@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Edit2, Save, StickyNote, Plus, Trash2, X } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -33,12 +33,26 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const displayExercises = isEditingExercises ? editedExercises : sessionExercises;  // Determine which exercises to render
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isNewSession = searchParams.get("new") === "true";
 
   // LOAD DATA
   useEffect(() => {
     fetchSessionData();
     fetchExercises();
   }, [id]);
+
+  // Initialize edit modes for new sessions
+  useEffect(() => {
+    if (isNewSession && session && !isLoading) {
+      handleStartEditSession();
+      handleStartEditExercises();
+      handleAddExercise();
+
+      // Clear the query param so refresh doesn't re-trigger
+      router.replace(`/modules/west/ui/session/${id}`, { scroll: false });
+    }
+  }, [isNewSession, session, isLoading]);
 
   const fetchSessionData = async () => {
     setIsLoading(true);
@@ -326,7 +340,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/history")}
+            onClick={() => router.back()}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
