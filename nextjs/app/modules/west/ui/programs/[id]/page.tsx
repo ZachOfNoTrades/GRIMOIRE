@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Dumbbell, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
+import SessionTimer from "../../../components/SessionTimer";
 
 export default function ProgramPage({ params }: { params: Promise<{ id: string }> }) {
 
@@ -194,7 +195,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                             // SESSION CARD
                             <div
                               key={session.id}
-                              className={`sub-card cursor-pointer ${session.is_current ? 'status-active' : ''} ${session.is_completed ? 'status-completed' : ''}`}
+                              className={`sub-card cursor-pointer ${session.is_current && !session.is_completed ? 'status-active' : ''} ${session.is_completed ? 'status-completed' : ''}`}
                               onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
                             >
 
@@ -205,16 +206,23 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                 <div className="flex items-center gap-2">
 
                                   {/* STATUS ICON */}
-                                  {session.is_current ? (
-                                    <CircleDot className="w-4 h-4 status-active-text" />
-                                  ) : session.is_completed ? (
+                                  {session.is_completed ? (
                                     <CircleCheck className="w-4 h-4 text-secondary" />
+                                  ) : session.started_at ? (
+                                    <CircleDot className="w-4 h-4 status-active-text" />
+                                  ) : session.is_current ? (
+                                    <Circle className="w-4 h-4 status-active-text" />
                                   ) : (
                                     <Circle className="w-4 h-4 text-secondary" />
                                   )}
 
                                   {/* NAME */}
                                   <span className="font-medium">{session.name}</span>
+
+                                  {/* TIMER */}
+                                  {session.started_at && !session.is_completed && (
+                                    <SessionTimer startedAt={session.started_at} compact />
+                                  )}
                                 </div>
 
                                 {/* SESSION DATE */}

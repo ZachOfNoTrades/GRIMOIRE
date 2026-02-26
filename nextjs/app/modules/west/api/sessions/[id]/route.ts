@@ -34,9 +34,9 @@ export async function PUT(
 ) {
   try {
     const { id } = await context.params;
-    const { name, notes } = await request.json();
+    const { name, notes, started_at, is_current, is_completed } = await request.json();
 
-    await updateWorkoutSession(id, name, notes);
+    await updateWorkoutSession(id, name, notes, started_at, is_current, is_completed);
 
     // Return the updated session
     const updatedSession = await getWorkoutSessionById(id);

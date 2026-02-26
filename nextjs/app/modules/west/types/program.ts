@@ -1,12 +1,14 @@
-export function getStatusLabel(isCurrent: boolean, isCompleted: boolean): string {
-  if (isCurrent) return "In Progress";
+export function getStatusLabel(isCurrent: boolean, isCompleted: boolean, startedAt?: Date | null): string {
   if (isCompleted) return "Complete";
+  if (startedAt) return "In Progress";
+  if (isCurrent) return "Current";
   return "Not Started";
 }
 
-export function getStatusBadge(isCurrent: boolean, isCompleted: boolean): string {
-  if (isCurrent) return "badge-warning";
+export function getStatusBadge(isCurrent: boolean, isCompleted: boolean, startedAt?: Date | null): string {
   if (isCompleted) return "badge-success";
+  if (startedAt) return "badge-warning";
+  if (isCurrent) return "badge-default";
   return "badge-muted";
 }
 
@@ -26,6 +28,7 @@ export interface ProgramSession {
   session_date: Date;
   notes: string | null;
   order_index: number | null;
+  started_at: Date | null;
   is_current: boolean;
   is_completed: boolean;
 }

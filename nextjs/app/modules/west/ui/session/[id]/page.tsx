@@ -2,16 +2,16 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus } from "lucide-react";
+import { StickyNote, Plus, CircleCheck, RotateCcw, Play } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
-import { getStatusLabel, getStatusBadge } from "../../../types/program";
 import { SessionExerciseWithSets } from "../../../types/sessionExercise";
 import { Exercise } from "../../../types/exercise";
 import SessionNavbar from "./SessionNavbar";
 import DeleteSessionModal from "./DeleteSessionModal";
 import EditExerciseModal from "./EditExerciseModal";
+import SessionTimer from "../../../components/SessionTimer";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -34,6 +34,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isExerciseModalOpen, setIsExerciseModalOpen] = useState(false);
   const [exerciseModalData, setExerciseModalData] = useState<SessionExerciseWithSets | null>(null);
   const [isSavingExercise, setIsSavingExercise] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -113,6 +114,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleSaveSession = async () => {
+    if (!session) return;
     if (!editedSessionName.trim()) {
       toast.error("Session name is required");
       return;
@@ -126,6 +128,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify({
           name: editedSessionName.trim(),
           notes: editedSessionNotes.trim() || null,
+          started_at: session.started_at,
+          is_current: session.is_current,
+          is_completed: session.is_completed,
         }),
       });
 
@@ -166,6 +171,40 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     } catch (error) {
       toast.error("Failed to delete session");
       console.error("Error deleting session:", error);
+    }
+  };
+
+  // STATUS HANDLERS
+  const handleUpdateStatus = async (overrides: Partial<WorkoutSession>) => {
+    if (!session) return;
+    setIsUpdatingStatus(true);
+    try {
+      const response = await fetch(`/modules/west/api/sessions/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: session.name,
+          notes: session.notes,
+          started_at: session.started_at,
+          is_current: session.is_current,
+          is_completed: session.is_completed,
+          ...overrides,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to update session");
+        return;
+      }
+
+      const updatedSession = await response.json();
+      setSession(updatedSession);
+    } catch (error) {
+      toast.error("Failed to update session");
+      console.error("Error updating session:", error);
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
@@ -338,10 +377,41 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 {/* TITLE */}
                 <h2 className="text-card-title">Session Info</h2>
 
-                {/* STATUS BADGE */}
-                <span className={getStatusBadge(session.is_current, session.is_completed)}>
-                  {getStatusLabel(session.is_current, session.is_completed)}
-                </span>
+                {/* STATUS ACTION BUTTON */}
+                {session.is_completed ? (
+
+                  // RESUME WORKOUT BUTTON
+                  <Button
+                    className="btn-off"
+                    onClick={() => handleUpdateStatus({ is_completed: false, is_current: true, started_at: new Date() })}
+                    disabled={isUpdatingStatus}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    {isUpdatingStatus ? "Saving..." : "Resume Workout"}
+                  </Button>
+                ) : session.is_current && session.started_at ? (
+
+                  // COMPLETE BUTTON
+                  <Button
+                    className="btn-primary"
+                    onClick={() => handleUpdateStatus({ is_completed: true, is_current: false })}
+                    disabled={isUpdatingStatus}
+                  >
+                    <CircleCheck className="w-4 h-4" />
+                    {isUpdatingStatus ? "Saving..." : "Complete"}
+                  </Button>
+                ) : (
+
+                  // START BUTTON
+                  <Button
+                    className="btn-primary"
+                    onClick={() => handleUpdateStatus({ is_current: true, started_at: new Date() })}
+                    disabled={isUpdatingStatus}
+                  >
+                    <Play className="w-4 h-4" />
+                    {isUpdatingStatus ? "Saving..." : "Start Workout"}
+                  </Button>
+                )}
               </div>
 
               {/* CARD CONTENT */}
@@ -381,6 +451,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   </>
                 ) : (
                   <>
+
+                    {/* TIMER */}
+                    {session.started_at && !session.is_completed && (
+                      <div>
+                        <label className="text-secondary">Duration</label>
+                        <SessionTimer startedAt={session.started_at} />
+                      </div>
+                    )}
 
                     {/* DATE */}
                     <div>

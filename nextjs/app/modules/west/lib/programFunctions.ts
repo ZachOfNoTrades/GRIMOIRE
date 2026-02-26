@@ -60,6 +60,7 @@ export async function getProgramById(programId: string): Promise<Program> {
           ws.session_date,
           ws.notes          AS session_notes,
           ws.order_index    AS session_order_index,
+          ws.started_at     AS session_started_at,
           ws.is_current     AS session_is_current,
           ws.is_completed   AS session_is_completed
         FROM programs p
@@ -135,6 +136,7 @@ export async function getProgramById(programId: string): Promise<Program> {
         session_date: row.session_date,
         notes: row.session_notes,
         order_index: row.session_order_index,
+        started_at: row.session_started_at,
         is_current: row.session_is_current,
         is_completed: row.session_is_completed,
       };
