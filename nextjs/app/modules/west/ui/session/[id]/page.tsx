@@ -18,12 +18,19 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [exercises, setExercises] = useState<Exercise[]>([]);
 
   // INPUT
+  const [editedSessionName, setEditedSessionName] = useState("");
+  const [editedSessionNotes, setEditedSessionNotes] = useState("");
   const [editedExercises, setEditedExercises] = useState<SessionExerciseWithSets[]>([]);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isEditingSession, setIsEditingSession] = useState(false);
+  const [isSavingSession, setIsSavingSession] = useState(false);
+  const [isEditingExercises, setIsEditingExercises] = useState(false);
+  const [isSavingExercises, setIsSavingExercises] = useState(false);
+
+  // DERIVED
+  const displayExercises = isEditingExercises ? editedExercises : sessionExercises;  // Determine which exercises to render
 
   const router = useRouter();
 
@@ -78,25 +85,75 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     });
   };
 
-  const handleStartEdit = () => {
-    // Deep copy exercises for editing
-    setEditedExercises(JSON.parse(JSON.stringify(sessionExercises)));
-    setIsEditing(true);
+  // SESSION INFO HANDLERS
+  const handleStartEditSession = () => {
+    if (!session) return;
+    setEditedSessionName(session.name);
+    setEditedSessionNotes(session.notes || "");
+    setIsEditingSession(true);
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
+  const handleCancelEditSession = () => {
+    setIsEditingSession(false);
+    setEditedSessionName("");
+    setEditedSessionNotes("");
+  };
+
+  const handleSaveSession = async () => {
+    if (!editedSessionName.trim()) {
+      toast.error("Session name is required");
+      return;
+    }
+
+    setIsSavingSession(true);
+    try {
+      const response = await fetch(`/modules/west/api/sessions/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editedSessionName.trim(),
+          notes: editedSessionNotes.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to update session");
+        return;
+      }
+
+      toast.success("Session updated successfully");
+      setIsEditingSession(false);
+      fetchSessionData();
+
+    } catch (error) {
+      toast.error("Failed to update session");
+      console.error("Error saving session:", error);
+    } finally {
+      setIsSavingSession(false);
+    }
+  };
+
+  // EXERCISE HANDLERS
+  const handleStartEditExercises = () => {
+    // Deep copy exercises for editing
+    setEditedExercises(JSON.parse(JSON.stringify(sessionExercises)));
+    setIsEditingExercises(true);
+  };
+
+  const handleCancelEditExercises = () => {
+    setIsEditingExercises(false);
     setEditedExercises([]);
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveExercises = async () => {
     const hasUnselectedExercise = editedExercises.some((e) => !e.exercise_id);
     if (hasUnselectedExercise) {
       toast.error("Please select an exercise for all entries");
       return;
     }
 
-    setIsSaving(true);
+    setIsSavingExercises(true);
     try {
       const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
         method: "PUT",
@@ -111,7 +168,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }
 
       toast.success("Exercises updated successfully");
-      setIsEditing(false);
+      setIsEditingExercises(false);
       setEditedExercises([]);
       fetchSessionData();
 
@@ -119,7 +176,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       toast.error("Failed to update exercises");
       console.error("Error saving session exercises:", error);
     } finally {
-      setIsSaving(false);
+      setIsSavingExercises(false);
     }
   };
 
@@ -255,9 +312,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  // Determine which exercises to render
-  const displayExercises = isEditing ? editedExercises : sessionExercises;
-
   return (
 
     // BACKGROUND
@@ -268,57 +322,19 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       <main className="page-container">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
+        <div className="mb-4">
 
-            {/* BACK BUTTON */}
-            <Button
-              onClick={() => router.push("/modules/west/ui/history")}
-              className="btn-link !pl-0"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </Button>
+          {/* BACK BUTTON */}
+          <Button
+            onClick={() => router.push("/modules/west/ui/history")}
+            className="btn-link !pl-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
+          </Button>
 
-            {/* TITLE */}
-            <h1 className="text-page-title">{session ? session.name : "Session Not Found"}</h1>
-          </div>
-
-          {/* VIEW MODE ACTION GROUP */}
-          {!isEditing && session && (
-            <Button
-              onClick={handleStartEdit}
-              className="btn-primary !p-3"
-              title="Edit exercises"
-            >
-              <Edit2 className="w-4 h-4" />
-            </Button>
-          )}
-
-          {/* EDIT MODE ACTION GROUP */}
-          {isEditing && (
-            <div className="flex items-center space-x-2">
-
-              {/* CANCEL BUTTON */}
-              <Button
-                onClick={handleCancelEdit}
-                disabled={isSaving}
-                className="btn-link"
-              >
-                <span>Cancel</span>
-              </Button>
-
-              {/* SAVE BUTTON */}
-              <Button
-                onClick={handleSaveEdit}
-                disabled={isSaving}
-                className="btn-success"
-              >
-                <Save className="w-4 h-4" />
-                <span>{isSaving ? "Saving..." : "Save"}</span>
-              </Button>
-            </div>
-          )}
+          {/* TITLE */}
+          <h1 className="text-page-title">{session ? session.name : "Session Not Found"}</h1>
         </div>
 
         {/* CARDS */}
@@ -330,230 +346,353 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
               {/* CARD HEADER */}
               <div className="card-header">
+
+                {/* TITLE */}
                 <h2 className="text-card-title">Session Info</h2>
+
+                {/* VIEW MODE ACTIONS */}
+                {!isEditingSession && (
+                  <Button
+                    onClick={handleStartEditSession}
+                    className="btn-primary !p-2"
+                    title="Edit session info"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                )}
+
+                {/* EDIT MODE ACTIONS */}
+                {isEditingSession && (
+                  <div className="flex items-center space-x-2">
+
+                    {/* CANCEL BUTTON */}
+                    <Button
+                      onClick={handleCancelEditSession}
+                      disabled={isSavingSession}
+                      className="btn-link"
+                    >
+                      <span>Cancel</span>
+                    </Button>
+
+                    {/* SAVE BUTTON */}
+                    <Button
+                      onClick={handleSaveSession}
+                      disabled={isSavingSession}
+                      className="btn-success"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{isSavingSession ? "Saving..." : "Save"}</span>
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* CARD CONTENT */}
               <div className="card-content">
 
-                {/* DATE */}
-                <div>
-                  <label className="text-secondary">Date</label>
-                  <p className="text-primary">{formatDate(session.session_date)}</p>
-                </div>
+                {isEditingSession ? (
+                  <>
 
-                {/* EXERCISE COUNT */}
-                <div>
-                  <label className="text-secondary">Exercises</label>
-                  <p className="text-primary">{sessionExercises.length}</p>
-                </div>
+                    {/* NAME INPUT */}
+                    <div>
+                      <label className="text-secondary">Name</label>
+                      <input
+                        type="text"
+                        value={editedSessionName}
+                        onChange={(e) => setEditedSessionName(e.target.value)}
+                        className="input-field"
+                      />
+                    </div>
 
-                {/* SESSION NOTES */}
-                {session.notes && (
-                  <div>
-                    <label className="text-secondary">Notes</label>
-                    <p className="text-primary">{session.notes}</p>
-                  </div>
+                    {/* DATE (READ-ONLY) */}
+                    <div>
+                      <label className="text-secondary">Date</label>
+                      <p className="text-primary">{formatDate(session.session_date)}</p>
+                    </div>
+
+                    {/* NOTES INPUT */}
+                    <div>
+                      <label className="text-secondary">Notes</label>
+                      <input
+                        type="text"
+                        value={editedSessionNotes}
+                        onChange={(e) => setEditedSessionNotes(e.target.value)}
+                        className="input-field"
+                        placeholder="Session notes..."
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+
+                    {/* DATE */}
+                    <div>
+                      <label className="text-secondary">Date</label>
+                      <p className="text-primary">{formatDate(session.session_date)}</p>
+                    </div>
+
+                    {/* EXERCISE COUNT */}
+                    <div>
+                      <label className="text-secondary">Exercises</label>
+                      <p className="text-primary">{sessionExercises.length}</p>
+                    </div>
+
+                    {/* SESSION NOTES */}
+                    {session.notes && (
+                      <div>
+                        <label className="text-secondary">Notes</label>
+                        <p className="text-primary">{session.notes}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           )}
 
-          {/* EXERCISES */}
-          {displayExercises.length === 0 ? (
+          {/* EXERCISES CARD */}
+          <div className="card">
 
-            // EMPTY STATE
-            <div className="card">
-              <p className="table-empty">No exercises recorded for this session</p>
-            </div>
-          ) : (
+            {/* CARD HEADER */}
+            <div className="card-header">
 
-            // EXERCISE CARDS
-            displayExercises.map((exercise, exerciseIndex) => (
+              {/* TITLE */}
+              <h2 className="text-card-title">Exercises ({displayExercises.length})</h2>
 
-              // EXERCISE CARD
-              <div key={exercise.id} className="card">
+              {/* VIEW MODE ACTIONS */}
+              {!isEditingExercises && session && (
+                <Button
+                  onClick={handleStartEditExercises}
+                  className="btn-primary !p-2"
+                  title="Edit exercises"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </Button>
+              )}
 
-                {/* CARD HEADER */}
-                <div className="card-header">
+              {/* EDIT MODE ACTIONS */}
+              {isEditingExercises && (
+                <div className="flex items-center space-x-2">
 
-                  {/* EXERCISE NAME */}
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 flex-1">
+                  {/* CANCEL BUTTON */}
+                  <Button
+                    onClick={handleCancelEditExercises}
+                    disabled={isSavingExercises}
+                    className="btn-link"
+                  >
+                    <span>Cancel</span>
+                  </Button>
 
-                      {/* EXERCISE DROPDOWN */}
-                      <select
-                        value={exercise.exercise_id}
-                        onChange={(e) => updateExerciseId(exerciseIndex, e.target.value)}
-                        className="input-field flex-1"
-                      >
-                        <option value="" disabled>Select an exercise...</option>
-                        {exercises.map((ex) => (
-                          <option key={ex.id} value={ex.id}>{ex.name}</option>
-                        ))}
-                      </select>
-
-                      {/* REMOVE EXERCISE BUTTON */}
-                      <Button
-                        onClick={() => handleRemoveExercise(exerciseIndex)}
-                        className="btn-link btn-link-delete !p-2"
-                        title="Remove exercise"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <h3 className="text-card-title">
-                      {exercise.exercise_name}
-                    </h3>
-                  )}
+                  {/* SAVE BUTTON */}
+                  <Button
+                    onClick={handleSaveExercises}
+                    disabled={isSavingExercises}
+                    className="btn-success"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isSavingExercises ? "Saving..." : "Save"}</span>
+                  </Button>
                 </div>
+              )}
+            </div>
 
-                {/* CARD CONTENT */}
-                <div className="card-content">
+            {/* CARD CONTENT */}
+            <div className="card-content">
 
-                  {/* EXERCISE NOTES */}
-                  {isEditing ? (
+              {displayExercises.length === 0 ? (
 
-                    // EDITABLE EXERCISE NOTES
-                    <div className="mr-10">
-                      <label className="text-secondary">Notes</label>
-                      <input
-                        type="text"
-                        placeholder="Exercise notes..."
-                        value={exercise.notes || ""}
-                        onChange={(e) => updateExerciseNotes(exerciseIndex, e.target.value)}
-                        className="input-field"
-                      />
-                    </div>
-                  ) : (
-                    exercise.notes && (
-                      <div className="text-secondary flex items-center gap-1">
-                        <StickyNote className="w-3 h-3" />
-                        <span>{exercise.notes}</span>
-                      </div>
-                    )
-                  )}
+                // EMPTY STATE
+                <p className="table-empty">No exercises recorded for this session</p>
+              ) : (
 
-                  {/* SETS */}
-                  {isEditing ? (
+                // EXERCISE SUB-CARDS
+                displayExercises.map((exercise, exerciseIndex) => (
 
-                    // EDITABLE SET ROWS
-                    <div className="space-y-4">
-                      {exercise.sets.map((set, setIndex) => (
+                  // EXERCISE SUB-CARD
+                  <div key={exercise.id} className="sub-card">
 
-                        // EDITABLE SET ROW
-                        <div key={set.id} className="flex items-center gap-2">
+                    {/* SUB-CARD HEADER */}
+                    <div className="sub-card-header">
 
-                          {/* WEIGHT INPUT */}
-                          <div className="flex flex-col">
-                            <label className="text-secondary">Weight</label>
-                            <input
-                              type="number"
-                              value={set.weight}
-                              onChange={(e) => updateSetField(exerciseIndex, setIndex, "weight", e.target.value)}
-                              className="input-field !max-w-10 text-center"
-                              step="0.5"
-                              min="0"
-                            />
-                          </div>
-                          <span className="text-secondary mt-5">x</span>
+                      {/* EXERCISE NAME */}
+                      {isEditingExercises ? (
+                        <div className="flex items-center gap-2 flex-1">
 
-                          {/* REPS INPUT */}
-                          <div className="flex flex-col">
-                            <label className="text-secondary">Reps</label>
-                            <input
-                              type="number"
-                              value={set.reps}
-                              onChange={(e) => updateSetField(exerciseIndex, setIndex, "reps", e.target.value)}
-                              className="input-field !max-w-10 text-center"
-                              min="0"
-                            />
-                          </div>
-                          <span className="text-secondary mt-5">@</span>
-
-                          {/* RPE INPUT */}
-                          <div className="flex flex-col">
-                            <label className="text-secondary">RPE</label>
-                            <input
-                              type="number"
-                              value={set.rpe ?? ""}
-                              onChange={(e) => updateSetField(exerciseIndex, setIndex, "rpe", e.target.value)}
-                              className="input-field !max-w-10 text-center"
-                              placeholder="-"
-                              step="0.5"
-                              min="1"
-                              max="10"
-                            />
-                          </div>
-                          <span className="text-secondary mt-5">-</span>
-
-                          {/* SET NOTES INPUT */}
-                          <div className="flex flex-col flex-1">
-                            <label className="text-secondary">Notes</label>
-                            <input
-                              type="text"
-                              value={set.notes || ""}
-                              onChange={(e) => updateSetField(exerciseIndex, setIndex, "notes", e.target.value)}
-                              className="input-field"
-                              placeholder="-"
-                            />
-                          </div>
-
-                          {/* REMOVE SET BUTTON */}
-                          <Button
-                            onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
-                            className="btn-link btn-link-delete mt-5"
-                            title="Remove set"
+                          {/* EXERCISE DROPDOWN */}
+                          <select
+                            value={exercise.exercise_id}
+                            onChange={(e) => updateExerciseId(exerciseIndex, e.target.value)}
+                            className="input-field flex-1"
                           >
-                            <X className="w-4 h-4" />
+                            <option value="" disabled>Select an exercise...</option>
+                            {exercises.map((ex) => (
+                              <option key={ex.id} value={ex.id}>{ex.name}</option>
+                            ))}
+                          </select>
+
+                          {/* REMOVE EXERCISE BUTTON */}
+                          <Button
+                            onClick={() => handleRemoveExercise(exerciseIndex)}
+                            className="btn-link btn-link-delete !p-2"
+                            title="Remove exercise"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
-                      ))}
-
-                      {/* ADD SET BUTTON */}
-                      <Button
-                        onClick={() => handleAddSet(exerciseIndex)}
-                        className="btn-link"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Add Set</span>
-                      </Button>
+                      ) : (
+                        <h3 className="text-card-title">
+                          {exercise.exercise_name}
+                        </h3>
+                      )}
                     </div>
-                  ) : exercise.sets.length === 0 ? (
 
-                    // NO SETS PLACEHOLDER
-                    <p className="text-secondary">No sets recorded</p>
-                  ) : (
+                    {/* SUB-CARD CONTENT */}
+                    <div className="sub-card-content">
 
-                    // READ-ONLY SET ROWS
-                    <div className="flex flex-col gap-1">
-                      {exercise.sets.map((set) => (
+                      {/* EXERCISE NOTES */}
+                      {isEditingExercises ? (
 
-                        // SET ROW
-                        <p key={set.id}>
-                          <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                          {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                          {set.notes && <span className="text-secondary"> - {set.notes}</span>}
-                        </p>
-                      ))}
+                        // EDITABLE EXERCISE NOTES
+                        <div className="mr-10">
+                          <label className="text-secondary">Notes</label>
+                          <input
+                            type="text"
+                            placeholder="Exercise notes..."
+                            value={exercise.notes || ""}
+                            onChange={(e) => updateExerciseNotes(exerciseIndex, e.target.value)}
+                            className="input-field"
+                          />
+                        </div>
+                      ) : (
+                        exercise.notes && (
+                          <div className="text-secondary flex items-center gap-1">
+                            <StickyNote className="w-3 h-3" />
+                            <span>{exercise.notes}</span>
+                          </div>
+                        )
+                      )}
+
+                      {/* SETS */}
+                      {isEditingExercises ? (
+
+                        // EDITABLE SET ROWS
+                        <div className="space-y-4">
+                          {exercise.sets.map((set, setIndex) => (
+
+                            // EDITABLE SET ROW
+                            <div key={set.id} className="flex items-center gap-2">
+
+                              {/* WEIGHT INPUT */}
+                              <div className="flex flex-col">
+                                <label className="text-secondary">Weight</label>
+                                <input
+                                  type="number"
+                                  value={set.weight}
+                                  onChange={(e) => updateSetField(exerciseIndex, setIndex, "weight", e.target.value)}
+                                  className="input-field !max-w-10 text-center"
+                                  step="0.5"
+                                  min="0"
+                                />
+                              </div>
+                              <span className="text-secondary mt-5">x</span>
+
+                              {/* REPS INPUT */}
+                              <div className="flex flex-col">
+                                <label className="text-secondary">Reps</label>
+                                <input
+                                  type="number"
+                                  value={set.reps}
+                                  onChange={(e) => updateSetField(exerciseIndex, setIndex, "reps", e.target.value)}
+                                  className="input-field !max-w-10 text-center"
+                                  min="0"
+                                />
+                              </div>
+                              <span className="text-secondary mt-5">@</span>
+
+                              {/* RPE INPUT */}
+                              <div className="flex flex-col">
+                                <label className="text-secondary">RPE</label>
+                                <input
+                                  type="number"
+                                  value={set.rpe ?? ""}
+                                  onChange={(e) => updateSetField(exerciseIndex, setIndex, "rpe", e.target.value)}
+                                  className="input-field !max-w-10 text-center"
+                                  placeholder="-"
+                                  step="0.5"
+                                  min="1"
+                                  max="10"
+                                />
+                              </div>
+                              <span className="text-secondary mt-5">-</span>
+
+                              {/* SET NOTES INPUT */}
+                              <div className="flex flex-col flex-1">
+                                <label className="text-secondary">Notes</label>
+                                <input
+                                  type="text"
+                                  value={set.notes || ""}
+                                  onChange={(e) => updateSetField(exerciseIndex, setIndex, "notes", e.target.value)}
+                                  className="input-field"
+                                  placeholder="-"
+                                />
+                              </div>
+
+                              {/* REMOVE SET BUTTON */}
+                              <Button
+                                onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
+                                className="btn-link btn-link-delete mt-5"
+                                title="Remove set"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+
+                          {/* ADD SET BUTTON */}
+                          <Button
+                            onClick={() => handleAddSet(exerciseIndex)}
+                            className="btn-link"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Add Set</span>
+                          </Button>
+                        </div>
+                      ) : exercise.sets.length === 0 ? (
+
+                        // NO SETS PLACEHOLDER
+                        <p className="text-secondary">No sets recorded</p>
+                      ) : (
+
+                        // READ-ONLY SET ROWS
+                        <div className="flex flex-col gap-1">
+                          {exercise.sets.map((set) => (
+
+                            // SET ROW
+                            <p key={set.id}>
+                              <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                              {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                              {set.notes && <span className="text-secondary"> - {set.notes}</span>}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
+                  </div>
+                ))
+              )}
 
-          {/* ADD EXERCISE BUTTON */}
-          {isEditing && (
-            <Button
-              onClick={handleAddExercise}
-              className="btn-link"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Exercise</span>
-            </Button>
-          )}
+              {/* ADD EXERCISE BUTTON */}
+              {isEditingExercises && (
+                <Button
+                  onClick={handleAddExercise}
+                  className="btn-link"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Exercise</span>
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </main>
     </div>

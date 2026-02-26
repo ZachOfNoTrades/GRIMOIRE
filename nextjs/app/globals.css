@@ -384,6 +384,29 @@ body {
   gap: 0.75rem;
 }
 
+/* SUB-CARDS */
+.sub-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--hover-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.sub-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.sub-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .module-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);

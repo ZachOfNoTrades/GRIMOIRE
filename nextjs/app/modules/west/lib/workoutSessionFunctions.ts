@@ -47,6 +47,33 @@ export async function getWorkoutSessionById(id: string): Promise<WorkoutSession>
   }
 }
 
+export async function updateWorkoutSession(id: string, name: string, notes: string | null): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('id', id)
+      .input('name', name)
+      .input('notes', notes)
+      .query(`
+        UPDATE workout_sessions
+        SET name = @name, notes = @notes, modified_at = GETDATE()
+        WHERE id = @id
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No workout session found for id: '${id}'`);
+    }
+  } catch (error) {
+    console.error('Error updating workout session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 export async function getWorkoutSessionCount(): Promise<number> {
   let pool;
   try {
