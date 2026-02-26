@@ -90,6 +90,9 @@
 
   /* Stat section background */
   --stat-section-bg: rgb(248 250 252); /* slate-50 */
+
+  /* Modal */
+  --modal-backdrop: rgb(0 0 0 / 0.5);
 }
 
 /* DARK MODE COLORS */
@@ -166,6 +169,9 @@
 
     /* Stat section background - dark mode */
     --stat-section-bg: rgb(31 41 55); /* gray-800 */
+
+    /* Modal */
+    --modal-backdrop: rgb(0 0 0 / 0.7);
   }
 }
 
@@ -392,6 +398,13 @@ body {
   border: 1px solid var(--card-border);
   border-radius: 0.5rem;
   padding: 1rem;
+  transition: all 200ms ease-in-out;
+}
+
+.sub-card:hover {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  border-color: var(--input-border);
+  transform: translateY(-2px);
 }
 
 .sub-card-header {
@@ -459,14 +472,25 @@ body {
 }
 
 /* MODALS */
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-card-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background-color: var(--solid-background);
+  background-color: var(--modal-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
+  animation: modal-backdrop-in 200ms ease-out;
 }
 
 .modal-card {
@@ -477,6 +501,7 @@ body {
   padding: 1.5rem;
   max-width: 600px;
   width: 100%;
+  animation: modal-card-in 250ms ease-out;
 }
 
 .modal-card-compact {
@@ -486,6 +511,7 @@ body {
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   padding: 1.5rem;
   max-width: 450px;
+  animation: modal-card-in 250ms ease-out;
   width: 100%;
 }
 
@@ -904,6 +930,10 @@ body {
 
 .btn-link-delete {
   color: var(--alert-error-text);
+}
+
+.btn-link-primary {
+  color: var(--btn-primary-bg);
 }
 
 .btn:disabled {

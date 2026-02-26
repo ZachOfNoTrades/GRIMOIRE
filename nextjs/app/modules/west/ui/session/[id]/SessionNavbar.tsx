@@ -1,12 +1,13 @@
 "use client"
 
-import { Edit2, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit2, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 
 interface SessionNavbarProps {
   isEditing: boolean;
   isSaving: boolean;
+  onBack: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onCancel: () => void;
@@ -16,6 +17,7 @@ interface SessionNavbarProps {
 export default function SessionNavbar({
   isEditing,
   isSaving,
+  onBack,
   onDelete,
   onEdit,
   onCancel,
@@ -23,6 +25,15 @@ export default function SessionNavbar({
 }: SessionNavbarProps) {
   return (
     <Navbar>
+
+      {/* BACK BUTTON */}
+      <Button
+        onClick={onBack}
+        className="btn-link mr-auto"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>Back</span>
+      </Button>
 
       {/* VIEW MODE ACTIONS */}
       {!isEditing && (
