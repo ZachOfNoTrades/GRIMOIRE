@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Edit2, Save, StickyNote, Plus } from "lucide-react";
+import { ArrowLeft, Edit2, Save, StickyNote, Plus, Trash2, X } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -149,6 +149,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setEditedExercises((prev) => [...prev, newExercise]);
   };
 
+  const handleRemoveExercise = (exerciseIndex: number) => {
+    const updated = editedExercises.filter((_, i) => i !== exerciseIndex);
+    // Re-number order_index
+    updated.forEach((exercise, i) => {
+      exercise.order_index = i + 1;
+    });
+    setEditedExercises(updated);
+  };
+
   const handleAddSet = (exerciseIndex: number) => {
     const exercise = editedExercises[exerciseIndex];
     const newSet = {
@@ -167,6 +176,20 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     updated[exerciseIndex] = {
       ...updated[exerciseIndex],
       sets: [...updated[exerciseIndex].sets, newSet],
+    };
+    setEditedExercises(updated);
+  };
+
+  const handleRemoveSet = (exerciseIndex: number, setIndex: number) => {
+    const updated = [...editedExercises];
+    const updatedSets = updated[exerciseIndex].sets.filter((_, i) => i !== setIndex);
+    // Re-number set_number
+    updatedSets.forEach((set, i) => {
+      set.set_number = i + 1;
+    });
+    updated[exerciseIndex] = {
+      ...updated[exerciseIndex],
+      sets: updatedSets,
     };
     setEditedExercises(updated);
   };
@@ -356,16 +379,29 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                   {/* EXERCISE NAME */}
                   {isEditing ? (
-                    <select
-                      value={exercise.exercise_id}
-                      onChange={(e) => updateExerciseId(exerciseIndex, e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="" disabled>Select an exercise...</option>
-                      {exercises.map((ex) => (
-                        <option key={ex.id} value={ex.id}>{ex.name}</option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-2 flex-1">
+
+                      {/* EXERCISE DROPDOWN */}
+                      <select
+                        value={exercise.exercise_id}
+                        onChange={(e) => updateExerciseId(exerciseIndex, e.target.value)}
+                        className="input-field flex-1"
+                      >
+                        <option value="" disabled>Select an exercise...</option>
+                        {exercises.map((ex) => (
+                          <option key={ex.id} value={ex.id}>{ex.name}</option>
+                        ))}
+                      </select>
+
+                      {/* REMOVE EXERCISE BUTTON */}
+                      <Button
+                        onClick={() => handleRemoveExercise(exerciseIndex)}
+                        className="btn-link btn-link-delete !p-2"
+                        title="Remove exercise"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   ) : (
                     <h3 className="text-card-title">
                       {exercise.exercise_name}
@@ -373,124 +409,137 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   )}
                 </div>
 
-                {/* EXERCISE NOTES */}
-                {isEditing ? (
+                {/* CARD CONTENT */}
+                <div className="card-content">
 
-                  // EDITABLE EXERCISE NOTES
-                  <div className="mb-4">
-                    <label className="text-secondary">Notes</label>
-                    <input
-                      type="text"
-                      placeholder="Exercise notes..."
-                      value={exercise.notes || ""}
-                      onChange={(e) => updateExerciseNotes(exerciseIndex, e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                ) : (
-                  exercise.notes && (
-                    <div className="text-secondary flex items-center gap-1 mb-4">
-                      <StickyNote className="w-3 h-3" />
-                      <span>{exercise.notes}</span>
+                  {/* EXERCISE NOTES */}
+                  {isEditing ? (
+
+                    // EDITABLE EXERCISE NOTES
+                    <div className="mr-10">
+                      <label className="text-secondary">Notes</label>
+                      <input
+                        type="text"
+                        placeholder="Exercise notes..."
+                        value={exercise.notes || ""}
+                        onChange={(e) => updateExerciseNotes(exerciseIndex, e.target.value)}
+                        className="input-field"
+                      />
                     </div>
-                  )
-                )}
-
-                {/* SETS */}
-                {isEditing ? (
-
-                  // EDITABLE SET ROWS
-                  <div className="space-y-4">
-                    {exercise.sets.map((set, setIndex) => (
-
-                      // EDITABLE SET ROW
-                      <div key={set.id} className="flex items-center gap-2">
-
-                        {/* WEIGHT INPUT */}
-                        <div className="flex flex-col">
-                          <label className="text-secondary">Weight</label>
-                          <input
-                            type="number"
-                            value={set.weight}
-                            onChange={(e) => updateSetField(exerciseIndex, setIndex, "weight", e.target.value)}
-                            className="input-field !max-w-10 text-center"
-                            step="0.5"
-                            min="0"
-                          />
-                        </div>
-                        <span className="text-secondary mt-5">x</span>
-
-                        {/* REPS INPUT */}
-                        <div className="flex flex-col">
-                          <label className="text-secondary">Reps</label>
-                          <input
-                            type="number"
-                            value={set.reps}
-                            onChange={(e) => updateSetField(exerciseIndex, setIndex, "reps", e.target.value)}
-                            className="input-field !max-w-10 text-center"
-                            min="0"
-                          />
-                        </div>
-                        <span className="text-secondary mt-5">@</span>
-
-                        {/* RPE INPUT */}
-                        <div className="flex flex-col">
-                          <label className="text-secondary">RPE</label>
-                          <input
-                            type="number"
-                            value={set.rpe ?? ""}
-                            onChange={(e) => updateSetField(exerciseIndex, setIndex, "rpe", e.target.value)}
-                            className="input-field !max-w-10 text-center"
-                            placeholder="-"
-                            step="0.5"
-                            min="1"
-                            max="10"
-                          />
-                        </div>
-                        <span className="text-secondary mt-5">-</span>
-
-                        {/* SET NOTES INPUT */}
-                        <div className="flex flex-col flex-1">
-                          <label className="text-secondary">Notes</label>
-                          <input
-                            type="text"
-                            value={set.notes || ""}
-                            onChange={(e) => updateSetField(exerciseIndex, setIndex, "notes", e.target.value)}
-                            className="input-field"
-                            placeholder="-"
-                          />
-                        </div>
+                  ) : (
+                    exercise.notes && (
+                      <div className="text-secondary flex items-center gap-1">
+                        <StickyNote className="w-3 h-3" />
+                        <span>{exercise.notes}</span>
                       </div>
-                    ))}
+                    )
+                  )}
 
-                    {/* ADD SET BUTTON */}
-                    <Button
-                      onClick={() => handleAddSet(exerciseIndex)}
-                      className="btn-link"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Add Set</span>
-                    </Button>
-                  </div>
-                ) : exercise.sets.length === 0 ? (
+                  {/* SETS */}
+                  {isEditing ? (
 
-                  // NO SETS PLACEHOLDER
-                  <p className="text-secondary">No sets recorded</p>
-                ) : (
+                    // EDITABLE SET ROWS
+                    <div className="space-y-4">
+                      {exercise.sets.map((set, setIndex) => (
 
-                  // READ-ONLY SET ROWS
-                  <div className="flex flex-col gap-1">
-                    {exercise.sets.map((set) => (
+                        // EDITABLE SET ROW
+                        <div key={set.id} className="flex items-center gap-2">
 
-                      // SET ROW
-                      <p key={set.id}>
-                        <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                        {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                        {set.notes && <span className="text-secondary"> - {set.notes}</span>}
-                      </p>
-                    ))}
-                  </div>
-                )}
+                          {/* WEIGHT INPUT */}
+                          <div className="flex flex-col">
+                            <label className="text-secondary">Weight</label>
+                            <input
+                              type="number"
+                              value={set.weight}
+                              onChange={(e) => updateSetField(exerciseIndex, setIndex, "weight", e.target.value)}
+                              className="input-field !max-w-10 text-center"
+                              step="0.5"
+                              min="0"
+                            />
+                          </div>
+                          <span className="text-secondary mt-5">x</span>
+
+                          {/* REPS INPUT */}
+                          <div className="flex flex-col">
+                            <label className="text-secondary">Reps</label>
+                            <input
+                              type="number"
+                              value={set.reps}
+                              onChange={(e) => updateSetField(exerciseIndex, setIndex, "reps", e.target.value)}
+                              className="input-field !max-w-10 text-center"
+                              min="0"
+                            />
+                          </div>
+                          <span className="text-secondary mt-5">@</span>
+
+                          {/* RPE INPUT */}
+                          <div className="flex flex-col">
+                            <label className="text-secondary">RPE</label>
+                            <input
+                              type="number"
+                              value={set.rpe ?? ""}
+                              onChange={(e) => updateSetField(exerciseIndex, setIndex, "rpe", e.target.value)}
+                              className="input-field !max-w-10 text-center"
+                              placeholder="-"
+                              step="0.5"
+                              min="1"
+                              max="10"
+                            />
+                          </div>
+                          <span className="text-secondary mt-5">-</span>
+
+                          {/* SET NOTES INPUT */}
+                          <div className="flex flex-col flex-1">
+                            <label className="text-secondary">Notes</label>
+                            <input
+                              type="text"
+                              value={set.notes || ""}
+                              onChange={(e) => updateSetField(exerciseIndex, setIndex, "notes", e.target.value)}
+                              className="input-field"
+                              placeholder="-"
+                            />
+                          </div>
+
+                          {/* REMOVE SET BUTTON */}
+                          <Button
+                            onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
+                            className="btn-link btn-link-delete mt-5"
+                            title="Remove set"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+
+                      {/* ADD SET BUTTON */}
+                      <Button
+                        onClick={() => handleAddSet(exerciseIndex)}
+                        className="btn-link"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add Set</span>
+                      </Button>
+                    </div>
+                  ) : exercise.sets.length === 0 ? (
+
+                    // NO SETS PLACEHOLDER
+                    <p className="text-secondary">No sets recorded</p>
+                  ) : (
+
+                    // READ-ONLY SET ROWS
+                    <div className="flex flex-col gap-1">
+                      {exercise.sets.map((set) => (
+
+                        // SET ROW
+                        <p key={set.id}>
+                          <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                          {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                          {set.notes && <span className="text-secondary"> - {set.notes}</span>}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ))
           )}

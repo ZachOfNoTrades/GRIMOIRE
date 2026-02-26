@@ -28,7 +28,7 @@ export async function PUT(
     const { id } = await context.params;
     const exercises = await request.json();
 
-    await updateSessionExercises(exercises);
+    await updateSessionExercises(id, exercises);
 
     // Return the updated exercises
     const updatedExercises = await getSessionExercisesBySessionId(id);

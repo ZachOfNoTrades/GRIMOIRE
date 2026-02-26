@@ -82,7 +82,7 @@ export async function getSessionExercisesBySessionId(sessionId: string): Promise
   }
 }
 
-export async function updateSessionExercises(exercises: SessionExerciseWithSets[]): Promise<void> {
+export async function updateSessionExercises(sessionId: string, exercises: SessionExerciseWithSets[]): Promise<void> {
   let pool;
   try {
     pool = await getWestConnection();
@@ -90,6 +90,42 @@ export async function updateSessionExercises(exercises: SessionExerciseWithSets[
     await transaction.begin();
 
     try {
+      const submittedExerciseIds = new Set(exercises.map(e => e.id));
+      const submittedSetIds = new Set(exercises.flatMap(e => e.sets.map(s => s.id)));
+
+      // Get existing exercise IDs for this session
+      const existingExercisesResult = await transaction.request()
+        .input('sessionId', sessionId)
+        .query(`SELECT id FROM session_exercises WHERE session_id = @sessionId`);
+
+      // Delete removed exercises (sets first due to FK, then exercises)
+      for (const row of existingExercisesResult.recordset) {
+        if (!submittedExerciseIds.has(row.id)) {
+          await transaction.request()
+            .input('sessionExerciseId', row.id)
+            .query(`DELETE FROM session_exercise_sets WHERE session_exercise_id = @sessionExerciseId`);
+          await transaction.request()
+            .input('sessionExerciseId', row.id)
+            .query(`DELETE FROM session_exercises WHERE id = @sessionExerciseId`);
+        }
+      }
+
+      // Delete removed sets from remaining exercises
+      for (const exercise of exercises) {
+        const existingSetsResult = await transaction.request()
+          .input('sessionExerciseId', exercise.id)
+          .query(`SELECT id FROM session_exercise_sets WHERE session_exercise_id = @sessionExerciseId`);
+
+        for (const row of existingSetsResult.recordset) {
+          if (!submittedSetIds.has(row.id)) {
+            await transaction.request()
+              .input('setId', row.id)
+              .query(`DELETE FROM session_exercise_sets WHERE id = @setId`);
+          }
+        }
+      }
+
+      // Upsert exercises and sets
       for (const exercise of exercises) {
 
         // Upsert session exercise
@@ -106,6 +142,7 @@ export async function updateSessionExercises(exercises: SessionExerciseWithSets[
             WHEN MATCHED THEN
               UPDATE SET
                 exercise_id = @exerciseId,
+                order_index = @orderIndex,
                 notes = @exerciseNotes,
                 modified_at = GETDATE()
             WHEN NOT MATCHED THEN
