@@ -189,6 +189,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         id: crypto.randomUUID(),
         session_exercise_id: exerciseId,
         set_number: 1,
+        is_warmup: false,
         reps: 0,
         weight: 0,
         rpe: null,
@@ -454,11 +455,23 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         <p className="text-secondary">No sets recorded</p>
                       ) : (
 
-                        // SET ROWS
+                        // SETS
                         <div className="flex flex-col gap-1">
-                          {exercise.sets.map((set) => (
 
-                            // SET ROW
+                          {/* WARMUP SET ROWS */}
+                          {exercise.sets.filter((s) => s.is_warmup).map((set) => (
+
+                            // WARMUP SET ROW
+                            <p key={set.id} className="text-secondary">
+                              <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                              {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                            </p>
+                          ))}
+
+                          {/* WORKING SET ROWS */}
+                          {exercise.sets.filter((s) => !s.is_warmup).map((set) => (
+
+                            // WORKING SET ROW
                             <p key={set.id}>
                               <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
                               {set.rpe !== null && <span> @ {set.rpe}RPE</span>}

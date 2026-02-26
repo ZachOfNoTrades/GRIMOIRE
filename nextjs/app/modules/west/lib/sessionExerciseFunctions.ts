@@ -22,6 +22,7 @@ export async function getSessionExercisesBySessionId(sessionId: string): Promise
           ses.reps,
           ses.weight,
           ses.rpe,
+          ses.is_warmup,
           ses.notes AS set_notes,
           ses.created_at AS set_created_at,
           ses.modified_at AS set_modified_at
@@ -29,7 +30,7 @@ export async function getSessionExercisesBySessionId(sessionId: string): Promise
         INNER JOIN exercises e ON se.exercise_id = e.id
         LEFT JOIN session_exercise_sets ses ON se.id = ses.session_exercise_id
         WHERE se.session_id = @sessionId
-        ORDER BY se.order_index, ses.set_number
+        ORDER BY se.order_index, ses.is_warmup DESC, ses.set_number
       `);
 
     if (result.recordset.length === 0) {
@@ -61,6 +62,7 @@ export async function getSessionExercisesBySessionId(sessionId: string): Promise
           id: row.set_id,
           session_exercise_id: row.session_exercise_id,
           set_number: row.set_number,
+          is_warmup: row.is_warmup,
           reps: row.reps,
           weight: row.weight,
           rpe: row.rpe,
@@ -156,6 +158,7 @@ export async function updateSessionExercises(sessionId: string, exercises: Sessi
             .input('setId', set.id)
             .input('sessionExerciseId', exercise.id)
             .input('setNumber', set.set_number)
+            .input('isWarmup', set.is_warmup)
             .input('reps', set.reps)
             .input('weight', set.weight)
             .input('rpe', set.rpe)
@@ -166,14 +169,16 @@ export async function updateSessionExercises(sessionId: string, exercises: Sessi
               ON target.id = source.id
               WHEN MATCHED THEN
                 UPDATE SET
+                  set_number = @setNumber,
+                  is_warmup = @isWarmup,
                   weight = @weight,
                   reps = @reps,
                   rpe = @rpe,
                   notes = @setNotes,
                   modified_at = GETDATE()
               WHEN NOT MATCHED THEN
-                INSERT (id, session_exercise_id, set_number, reps, weight, rpe, notes)
-                VALUES (@setId, @sessionExerciseId, @setNumber, @reps, @weight, @rpe, @setNotes);
+                INSERT (id, session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes)
+                VALUES (@setId, @sessionExerciseId, @setNumber, @isWarmup, @reps, @weight, @rpe, @setNotes);
             `);
         }
       }

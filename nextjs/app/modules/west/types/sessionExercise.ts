@@ -13,6 +13,7 @@ export interface SessionExerciseSet {
   id: string;
   session_exercise_id: string;
   set_number: number;
+  is_warmup: boolean;
   reps: number;
   weight: number;
   rpe: number | null;

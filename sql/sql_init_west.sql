@@ -63,6 +63,7 @@ BEGIN TRY
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             session_exercise_id UNIQUEIDENTIFIER NOT NULL,
             set_number INT NOT NULL,
+            is_warmup BIT NOT NULL DEFAULT 0,
             reps INT NOT NULL,
             weight DECIMAL(6,1) NOT NULL,
             rpe DECIMAL(3,1),

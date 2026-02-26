@@ -64,28 +64,28 @@ BEGIN TRY
     (@se_push_tricep, @pushDayId, @tricepExtensionId, 4, NULL),
     (@se_push_lateral, @pushDayId, @lateralRaiseId, 5, NULL);
 
-    INSERT INTO session_exercise_sets (session_exercise_id, set_number, reps, weight, rpe, notes) VALUES
-    -- Bench Press: 4 sets
-    (@se_push_bench, 1, 8, 185.0, 6.5, 'Warmup set'),
-    (@se_push_bench, 2, 6, 205.0, 7.5, NULL),
-    (@se_push_bench, 3, 5, 215.0, 8.0, NULL),
-    (@se_push_bench, 4, 4, 225.0, 8.5, 'Grind on last rep'),
-    -- Incline Bench: 3 sets
-    (@se_push_incline, 1, 8, 145.0, 7.0, NULL),
-    (@se_push_incline, 2, 7, 145.0, 7.5, NULL),
-    (@se_push_incline, 3, 6, 145.0, 8.0, NULL),
-    -- Overhead Press: 3 sets
-    (@se_push_ohp, 1, 8, 105.0, 7.0, NULL),
-    (@se_push_ohp, 2, 6, 115.0, 8.0, NULL),
-    (@se_push_ohp, 3, 5, 115.0, 8.5, NULL),
-    -- Tricep Extension: 3 sets
-    (@se_push_tricep, 1, 12, 50.0, 7.0, NULL),
-    (@se_push_tricep, 2, 10, 50.0, 7.5, NULL),
-    (@se_push_tricep, 3, 10, 50.0, 8.0, NULL),
-    -- Lateral Raise: 3 sets
-    (@se_push_lateral, 1, 15, 20.0, 7.0, NULL),
-    (@se_push_lateral, 2, 12, 20.0, 7.5, NULL),
-    (@se_push_lateral, 3, 12, 20.0, 8.0, NULL);
+    INSERT INTO session_exercise_sets (session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes) VALUES
+    -- Bench Press: 1 warmup + 3 working sets
+    (@se_push_bench, 1, 1, 8, 185.0, 6.5, NULL),
+    (@se_push_bench, 1, 0, 6, 205.0, 7.5, NULL),
+    (@se_push_bench, 2, 0, 5, 215.0, 8.0, NULL),
+    (@se_push_bench, 3, 0, 4, 225.0, 8.5, 'Grind on last rep'),
+    -- Incline Bench: 3 working sets
+    (@se_push_incline, 1, 0, 8, 145.0, 7.0, NULL),
+    (@se_push_incline, 2, 0, 7, 145.0, 7.5, NULL),
+    (@se_push_incline, 3, 0, 6, 145.0, 8.0, NULL),
+    -- Overhead Press: 3 working sets
+    (@se_push_ohp, 1, 0, 8, 105.0, 7.0, NULL),
+    (@se_push_ohp, 2, 0, 6, 115.0, 8.0, NULL),
+    (@se_push_ohp, 3, 0, 5, 115.0, 8.5, NULL),
+    -- Tricep Extension: 3 working sets
+    (@se_push_tricep, 1, 0, 12, 50.0, 7.0, NULL),
+    (@se_push_tricep, 2, 0, 10, 50.0, 7.5, NULL),
+    (@se_push_tricep, 3, 0, 10, 50.0, 8.0, NULL),
+    -- Lateral Raise: 3 working sets
+    (@se_push_lateral, 1, 0, 15, 20.0, 7.0, NULL),
+    (@se_push_lateral, 2, 0, 12, 20.0, 7.5, NULL),
+    (@se_push_lateral, 3, 0, 12, 20.0, 8.0, NULL);
 
     -- Leg Day exercises
     DECLARE @legDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE name = 'Leg Day' AND session_date = '2026-02-22');
@@ -108,28 +108,29 @@ BEGIN TRY
     (@se_leg_split, @legDayId, @splitSquatId, 4, 'Left side weaker'),
     (@se_leg_plank, @legDayId, @plankId, 5, NULL);
 
-    INSERT INTO session_exercise_sets (session_exercise_id, set_number, reps, weight, rpe, notes) VALUES
-    -- Back Squat: 4 sets
-    (@se_leg_squat, 1, 5, 205.0, 7.0, NULL),
-    (@se_leg_squat, 2, 5, 215.0, 7.5, NULL),
-    (@se_leg_squat, 3, 4, 225.0, 8.0, NULL),
-    (@se_leg_squat, 4, 3, 235.0, 8.5, NULL),
-    -- Romanian Deadlift: 3 sets
-    (@se_leg_rdl, 1, 8, 185.0, 7.0, NULL),
-    (@se_leg_rdl, 2, 8, 185.0, 7.5, NULL),
-    (@se_leg_rdl, 3, 6, 195.0, 8.0, NULL),
-    -- Leg Press: 3 sets
-    (@se_leg_press, 1, 10, 360.0, 7.0, NULL),
-    (@se_leg_press, 2, 10, 360.0, 7.5, NULL),
-    (@se_leg_press, 3, 8, 380.0, 8.0, NULL),
-    -- Split Squat: 3 sets (per leg, weight is per dumbbell)
-    (@se_leg_split, 1, 10, 40.0, 7.5, NULL),
-    (@se_leg_split, 2, 8, 40.0, 8.0, NULL),
-    (@se_leg_split, 3, 8, 40.0, 8.5, NULL),
-    -- Plank: 3 sets (weight in seconds held, using 0 for bodyweight)
-    (@se_leg_plank, 1, 1, 0.0, 7.0, '45 seconds'),
-    (@se_leg_plank, 2, 1, 0.0, 7.5, '40 seconds'),
-    (@se_leg_plank, 3, 1, 0.0, 8.0, '35 seconds');
+    INSERT INTO session_exercise_sets (session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes) VALUES
+    -- Back Squat: 1 warmup + 4 working sets
+    (@se_leg_squat, 1, 1, 5, 135.0, NULL, NULL),
+    (@se_leg_squat, 1, 0, 5, 205.0, 7.0, NULL),
+    (@se_leg_squat, 2, 0, 5, 215.0, 7.5, NULL),
+    (@se_leg_squat, 3, 0, 4, 225.0, 8.0, NULL),
+    (@se_leg_squat, 4, 0, 3, 235.0, 8.5, NULL),
+    -- Romanian Deadlift: 3 working sets
+    (@se_leg_rdl, 1, 0, 8, 185.0, 7.0, NULL),
+    (@se_leg_rdl, 2, 0, 8, 185.0, 7.5, NULL),
+    (@se_leg_rdl, 3, 0, 6, 195.0, 8.0, NULL),
+    -- Leg Press: 3 working sets
+    (@se_leg_press, 1, 0, 10, 360.0, 7.0, NULL),
+    (@se_leg_press, 2, 0, 10, 360.0, 7.5, NULL),
+    (@se_leg_press, 3, 0, 8, 380.0, 8.0, NULL),
+    -- Split Squat: 3 working sets (per leg, weight is per dumbbell)
+    (@se_leg_split, 1, 0, 10, 40.0, 7.5, NULL),
+    (@se_leg_split, 2, 0, 8, 40.0, 8.0, NULL),
+    (@se_leg_split, 3, 0, 8, 40.0, 8.5, NULL),
+    -- Plank: 3 working sets (weight in seconds held, using 0 for bodyweight)
+    (@se_leg_plank, 1, 0, 1, 0.0, 7.0, '45 seconds'),
+    (@se_leg_plank, 2, 0, 1, 0.0, 7.5, '40 seconds'),
+    (@se_leg_plank, 3, 0, 1, 0.0, 8.0, '35 seconds');
 
     -- Pull Day exercises
     DECLARE @pullDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE name = 'Pull Day' AND session_date = '2026-02-21');
@@ -152,27 +153,27 @@ BEGIN TRY
     (@se_pull_face, @pullDayId, @facePullId, 4, NULL),
     (@se_pull_curl, @pullDayId, @bicepCurlId, 5, 'Hammer curls to avoid elbow');
 
-    INSERT INTO session_exercise_sets (session_exercise_id, set_number, reps, weight, rpe, notes) VALUES
-    -- Pull-Up: 3 sets (bodyweight + added weight)
-    (@se_pull_pullup, 1, 8, 0.0, 7.0, 'Bodyweight'),
-    (@se_pull_pullup, 2, 6, 25.0, 8.0, 'Added 25lb'),
-    (@se_pull_pullup, 3, 5, 25.0, 8.5, NULL),
-    -- Barbell Row: 3 sets
-    (@se_pull_row, 1, 8, 155.0, 7.0, NULL),
-    (@se_pull_row, 2, 6, 165.0, 7.5, NULL),
-    (@se_pull_row, 3, 6, 165.0, 8.0, NULL),
-    -- Lat Pulldown: 3 sets
-    (@se_pull_lat, 1, 10, 140.0, 7.0, NULL),
-    (@se_pull_lat, 2, 8, 150.0, 7.5, NULL),
-    (@se_pull_lat, 3, 8, 150.0, 8.0, NULL),
-    -- Face Pull: 3 sets
-    (@se_pull_face, 1, 15, 40.0, 6.5, NULL),
-    (@se_pull_face, 2, 12, 45.0, 7.0, NULL),
-    (@se_pull_face, 3, 12, 45.0, 7.5, NULL),
-    -- Bicep Curl: 3 sets
-    (@se_pull_curl, 1, 12, 30.0, 7.0, NULL),
-    (@se_pull_curl, 2, 10, 30.0, 7.5, NULL),
-    (@se_pull_curl, 3, 10, 30.0, 8.0, NULL);
+    INSERT INTO session_exercise_sets (session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes) VALUES
+    -- Pull-Up: 1 warmup (bodyweight) + 2 working sets (weighted)
+    (@se_pull_pullup, 1, 1, 8, 0.0, NULL, 'Bodyweight'),
+    (@se_pull_pullup, 1, 0, 6, 25.0, 8.0, 'Added 25lb'),
+    (@se_pull_pullup, 2, 0, 5, 25.0, 8.5, NULL),
+    -- Barbell Row: 3 working sets
+    (@se_pull_row, 1, 0, 8, 155.0, 7.0, NULL),
+    (@se_pull_row, 2, 0, 6, 165.0, 7.5, NULL),
+    (@se_pull_row, 3, 0, 6, 165.0, 8.0, NULL),
+    -- Lat Pulldown: 3 working sets
+    (@se_pull_lat, 1, 0, 10, 140.0, 7.0, NULL),
+    (@se_pull_lat, 2, 0, 8, 150.0, 7.5, NULL),
+    (@se_pull_lat, 3, 0, 8, 150.0, 8.0, NULL),
+    -- Face Pull: 3 working sets
+    (@se_pull_face, 1, 0, 15, 40.0, 6.5, NULL),
+    (@se_pull_face, 2, 0, 12, 45.0, 7.0, NULL),
+    (@se_pull_face, 3, 0, 12, 45.0, 7.5, NULL),
+    -- Bicep Curl: 3 working sets
+    (@se_pull_curl, 1, 0, 12, 30.0, 7.0, NULL),
+    (@se_pull_curl, 2, 0, 10, 30.0, 7.5, NULL),
+    (@se_pull_curl, 3, 0, 10, 30.0, 8.0, NULL);
 
     COMMIT TRANSACTION WestDbSampleRecords;
     PRINT '';
