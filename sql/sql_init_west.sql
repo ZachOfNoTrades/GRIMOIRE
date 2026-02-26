@@ -9,12 +9,27 @@ BEGIN TRY
     -- =============================
     -- Exercises
     -- =============================
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='modules' AND xtype='U')
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='exercises' AND xtype='U')
     BEGIN
         CREATE TABLE exercises (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             name NVARCHAR(255) UNIQUE NOT NULL,
             description NVARCHAR(MAX),
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE()
+        );
+    END
+
+    -- =============================
+    -- Workout Sessions
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='workout_sessions' AND xtype='U')
+    BEGIN
+        CREATE TABLE workout_sessions (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            name NVARCHAR(255) NOT NULL,
+            session_date DATE NOT NULL,
+            notes NVARCHAR(MAX),
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE()
         );

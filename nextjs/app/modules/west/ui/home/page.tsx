@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Dumbbell, ListChecks, TrendingUp, Target } from "lucide-react";
+import { Dumbbell, History } from "lucide-react";
 
 export default function WestHomePage() {
 
@@ -56,6 +56,13 @@ export default function WestHomePage() {
           <Link href="/modules/west/ui/exercises">
             <div className="module-card">
               <h2 className="text-card-title">Exercise Library</h2>
+            </div>
+          </Link>
+
+          {/* HISTORY CARD */}
+          <Link href="/modules/west/ui/history">
+            <div className="module-card">
+              <h2 className="text-card-title">Workout History</h2>
             </div>
           </Link>
         </div>

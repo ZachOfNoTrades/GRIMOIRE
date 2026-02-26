@@ -28,7 +28,18 @@ BEGIN TRY
     ('Plank', 'Core stability'),
     ('Dead Bug', 'Core activation');
 
- COMMIT TRANSACTION WestDbSampleRecords;
+    -- =============================
+    -- Workout Sessions
+    -- =============================
+    INSERT INTO workout_sessions (name, session_date, notes) VALUES
+    ('Push Day', '2026-02-20', 'Felt strong today'),
+    ('Pull Day', '2026-02-21', 'Good pump on back'),
+    ('Leg Day', '2026-02-22', 'Heavy squats'),
+    ('Upper Body', '2026-02-23', NULL),
+    ('Lower Body', '2026-02-24', 'Recovery session'),
+    ('Full Body', '2026-02-25', 'Quick workout');
+
+    COMMIT TRANSACTION WestDbSampleRecords;
     PRINT '';
     PRINT 'WEST records created successfully.'
 
