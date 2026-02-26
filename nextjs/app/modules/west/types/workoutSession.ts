@@ -5,6 +5,8 @@ export interface WorkoutSession {
   name: string;
   session_date: Date;
   notes: string | null;
+  is_current: boolean;
+  is_completed: boolean;
   created_at: Date;
   modified_at: Date;
 }

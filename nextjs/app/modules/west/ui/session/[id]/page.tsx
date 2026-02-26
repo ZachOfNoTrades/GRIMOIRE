@@ -6,6 +6,7 @@ import { StickyNote, Plus } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
+import { getStatusLabel, getStatusBadge } from "../../../types/program";
 import { SessionExerciseWithSets } from "../../../types/sessionExercise";
 import { Exercise } from "../../../types/exercise";
 import SessionNavbar from "./SessionNavbar";
@@ -336,6 +337,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                 {/* TITLE */}
                 <h2 className="text-card-title">Session Info</h2>
+
+                {/* STATUS BADGE */}
+                <span className={getStatusBadge(session.is_current, session.is_completed)}>
+                  {getStatusLabel(session.is_current, session.is_completed)}
+                </span>
               </div>
 
               {/* CARD CONTENT */}

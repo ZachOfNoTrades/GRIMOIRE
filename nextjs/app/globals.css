@@ -39,7 +39,7 @@
   --alert-success-border: rgb(187 247 208); /* green-200 */
   --alert-success-text: rgb(21 128 61); /* green-700 */
   --alert-warning-bg: rgb(254 252 232); /* yellow-50 */
-  --alert-warning-border: rgb(254 240 138); /* yellow-200 */
+  --alert-warning-border: rgb(250 204 21); /* yellow-400 */
   --alert-warning-text: rgb(133 77 14); /* yellow-800 */
   --alert-error-bg: rgb(254 242 242); /* red-50 */
   --alert-error-border: rgb(254 202 202); /* red-200 */
@@ -122,7 +122,7 @@
     --alert-success-border: rgb(22 101 52); /* green-800 */
     --alert-success-text: rgb(74 222 128); /* green-400 */
     --alert-warning-bg: rgb(113 63 18 / 0.2); /* yellow-900/20 */
-    --alert-warning-border: rgb(133 77 14); /* yellow-800 */
+    --alert-warning-border: rgb(234 179 8); /* yellow-500 */
     --alert-warning-text: rgb(253 224 71); /* yellow-300 */
     --alert-error-bg: rgb(127 29 29 / 0.2); /* red-900/20 */
     --alert-error-border: rgb(153 27 27); /* red-800 */
@@ -548,6 +548,21 @@ body {
   justify-content: end;
   padding-top: 1.5rem;
   gap: 1rem;
+}
+
+/* Status modifiers — layer onto cards/sub-cards to indicate active or completed state */
+
+.status-active,
+.status-active:hover {
+  border-color: var(--alert-warning-border);
+}
+
+.status-active-text {
+  color: var(--alert-warning-text);
+}
+
+.status-completed {
+  opacity: 0.7;
 }
 
 /* ========================================

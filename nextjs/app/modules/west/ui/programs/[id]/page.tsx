@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Calendar, Dumbbell, Layers } from "lucide-react";
+import { ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Dumbbell, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Program } from "../../../types/program";
+import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
 
 export default function ProgramPage({ params }: { params: Promise<{ id: string }> }) {
 
@@ -91,7 +91,16 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
 
           {/* TITLE */}
           <div>
-            <h1 className="text-page-title">{program.name}</h1>
+            <div className="flex items-center gap-3">
+
+              {/* PROGRAM NAME */}
+              <h1 className="text-page-title">{program.name}</h1>
+
+              {/* PROGRAM STATUS BADGE */}
+              <span className={getStatusBadge(program.is_current, program.is_completed)}>
+                {getStatusLabel(program.is_current, program.is_completed)}
+              </span>
+            </div>
 
             {/* DESCRIPTION */}
             {program.description && (
@@ -115,7 +124,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
             program.blocks.map((block) => (
 
               // BLOCK CARD
-              <div key={block.id} className="card">
+              <div key={block.id} className={`card ${block.is_current ? 'status-active' : ''} ${block.is_completed ? 'status-completed' : ''}`}>
 
                 {/* BLOCK HEADER */}
                 <div className="card-header">
@@ -163,10 +172,10 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                     block.weeks.map((week) => (
 
                       // WEEK SECTION
-                      <div key={week.id} className="flex flex-col gap-2">
+                      <div key={week.id} className={`flex flex-col gap-2 ${week.is_completed ? 'status-completed' : ''}`}>
 
                         {/* WEEK LABEL */}
-                        <h3 className="text-h2">
+                        <h3 className={`text-h2 ${week.is_current ? 'status-active-text' : ''}`}>
                           Week {week.week_number}
                           {week.name && (
                             <span className="text-secondary font-normal ml-2">— {week.name}</span>
@@ -185,7 +194,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                             // SESSION CARD
                             <div
                               key={session.id}
-                              className="sub-card cursor-pointer"
+                              className={`sub-card cursor-pointer ${session.is_current ? 'status-active' : ''} ${session.is_completed ? 'status-completed' : ''}`}
                               onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
                             >
 
@@ -195,8 +204,14 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                 {/* SESSION NAME */}
                                 <div className="flex items-center gap-2">
 
-                                  {/* SESSION ICON */}
-                                  <Dumbbell className="w-4 h-4 text-secondary" />
+                                  {/* STATUS ICON */}
+                                  {session.is_current ? (
+                                    <CircleDot className="w-4 h-4 status-active-text" />
+                                  ) : session.is_completed ? (
+                                    <CircleCheck className="w-4 h-4 text-secondary" />
+                                  ) : (
+                                    <Circle className="w-4 h-4 text-secondary" />
+                                  )}
 
                                   {/* NAME */}
                                   <span className="font-medium">{session.name}</span>

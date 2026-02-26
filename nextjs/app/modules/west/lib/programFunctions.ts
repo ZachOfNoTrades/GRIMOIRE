@@ -6,7 +6,7 @@ export async function getAllPrograms(): Promise<ProgramSummary[]> {
   try {
     pool = await getWestConnection();
     const result = await pool.request().query(`
-      SELECT id, name, description, status, created_at, modified_at
+      SELECT id, name, description, is_current, is_completed, created_at, modified_at
       FROM programs
       ORDER BY created_at DESC
     `);
@@ -34,27 +34,34 @@ export async function getProgramById(programId: string): Promise<Program> {
       .input('programId', programId)
       .query(`
         SELECT
-          p.id           AS program_id,
-          p.name         AS program_name,
-          p.description  AS program_description,
-          p.status       AS program_status,
-          p.created_at   AS program_created_at,
-          p.modified_at  AS program_modified_at,
-          b.id           AS block_id,
-          b.name         AS block_name,
-          b.order_index  AS block_order_index,
-          b.description  AS block_description,
-          b.tag          AS block_tag,
-          b.color        AS block_color,
-          w.id           AS week_id,
+          p.id              AS program_id,
+          p.name            AS program_name,
+          p.description     AS program_description,
+          p.is_current      AS program_is_current,
+          p.is_completed    AS program_is_completed,
+          p.created_at      AS program_created_at,
+          p.modified_at     AS program_modified_at,
+          b.id              AS block_id,
+          b.name            AS block_name,
+          b.order_index     AS block_order_index,
+          b.description     AS block_description,
+          b.tag             AS block_tag,
+          b.color           AS block_color,
+          b.is_current      AS block_is_current,
+          b.is_completed    AS block_is_completed,
+          w.id              AS week_id,
           w.week_number,
-          w.name         AS week_name,
-          w.description  AS week_description,
-          ws.id          AS session_id,
-          ws.name        AS session_name,
+          w.name            AS week_name,
+          w.description     AS week_description,
+          w.is_current      AS week_is_current,
+          w.is_completed    AS week_is_completed,
+          ws.id             AS session_id,
+          ws.name           AS session_name,
           ws.session_date,
-          ws.notes       AS session_notes,
-          ws.order_index AS session_order_index
+          ws.notes          AS session_notes,
+          ws.order_index    AS session_order_index,
+          ws.is_current     AS session_is_current,
+          ws.is_completed   AS session_is_completed
         FROM programs p
         LEFT JOIN blocks b ON b.program_id = p.id
         LEFT JOIN weeks w ON w.block_id = b.id
@@ -73,7 +80,8 @@ export async function getProgramById(programId: string): Promise<Program> {
       id: firstRow.program_id,
       name: firstRow.program_name,
       description: firstRow.program_description,
-      status: firstRow.program_status,
+      is_current: firstRow.program_is_current,
+      is_completed: firstRow.program_is_completed,
       created_at: firstRow.program_created_at,
       modified_at: firstRow.program_modified_at,
       blocks: [],
@@ -93,6 +101,8 @@ export async function getProgramById(programId: string): Promise<Program> {
           description: row.block_description,
           tag: row.block_tag,
           color: row.block_color,
+          is_current: row.block_is_current,
+          is_completed: row.block_is_completed,
           weeks: [],
         };
         blockMap.set(row.block_id, block);
@@ -108,6 +118,8 @@ export async function getProgramById(programId: string): Promise<Program> {
           week_number: row.week_number,
           name: row.week_name,
           description: row.week_description,
+          is_current: row.week_is_current,
+          is_completed: row.week_is_completed,
           sessions: [],
         };
         weekMap.set(row.week_id, week);
@@ -123,6 +135,8 @@ export async function getProgramById(programId: string): Promise<Program> {
         session_date: row.session_date,
         notes: row.session_notes,
         order_index: row.session_order_index,
+        is_current: row.session_is_current,
+        is_completed: row.session_is_completed,
       };
       week.sessions.push(session);
     }

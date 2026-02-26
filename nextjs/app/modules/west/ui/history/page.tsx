@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, History, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../types/workoutSession";
-import { ProgramSummary, PROGRAM_STATUS_LABELS, PROGRAM_STATUS_BADGE } from "../../types/program";
+import { ProgramSummary, getStatusLabel, getStatusBadge } from "../../types/program";
 
 export default function HistoryPage() {
 
@@ -154,8 +154,8 @@ export default function HistoryPage() {
                         >
                           <td className="table-cell">{program.name}</td>
                           <td className="table-cell">
-                            <span className={PROGRAM_STATUS_BADGE[program.status] ?? "badge-muted"}>
-                              {PROGRAM_STATUS_LABELS[program.status] ?? "Unknown"}
+                            <span className={getStatusBadge(program.is_current, program.is_completed)}>
+                              {getStatusLabel(program.is_current, program.is_completed)}
                             </span>
                           </td>
                         </tr>

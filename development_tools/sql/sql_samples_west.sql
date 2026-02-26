@@ -31,67 +31,67 @@ BEGIN TRY
     -- =============================
     -- Programs
     -- =============================
-    INSERT INTO programs (id, name, description, status) VALUES
-    ('11111111-1111-1111-1111-111111111111', 'Push/Pull/Legs Program', NULL, 1),
-    ('66666666-6666-6666-6666-666666666666', '5/3/1 Strength Program', 'Jim Wendler strength base-building', 0);
+    INSERT INTO programs (id, name, description, is_current, is_completed) VALUES
+    ('11111111-1111-1111-1111-111111111111', 'Push/Pull/Legs Program', NULL, 1, 0),
+    ('66666666-6666-6666-6666-666666666666', '5/3/1 Strength Program', 'Jim Wendler strength base-building', 0, 0);
 
     -- =============================
     -- Blocks
     -- =============================
     -- Push/Pull/Legs Program blocks
-    INSERT INTO blocks (id, program_id, name, order_index, tag, color) VALUES
-    ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Block 1', 1, 'Hypertrophy', '#3B82F6'),
-    ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'Block 2', 2, 'Peaking', '#EF4444');
+    INSERT INTO blocks (id, program_id, name, order_index, tag, color, is_current, is_completed) VALUES
+    ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Block 1', 1, 'Hypertrophy', '#3B82F6', 1, 0),
+    ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'Block 2', 2, 'Peaking', '#EF4444', 0, 0);
 
     -- 5/3/1 Strength Program blocks
-    INSERT INTO blocks (id, program_id, name, order_index, tag, color) VALUES
-    ('77777777-7777-7777-7777-777777777777', '66666666-6666-6666-6666-666666666666', 'Accumulation', 1, 'Volume', '#8B5CF6');
+    INSERT INTO blocks (id, program_id, name, order_index, tag, color, is_current, is_completed) VALUES
+    ('77777777-7777-7777-7777-777777777777', '66666666-6666-6666-6666-666666666666', 'Accumulation', 1, 'Volume', '#8B5CF6', 0, 0);
 
     -- =============================
     -- Weeks
     -- =============================
     -- Push/Pull/Legs Block 1 weeks
-    INSERT INTO weeks (id, block_id, week_number) VALUES
-    ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', 1),
-    ('55555555-5555-5555-5555-555555555555', '22222222-2222-2222-2222-222222222222', 2);
+    INSERT INTO weeks (id, block_id, week_number, is_current, is_completed) VALUES
+    ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', 1, 0, 1),
+    ('55555555-5555-5555-5555-555555555555', '22222222-2222-2222-2222-222222222222', 2, 1, 0);
 
     -- Push/Pull/Legs Block 2 weeks
-    INSERT INTO weeks (id, block_id, week_number) VALUES
-    ('AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', '44444444-4444-4444-4444-444444444444', 1);
+    INSERT INTO weeks (id, block_id, week_number, is_current, is_completed) VALUES
+    ('AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', '44444444-4444-4444-4444-444444444444', 1, 0, 0);
 
     -- 5/3/1 Accumulation weeks
-    INSERT INTO weeks (id, block_id, week_number) VALUES
-    ('BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', '77777777-7777-7777-7777-777777777777', 1),
-    ('CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', '77777777-7777-7777-7777-777777777777', 2);
+    INSERT INTO weeks (id, block_id, week_number, is_current, is_completed) VALUES
+    ('BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', '77777777-7777-7777-7777-777777777777', 1, 0, 0),
+    ('CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', '77777777-7777-7777-7777-777777777777', 2, 0, 0);
 
     -- =============================
     -- Workout Sessions
     -- =============================
-    INSERT INTO workout_sessions (name, session_date, notes, week_id, order_index) VALUES
-    -- PPL Block 1 Week 1
-    ('Push Day', '2026-02-20', 'Felt strong today', '33333333-3333-3333-3333-333333333333', 1),
-    ('Pull Day', '2026-02-21', 'Good pump on back', '33333333-3333-3333-3333-333333333333', 2),
-    ('Leg Day', '2026-02-22', 'Heavy squats', '33333333-3333-3333-3333-333333333333', 3),
-    -- PPL Block 1 Week 2
-    ('Push Day', '2026-02-27', NULL, '55555555-5555-5555-5555-555555555555', 1),
-    ('Pull Day', '2026-02-28', NULL, '55555555-5555-5555-5555-555555555555', 2),
-    ('Leg Day', '2026-03-01', NULL, '55555555-5555-5555-5555-555555555555', 3),
-    -- PPL Block 2 Week 1
-    ('Peak Push', '2026-03-06', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 1),
-    ('Peak Pull', '2026-03-07', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 2),
-    ('Peak Legs', '2026-03-08', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 3),
-    -- 5/3/1 Accumulation Week 1
-    ('Squat Day', '2026-03-10', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 1),
-    ('Press Day', '2026-03-12', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 2),
-    ('Deadlift Day', '2026-03-14', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 3),
-    -- 5/3/1 Accumulation Week 2
-    ('Squat Day', '2026-03-17', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 1),
-    ('Press Day', '2026-03-19', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 2),
-    ('Deadlift Day', '2026-03-21', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 3),
+    INSERT INTO workout_sessions (name, session_date, notes, week_id, order_index, is_current, is_completed) VALUES
+    -- PPL Block 1 Week 1 (completed week)
+    ('Push Day', '2026-02-20', 'Felt strong today', '33333333-3333-3333-3333-333333333333', 1, 0, 1),
+    ('Pull Day', '2026-02-21', 'Good pump on back', '33333333-3333-3333-3333-333333333333', 2, 0, 1),
+    ('Leg Day', '2026-02-22', 'Heavy squats', '33333333-3333-3333-3333-333333333333', 3, 0, 1),
+    -- PPL Block 1 Week 2 (current week)
+    ('Push Day', '2026-02-27', NULL, '55555555-5555-5555-5555-555555555555', 1, 0, 1),
+    ('Pull Day', '2026-02-28', NULL, '55555555-5555-5555-5555-555555555555', 2, 1, 0),
+    ('Leg Day', '2026-03-01', NULL, '55555555-5555-5555-5555-555555555555', 3, 0, 0),
+    -- PPL Block 2 Week 1 (not started)
+    ('Peak Push', '2026-03-06', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 1, 0, 0),
+    ('Peak Pull', '2026-03-07', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 2, 0, 0),
+    ('Peak Legs', '2026-03-08', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 3, 0, 0),
+    -- 5/3/1 Accumulation Week 1 (not started)
+    ('Squat Day', '2026-03-10', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 1, 0, 0),
+    ('Press Day', '2026-03-12', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 2, 0, 0),
+    ('Deadlift Day', '2026-03-14', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 3, 0, 0),
+    -- 5/3/1 Accumulation Week 2 (not started)
+    ('Squat Day', '2026-03-17', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 1, 0, 0),
+    ('Press Day', '2026-03-19', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 2, 0, 0),
+    ('Deadlift Day', '2026-03-21', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 3, 0, 0),
     -- Standalone sessions
-    ('Upper Body', '2026-02-23', NULL, NULL, NULL),
-    ('Lower Body', '2026-02-24', 'Recovery session', NULL, NULL),
-    ('Full Body', '2026-02-25', 'Quick workout', NULL, NULL);
+    ('Upper Body', '2026-02-23', NULL, NULL, NULL, 0, 1),
+    ('Lower Body', '2026-02-24', 'Recovery session', NULL, NULL, 0, 1),
+    ('Full Body', '2026-02-25', 'Quick workout', NULL, NULL, 0, 0);
 
     -- =============================
     -- Session Exercises and Sets
