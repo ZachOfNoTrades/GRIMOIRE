@@ -160,7 +160,7 @@ export default function HistoryPage() {
                       <tr
                         key={session.id}
                         className="table-row-clickable"
-                        onClick={() => router.push(`/modules/west/ui/history/${session.id}`)}
+                        onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
                       >
                         <td className="table-cell">{session.name}</td>
                         <td className="table-cell">{formatDate(session.session_date)}</td>
