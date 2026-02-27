@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Dumbbell } from "lucide-react";
+import { ArrowLeft, Dumbbell, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Exercise } from "../../types/exercise";
+import AddExerciseModal from "./AddExerciseModal";
 
 export default function ExercisesPage() {
 
@@ -17,6 +18,7 @@ export default function ExercisesPage() {
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const router = useRouter();
 
@@ -96,8 +98,10 @@ export default function ExercisesPage() {
               Exercises
             </h2>
 
-            {/* SEARCH BAR */}
-            <div>
+            {/* ACTIONS */}
+            <div className="flex items-center gap-2">
+
+              {/* SEARCH BAR */}
               <input
                 type="text"
                 placeholder="Search..."
@@ -105,6 +109,15 @@ export default function ExercisesPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="input-field"
               />
+
+              {/* ADD BUTTON */}
+              <Button
+                onClick={() => setIsAddModalOpen(true)}
+                className="btn-primary"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add</span>
+              </Button>
             </div>
           </div>
 
@@ -164,6 +177,13 @@ export default function ExercisesPage() {
             </div>
           )}
         </div>
+
+        {/* ADD EXERCISE MODAL */}
+        <AddExerciseModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSaved={fetchExercises}
+        />
       </main>
     </div>
   );

@@ -47,6 +47,30 @@ export async function getExerciseById(id: string): Promise<Exercise> {
   }
 }
 
+export async function createExercise(name: string, description: string | null): Promise<Exercise> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('name', name)
+      .input('description', description)
+      .query(`
+        INSERT INTO exercises (name, description)
+        OUTPUT INSERTED.*
+        VALUES (@name, @description)
+      `);
+
+    return result.recordset[0];
+  } catch (error) {
+    console.error('Error creating exercise:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 export async function getExerciseCount(): Promise<number> {
   let pool;
   try {
