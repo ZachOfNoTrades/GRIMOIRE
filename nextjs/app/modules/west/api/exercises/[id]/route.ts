@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getExerciseById, updateExercise, disableExercise, enableExercise } from '../../../lib/exerciseFunctions';
+import { getExerciseMuscleGroups, updateExerciseMuscleGroups } from '../../../lib/muscleGroupFunctions';
 
 export async function GET(
   request: Request,
@@ -9,7 +10,8 @@ export async function GET(
     const { id } = await context.params;
 
     const exercise = await getExerciseById(id);
-    return NextResponse.json(exercise);
+    const muscleGroups = await getExerciseMuscleGroups(id);
+    return NextResponse.json({ ...exercise, muscleGroups });
 
   } catch (error) {
     console.error('Error in GET /api/exercises/[id]:', error);
@@ -35,7 +37,7 @@ export async function PUT(
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, muscleGroups } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -44,8 +46,17 @@ export async function PUT(
       );
     }
 
-    const exercise = await updateExercise(id, name.trim(), description?.trim() || null);
-    return NextResponse.json(exercise);
+    await updateExercise(id, name.trim(), description?.trim() || null);
+
+    // Update muscle groups if provided
+    if (muscleGroups !== undefined) {
+      await updateExerciseMuscleGroups(id, muscleGroups);
+    }
+
+    // Re-fetch exercise with muscle groups
+    const updatedExercise = await getExerciseById(id);
+    const updatedMuscleGroups = await getExerciseMuscleGroups(id);
+    return NextResponse.json({ ...updatedExercise, muscleGroups: updatedMuscleGroups });
 
   } catch (error: any) {
     console.error('Error in PUT /api/exercises/[id]:', error);

@@ -22,6 +22,38 @@ BEGIN TRY
     END
 
     -- =============================
+    -- Muscle Groups
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='muscle_groups' AND xtype='U')
+    BEGIN
+        CREATE TABLE muscle_groups (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            name NVARCHAR(100) UNIQUE NOT NULL,
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE()
+        );
+    END
+
+    -- =============================
+    -- Exercise Muscle Groups
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='exercise_muscle_groups' AND xtype='U')
+    BEGIN
+        CREATE TABLE exercise_muscle_groups (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            exercise_id UNIQUEIDENTIFIER NOT NULL,
+            muscle_group_id UNIQUEIDENTIFIER NOT NULL,
+            is_primary BIT NOT NULL DEFAULT 0,
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT FK_exercise_muscle_groups_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id),
+            CONSTRAINT FK_exercise_muscle_groups_muscle_group FOREIGN KEY (muscle_group_id) REFERENCES muscle_groups(id),
+            CONSTRAINT UQ_exercise_muscle_group UNIQUE (exercise_id, muscle_group_id)
+        );
+    END
+
+    -- =============================
     -- Programs
     -- =============================
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='programs' AND xtype='U')

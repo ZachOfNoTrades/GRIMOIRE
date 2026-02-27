@@ -29,6 +29,136 @@ BEGIN TRY
     ('Dead Bug', 'Core activation', 0);
 
     -- =============================
+    -- Muscle Groups
+    -- =============================
+    INSERT INTO muscle_groups (name) VALUES
+    ('Chest'),
+    ('Upper Back'),
+    ('Lats'),
+    ('Shoulders'),
+    ('Biceps'),
+    ('Triceps'),
+    ('Forearms'),
+    ('Quads'),
+    ('Hamstrings'),
+    ('Glutes'),
+    ('Calves'),
+    ('Core'),
+    ('Traps'),
+    ('Lower Back');
+
+    -- =============================
+    -- Exercise Muscle Group Assignments
+    -- =============================
+    -- Look up exercise IDs
+    DECLARE @ex_back_squat UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Back Squat');
+    DECLARE @ex_front_squat UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Front Squat');
+    DECLARE @ex_leg_press UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Leg Press');
+    DECLARE @ex_conv_deadlift UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Conventional Deadlift');
+    DECLARE @ex_romanian_deadlift UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Romanian Deadlift');
+    DECLARE @ex_bench_press UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Bench Press');
+    DECLARE @ex_incline_bench UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Incline Bench Press');
+    DECLARE @ex_overhead_press UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Overhead Press');
+    DECLARE @ex_pull_up UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Pull-Up');
+    DECLARE @ex_barbell_row UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Barbell Row');
+    DECLARE @ex_lat_pulldown UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Lat Pulldown');
+    DECLARE @ex_cable_row UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Cable Row');
+    DECLARE @ex_split_squat UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Split Squat');
+    DECLARE @ex_lunges UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Lunges');
+    DECLARE @ex_bicep_curl UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Bicep Curl');
+    DECLARE @ex_tricep_extension UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Tricep Extension');
+    DECLARE @ex_lateral_raise UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Lateral Raise');
+    DECLARE @ex_face_pull UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Face Pull');
+    DECLARE @ex_plank UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Plank');
+    DECLARE @ex_dead_bug UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Dead Bug');
+
+    -- Look up muscle group IDs
+    DECLARE @mg_chest UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Chest');
+    DECLARE @mg_upper_back UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Upper Back');
+    DECLARE @mg_lats UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Lats');
+    DECLARE @mg_shoulders UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Shoulders');
+    DECLARE @mg_biceps UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Biceps');
+    DECLARE @mg_triceps UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Triceps');
+    DECLARE @mg_forearms UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Forearms');
+    DECLARE @mg_quads UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Quads');
+    DECLARE @mg_hamstrings UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Hamstrings');
+    DECLARE @mg_glutes UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Glutes');
+    DECLARE @mg_calves UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Calves');
+    DECLARE @mg_core UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Core');
+    DECLARE @mg_traps UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Traps');
+    DECLARE @mg_lower_back UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Lower Back');
+
+    INSERT INTO exercise_muscle_groups (exercise_id, muscle_group_id, is_primary) VALUES
+    -- Back Squat → Quads (primary), Glutes, Core
+    (@ex_back_squat, @mg_quads, 1),
+    (@ex_back_squat, @mg_glutes, 0),
+    (@ex_back_squat, @mg_core, 0),
+    -- Front Squat → Quads (primary), Core, Glutes
+    (@ex_front_squat, @mg_quads, 1),
+    (@ex_front_squat, @mg_core, 0),
+    (@ex_front_squat, @mg_glutes, 0),
+    -- Leg Press → Quads (primary), Glutes
+    (@ex_leg_press, @mg_quads, 1),
+    (@ex_leg_press, @mg_glutes, 0),
+    -- Conventional Deadlift → Hamstrings (primary), Glutes, Lower Back, Quads
+    (@ex_conv_deadlift, @mg_hamstrings, 1),
+    (@ex_conv_deadlift, @mg_glutes, 0),
+    (@ex_conv_deadlift, @mg_lower_back, 0),
+    (@ex_conv_deadlift, @mg_quads, 0),
+    -- Romanian Deadlift → Hamstrings (primary), Glutes, Lower Back
+    (@ex_romanian_deadlift, @mg_hamstrings, 1),
+    (@ex_romanian_deadlift, @mg_glutes, 0),
+    (@ex_romanian_deadlift, @mg_lower_back, 0),
+    -- Bench Press → Chest (primary), Triceps, Shoulders
+    (@ex_bench_press, @mg_chest, 1),
+    (@ex_bench_press, @mg_triceps, 0),
+    (@ex_bench_press, @mg_shoulders, 0),
+    -- Incline Bench Press → Chest (primary), Shoulders, Triceps
+    (@ex_incline_bench, @mg_chest, 1),
+    (@ex_incline_bench, @mg_shoulders, 0),
+    (@ex_incline_bench, @mg_triceps, 0),
+    -- Overhead Press → Shoulders (primary), Triceps
+    (@ex_overhead_press, @mg_shoulders, 1),
+    (@ex_overhead_press, @mg_triceps, 0),
+    -- Pull-Up → Lats (primary), Biceps, Upper Back
+    (@ex_pull_up, @mg_lats, 1),
+    (@ex_pull_up, @mg_biceps, 0),
+    (@ex_pull_up, @mg_upper_back, 0),
+    -- Barbell Row → Upper Back (primary), Lats, Biceps
+    (@ex_barbell_row, @mg_upper_back, 1),
+    (@ex_barbell_row, @mg_lats, 0),
+    (@ex_barbell_row, @mg_biceps, 0),
+    -- Lat Pulldown → Lats (primary), Biceps, Upper Back
+    (@ex_lat_pulldown, @mg_lats, 1),
+    (@ex_lat_pulldown, @mg_biceps, 0),
+    (@ex_lat_pulldown, @mg_upper_back, 0),
+    -- Cable Row → Upper Back (primary), Lats, Biceps
+    (@ex_cable_row, @mg_upper_back, 1),
+    (@ex_cable_row, @mg_lats, 0),
+    (@ex_cable_row, @mg_biceps, 0),
+    -- Split Squat → Quads (primary), Glutes
+    (@ex_split_squat, @mg_quads, 1),
+    (@ex_split_squat, @mg_glutes, 0),
+    -- Lunges → Quads (primary), Glutes
+    (@ex_lunges, @mg_quads, 1),
+    (@ex_lunges, @mg_glutes, 0),
+    -- Bicep Curl → Biceps (primary), Forearms
+    (@ex_bicep_curl, @mg_biceps, 1),
+    (@ex_bicep_curl, @mg_forearms, 0),
+    -- Tricep Extension → Triceps (primary)
+    (@ex_tricep_extension, @mg_triceps, 1),
+    -- Lateral Raise → Shoulders (primary)
+    (@ex_lateral_raise, @mg_shoulders, 1),
+    -- Face Pull → Shoulders (primary), Upper Back, Traps
+    (@ex_face_pull, @mg_shoulders, 1),
+    (@ex_face_pull, @mg_upper_back, 0),
+    (@ex_face_pull, @mg_traps, 0),
+    -- Plank → Core (primary)
+    (@ex_plank, @mg_core, 1),
+    -- Dead Bug → Core (primary)
+    (@ex_dead_bug, @mg_core, 1);
+
+    -- =============================
     -- Programs
     -- =============================
     INSERT INTO programs (id, name, description, is_current, is_completed) VALUES

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Dumbbell, Pencil } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { Exercise } from "../../../types/exercise";
+import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
 import { formatDateLong } from "../../../utils/format";
 import DisableExerciseModal from "./DisableExerciseModal";
 import EnableExerciseModal from "./EnableExerciseModal";
@@ -14,11 +14,13 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
 
   // DATA
-  const [exercise, setExercise] = useState<Exercise | null>(null);
+  const [exercise, setExercise] = useState<ExerciseWithMuscleGroups | null>(null);
+  const [allMuscleGroups, setAllMuscleGroups] = useState<MuscleGroup[]>([]);
 
   // INPUT
   const [editedName, setEditedName] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
+  const [editedMuscleGroups, setEditedMuscleGroups] = useState<Array<{ muscleGroupId: string; isPrimary: boolean }>>([]);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -35,6 +37,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   // LOAD DATA
   useEffect(() => {
     fetchExercise();
+    fetchAllMuscleGroups();
   }, [id]);
 
   const fetchExercise = async () => {
@@ -57,11 +60,59 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     }
   };
 
+  const fetchAllMuscleGroups = async () => {
+    try {
+      const response = await fetch("/modules/west/api/muscle-groups");
+      if (!response.ok) {
+        throw new Error("Failed to fetch muscle groups");
+      }
+      const data = await response.json();
+      setAllMuscleGroups(data);
+    } catch (error) {
+      console.error("Error fetching muscle groups:", error);
+    }
+  };
+
+  // MUSCLE GROUP HANDLERS
+  const handleToggleMuscleGroup = (muscleGroupId: string) => {
+    setEditedMuscleGroups((prev) => {
+      const existing = prev.find((mg) => mg.muscleGroupId === muscleGroupId);
+      if (existing) {
+        // Remove it
+        const updated = prev.filter((mg) => mg.muscleGroupId !== muscleGroupId);
+        // If we removed the primary and there are still groups, make the first one primary
+        if (existing.isPrimary && updated.length > 0) {
+          updated[0] = { ...updated[0], isPrimary: true };
+        }
+        return updated;
+      } else {
+        // Add it — if it's the first one, make it primary
+        const isPrimary = prev.length === 0;
+        return [...prev, { muscleGroupId, isPrimary }];
+      }
+    });
+  };
+
+  const handleSetPrimary = (muscleGroupId: string) => {
+    setEditedMuscleGroups((prev) =>
+      prev.map((mg) => ({
+        ...mg,
+        isPrimary: mg.muscleGroupId === muscleGroupId,
+      }))
+    );
+  };
+
   // EDIT HANDLERS
   const handleStartEdit = () => {
     if (!exercise) return;
     setEditedName(exercise.name);
     setEditedDescription(exercise.description || "");
+    setEditedMuscleGroups(
+      exercise.muscleGroups.map((mg) => ({
+        muscleGroupId: mg.muscle_group_id,
+        isPrimary: mg.is_primary,
+      }))
+    );
     setIsEditing(true);
   };
 
@@ -69,6 +120,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     setIsEditing(false);
     setEditedName("");
     setEditedDescription("");
+    setEditedMuscleGroups([]);
   };
 
   const handleSave = async () => {
@@ -86,6 +138,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
         body: JSON.stringify({
           name: editedName.trim(),
           description: editedDescription.trim() || null,
+          muscleGroups: editedMuscleGroups,
         }),
       });
 
@@ -306,6 +359,71 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                       rows={3}
                     />
                   </div>
+
+                  {/* MUSCLE GROUPS TABLE */}
+                  <div>
+                    <label className="text-secondary">Muscle Groups</label>
+                    <div className="table-container mt-1">
+                      <table className="table">
+
+                        {/* TABLE HEADERS */}
+                        <thead className="table-header">
+                          <tr className="table-header-row">
+                            <th className="table-header-cell w-0">Selected</th>
+                            <th className="table-header-cell w-0 whitespace-nowrap">Muscle Group</th>
+                            <th className="table-header-cell !text-center w-0">Primary</th>
+                            <th className="table-header-cell w-full"></th>
+                          </tr>
+                        </thead>
+
+                        {/* TABLE ROWS */}
+                        <tbody className="table-body">
+                          {allMuscleGroups.map((muscleGroup) => {
+                            const assignment = editedMuscleGroups.find(
+                              (mg) => mg.muscleGroupId === muscleGroup.id
+                            );
+                            const isAssigned = !!assignment;
+                            const isPrimary = assignment?.isPrimary ?? false;
+
+                            return (
+                              // MUSCLE GROUP ROW
+                              <tr key={muscleGroup.id} className="table-row">
+
+                                {/* SELECTED CHECKBOX */}
+                                <td className="table-cell">
+                                  <input
+                                    type="checkbox"
+                                    checked={isAssigned}
+                                    onChange={() => handleToggleMuscleGroup(muscleGroup.id)}
+                                    className="checkbox"
+                                  />
+                                </td>
+
+                                {/* NAME */}
+                                <td className="table-cell">{muscleGroup.name}</td>
+
+                                {/* PRIMARY RADIO */}
+                                <td className="table-cell text-center">
+                                  {isAssigned && (
+                                    <input
+                                      type="radio"
+                                      name="primaryMuscleGroup"
+                                      checked={isPrimary}
+                                      onChange={() => handleSetPrimary(muscleGroup.id)}
+                                      className="w-4 h-4 cursor-pointer"
+                                    />
+                                  )}
+                                </td>
+
+                                {/* SPACER */}
+                                <td></td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </>
               ) : (
                 <>
@@ -319,6 +437,26 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                   <div>
                     <label className="text-secondary">Description</label>
                     <p className="text-primary">{exercise.description || "—"}</p>
+                  </div>
+
+                  {/* MUSCLE GROUPS */}
+                  <div>
+                    <label className="text-secondary">Muscle Groups</label>
+                    {exercise.muscleGroups.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {exercise.muscleGroups.map((mg) => (
+                          // MUSCLE GROUP BADGE
+                          <span
+                            key={mg.id}
+                            className={`badge ${mg.is_primary ? "badge-default" : "badge-muted"}`}
+                          >
+                            {mg.muscle_group_name}{mg.is_primary && " (Primary)"}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-primary">—</p>
+                    )}
                   </div>
 
                   {/* CREATED DATE */}
