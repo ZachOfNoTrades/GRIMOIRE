@@ -1,12 +1,12 @@
 import { getWestConnection, closeWestConnection } from './db';
 import { Exercise } from '../types/exercise';
 
-export async function getAllExercises(): Promise<Exercise[]> {
+export async function getAllExercises(includeDisabled: boolean = false): Promise<Exercise[]> {
   let pool;
   try {
     pool = await getWestConnection();
     const result = await pool.request().query(`
-      SELECT * FROM exercises ORDER BY name
+      SELECT * FROM exercises ${includeDisabled ? '' : 'WHERE is_disabled = 0'} ORDER BY name
     `);
 
     if (result.recordset.length === 0) {
@@ -63,6 +63,86 @@ export async function createExercise(name: string, description: string | null): 
     return result.recordset[0];
   } catch (error) {
     console.error('Error creating exercise:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+export async function updateExercise(id: string, name: string, description: string | null): Promise<Exercise> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('id', id)
+      .input('name', name)
+      .input('description', description)
+      .query(`
+        UPDATE exercises
+        SET name = @name, description = @description, modified_at = GETDATE()
+        OUTPUT INSERTED.*
+        WHERE id = @id
+      `);
+
+    if (result.recordset.length === 0) {
+      throw new Error(`No exercise found for id: '${id}'`);
+    }
+
+    return result.recordset[0];
+  } catch (error) {
+    console.error('Error updating exercise:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+export async function disableExercise(id: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('id', id)
+      .query(`
+        UPDATE exercises
+        SET is_disabled = 1, modified_at = GETDATE()
+        WHERE id = @id AND is_disabled = 0
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No exercise found for id: '${id}'`);
+    }
+  } catch (error) {
+    console.error('Error disabling exercise:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+export async function enableExercise(id: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('id', id)
+      .query(`
+        UPDATE exercises
+        SET is_disabled = 0, modified_at = GETDATE()
+        WHERE id = @id AND is_disabled = 1
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No disabled exercise found for id: '${id}'`);
+    }
+  } catch (error) {
+    console.error('Error enabling exercise:', error);
     throw error;
   } finally {
     if (pool) {

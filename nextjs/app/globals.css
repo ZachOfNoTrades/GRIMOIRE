@@ -960,6 +960,10 @@ body {
   color: var(--btn-primary-bg);
 }
 
+.btn-link-success {
+  color: var(--btn-success-bg);
+}
+
 .btn:disabled {
   background: var(--btn-disabled-bg);
   color: var(--btn-disabled-text);

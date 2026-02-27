@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllExercises, createExercise } from '../../lib/exerciseFunctions';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
 
-    const exercises = await getAllExercises();
+    const includeDisabled = request.nextUrl.searchParams.get('includeDisabled') === 'true';
+    const exercises = await getAllExercises(includeDisabled);
     return NextResponse.json(exercises);
 
   } catch (error) {

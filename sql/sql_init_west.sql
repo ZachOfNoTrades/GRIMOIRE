@@ -15,6 +15,7 @@ BEGIN TRY
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             name NVARCHAR(255) UNIQUE NOT NULL,
             description NVARCHAR(MAX),
+            is_disabled BIT DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE()
         );

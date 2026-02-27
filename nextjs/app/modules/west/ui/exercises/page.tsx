@@ -12,13 +12,20 @@ export default function ExercisesPage() {
   // DATA
   const [exercises, setExercises] = useState<Exercise[]>([]);
 
-  // UI
+  // INPUT
   const [searchTerm, setSearchTerm] = useState("");
-  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
+  const [showDisabled, setShowDisabled] = useState(false);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  const statusExercises = exercises.filter((exercise) =>
+    showDisabled ? exercise.is_disabled : !exercise.is_disabled
+  );
+  const filteredExercises = statusExercises.filter((exercise) =>
+    !searchTerm || exercise.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const router = useRouter();
 
@@ -27,15 +34,10 @@ export default function ExercisesPage() {
     fetchExercises();
   }, []);
 
-  // UPDATE SEARCH FILTER
-  useEffect(() => {
-    filterExercises();
-  }, [exercises, searchTerm]);
-
   const fetchExercises = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/modules/west/api/exercises");
+      const response = await fetch("/modules/west/api/exercises?includeDisabled=true");
       if (!response.ok) {
         throw new Error("Failed to fetch exercises");
       }
@@ -46,19 +48,6 @@ export default function ExercisesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const filterExercises = () => {
-    let filtered = [...exercises];
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter((exercise) =>
-        exercise.name.toLowerCase().includes(term)
-      );
-    }
-
-    setFilteredExercises(filtered);
   };
 
   return (
@@ -121,6 +110,26 @@ export default function ExercisesPage() {
             </div>
           </div>
 
+          {/* STATUS FILTER TABS */}
+          <div className="flex gap-0 border-b border-[var(--card-border)]">
+
+            {/* ENABLED TAB */}
+            <button
+              onClick={() => setShowDisabled(false)}
+              className={`tab-button ${!showDisabled ? "tab-button-active" : ""}`}
+            >
+              Enabled
+            </button>
+
+            {/* DISABLED TAB */}
+            <button
+              onClick={() => setShowDisabled(true)}
+              className={`tab-button ${showDisabled ? "tab-button-active" : ""}`}
+            >
+              Disabled
+            </button>
+          </div>
+
           {/* TABLE */}
           {isLoading ? (
 
@@ -160,7 +169,11 @@ export default function ExercisesPage() {
                     filteredExercises.map((exercise) => (
 
                       // TABLE ROW
-                      <tr key={exercise.id} className="table-row">
+                      <tr
+                        key={exercise.id}
+                        className="table-row-clickable"
+                        onClick={() => router.push(`/modules/west/ui/exercises/${exercise.id}`)}
+                      >
                         <td className="table-cell">{exercise.name}</td>
                       </tr>
                     ))
@@ -171,9 +184,9 @@ export default function ExercisesPage() {
           )}
 
           {/* SUMMARY */}
-          {!isLoading && filteredExercises.length > 0 && (
+          {!isLoading && statusExercises.length > 0 && (
             <div className="text-secondary text-center mt-4">
-              Showing {filteredExercises.length} of {exercises.length} exercises
+              Showing {filteredExercises.length} of {statusExercises.length} {showDisabled ? "disabled" : "enabled"} exercises
             </div>
           )}
         </div>

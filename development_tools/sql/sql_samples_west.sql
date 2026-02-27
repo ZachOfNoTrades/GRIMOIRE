@@ -6,27 +6,27 @@
 BEGIN TRANSACTION WestDbSampleRecords;
 BEGIN TRY
 
-    INSERT INTO exercises (name, description) VALUES
-    ('Back Squat', 'Primary competition squat'),
-    ('Front Squat', 'Quad emphasis variation'),
-    ('Leg Press', 'Machine variation'),
-    ('Conventional Deadlift', 'Competition deadlift'),
-    ('Romanian Deadlift', 'Hamstring emphasis'),
-    ('Bench Press', 'Competition bench'),
-    ('Incline Bench Press', 'Upper chest emphasis'),
-    ('Overhead Press', 'Standing press'),
-    ('Pull-Up', 'Vertical pull'),
-    ('Barbell Row', 'Horizontal pull'),
-    ('Lat Pulldown', 'Machine vertical pull'),
-    ('Cable Row', 'Machine horizontal pull'),
-    ('Split Squat', 'Unilateral leg work'),
-    ('Lunges', 'Dynamic unilateral'),
-    ('Bicep Curl', 'Arm isolation'),
-    ('Tricep Extension', 'Arm isolation'),
-    ('Lateral Raise', 'Side delt isolation'),
-    ('Face Pull', 'Rear delt and rotator cuff'),
-    ('Plank', 'Core stability'),
-    ('Dead Bug', 'Core activation');
+    INSERT INTO exercises (name, description, is_disabled) VALUES
+    ('Back Squat', 'Primary competition squat', 0),
+    ('Front Squat', 'Quad emphasis variation', 0),
+    ('Leg Press', 'Machine variation', 0),
+    ('Conventional Deadlift', 'Competition deadlift', 0),
+    ('Romanian Deadlift', 'Hamstring emphasis', 0),
+    ('Bench Press', 'Competition bench', 0),
+    ('Incline Bench Press', 'Upper chest emphasis', 0),
+    ('Overhead Press', 'Standing press', 0),
+    ('Pull-Up', 'Vertical pull', 0),
+    ('Barbell Row', 'Horizontal pull', 0),
+    ('Lat Pulldown', 'Machine vertical pull', 0),
+    ('Cable Row', 'Machine horizontal pull', 0),
+    ('Split Squat', 'Unilateral leg work', 0),
+    ('Lunges', 'Dynamic unilateral', 0),
+    ('Bicep Curl', 'Arm isolation', 0),
+    ('Tricep Extension', 'Arm isolation', 0),
+    ('Lateral Raise', 'Side delt isolation', 0),
+    ('Face Pull', 'Rear delt and rotator cuff', 0),
+    ('Plank', 'Core stability', 0),
+    ('Dead Bug', 'Core activation', 0);
 
     -- =============================
     -- Programs
