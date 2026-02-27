@@ -71,6 +71,82 @@ export async function getWorkoutSessionById(id: string): Promise<WorkoutSession>
   }
 }
 
+// Clears all is_current flags across a program, then sets current on the lowest
+// incomplete block → week → session. Pass excludeSessionId to skip a session that
+// is about to be completed but hasn't been written to the DB yet.
+async function advanceProgramCurrent(
+  transaction: any,
+  programId: string,
+  excludeSessionId: string = '00000000-0000-0000-0000-000000000000',
+): Promise<void> {
+
+  // Clear all current flags across the program
+  await transaction.request()
+    .input('programId', programId)
+    .query(`
+      UPDATE ws
+      SET ws.is_current = 0, ws.modified_at = GETDATE()
+      FROM workout_sessions ws
+      JOIN weeks w ON ws.week_id = w.id
+      JOIN blocks b ON w.block_id = b.id
+      WHERE b.program_id = @programId AND ws.is_current = 1
+    `);
+
+  await transaction.request()
+    .input('programId', programId)
+    .query(`
+      UPDATE w
+      SET w.is_current = 0, w.modified_at = GETDATE()
+      FROM weeks w
+      JOIN blocks b ON w.block_id = b.id
+      WHERE b.program_id = @programId AND w.is_current = 1
+    `);
+
+  await transaction.request()
+    .input('programId', programId)
+    .query(`UPDATE blocks SET is_current = 0, modified_at = GETDATE() WHERE program_id = @programId AND is_current = 1`);
+
+  // Find lowest incomplete block
+  const blockResult = await transaction.request()
+    .input('programId', programId)
+    .query(`SELECT TOP 1 id FROM blocks WHERE program_id = @programId AND is_completed = 0 ORDER BY order_index ASC`);
+
+  if (blockResult.recordset.length === 0) return;
+  const blockId = blockResult.recordset[0].id;
+
+  await transaction.request()
+    .input('blockId', blockId)
+    .query(`UPDATE blocks SET is_current = 1, modified_at = GETDATE() WHERE id = @blockId`);
+
+  // Find lowest incomplete week in that block
+  const weekResult = await transaction.request()
+    .input('blockId', blockId)
+    .query(`SELECT TOP 1 id FROM weeks WHERE block_id = @blockId AND is_completed = 0 ORDER BY week_number ASC`);
+
+  if (weekResult.recordset.length === 0) return;
+  const weekId = weekResult.recordset[0].id;
+
+  await transaction.request()
+    .input('weekId', weekId)
+    .query(`UPDATE weeks SET is_current = 1, modified_at = GETDATE() WHERE id = @weekId`);
+
+  // Find lowest incomplete session in that week (excluding the session being completed)
+  const sessionResult = await transaction.request()
+    .input('weekId', weekId)
+    .input('excludeSessionId', excludeSessionId)
+    .query(`
+      SELECT TOP 1 id FROM workout_sessions
+      WHERE week_id = @weekId AND is_completed = 0 AND id != @excludeSessionId
+      ORDER BY order_index ASC
+    `);
+
+  if (sessionResult.recordset.length > 0) {
+    await transaction.request()
+      .input('sessionId', sessionResult.recordset[0].id)
+      .query(`UPDATE workout_sessions SET is_current = 1, modified_at = GETDATE() WHERE id = @sessionId`);
+  }
+}
+
 // Propagates status changes from a session to sibling sessions, parent week, and parent block.
 //
 // Rules:
@@ -106,11 +182,18 @@ async function updateStatus(
   // --- Becoming current: propagate up to week and block ---
   if (isCurrent && !current.is_current) {
 
-    // Clear other current sessions in the week
+    // Clear is_current from all other sessions in the program (ensures only one active at a time)
     await transaction.request()
-      .input('weekId', current.week_id)
+      .input('programId', program_id)
       .input('excludeId', id)
-      .query(`UPDATE workout_sessions SET is_current = 0, modified_at = GETDATE() WHERE week_id = @weekId AND is_current = 1 AND id != @excludeId`);
+      .query(`
+        UPDATE ws
+        SET ws.is_current = 0, ws.modified_at = GETDATE()
+        FROM workout_sessions ws
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId AND ws.id != @excludeId AND ws.is_current = 1
+      `);
 
     // Set parent week as current, clear other current weeks in the block
     await transaction.request()
@@ -131,26 +214,10 @@ async function updateStatus(
       `);
   }
 
-  // --- Completing: advance current to lowest uncompleted session in the week ---
+  // --- Completing: cascade completion markers, then recalculate current pointer ---
   if (isCompleted && !current.is_completed) {
 
-    // Find the lowest-order uncompleted session (excluding the one being completed)
-    const nextResult = await transaction.request()
-      .input('weekId', current.week_id)
-      .input('excludeId', id)
-      .query(`
-        SELECT TOP 1 id FROM workout_sessions
-        WHERE week_id = @weekId AND id != @excludeId AND is_completed = 0
-        ORDER BY order_index ASC
-      `);
-
-    if (nextResult.recordset.length > 0) {
-      await transaction.request()
-        .input('nextId', nextResult.recordset[0].id)
-        .query(`UPDATE workout_sessions SET is_current = 1, modified_at = GETDATE() WHERE id = @nextId`);
-    }
-
-    // Check if all sessions in the week are now complete
+    // Check if all sessions in the week are now complete (excluding the one being completed)
     const weekIncompleteCount = await transaction.request()
       .input('weekId', current.week_id)
       .input('excludeId', id)
@@ -161,21 +228,37 @@ async function updateStatus(
       // All sessions complete — mark week as complete
       await transaction.request()
         .input('weekId', current.week_id)
-        .query(`UPDATE weeks SET is_completed = 1, is_current = 0, modified_at = GETDATE() WHERE id = @weekId`);
+        .query(`UPDATE weeks SET is_completed = 1, modified_at = GETDATE() WHERE id = @weekId`);
 
       // Check if all weeks in the block are now complete
-      const blockIncompleteWeeks = await transaction.request()
+      const blockIncompleteCount = await transaction.request()
         .input('blockId', block_id)
         .query(`SELECT COUNT(*) as count FROM weeks WHERE block_id = @blockId AND is_completed = 0`);
 
-      if (blockIncompleteWeeks.recordset[0].count === 0) {
+      if (blockIncompleteCount.recordset[0].count === 0) {
 
         // All weeks complete — mark block as complete
         await transaction.request()
           .input('blockId', block_id)
-          .query(`UPDATE blocks SET is_completed = 1, is_current = 0, modified_at = GETDATE() WHERE id = @blockId`);
+          .query(`UPDATE blocks SET is_completed = 1, modified_at = GETDATE() WHERE id = @blockId`);
+
+        // Check if all blocks in the program are now complete
+        const programIncompleteCount = await transaction.request()
+          .input('programId', program_id)
+          .query(`SELECT COUNT(*) as count FROM blocks WHERE program_id = @programId AND is_completed = 0`);
+
+        if (programIncompleteCount.recordset[0].count === 0) {
+
+          // All blocks complete — mark program as complete
+          await transaction.request()
+            .input('programId', program_id)
+            .query(`UPDATE programs SET is_completed = 1, modified_at = GETDATE() WHERE id = @programId`);
+        }
       }
     }
+
+    // Recalculate the program-wide current pointer (exclude the completing session)
+    await advanceProgramCurrent(transaction, program_id, id);
   }
 
   // --- Uncompleting (resuming): unmark parent completion ---
@@ -198,6 +281,8 @@ export async function updateWorkoutSession(
   name: string,
   notes: string | null,
   startedAt: string | null,
+  resumedAt: string | null,
+  duration: number | null,
   isCurrent: boolean,
   isCompleted: boolean,
 ): Promise<void> {
@@ -228,11 +313,14 @@ export async function updateWorkoutSession(
         .input('name', name)
         .input('notes', notes)
         .input('startedAt', startedAt)
+        .input('resumedAt', resumedAt)
+        .input('duration', duration)
         .input('isCurrent', isCurrent ? 1 : 0)
         .input('isCompleted', isCompleted ? 1 : 0)
         .query(`
           UPDATE workout_sessions
           SET name = @name, notes = @notes, started_at = @startedAt,
+              resumed_at = @resumedAt, duration = @duration,
               is_current = @isCurrent, is_completed = @isCompleted, modified_at = GETDATE()
           WHERE id = @id
         `);
@@ -295,6 +383,76 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
     }
   } catch (error) {
     console.error('Error deleting workout session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+// Resets an incomplete session: clears started_at, removes current flag, and advances
+// the program-wide current pointer to the lowest incomplete block → week → session.
+export async function resetWorkoutSession(id: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Get current session state
+      const currentResult = await transaction.request()
+        .input('id', id)
+        .query(`SELECT id, week_id, order_index FROM workout_sessions WHERE id = @id`);
+
+      if (currentResult.recordset.length === 0) {
+        throw new Error(`No workout session found for id: '${id}'`);
+      }
+
+      const current = currentResult.recordset[0];
+
+      if (!current.week_id) {
+        // Standalone session — just clear started_at
+        await transaction.request()
+          .input('id', id)
+          .query(`UPDATE workout_sessions SET started_at = NULL, is_current = 0, modified_at = GETDATE() WHERE id = @id`);
+
+        await transaction.commit();
+        return;
+      }
+
+      // Get parent hierarchy
+      const hierarchyResult = await transaction.request()
+        .input('weekId', current.week_id)
+        .query(`
+          SELECT w.block_id, b.program_id
+          FROM weeks w
+          JOIN blocks b ON w.block_id = b.id
+          WHERE w.id = @weekId
+        `);
+
+      if (hierarchyResult.recordset.length === 0) {
+        throw new Error(`No hierarchy found for week: '${current.week_id}'`);
+      }
+
+      const { program_id } = hierarchyResult.recordset[0];
+
+      // Clear started_at and current flag
+      await transaction.request()
+        .input('id', id)
+        .query(`UPDATE workout_sessions SET started_at = NULL, is_current = 0, modified_at = GETDATE() WHERE id = @id`);
+
+      // Recalculate the program-wide current pointer
+      await advanceProgramCurrent(transaction, program_id);
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error resetting workout session:', error);
     throw error;
   } finally {
     if (pool) {

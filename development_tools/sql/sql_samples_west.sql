@@ -67,31 +67,31 @@ BEGIN TRY
     -- =============================
     -- Workout Sessions
     -- =============================
-    INSERT INTO workout_sessions (name, session_date, notes, week_id, order_index, started_at, is_current, is_completed) VALUES
+    INSERT INTO workout_sessions (name, session_date, notes, week_id, order_index, started_at, resumed_at, duration, is_current, is_completed) VALUES
     -- PPL Block 1 Week 1 (completed week)
-    ('Push Day', '2026-02-20', 'Felt strong today', '33333333-3333-3333-3333-333333333333', 1, '2026-02-20 06:00:00', 0, 1),
-    ('Pull Day', '2026-02-21', 'Good pump on back', '33333333-3333-3333-3333-333333333333', 2, '2026-02-21 06:30:00', 0, 1),
-    ('Leg Day', '2026-02-22', 'Heavy squats', '33333333-3333-3333-3333-333333333333', 3, '2026-02-22 07:00:00', 0, 1),
+    ('Push Day', '2026-02-20', 'Felt strong today', '33333333-3333-3333-3333-333333333333', 1, '2026-02-20 06:00:00', NULL, 3720, 0, 1),
+    ('Pull Day', '2026-02-21', 'Good pump on back', '33333333-3333-3333-3333-333333333333', 2, '2026-02-21 06:30:00', NULL, 4080, 0, 1),
+    ('Leg Day', '2026-02-22', 'Heavy squats', '33333333-3333-3333-3333-333333333333', 3, '2026-02-22 07:00:00', NULL, 5400, 0, 1),
     -- PPL Block 1 Week 2 (current week)
-    ('Push Day', '2026-02-27', NULL, '55555555-5555-5555-5555-555555555555', 1, '2026-02-27 06:00:00', 0, 1),
-    ('Pull Day', '2026-02-28', NULL, '55555555-5555-5555-5555-555555555555', 2, '2026-02-26 06:30:00', 1, 0),
-    ('Leg Day', '2026-03-01', NULL, '55555555-5555-5555-5555-555555555555', 3, NULL, 0, 0),
+    ('Push Day', '2026-02-27', NULL, '55555555-5555-5555-5555-555555555555', 1, '2026-02-27 06:00:00', NULL, 3900, 0, 1),
+    ('Pull Day', '2026-02-28', NULL, '55555555-5555-5555-5555-555555555555', 2, '2026-02-26 06:30:00', NULL, NULL, 1, 0),
+    ('Leg Day', '2026-03-01', NULL, '55555555-5555-5555-5555-555555555555', 3, NULL, NULL, NULL, 0, 0),
     -- PPL Block 2 Week 1 (not started)
-    ('Peak Push', '2026-03-06', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 1, NULL, 0, 0),
-    ('Peak Pull', '2026-03-07', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 2, NULL, 0, 0),
-    ('Peak Legs', '2026-03-08', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 3, NULL, 0, 0),
+    ('Peak Push', '2026-03-06', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 1, NULL, NULL, NULL, 0, 0),
+    ('Peak Pull', '2026-03-07', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 2, NULL, NULL, NULL, 0, 0),
+    ('Peak Legs', '2026-03-08', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 3, NULL, NULL, NULL, 0, 0),
     -- 5/3/1 Accumulation Week 1 (not started)
-    ('Squat Day', '2026-03-10', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 1, NULL, 0, 0),
-    ('Press Day', '2026-03-12', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 2, NULL, 0, 0),
-    ('Deadlift Day', '2026-03-14', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 3, NULL, 0, 0),
+    ('Squat Day', '2026-03-10', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 1, NULL, NULL, NULL, 0, 0),
+    ('Press Day', '2026-03-12', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 2, NULL, NULL, NULL, 0, 0),
+    ('Deadlift Day', '2026-03-14', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 3, NULL, NULL, NULL, 0, 0),
     -- 5/3/1 Accumulation Week 2 (not started)
-    ('Squat Day', '2026-03-17', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 1, NULL, 0, 0),
-    ('Press Day', '2026-03-19', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 2, NULL, 0, 0),
-    ('Deadlift Day', '2026-03-21', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 3, NULL, 0, 0),
+    ('Squat Day', '2026-03-17', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 1, NULL, NULL, NULL, 0, 0),
+    ('Press Day', '2026-03-19', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 2, NULL, NULL, NULL, 0, 0),
+    ('Deadlift Day', '2026-03-21', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 3, NULL, NULL, NULL, 0, 0),
     -- Standalone sessions
-    ('Upper Body', '2026-02-23', NULL, NULL, NULL, '2026-02-23 08:00:00', 0, 1),
-    ('Lower Body', '2026-02-24', 'Recovery session', NULL, NULL, '2026-02-24 09:00:00', 0, 1),
-    ('Full Body', '2026-02-25', 'Quick workout', NULL, NULL, NULL, 0, 0);
+    ('Upper Body', '2026-02-23', NULL, NULL, NULL, '2026-02-23 08:00:00', NULL, 2700, 0, 1),
+    ('Lower Body', '2026-02-24', 'Recovery session', NULL, NULL, '2026-02-24 09:00:00', NULL, 3300, 0, 1),
+    ('Full Body', '2026-02-25', 'Quick workout', NULL, NULL, NULL, NULL, NULL, 0, 0);
 
     -- =============================
     -- Session Exercises and Sets

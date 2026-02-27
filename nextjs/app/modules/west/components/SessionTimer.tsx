@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { Timer } from "lucide-react";
+import { formatDuration } from "../utils/format";
 
 interface SessionTimerProps {
   startedAt: Date;
+  offsetSeconds?: number;
   compact?: boolean;
 }
 
-export default function SessionTimer({ startedAt, compact = false }: SessionTimerProps) {
+export default function SessionTimer({ startedAt, offsetSeconds = 0, compact = false }: SessionTimerProps) {
 
   // STATE
   const [elapsed, setElapsed] = useState("");
@@ -18,26 +20,14 @@ export default function SessionTimer({ startedAt, compact = false }: SessionTime
       const now = new Date();
       const start = new Date(startedAt);
       const diffMs = now.getTime() - start.getTime();
-
       if (diffMs < 0) return "0:00";
-
-      const totalSeconds = Math.floor(diffMs / 1000);
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
-
-      const paddedSeconds = seconds.toString().padStart(2, "0");
-      const paddedMinutes = hours > 0 ? minutes.toString().padStart(2, "0") : minutes.toString();
-
-      return hours > 0
-        ? `${hours}:${paddedMinutes}:${paddedSeconds}`
-        : `${paddedMinutes}:${paddedSeconds}`;
+      return formatDuration(offsetSeconds + Math.floor(diffMs / 1000));
     };
 
     setElapsed(formatElapsed());
     const interval = setInterval(() => setElapsed(formatElapsed()), 1000);
     return () => clearInterval(interval);
-  }, [startedAt]);
+  }, [startedAt, offsetSeconds]);
 
   if (compact) {
     return (

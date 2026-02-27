@@ -6,6 +6,8 @@ export interface WorkoutSession {
   session_date: Date;
   notes: string | null;
   started_at: Date | null;
+  resumed_at: Date | null;
+  duration: number | null;
   is_current: boolean;
   is_completed: boolean;
   created_at: Date;

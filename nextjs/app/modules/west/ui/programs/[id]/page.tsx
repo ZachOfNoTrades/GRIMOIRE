@@ -6,6 +6,7 @@ import { ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Dumbbell, Layers }
 import { Button } from "@/components/ui/button";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
 import SessionTimer from "../../../components/SessionTimer";
+import { formatDateShort } from "../../../utils/format";
 
 export default function ProgramPage({ params }: { params: Promise<{ id: string }> }) {
 
@@ -41,14 +42,6 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
   };
 
   if (isLoading) return (
@@ -190,7 +183,12 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                         ) : (
 
                           // SESSIONS LIST
-                          week.sessions.map((session) => (
+                          week.sessions.map((session) => {
+                            const timerStart = session.resumed_at ?? session.started_at;
+                            const timerOffset = session.resumed_at ? (session.duration ?? 0) : 0;
+                            const isInProgress = !!timerStart && !session.is_completed;
+
+                            return (
 
                             // SESSION CARD
                             <div
@@ -220,8 +218,8 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                   <span className="font-medium">{session.name}</span>
 
                                   {/* TIMER */}
-                                  {session.started_at && !session.is_completed && (
-                                    <SessionTimer startedAt={session.started_at} compact />
+                                  {isInProgress && (
+                                    <SessionTimer startedAt={timerStart!} offsetSeconds={timerOffset} compact />
                                   )}
                                 </div>
 
@@ -232,7 +230,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                   <Calendar className="w-3.5 h-3.5" />
 
                                   {/* DATE */}
-                                  <span className="text-sm">{formatDate(session.session_date)}</span>
+                                  <span className="text-sm">{formatDateShort(session.session_date)}</span>
                                 </div>
                               </div>
 
@@ -241,7 +239,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                 <p className="text-secondary text-sm">{session.notes}</p>
                               )}
                             </div>
-                          ))
+                          );})
                         )}
                       </div>
                     ))

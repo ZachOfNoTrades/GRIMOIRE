@@ -6,6 +6,7 @@ import { ArrowLeft, History, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../types/workoutSession";
 import { ProgramSummary, getStatusLabel, getStatusBadge } from "../../types/program";
+import { formatDateShortWithYear } from "../../utils/format";
 
 export default function HistoryPage() {
 
@@ -64,14 +65,6 @@ export default function HistoryPage() {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      weekday: "short",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   return (
 
@@ -237,7 +230,7 @@ export default function HistoryPage() {
                           onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
                         >
                           <td className="table-cell">{session.name}</td>
-                          <td className="table-cell">{formatDate(session.session_date)}</td>
+                          <td className="table-cell">{formatDateShortWithYear(session.session_date)}</td>
                         </tr>
                       ))
                     )}

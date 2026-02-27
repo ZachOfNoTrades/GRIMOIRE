@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, CircleCheck, RotateCcw, Play } from "lucide-react";
+import { StickyNote, Plus, CircleCheck, RotateCcw, Play, Loader2, Timer } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -12,6 +12,7 @@ import SessionNavbar from "./SessionNavbar";
 import DeleteSessionModal from "./DeleteSessionModal";
 import EditExerciseModal from "./EditExerciseModal";
 import SessionTimer from "../../../components/SessionTimer";
+import { formatDuration, formatDateLong } from "../../../utils/format";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -35,6 +36,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [exerciseModalData, setExerciseModalData] = useState<SessionExerciseWithSets | null>(null);
   const [isSavingExercise, setIsSavingExercise] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusLabel, setStatusLabel] = useState("");
+
+  const timerStart = session?.resumed_at ?? session?.started_at ?? null;
+  const timerOffset = session?.resumed_at ? (session.duration ?? 0) : 0;
+  const isInProgress = !!timerStart && !session?.is_completed;
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,15 +96,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
   // SESSION INFO HANDLERS
   const handleStartEditSession = () => {
     if (!session) return;
@@ -129,6 +126,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           name: editedSessionName.trim(),
           notes: editedSessionNotes.trim() || null,
           started_at: session.started_at,
+          resumed_at: session.resumed_at,
+          duration: session.duration,
           is_current: session.is_current,
           is_completed: session.is_completed,
         }),
@@ -175,7 +174,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   // STATUS HANDLERS
-  const handleUpdateStatus = async (overrides: Partial<WorkoutSession>) => {
+  const updateSessionStatus = async (overrides: Partial<WorkoutSession>) => {
     if (!session) return;
     setIsUpdatingStatus(true);
     try {
@@ -186,6 +185,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           name: session.name,
           notes: session.notes,
           started_at: session.started_at,
+          resumed_at: session.resumed_at,
+          duration: session.duration,
           is_current: session.is_current,
           is_completed: session.is_completed,
           ...overrides,
@@ -203,6 +204,55 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     } catch (error) {
       toast.error("Failed to update session");
       console.error("Error updating session:", error);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleStartSession = () => {
+    setStatusLabel("Starting...");
+    updateSessionStatus({ is_current: true, started_at: new Date() });
+  };
+
+  const handleResumeSession = () => {
+    setStatusLabel("Resuming...");
+    updateSessionStatus({ is_completed: false, is_current: true, resumed_at: new Date() });
+  };
+
+  const handleCompleteSession = () => {
+    if (!session) return;
+    const elapsed = session.resumed_at
+      ? (session.duration ?? 0) + Math.floor((Date.now() - new Date(session.resumed_at).getTime()) / 1000)
+      : Math.floor((Date.now() - new Date(session.started_at!).getTime()) / 1000);
+
+    setStatusLabel("Saving...");
+    updateSessionStatus({
+      is_completed: true,
+      is_current: false,
+      resumed_at: null,
+      duration: elapsed,
+    });
+  };
+
+  const handleResetSession = async () => {
+    setStatusLabel("Resetting...");
+    setIsUpdatingStatus(true);
+    try {
+      const response = await fetch(`/modules/west/api/sessions/${id}`, {
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to reset session");
+        return;
+      }
+
+      const updatedSession = await response.json();
+      setSession(updatedSession);
+    } catch (error) {
+      toast.error("Failed to reset session");
+      console.error("Error resetting session:", error);
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -377,41 +427,49 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 {/* TITLE */}
                 <h2 className="text-card-title">Session Info</h2>
 
-                {/* STATUS ACTION BUTTON */}
-                {session.is_completed ? (
+                {/* STATUS ACTION BUTTONS */}
+                <div className="flex items-center gap-2 h-9">
+                  {isUpdatingStatus ? (
 
-                  // RESUME WORKOUT BUTTON
-                  <Button
-                    className="btn-off"
-                    onClick={() => handleUpdateStatus({ is_completed: false, is_current: true, started_at: new Date() })}
-                    disabled={isUpdatingStatus}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    {isUpdatingStatus ? "Saving..." : "Resume Workout"}
-                  </Button>
-                ) : session.is_current && session.started_at ? (
+                    // STATUS INDICATOR ("Saving..." etc)
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-secondary)' }} />
+                      <span className="text-secondary">{statusLabel}</span>
+                    </>
+                  ) : session.is_completed ? (
 
-                  // COMPLETE BUTTON
-                  <Button
-                    className="btn-primary"
-                    onClick={() => handleUpdateStatus({ is_completed: true, is_current: false })}
-                    disabled={isUpdatingStatus}
-                  >
-                    <CircleCheck className="w-4 h-4" />
-                    {isUpdatingStatus ? "Saving..." : "Complete"}
-                  </Button>
-                ) : (
+                    // RESUME WORKOUT BUTTON
+                    <Button className="btn-link" onClick={handleResumeSession}>
+                      <RotateCcw className="w-4 h-4" />
+                      Resume Workout
+                    </Button>
+                  ) : session.is_current && (session.started_at || session.resumed_at) ? (
 
-                  // START BUTTON
-                  <Button
-                    className="btn-primary"
-                    onClick={() => handleUpdateStatus({ is_current: true, started_at: new Date() })}
-                    disabled={isUpdatingStatus}
-                  >
-                    <Play className="w-4 h-4" />
-                    {isUpdatingStatus ? "Saving..." : "Start Workout"}
-                  </Button>
-                )}
+                    // IN-PROGRESS BUTTONS
+                    <>
+
+                      {/* RESET BUTTON (only for sessions that have never been completed) */}
+                      {!session.resumed_at && (
+                        <Button className="btn-link" onClick={handleResetSession}>
+                          Reset
+                        </Button>
+                      )}
+
+                      {/* COMPLETE BUTTON */}
+                      <Button className="btn-primary" onClick={handleCompleteSession}>
+                        <CircleCheck className="w-4 h-4" />
+                        Complete
+                      </Button>
+                    </>
+                  ) : (
+
+                    // START BUTTON
+                    <Button className="btn-primary" onClick={handleStartSession}>
+                      <Play className="w-4 h-4" />
+                      Start Workout
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* CARD CONTENT */}
@@ -434,7 +492,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     {/* DATE (READ-ONLY) */}
                     <div>
                       <label className="text-secondary">Date</label>
-                      <p className="text-primary">{formatDate(session.session_date)}</p>
+                      <p className="text-primary">{formatDateLong(session.session_date)}</p>
                     </div>
 
                     {/* NOTES INPUT */}
@@ -452,18 +510,29 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 ) : (
                   <>
 
-                    {/* TIMER */}
-                    {session.started_at && !session.is_completed && (
+                    {/* ACTIVE DURATION TIMER */}
+                    {isInProgress && (
                       <div>
                         <label className="text-secondary">Duration</label>
-                        <SessionTimer startedAt={session.started_at} />
+                        <SessionTimer startedAt={timerStart!} offsetSeconds={timerOffset} />
+                      </div>
+                    )}
+
+                    {/* INACTIVE DURATION TIMER */}
+                    {session.is_completed && session.duration != null && (
+                      <div>
+                        <label className="text-secondary">Duration</label>
+                        <div className="flex items-center gap-1.5">
+                          <Timer className="w-4 h-4" />
+                          <span className="font-mono font-medium">{formatDuration(session.duration)}</span>
+                        </div>
                       </div>
                     )}
 
                     {/* DATE */}
                     <div>
                       <label className="text-secondary">Date</label>
-                      <p className="text-primary">{formatDate(session.session_date)}</p>
+                      <p className="text-primary">{formatDateLong(session.session_date)}</p>
                     </div>
 
                     {/* EXERCISE COUNT */}

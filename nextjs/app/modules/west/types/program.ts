@@ -29,6 +29,8 @@ export interface ProgramSession {
   notes: string | null;
   order_index: number | null;
   started_at: Date | null;
+  resumed_at: Date | null;
+  duration: number | null;
   is_current: boolean;
   is_completed: boolean;
 }

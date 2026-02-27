@@ -91,6 +91,8 @@ BEGIN TRY
             session_date DATE NOT NULL,
             notes NVARCHAR(MAX),
             started_at DATETIME2 NULL, -- timestamp when session was physically started
+            resumed_at DATETIME2 NULL, -- timestamp when a completed session was most recently resumed
+            duration INT NULL, -- accumulated duration in seconds
             is_current BIT CHECK (is_current IN (0,1)) DEFAULT 0, -- 1 = currently active
             is_completed BIT CHECK (is_completed IN (0,1)) DEFAULT 0, -- 1 = finished
             created_at DATETIME2 DEFAULT GETDATE(),
