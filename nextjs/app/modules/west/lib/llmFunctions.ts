@@ -4,6 +4,8 @@ import { join } from 'path';
 import { CreateProgramPayload } from '../types/program';
 import { ExerciseSummary } from '../types/exercise';
 import { GenerateProgramInput, GenerateProgramResult, ValidationResult } from '../types/llm';
+import { getAllExercisesWithMuscleGroups } from './exerciseFunctions';
+import { createProgram } from './programFunctions';
 
 export function buildPrompt(input: GenerateProgramInput, exercises: ExerciseSummary[]): string {
   const templatePath = join(process.cwd(), 'app', 'modules', 'west', 'lib', 'prompts', 'generateProgram.md');
@@ -195,4 +197,36 @@ export async function generateProgram(
     programPayload,
     modelUsed: process.env.LLM_PROVIDER || 'unknown',
   };
+}
+
+// Self-contained background generation function. Fetches exercises, generates via LLM,
+// validates, and saves the program. All errors are caught and logged internally.
+export async function generateProgramInBackground(input: GenerateProgramInput): Promise<void> {
+  const startTime = Date.now();
+  const heartbeat = setInterval(() => {
+    const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+    console.log(`Program generating... [${elapsedSeconds}s elapsed]`);
+  }, 15000); // Log every 15 seconds
+
+  try {
+    const exercises = await getAllExercisesWithMuscleGroups();
+    const validExerciseIds = new Set(exercises.map(e => e.id)); // Verify no hallucinated exercise IDs
+
+    const { programPayload } = await generateProgram(input, exercises);
+
+    const validation = validateGeneratedPayload(programPayload, validExerciseIds);
+    if (!validation.valid) {
+      console.error('[GenerateProgram] Failed validation:', validation.errors);
+      return;
+    }
+
+    const programId = await createProgram(programPayload);
+    const totalSeconds = Math.round((Date.now() - startTime) / 1000);
+    console.log(`[GenerateProgram] Completed in ${totalSeconds}s. Program id: '${programId}'`);
+  } catch (error) {
+    const totalSeconds = Math.round((Date.now() - startTime) / 1000);
+    console.error(`[GenerateProgram] Failed after ${totalSeconds}s:`, error);
+  } finally {
+    clearInterval(heartbeat);
+  }
 }

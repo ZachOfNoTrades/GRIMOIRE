@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAllExercisesWithMuscleGroups } from '../../../lib/exerciseFunctions';
-import { createProgram } from '../../../lib/programFunctions';
-import { generateProgram, validateGeneratedPayload } from '../../../lib/llmFunctions';
+import { generateProgramInBackground } from '../../../lib/llmFunctions';
 
 export async function POST(request: Request) {
   try {
@@ -22,63 +20,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const exercises = await getAllExercisesWithMuscleGroups();
-    const validExerciseIds = new Set(exercises.map(e => e.id)); // Used after LLM generation to verify no hallucinated exercise IDs
+    // Fire-and-forget — generation runs in the background
+    generateProgramInBackground({ userPrompt, startDate }).catch(() => {});
 
-    const { programPayload } = await generateProgram({ userPrompt, startDate }, exercises);
-
-    // Validate the generated payload
-    const validation = validateGeneratedPayload(programPayload, validExerciseIds);
-    if (!validation.valid) {
-      return NextResponse.json(
-        { error: 'Generated program failed validation', details: validation.errors },
-        { status: 422 }
-      );
-    }
-
-    // Add program to database
-    const programId = await createProgram(programPayload);
-    return NextResponse.json({ id: programId }, { status: 201 });
+    return NextResponse.json(
+      { message: 'Program generation started' },
+      { status: 200 }
+    );
 
   } catch (error) {
     console.error('Error in POST /api/programs/generate:', error);
-
-    if (error instanceof Error) {
-      // Missing or unsupported LLM_PROVIDER
-      if (error.message.includes('LLM_PROVIDER')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 500 }
-        );
-      }
-
-      // LLM provider not found or failed to start
-      if (error.message.includes('Failed to start')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 503 }
-        );
-      }
-
-      // LLM provider exited with non-zero code
-      if (error.message.includes('exited with code')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 502 }
-        );
-      }
-
-      // JSON parse failure
-      if (error.message.includes('Failed to parse')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 422 }
-        );
-      }
-    }
-
     return NextResponse.json(
-      { error: 'Failed to generate program' },
+      { error: 'Failed to start program generation' },
       { status: 500 }
     );
   }
