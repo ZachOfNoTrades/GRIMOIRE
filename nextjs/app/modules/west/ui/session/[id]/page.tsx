@@ -6,7 +6,7 @@ import { StickyNote, Plus, CircleCheck, RotateCcw, Play, Loader2, Timer } from "
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
-import { SessionExerciseWithSets } from "../../../types/sessionExercise";
+import { SessionExerciseWithSets, TargetSessionExercise } from "../../../types/sessionExercise";
 import { Exercise } from "../../../types/exercise";
 import SessionNavbar from "./SessionNavbar";
 import DeleteSessionModal from "./DeleteSessionModal";
@@ -19,7 +19,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   // DATA
   const [session, setSession] = useState<WorkoutSession | null>(null);
-  const [sessionExercises, setSessionExercises] = useState<SessionExerciseWithSets[]>([]);
+  const [loggedSessionExercises, setLoggedSessionExercises] = useState<SessionExerciseWithSets[]>([]);
+  const [targetExercises, setTargetSessionExercises] = useState<TargetSessionExercise[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
 
   // INPUT
@@ -38,9 +39,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [statusLabel, setStatusLabel] = useState("");
 
+  // DERIVED
   const timerStart = session?.resumed_at ?? session?.started_at ?? null;
   const timerOffset = session?.resumed_at ? (session.duration ?? 0) : 0;
   const isInProgress = !!timerStart && !session?.is_completed;
+  const linkedTargetExerciseIds = new Set(loggedSessionExercises.map((e) => e.target_id).filter(Boolean));
+  const unlinkedTargetExercises = targetExercises.filter((t) => !linkedTargetExerciseIds.has(t.id));
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -74,8 +78,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }
 
       if (exercisesResponse.ok) {
-        const exercisesData = await exercisesResponse.json();
-        setSessionExercises(exercisesData);
+        const data = await exercisesResponse.json();
+        setLoggedSessionExercises(data.exercises);
+        setTargetSessionExercises(data.targets);
       }
     } catch (error) {
       console.error("Error fetching session data:", error);
@@ -264,6 +269,39 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setIsExerciseModalOpen(true);
   };
 
+  // TODO - Block editing if session not started
+
+  // Initialize a new EditExerciseModal and pass target set data (modal will handle filling out sets[])
+  const handleOpenTargetExercise = (target: TargetSessionExercise) => {
+    const newSessionExerciseId = crypto.randomUUID();
+    const newSessionExercise: SessionExerciseWithSets = {
+      id: newSessionExerciseId,
+      session_id: id,
+      exercise_id: target.exercise_id,
+      exercise_name: target.exercise_name,
+      target_id: target.id,
+      order_index: loggedSessionExercises.length + 1,
+      notes: null,
+      created_at: new Date(),
+      modified_at: new Date(),
+      sets: target.sets.map((ts) => ({
+        id: crypto.randomUUID(),
+        session_exercise_id: newSessionExerciseId,
+        set_number: ts.set_number,
+        is_warmup: ts.is_warmup,
+        reps: 0,
+        weight: 0,
+        rpe: null,
+        notes: null,
+        created_at: new Date(),
+        modified_at: new Date(),
+      })),
+      target: target,
+    };
+    setExerciseModalData(newSessionExercise);
+    setIsExerciseModalOpen(true);
+  };
+
   const handleAddExercise = () => {
     const exerciseId = crypto.randomUUID();
     const newExercise: SessionExerciseWithSets = {
@@ -271,7 +309,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       session_id: id,
       exercise_id: "",
       exercise_name: "",
-      order_index: sessionExercises.length + 1,
+      target_id: null,
+      order_index: loggedSessionExercises.length + 1,
       notes: null,
       created_at: new Date(),
       modified_at: new Date(),
@@ -287,6 +326,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         created_at: new Date(),
         modified_at: new Date(),
       }],
+      target: null,
     };
     setExerciseModalData(newExercise);
     setIsExerciseModalOpen(true);
@@ -296,17 +336,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setIsSavingExercise(true);
     try {
       // Check if exercise already exists in the list
-      const existingIndex = sessionExercises.findIndex(ex => ex.id === editedExercise.id);
+      const existingIndex = loggedSessionExercises.findIndex(ex => ex.id === editedExercise.id);
       let updatedExercises: SessionExerciseWithSets[];
 
       if (existingIndex >= 0) {
         // Replace existing exercise
-        updatedExercises = sessionExercises.map(ex =>
+        updatedExercises = loggedSessionExercises.map(ex =>
           ex.id === editedExercise.id ? editedExercise : ex
         );
       } else {
         // Add new exercise
-        updatedExercises = [...sessionExercises, editedExercise];
+        updatedExercises = [...loggedSessionExercises, editedExercise];
       }
 
       const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
@@ -321,8 +361,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         return;
       }
 
-      const savedExercises = await response.json();
-      setSessionExercises(savedExercises);
+      const data = await response.json();
+      setLoggedSessionExercises(data.exercises);
+      setTargetSessionExercises(data.targets);
       setIsExerciseModalOpen(false);
       toast.success("Exercise saved");
     } catch (error) {
@@ -337,7 +378,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     if (!exerciseModalData) return;
 
     // If the exercise is new (not yet saved), just close the modal
-    const exists = sessionExercises.some(ex => ex.id === exerciseModalData.id);
+    const exists = loggedSessionExercises.some(ex => ex.id === exerciseModalData.id);
     if (!exists) {
       setIsExerciseModalOpen(false);
       return;
@@ -345,7 +386,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
     setIsSavingExercise(true);
     try {
-      const updatedExercises = sessionExercises.filter(ex => ex.id !== exerciseModalData.id);
+      const updatedExercises = loggedSessionExercises.filter(ex => ex.id !== exerciseModalData.id);
       updatedExercises.forEach((ex, i) => { ex.order_index = i + 1; });
 
       const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
@@ -360,8 +401,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         return;
       }
 
-      const savedExercises = await response.json();
-      setSessionExercises(savedExercises);
+      const data = await response.json();
+      setLoggedSessionExercises(data.exercises);
+      setTargetSessionExercises(data.targets);
       setIsExerciseModalOpen(false);
       toast.success("Exercise removed");
     } catch (error) {
@@ -538,7 +580,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     {/* EXERCISE COUNT */}
                     <div>
                       <label className="text-secondary">Exercises</label>
-                      <p className="text-primary">{sessionExercises.length}</p>
+                      <p className="text-primary">{loggedSessionExercises.length}</p>
                     </div>
 
                     {/* SESSION NOTES */}
@@ -561,48 +603,64 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             <div className="card-header">
 
               {/* TITLE */}
-              <h2 className="text-card-title">Exercises ({sessionExercises.length})</h2>
+              <h2 className="text-card-title">Exercises ({loggedSessionExercises.length})</h2>
             </div>
 
             {/* CARD CONTENT */}
             <div className="card-content">
 
-              {sessionExercises.length === 0 ? (
+              {loggedSessionExercises.length === 0 && targetExercises.length === 0 && (
 
                 // EMPTY STATE
-                <p className="table-empty">No exercises recorded for this session</p>
-              ) : (
+                <p className="table-empty">No exercises added in this session</p>
+              )}
 
-                // EXERCISE SUB-CARDS
-                sessionExercises.map((exercise) => (
+              {/* LOGGED EXERCISE SUB-CARDS */}
+              {loggedSessionExercises.map((exercise) => (
 
-                  // EXERCISE SUB-CARD
-                  <div
-                    key={exercise.id}
-                    className="sub-card cursor-pointer"
-                    onClick={() => handleOpenExercise(exercise)}
-                  >
+                // EXERCISE SUB-CARD
+                <div
+                  key={exercise.id}
+                  className="sub-card cursor-pointer"
+                  onClick={() => handleOpenExercise(exercise)}
+                >
 
-                    {/* SUB-CARD HEADER */}
-                    <div className="sub-card-header">
+                  {/* SUB-CARD HEADER */}
+                  <div className="sub-card-header">
 
-                      {/* EXERCISE NAME */}
-                      <h3 className="text-card-title">{exercise.exercise_name}</h3>
-                    </div>
+                    {/* EXERCISE NAME */}
+                    <h3 className="text-card-title">{exercise.exercise_name}</h3>
 
-                    {/* SUB-CARD CONTENT */}
-                    <div className="sub-card-content">
+                    {/* ORIGINAL TARGET EXERCISE HINT (when selected exercise was swapped) */}
+                    {exercise.target && exercise.target.exercise_id !== exercise.exercise_id && (
+                      <p className="text-secondary">Swapped from {exercise.target.exercise_name}</p>
+                    )}
+                  </div>
 
-                      {/* EXERCISE NOTES */}
-                      {exercise.notes && (
-                        <div className="text-secondary flex items-center gap-1">
-                          <StickyNote className="w-3 h-3" />
-                          <span>{exercise.notes}</span>
-                        </div>
-                      )}
+                  {/* SUB-CARD CONTENT */}
+                  <div className="sub-card-content">
 
-                      {/* SETS */}
-                      {exercise.sets.length === 0 ? (
+                    {/* EXERCISE NOTES */}
+                    {exercise.notes && (
+                      <div className="text-secondary flex items-center gap-1">
+                        <StickyNote className="w-3 h-3" />
+                        <span>{exercise.notes}</span>
+                      </div>
+                    )}
+
+                    {/* SETS */}
+                    {(() => {
+                      const warmupSets = exercise.sets.filter((s) => s.is_warmup);
+                      const workingSets = exercise.sets.filter((s) => !s.is_warmup);
+                      const unlinkedWarmupTargets = exercise.target
+                        ? exercise.target.sets.filter((ts) => ts.is_warmup && !warmupSets.some((s) => s.set_number === ts.set_number))
+                        : [];
+                      const unlinkedWorkingTargets = exercise.target
+                        ? exercise.target.sets.filter((ts) => !ts.is_warmup && !workingSets.some((s) => s.set_number === ts.set_number))
+                        : [];
+                      const hasContent = exercise.sets.length > 0 || unlinkedWarmupTargets.length > 0 || unlinkedWorkingTargets.length > 0;
+
+                      return !hasContent ? (
 
                         // NO SETS PLACEHOLDER
                         <p className="text-secondary">No sets recorded</p>
@@ -612,31 +670,116 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         <div className="flex flex-col gap-1">
 
                           {/* WARMUP SET ROWS */}
-                          {exercise.sets.filter((s) => s.is_warmup).map((set) => (
+                          {warmupSets.map((set) => {
+                            const targetSet = exercise.target
+                              ? exercise.target.sets.find((ts) => ts.set_number === set.set_number && ts.is_warmup)
+                              : null;
+                            const targetDiffers = targetSet && (
+                              set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
+                            );
 
-                            // WARMUP SET ROW
-                            <p key={set.id} className="text-secondary">
-                              <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                              {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                            return (
+                              // WARMUP SET ROW
+                              <p key={set.id} className="text-secondary">
+                                <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                                {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                                {targetDiffers && <span> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
+                              </p>
+                            );
+                          })}
+
+                          {/* UNLINKED WARMUP TARGET ROWS */}
+                          {unlinkedWarmupTargets.map((ts) => (
+                            <p key={ts.id} className="text-secondary">
+                              <span>Target: {ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
+                              {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
                             </p>
                           ))}
 
                           {/* WORKING SET ROWS */}
-                          {exercise.sets.filter((s) => !s.is_warmup).map((set) => (
+                          {workingSets.map((set) => {
+                            const targetSet = exercise.target
+                              ? exercise.target.sets.find((ts) => ts.set_number === set.set_number && !ts.is_warmup)
+                              : null;
+                            const targetDiffers = targetSet && (
+                              set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
+                            );
 
-                            // WORKING SET ROW
-                            <p key={set.id}>
-                              <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                              {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                              {set.notes && <span className="text-secondary"> - {set.notes}</span>}
+                            return (
+                              // WORKING SET ROW
+                              <p key={set.id}>
+                                <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                                {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                                {targetDiffers && <span className="text-secondary"> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
+                                {set.notes && <span className="text-secondary"> - {set.notes}</span>}
+                              </p>
+                            );
+                          })}
+
+                          {/* UNLINKED WORKING TARGET ROWS */}
+                          {unlinkedWorkingTargets.map((ts) => (
+                            <p key={ts.id} className="text-secondary">
+                              <span>Target: {ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
+                              {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
                             </p>
                           ))}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </div>
-                ))
-              )}
+                </div>
+              ))}
+
+              {/* UNLINKED TARGET CARDS */}
+              {unlinkedTargetExercises.map((target) => (
+
+                // TARGET SUB-CARD
+                <div
+                  key={target.id}
+                  className="sub-card cursor-pointer"
+                  onClick={() => handleOpenTargetExercise(target)}
+                >
+
+                  {/* SUB-CARD HEADER */}
+                  <div className="sub-card-header">
+
+                    {/* EXERCISE NAME */}
+                    <h3 className="text-card-title">{target.exercise_name}</h3>
+                  </div>
+
+                  {/* SUB-CARD CONTENT */}
+                  <div className="sub-card-content">
+
+                    {/* TARGET SETS */}
+                    {target.sets.length === 0 ? (
+
+                      // NO SETS PLACEHOLDER
+                      <p className="text-secondary">No target sets</p>
+                    ) : (
+
+                      // SETS
+                      <div className="flex flex-col gap-1">
+
+                        {/* WARMUP SET ROWS */}
+                        {target.sets.filter((s) => s.is_warmup).map((set) => (
+                          <p key={set.id} className="text-secondary">
+                            <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                            {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                          </p>
+                        ))}
+
+                        {/* WORKING SET ROWS */}
+                        {target.sets.filter((s) => !s.is_warmup).map((set) => (
+                          <p key={set.id} className="text-secondary">
+                            <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                            {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
 
               {/* ADD EXERCISE BUTTON */}
               <Button

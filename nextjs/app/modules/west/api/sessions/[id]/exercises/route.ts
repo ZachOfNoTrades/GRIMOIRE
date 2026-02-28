@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionExercisesBySessionId, updateSessionExercises } from '../../../../lib/sessionExerciseFunctions';
+import { getSessionExercisesAndTargets, updateSessionExercises } from '../../../../lib/sessionExerciseFunctions';
 
 export async function GET(
   request: Request,
@@ -8,8 +8,9 @@ export async function GET(
   try {
     const { id } = await context.params;
 
-    const sessionExercises = await getSessionExercisesBySessionId(id);
-    return NextResponse.json(sessionExercises);
+    const { exercises, targets } = await getSessionExercisesAndTargets(id);
+
+    return NextResponse.json({ exercises, targets });
 
   } catch (error) {
     console.error('Error in GET /api/sessions/[id]/exercises:', error);
@@ -30,9 +31,10 @@ export async function PUT(
 
     await updateSessionExercises(id, exercises);
 
-    // Return the updated exercises
-    const updatedExercises = await getSessionExercisesBySessionId(id);
-    return NextResponse.json(updatedExercises);
+    // Return the updated exercises with targets
+    const { exercises: updatedExercises, targets } = await getSessionExercisesAndTargets(id);
+
+    return NextResponse.json({ exercises: updatedExercises, targets });
 
   } catch (error) {
     console.error('Error in PUT /api/sessions/[id]/exercises:', error);

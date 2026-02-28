@@ -135,6 +135,46 @@ BEGIN TRY
         );
     END
 
+-- TODO rebrand "session exercises" to better differentiate from exercises
+
+    -- =============================
+    -- Target Session Exercises
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='target_session_exercises' AND xtype='U')
+    BEGIN
+        CREATE TABLE target_session_exercises (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            session_id UNIQUEIDENTIFIER NOT NULL,
+            exercise_id UNIQUEIDENTIFIER NOT NULL,
+            order_index INT NOT NULL,
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT FK_target_exercises_session FOREIGN KEY (session_id) REFERENCES workout_sessions(id),
+            CONSTRAINT FK_target_exercises_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id)
+        );
+    END
+
+    -- =============================
+    -- Target Session Exercise Sets
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='target_session_exercise_sets' AND xtype='U')
+    BEGIN
+        CREATE TABLE target_session_exercise_sets (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            target_session_exercise_id UNIQUEIDENTIFIER NOT NULL,
+            set_number INT NOT NULL,
+            is_warmup BIT NOT NULL DEFAULT 0,
+            reps INT NOT NULL,
+            weight DECIMAL(6,1) NOT NULL,
+            rpe DECIMAL(3,1),
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT FK_target_sets_target_exercise FOREIGN KEY (target_session_exercise_id) REFERENCES target_session_exercises(id)
+        );
+    END
+
     -- =============================
     -- Session Exercises
     -- =============================
@@ -144,13 +184,15 @@ BEGIN TRY
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             session_id UNIQUEIDENTIFIER NOT NULL,
             exercise_id UNIQUEIDENTIFIER NOT NULL,
+            target_id UNIQUEIDENTIFIER NULL,
             order_index INT NOT NULL,
             notes NVARCHAR(MAX),
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
-            
+
             CONSTRAINT FK_session_exercises_session FOREIGN KEY (session_id) REFERENCES workout_sessions(id),
-            CONSTRAINT FK_session_exercises_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id)
+            CONSTRAINT FK_session_exercises_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id),
+            CONSTRAINT FK_session_exercises_target FOREIGN KEY (target_id) REFERENCES target_session_exercises(id)
         );
     END
 
