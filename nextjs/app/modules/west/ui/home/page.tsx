@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { Dumbbell, Layers, Plus } from "lucide-react";
+import { Dumbbell, Layers, Plus, Zap } from "lucide-react";
 import { Program } from "../../types/program";
 import ProgramDashboard from "../../components/ProgramDashboard";
 
@@ -97,8 +97,10 @@ export default function WestHomePage() {
           </h1>
         </div>
 
-        {/* ADD SESSION BUTTON */}
-        <div className="mb-6">
+        {/* ACTION BUTTONS */}
+        <div className="flex gap-3 mb-6">
+
+          {/* ADD SESSION BUTTON */}
           <Button
             className="btn-primary"
             onClick={handleAddSession}
@@ -106,6 +108,15 @@ export default function WestHomePage() {
           >
             <Plus className="w-4 h-4" />
             {isCreatingSession ? "Creating..." : "New Session"}
+          </Button>
+
+          {/* GENERATE PROGRAM BUTTON */}
+          <Button
+            className="btn-primary"
+            onClick={() => router.push("/modules/west/ui/programs/generate")}
+          >
+            <Zap className="w-4 h-4" />
+            Generate Program
           </Button>
         </div>
 
