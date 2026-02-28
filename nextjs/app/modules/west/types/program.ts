@@ -68,3 +68,50 @@ export interface Program {
   modified_at: Date;
   blocks: ProgramBlock[];
 }
+
+// =============================
+// Create Payload Types
+// =============================
+
+export interface CreateProgramTargetSet {
+  set_number: number;
+  is_warmup: boolean;
+  reps: number;
+  weight: number;
+  rpe: number | null;
+}
+
+export interface CreateProgramTargetExercise {
+  exercise_id: string;
+  order_index: number;
+  sets: CreateProgramTargetSet[];
+}
+
+export interface CreateProgramSession {
+  order_index: number;
+  name: string;
+  session_date: string;
+  target_exercises: CreateProgramTargetExercise[];
+}
+
+export interface CreateProgramWeek {
+  week_number: number;
+  name: string | null;
+  description: string | null;
+  sessions: CreateProgramSession[];
+}
+
+export interface CreateProgramBlock {
+  name: string;
+  order_index: number;
+  description: string | null;
+  tag: string | null;
+  color: string | null;
+  weeks: CreateProgramWeek[];
+}
+
+export interface CreateProgramPayload {
+  name: string;
+  description: string | null;
+  blocks: CreateProgramBlock[];
+}

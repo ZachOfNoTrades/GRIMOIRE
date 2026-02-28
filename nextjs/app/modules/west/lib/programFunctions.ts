@@ -1,5 +1,5 @@
 import { getWestConnection, closeWestConnection } from './db';
-import { Program, ProgramBlock, ProgramSummary, ProgramWeek, ProgramSession } from '../types/program';
+import { Program, ProgramBlock, ProgramSummary, ProgramWeek, ProgramSession, CreateProgramPayload } from '../types/program';
 
 export async function getAllPrograms(): Promise<ProgramSummary[]> {
   let pool;
@@ -184,3 +184,247 @@ export async function getProgramById(programId: string): Promise<Program> {
     }
   }
 }
+
+// Clears is_current on a program and all of its blocks, weeks, and sessions.
+async function clearProgramCurrentFlags(transaction: any, programId: string): Promise<void> {
+
+  // TODO: Handle in-progress sessions (started_at/resumed_at set) — they
+  // should be paused or completed before switching, otherwise they retain an active timer state.
+
+  // Clear current flags on sessions within the program
+  await transaction.request()
+    .input('programId', programId)
+    .query(`
+      UPDATE ws
+      SET ws.is_current = 0, ws.modified_at = GETDATE()
+      FROM workout_sessions ws
+      JOIN weeks w ON ws.week_id = w.id
+      JOIN blocks b ON w.block_id = b.id
+      WHERE b.program_id = @programId AND ws.is_current = 1
+    `);
+
+  // Clear current flags on weeks within the program
+  await transaction.request()
+    .input('programId', programId)
+    .query(`
+      UPDATE w
+      SET w.is_current = 0, w.modified_at = GETDATE()
+      FROM weeks w
+      JOIN blocks b ON w.block_id = b.id
+      WHERE b.program_id = @programId AND w.is_current = 1
+    `);
+
+  // Clear current flags on blocks within the program
+  await transaction.request()
+    .input('programId', programId)
+    .query(`UPDATE blocks SET is_current = 0, modified_at = GETDATE() WHERE program_id = @programId AND is_current = 1`);
+
+  // Clear current flag on the program itself
+  await transaction.request()
+    .input('programId', programId)
+    .query(`UPDATE programs SET is_current = 0, modified_at = GETDATE() WHERE id = @programId`);
+}
+
+// Set is_current as true for given program and its lowest incomplete session
+async function setProgramAsCurrent(transaction: any, programId: string): Promise<void> {
+
+  // DEACTIVATE CURRENT PROGRAM
+
+  const currentResult = await transaction.request()
+    .input('programId', programId)
+    .query(`SELECT id FROM programs WHERE is_current = 1 AND id != @programId`);
+
+  if (currentResult.recordset.length > 0) {
+    await clearProgramCurrentFlags(transaction, currentResult.recordset[0].id);
+  }
+
+  // Set the new program as current
+  await transaction.request()
+    .input('programId', programId)
+    .query(`UPDATE programs SET is_current = 1, modified_at = GETDATE() WHERE id = @programId`);
+
+  // Find lowest incomplete block
+  const blockResult = await transaction.request()
+    .input('programId', programId)
+    .query(`SELECT TOP 1 id FROM blocks WHERE program_id = @programId AND is_completed = 0 ORDER BY order_index ASC`);
+
+  if (blockResult.recordset.length === 0) return;
+  const blockId = blockResult.recordset[0].id;
+
+  await transaction.request()
+    .input('blockId', blockId)
+    .query(`UPDATE blocks SET is_current = 1, modified_at = GETDATE() WHERE id = @blockId`);
+
+  // Find lowest incomplete week in that block
+  const weekResult = await transaction.request()
+    .input('blockId', blockId)
+    .query(`SELECT TOP 1 id FROM weeks WHERE block_id = @blockId AND is_completed = 0 ORDER BY week_number ASC`);
+
+  if (weekResult.recordset.length === 0) return;
+  const weekId = weekResult.recordset[0].id;
+
+  await transaction.request()
+    .input('weekId', weekId)
+    .query(`UPDATE weeks SET is_current = 1, modified_at = GETDATE() WHERE id = @weekId`);
+
+  // Find lowest incomplete session in that week
+  const sessionResult = await transaction.request()
+    .input('weekId', weekId)
+    .query(`SELECT TOP 1 id FROM workout_sessions WHERE week_id = @weekId AND is_completed = 0 ORDER BY order_index ASC`);
+
+  if (sessionResult.recordset.length === 0) return;
+
+  // Set is_current to true for session
+  await transaction.request()
+    .input('sessionId', sessionResult.recordset[0].id)
+    .query(`UPDATE workout_sessions SET is_current = 1, modified_at = GETDATE() WHERE id = @sessionId`);
+}
+
+// Create full program with all children records, returns GUID assigned from database
+export async function createProgram(payload: CreateProgramPayload): Promise<string> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Create program (is_current flag is handled later by setProgramAsCurrent())
+      const programResult = await transaction.request()
+        .input('name', payload.name)
+        .input('description', payload.description)
+        .query(`
+          INSERT INTO programs (name, description)
+          OUTPUT INSERTED.id
+          VALUES (@name, @description)
+        `);
+
+      const programId = programResult.recordset[0].id;
+
+      // CREATE CHILD RECORDS (blocks → weeks → sessions → target exercises → target sets)
+
+      for (const block of payload.blocks) {
+        const blockResult = await transaction.request()
+          .input('programId', programId)
+          .input('name', block.name)
+          .input('orderIndex', block.order_index)
+          .input('description', block.description)
+          .input('tag', block.tag)
+          .input('color', block.color)
+          .query(`
+            INSERT INTO blocks (program_id, name, order_index, description, tag, color)
+            OUTPUT INSERTED.id
+            VALUES (@programId, @name, @orderIndex, @description, @tag, @color)
+          `);
+
+        const blockId = blockResult.recordset[0].id;
+
+        for (const week of block.weeks) {
+          const weekResult = await transaction.request()
+            .input('blockId', blockId)
+            .input('weekNumber', week.week_number)
+            .input('name', week.name)
+            .input('description', week.description)
+            .query(`
+              INSERT INTO weeks (block_id, week_number, name, description)
+              OUTPUT INSERTED.id
+              VALUES (@blockId, @weekNumber, @name, @description)
+            `);
+
+          const weekId = weekResult.recordset[0].id;
+
+          for (const session of week.sessions) {
+            const sessionResult = await transaction.request()
+              .input('weekId', weekId)
+              .input('orderIndex', session.order_index)
+              .input('name', session.name)
+              .input('sessionDate', session.session_date)
+              .query(`
+                INSERT INTO workout_sessions (week_id, order_index, name, session_date)
+                OUTPUT INSERTED.id
+                VALUES (@weekId, @orderIndex, @name, @sessionDate)
+              `);
+
+            const sessionId = sessionResult.recordset[0].id;
+
+            for (const targetExercise of session.target_exercises) {
+              const targetExerciseResult = await transaction.request()
+                .input('sessionId', sessionId)
+                .input('exerciseId', targetExercise.exercise_id)
+                .input('orderIndex', targetExercise.order_index)
+                .query(`
+                  INSERT INTO target_session_exercises (session_id, exercise_id, order_index)
+                  OUTPUT INSERTED.id
+                  VALUES (@sessionId, @exerciseId, @orderIndex)
+                `);
+
+              const targetExerciseId = targetExerciseResult.recordset[0].id;
+
+              for (const targetSet of targetExercise.sets) {
+                await transaction.request()
+                  .input('targetSessionExerciseId', targetExerciseId)
+                  .input('setNumber', targetSet.set_number)
+                  .input('isWarmup', targetSet.is_warmup ? 1 : 0)
+                  .input('reps', targetSet.reps)
+                  .input('weight', targetSet.weight)
+                  .input('rpe', targetSet.rpe)
+                  .query(`
+                    INSERT INTO target_session_exercise_sets (target_session_exercise_id, set_number, is_warmup, reps, weight, rpe)
+                    VALUES (@targetSessionExerciseId, @setNumber, @isWarmup, @reps, @weight, @rpe)
+                  `);
+              }
+            }
+          }
+        }
+      }
+
+      // Activate the new program
+      await setProgramAsCurrent(transaction, programId);
+
+      await transaction.commit();
+      return programId;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error creating program:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+export async function updateProgram(
+  programId: string,
+  name: string,
+  description: string | null,
+): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('programId', programId)
+      .input('name', name)
+      .input('description', description)
+      .query(`
+        UPDATE programs
+        SET name = @name, description = @description, modified_at = GETDATE()
+        WHERE id = @programId
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No program found for id: '${programId}'`);
+    }
+  } catch (error) {
+    console.error('Error updating program:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+

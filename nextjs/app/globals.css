@@ -897,6 +897,8 @@ body {
   cursor: pointer;
 }
 
+/* TODO change terminology from primary/success etc to actual colors */
+
 .btn-primary {
   background: var(--btn-primary-bg);
   color: white;
