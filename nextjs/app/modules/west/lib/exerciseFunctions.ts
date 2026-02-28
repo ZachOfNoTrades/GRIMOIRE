@@ -1,5 +1,5 @@
 import { getWestConnection, closeWestConnection } from './db';
-import { Exercise } from '../types/exercise';
+import { Exercise, ExerciseSummary } from '../types/exercise';
 
 export async function getAllExercises(includeDisabled: boolean = false): Promise<Exercise[]> {
   let pool;
@@ -143,6 +143,59 @@ export async function enableExercise(id: string): Promise<void> {
     }
   } catch (error) {
     console.error('Error enabling exercise:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary[]> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request().query(`
+      SELECT e.id, e.name, mg.name AS muscle_group_name, emg.is_primary
+      FROM exercises e
+      LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
+      LEFT JOIN muscle_groups mg ON emg.muscle_group_id = mg.id
+      WHERE e.is_disabled = 0
+      ORDER BY e.name, emg.is_primary DESC, mg.name
+    `);
+
+    if (result.recordset.length === 0) {
+      console.warn('No exercises found');
+    }
+
+    // Group flat rows by exercise
+    // Output: [{ id: "abc", name: "Bench Press", primary_muscles: ["Chest"], secondary_muscles: ["Triceps"] }]
+    const exerciseMap = new Map<string, ExerciseSummary>();
+
+    for (const row of result.recordset) {
+      if (!exerciseMap.has(row.id)) {
+        exerciseMap.set(row.id, {
+          id: row.id,
+          name: row.name,
+          primary_muscles: [],
+          secondary_muscles: [],
+        });
+      }
+
+      const exercise = exerciseMap.get(row.id)!;
+
+      if (row.muscle_group_name) {
+        if (row.is_primary) {
+          exercise.primary_muscles.push(row.muscle_group_name);
+        } else {
+          exercise.secondary_muscles.push(row.muscle_group_name);
+        }
+      }
+    }
+
+    return Array.from(exerciseMap.values());
+  } catch (error) {
+    console.error('Error fetching exercises with muscle groups:', error);
     throw error;
   } finally {
     if (pool) {

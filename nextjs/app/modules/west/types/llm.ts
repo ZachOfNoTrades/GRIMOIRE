@@ -1,0 +1,16 @@
+import { CreateProgramPayload } from './program';
+
+export interface GenerateProgramInput {
+  userPrompt: string;
+  startDate: string; // YYYY-MM-DD
+}
+
+export interface GenerateProgramResult {
+  programPayload: CreateProgramPayload;
+  modelUsed: string;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}

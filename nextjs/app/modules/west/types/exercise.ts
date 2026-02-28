@@ -6,3 +6,10 @@ export interface Exercise {
   created_at: Date;
   modified_at: Date;
 }
+
+export interface ExerciseSummary {
+  id: string;
+  name: string;
+  primary_muscles: string[];
+  secondary_muscles: string[];
+}
