@@ -43,6 +43,7 @@ export interface ProgramWeek {
   is_current: boolean;
   is_completed: boolean;
   volume: number; // total working set volume (reps * weight) for the week
+  has_targets: boolean; // whether target exercises have been assigned to the week's sessions
   sessions: ProgramSession[];
 }
 
@@ -68,6 +69,82 @@ export interface Program {
   modified_at: Date;
   blocks: ProgramBlock[];
 }
+
+// =============================
+// Powerlifting Phase Types
+// =============================
+
+export interface BlockPhase {
+  name: string;
+  tag: string;
+  color: string;
+  intensityMin: number;     // % of 1RM
+  intensityMax: number;
+  repMin: number;
+  repMax: number;
+  workingSets: number;      // per competition lift
+  baseRPE: number;
+  accessorySets: number;
+  accessoryReps: number;
+}
+
+export interface WeekParams {
+  intensity: number;
+  reps: number;
+  rpe: number;
+  workingSets: number;
+  accessorySets: number;
+  isDeload: boolean;
+}
+
+export const HYPERTROPHY: BlockPhase = {
+  name: 'Hypertrophy',
+  tag: 'Hypertrophy',
+  color: '#3B82F6',
+  intensityMin: 0.60,
+  intensityMax: 0.75,
+  repMin: 4,
+  repMax: 6,
+  workingSets: 4,
+  baseRPE: 7,
+  accessorySets: 3,
+  accessoryReps: 10,
+};
+
+export const STRENGTH: BlockPhase = {
+  name: 'Strength',
+  tag: 'Strength',
+  color: '#F59E0B',
+  intensityMin: 0.75,
+  intensityMax: 0.87,
+  repMin: 2,
+  repMax: 4,
+  workingSets: 4,
+  baseRPE: 8,
+  accessorySets: 3,
+  accessoryReps: 6,
+};
+
+export const PEAKING: BlockPhase = {
+  name: 'Peaking',
+  tag: 'Peaking',
+  color: '#EF4444',
+  intensityMin: 0.87,
+  intensityMax: 0.95,
+  repMin: 1,
+  repMax: 2,
+  workingSets: 3,
+  baseRPE: 9,
+  accessorySets: 2,
+  accessoryReps: 5,
+};
+
+// Tag string → BlockPhase lookup for phase detection during week generation
+export const BLOCK_PHASES: Record<string, BlockPhase> = {
+  Hypertrophy: HYPERTROPHY,
+  Strength: STRENGTH,
+  Peaking: PEAKING,
+};
 
 // =============================
 // Create Payload Types

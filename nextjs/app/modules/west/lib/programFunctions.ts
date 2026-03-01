@@ -85,12 +85,20 @@ export async function getProgramById(programId: string): Promise<Program> {
             JOIN workout_sessions ws2 ON se.session_id = ws2.id
             WHERE ws2.week_id = w.id AND ses.is_warmup = 0
           ), 0)             AS week_volume,
+          CAST(CASE WHEN EXISTS (
+            SELECT 1
+            FROM target_session_exercises tse
+            JOIN workout_sessions ws3 ON tse.session_id = ws3.id
+            WHERE ws3.week_id = w.id
+          ) THEN 1 ELSE 0 END AS BIT) AS week_has_targets,
           ws.id             AS session_id,
           ws.name           AS session_name,
           ws.session_date,
           ws.notes          AS session_notes,
           ws.order_index    AS session_order_index,
           ws.started_at     AS session_started_at,
+          ws.resumed_at     AS session_resumed_at,
+          ws.duration        AS session_duration,
           ws.is_current     AS session_is_current,
           ws.is_completed   AS session_is_completed
         FROM programs p
@@ -152,6 +160,7 @@ export async function getProgramById(programId: string): Promise<Program> {
           is_current: row.week_is_current,
           is_completed: row.week_is_completed,
           volume: row.week_volume,
+          has_targets: row.week_has_targets,
           sessions: [],
         };
         weekMap.set(row.week_id, week);
@@ -168,6 +177,8 @@ export async function getProgramById(programId: string): Promise<Program> {
         notes: row.session_notes,
         order_index: row.session_order_index,
         started_at: row.session_started_at,
+        resumed_at: row.session_resumed_at,
+        duration: row.session_duration,
         is_current: row.session_is_current,
         is_completed: row.session_is_completed,
       };

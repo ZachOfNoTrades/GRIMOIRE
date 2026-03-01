@@ -1,4 +1,9 @@
 import {
+  BlockPhase,
+  WeekParams,
+  HYPERTROPHY,
+  STRENGTH,
+  PEAKING,
   CreateProgramPayload,
   CreateProgramBlock,
   CreateProgramWeek,
@@ -22,66 +27,6 @@ export interface PowerliftingGeneratorInput {
   daysPerWeek: number;      // 3-6
   exerciseCatalog: { id: string; name: string }[];
 }
-
-// =============================
-// Block Phase Constants
-// =============================
-
-interface BlockPhase {
-  name: string;
-  tag: string;
-  color: string;
-  intensityMin: number;     // % of 1RM
-  intensityMax: number;
-  repMin: number;
-  repMax: number;
-  workingSets: number;      // per competition lift
-  baseRPE: number;
-  accessorySets: number;
-  accessoryReps: number;
-}
-
-const HYPERTROPHY: BlockPhase = {
-  name: 'Hypertrophy',
-  tag: 'Hypertrophy',
-  color: '#3B82F6',
-  intensityMin: 0.60,
-  intensityMax: 0.75,
-  repMin: 4,
-  repMax: 6,
-  workingSets: 4,
-  baseRPE: 7,
-  accessorySets: 3,
-  accessoryReps: 10,
-};
-
-const STRENGTH: BlockPhase = {
-  name: 'Strength',
-  tag: 'Strength',
-  color: '#F59E0B',
-  intensityMin: 0.75,
-  intensityMax: 0.87,
-  repMin: 2,
-  repMax: 4,
-  workingSets: 4,
-  baseRPE: 8,
-  accessorySets: 3,
-  accessoryReps: 6,
-};
-
-const PEAKING: BlockPhase = {
-  name: 'Peaking',
-  tag: 'Peaking',
-  color: '#EF4444',
-  intensityMin: 0.87,
-  intensityMax: 0.95,
-  repMin: 1,
-  repMax: 2,
-  workingSets: 3,
-  baseRPE: 9,
-  accessorySets: 2,
-  accessoryReps: 5,
-};
 
 // =============================
 // Session Templates
@@ -126,7 +71,7 @@ const SESSION_TEMPLATES: Record<number, SessionTemplate[]> = {
 };
 
 // Day offsets from Monday for each frequency
-const DAY_OFFSETS: Record<number, number[]> = {
+export const DAY_OFFSETS: Record<number, number[]> = {
   3: [0, 2, 4],           // Mon, Wed, Fri
   4: [0, 1, 3, 4],        // Mon, Tue, Thu, Fri
   5: [0, 1, 2, 4, 5],     // Mon, Tue, Wed, Fri, Sat
@@ -145,12 +90,12 @@ const VARIATION_MAP: Record<string, { name: string; factor: number }> = {
 // =============================
 
 // Round weight to nearest 5 lbs
-function round5(weight: number): number {
+export function round5(weight: number): number {
   return Math.round(weight / 5) * 5;
 }
 
 // Format date as YYYY-MM-DD
-function formatDate(date: Date): string {
+export function formatDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -158,7 +103,7 @@ function formatDate(date: Date): string {
 }
 
 // Get the next Monday on or after a given date
-function getNextMonday(date: Date): Date {
+export function getNextMonday(date: Date): Date {
   const result = new Date(date);
   const dayOfWeek = result.getDay(); // 0=Sun, 1=Mon, ...
   const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
@@ -167,7 +112,7 @@ function getNextMonday(date: Date): Date {
 }
 
 // Add days to a date
-function addDays(date: Date, days: number): Date {
+export function addDays(date: Date, days: number): Date {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
   return result;
@@ -233,7 +178,7 @@ export function calculateBlockSplit(totalWeeks: number): { hypertrophyWeeks: num
 // =============================
 
 // Generate warmup sets ramping from 50% to 80% of working weight
-function generateWarmupSets(workingWeight: number): CreateProgramTargetSet[] {
+export function generateWarmupSets(workingWeight: number): CreateProgramTargetSet[] {
   const warmupPercentages = [0.50, 0.60, 0.70, 0.80];
   const warmupReps = [5, 4, 3, 2];
   const sets: CreateProgramTargetSet[] = [];
@@ -256,7 +201,7 @@ function generateWarmupSets(workingWeight: number): CreateProgramTargetSet[] {
 }
 
 // Generate working sets for a primary lift
-function generateWorkingSets(reps: number, weight: number, rpe: number, setCount: number): CreateProgramTargetSet[] {
+export function generateWorkingSets(reps: number, weight: number, rpe: number, setCount: number): CreateProgramTargetSet[] {
   const sets: CreateProgramTargetSet[] = [];
   for (let i = 0; i < setCount; i++) {
     sets.push({
@@ -271,7 +216,7 @@ function generateWorkingSets(reps: number, weight: number, rpe: number, setCount
 }
 
 // Generate accessory sets (weight = 0, user fills in)
-function generateAccessorySets(reps: number, rpe: number, setCount: number): CreateProgramTargetSet[] {
+export function generateAccessorySets(reps: number, rpe: number, setCount: number): CreateProgramTargetSet[] {
   const sets: CreateProgramTargetSet[] = [];
   for (let i = 0; i < setCount; i++) {
     sets.push({
@@ -289,16 +234,7 @@ function generateAccessorySets(reps: number, rpe: number, setCount: number): Cre
 // Week Progression Calculations
 // =============================
 
-interface WeekParams {
-  intensity: number;
-  reps: number;
-  rpe: number;
-  workingSets: number;
-  accessorySets: number;
-  isDeload: boolean;
-}
-
-function calculateWeekParams(phase: BlockPhase, weekIndex: number, totalBlockWeeks: number): WeekParams {
+export function calculateWeekParams(phase: BlockPhase, weekIndex: number, totalBlockWeeks: number): WeekParams {
   const isDeload = weekIndex > 0 && weekIndex % 4 === 3; // Every 4th week (0-indexed: 3, 7, 11...)
 
   // Linear intensity progression across the block
@@ -394,42 +330,38 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
           const template = templates[sessionIndex];
           const sessionDate = addDays(startDate, globalWeekCounter * 7 + dayOffsets[sessionIndex]);
           const targetExercises: CreateProgramTargetExercise[] = [];
-          let exerciseOrder = 0;
 
-          // Primary lift
-          const primaryLift = primaryLiftMap[template.primary];
-          const workingWeight = round5(primaryLift.oneRepMax * weekParams.intensity);
-          exerciseOrder++;
-
-          let primarySets: CreateProgramTargetSet[] = [];
+          // Target exercises only generated for the first week (subsequent weeks use Generate)
           if (isFirstWeek) {
+            let exerciseOrder = 0;
+
+            // Primary lift
+            const primaryLift = primaryLiftMap[template.primary];
+            const workingWeight = round5(primaryLift.oneRepMax * weekParams.intensity);
+            exerciseOrder++;
+
             const warmupSets = generateWarmupSets(workingWeight);
             const workingSets = generateWorkingSets(weekParams.reps, workingWeight, weekParams.rpe, weekParams.workingSets);
-            primarySets = [...warmupSets, ...workingSets];
-          }
-
-          targetExercises.push({
-            exercise_id: primaryLift.exerciseId,
-            order_index: exerciseOrder,
-            sets: primarySets,
-          });
-
-          // Accessory exercises
-          for (const accessoryName of template.accessories) {
-            const accessoryId = findExerciseId(input.exerciseCatalog, accessoryName);
-            if (!accessoryId) continue; // Skip if exercise not in catalog
-
-            exerciseOrder++;
-            let accessorySets: CreateProgramTargetSet[] = [];
-            if (isFirstWeek) {
-              accessorySets = generateAccessorySets(phase.accessoryReps, weekParams.rpe, weekParams.accessorySets);
-            }
 
             targetExercises.push({
-              exercise_id: accessoryId,
+              exercise_id: primaryLift.exerciseId,
               order_index: exerciseOrder,
-              sets: accessorySets,
+              sets: [...warmupSets, ...workingSets],
             });
+
+            // Accessory exercises
+            for (const accessoryName of template.accessories) {
+              const accessoryId = findExerciseId(input.exerciseCatalog, accessoryName);
+              if (!accessoryId) continue; // Skip if exercise not in catalog
+
+              exerciseOrder++;
+
+              targetExercises.push({
+                exercise_id: accessoryId,
+                order_index: exerciseOrder,
+                sets: generateAccessorySets(phase.accessoryReps, weekParams.rpe, weekParams.accessorySets),
+              });
+            }
           }
 
           sessions.push({

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Dumbbell, Layers } from "lucide-react";
+import { ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Layers, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
 import SessionTimer from "../../../components/SessionTimer";
@@ -16,6 +16,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [generatingWeekId, setGeneratingWeekId] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -41,6 +42,22 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
       console.error("Error fetching program:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const generateNextWeek = async (weekId: string) => {
+    setGeneratingWeekId(weekId);
+    try {
+      const { id } = await params;
+      const response = await fetch(`/modules/west/api/programs/${id}/weeks/${weekId}/generate`, { method: 'POST' });
+      if (!response.ok) {
+        throw new Error("Failed to generate next week");
+      }
+      await fetchProgram();
+    } catch (error) {
+      console.error("Error generating next week:", error);
+    } finally {
+      setGeneratingWeekId(null);
     }
   };
 
@@ -115,7 +132,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
           ) : (
 
             // BLOCKS LIST
-            program.blocks.map((block) => (
+            program.blocks.map((block, blockIndex) => (
 
               // BLOCK CARD
               <div key={block.id} className={`card ${block.is_current ? 'status-active' : ''} ${block.is_completed ? 'status-completed' : ''}`}>
@@ -163,86 +180,110 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                   ) : (
 
                     // WEEKS LIST
-                    block.weeks.map((week) => (
+                    block.weeks.map((week, weekIndex) => {
 
-                      // WEEK SECTION
-                      <div key={week.id} className={`flex flex-col gap-2 ${week.is_completed ? 'status-completed' : ''}`}>
+                      // Check if the next week already has generated targets
+                      const nextWeek = weekIndex < block.weeks.length - 1
+                        ? block.weeks[weekIndex + 1]
+                        : blockIndex < program.blocks.length - 1
+                          ? program.blocks[blockIndex + 1].weeks[0]
+                          : null;
+                      const isGenerated = !!nextWeek?.has_targets;
 
-                        {/* WEEK LABEL */}
-                        <h3 className={`text-h2 ${week.is_current ? 'status-active-text' : ''}`}>
-                          Week {week.week_number}
-                          {week.name && (
-                            <span className="text-secondary font-normal ml-2">— {week.name}</span>
+                      return (
+
+                        // WEEK SECTION
+                        <div key={week.id} className={`flex flex-col gap-2 ${week.is_completed ? 'status-completed' : ''}`}>
+
+                          {/* WEEK LABEL */}
+                          <h3 className={`text-h2 ${week.is_current ? 'status-active-text' : ''}`}>
+                            Week {week.week_number}
+                            {week.name && (
+                              <span className="text-secondary font-normal ml-2">— {week.name}</span>
+                            )}
+                          </h3>
+
+                          {week.sessions.length === 0 ? (
+
+                            // EMPTY SESSIONS PLACEHOLDER
+                            <p className="text-secondary">No sessions this week</p>
+                          ) : (
+
+                            // SESSIONS LIST
+                            week.sessions.map((session) => {
+                              const timerStart = session.resumed_at ?? session.started_at;
+                              const timerOffset = session.resumed_at ? (session.duration ?? 0) : 0;
+                              const isInProgress = !!timerStart && !session.is_completed;
+
+                              return (
+
+                                // SESSION CARD
+                                <div
+                                  key={session.id}
+                                  className={`sub-card cursor-pointer ${session.is_current && !session.is_completed ? 'status-active' : ''} ${session.is_completed ? 'status-completed' : ''}`}
+                                  onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
+                                >
+
+                                  {/* SESSION ROW */}
+                                  <div className="sub-card-header">
+
+                                    {/* SESSION NAME */}
+                                    <div className="flex items-center gap-2">
+
+                                      {/* STATUS ICON */}
+                                      {session.is_completed ? (
+                                        <CircleCheck className="w-4 h-4 text-secondary" />
+                                      ) : session.started_at ? (
+                                        <CircleDot className="w-4 h-4 status-active-text" />
+                                      ) : session.is_current ? (
+                                        <Circle className="w-4 h-4 status-active-text" />
+                                      ) : (
+                                        <Circle className="w-4 h-4 text-secondary" />
+                                      )}
+
+                                      {/* NAME */}
+                                      <span className="font-medium">{session.name}</span>
+
+                                      {/* TIMER */}
+                                      {isInProgress && (
+                                        <SessionTimer startedAt={timerStart!} offsetSeconds={timerOffset} compact />
+                                      )}
+                                    </div>
+
+                                    {/* SESSION DATE */}
+                                    <div className="flex items-center gap-1 text-secondary">
+
+                                      {/* CALENDAR ICON */}
+                                      <Calendar className="w-3.5 h-3.5" />
+
+                                      {/* DATE */}
+                                      <span className="text-sm">{formatDateShort(session.session_date)}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* SESSION NOTES */}
+                                  {session.notes && (
+                                    <p className="text-secondary text-sm">{session.notes}</p>
+                                  )}
+                                </div>
+                              );
+                            })
                           )}
-                        </h3>
 
-                        {week.sessions.length === 0 ? (
-
-                          // EMPTY SESSIONS PLACEHOLDER
-                          <p className="text-secondary">No sessions this week</p>
-                        ) : (
-
-                          // SESSIONS LIST
-                          week.sessions.map((session) => {
-                            const timerStart = session.resumed_at ?? session.started_at;
-                            const timerOffset = session.resumed_at ? (session.duration ?? 0) : 0;
-                            const isInProgress = !!timerStart && !session.is_completed;
-
-                            return (
-
-                            // SESSION CARD
-                            <div
-                              key={session.id}
-                              className={`sub-card cursor-pointer ${session.is_current && !session.is_completed ? 'status-active' : ''} ${session.is_completed ? 'status-completed' : ''}`}
-                              onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
+                          {/* GENERATE NEXT WEEK BUTTON (appears for a week that is completed, and the following week has no targets or other data) */}
+                          {week.is_completed && !isGenerated && (
+                            <Button
+                              className="btn-primary"
+                              disabled={generatingWeekId === week.id}
+                              onClick={() => generateNextWeek(week.id)}
                             >
-
-                              {/* SESSION ROW */}
-                              <div className="sub-card-header">
-
-                                {/* SESSION NAME */}
-                                <div className="flex items-center gap-2">
-
-                                  {/* STATUS ICON */}
-                                  {session.is_completed ? (
-                                    <CircleCheck className="w-4 h-4 text-secondary" />
-                                  ) : session.started_at ? (
-                                    <CircleDot className="w-4 h-4 status-active-text" />
-                                  ) : session.is_current ? (
-                                    <Circle className="w-4 h-4 status-active-text" />
-                                  ) : (
-                                    <Circle className="w-4 h-4 text-secondary" />
-                                  )}
-
-                                  {/* NAME */}
-                                  <span className="font-medium">{session.name}</span>
-
-                                  {/* TIMER */}
-                                  {isInProgress && (
-                                    <SessionTimer startedAt={timerStart!} offsetSeconds={timerOffset} compact />
-                                  )}
-                                </div>
-
-                                {/* SESSION DATE */}
-                                <div className="flex items-center gap-1 text-secondary">
-
-                                  {/* CALENDAR ICON */}
-                                  <Calendar className="w-3.5 h-3.5" />
-
-                                  {/* DATE */}
-                                  <span className="text-sm">{formatDateShort(session.session_date)}</span>
-                                </div>
-                              </div>
-
-                              {/* SESSION NOTES */}
-                              {session.notes && (
-                                <p className="text-secondary text-sm">{session.notes}</p>
-                              )}
-                            </div>
-                          );})
-                        )}
-                      </div>
-                    ))
+                              <Sparkles className="w-4 h-4" />
+                              {generatingWeekId === week.id ? "Generating..." : "Generate Next Week"}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -250,6 +291,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
           )}
         </div>
       </main>
+
     </div>
   );
 }
