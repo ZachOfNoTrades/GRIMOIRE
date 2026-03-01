@@ -134,14 +134,12 @@ BEGIN TRY
         );
     END
 
--- TODO rebrand "session exercises" to better differentiate from exercises
-
     -- =============================
-    -- Target Session Exercises
+    -- Target Session Segments
     -- =============================
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='target_session_exercises' AND xtype='U')
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='target_session_segments' AND xtype='U')
     BEGIN
-        CREATE TABLE target_session_exercises (
+        CREATE TABLE target_session_segments (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             session_id UNIQUEIDENTIFIER NOT NULL,
             exercise_id UNIQUEIDENTIFIER NOT NULL,
@@ -149,19 +147,19 @@ BEGIN TRY
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
-            CONSTRAINT FK_target_exercises_session FOREIGN KEY (session_id) REFERENCES workout_sessions(id),
-            CONSTRAINT FK_target_exercises_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id)
+            CONSTRAINT FK_target_session_segments_session FOREIGN KEY (session_id) REFERENCES workout_sessions(id),
+            CONSTRAINT FK_target_session_segments_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id)
         );
     END
 
     -- =============================
-    -- Target Session Exercise Sets
+    -- Target Session Segment Sets
     -- =============================
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='target_session_exercise_sets' AND xtype='U')
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='target_session_segment_sets' AND xtype='U')
     BEGIN
-        CREATE TABLE target_session_exercise_sets (
+        CREATE TABLE target_session_segment_sets (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-            target_session_exercise_id UNIQUEIDENTIFIER NOT NULL,
+            target_session_segment_id UNIQUEIDENTIFIER NOT NULL,
             set_number INT NOT NULL,
             is_warmup BIT NOT NULL DEFAULT 0,
             reps INT NOT NULL,
@@ -170,16 +168,16 @@ BEGIN TRY
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
-            CONSTRAINT FK_target_sets_target_exercise FOREIGN KEY (target_session_exercise_id) REFERENCES target_session_exercises(id)
+            CONSTRAINT FK_target_session_segment_sets_segment FOREIGN KEY (target_session_segment_id) REFERENCES target_session_segments(id)
         );
     END
 
     -- =============================
-    -- Session Exercises
+    -- Session Segments
     -- =============================
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='session_exercises' AND xtype='U')
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='session_segments' AND xtype='U')
     BEGIN
-        CREATE TABLE session_exercises (
+        CREATE TABLE session_segments (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             session_id UNIQUEIDENTIFIER NOT NULL,
             exercise_id UNIQUEIDENTIFIER NOT NULL,
@@ -189,20 +187,20 @@ BEGIN TRY
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
-            CONSTRAINT FK_session_exercises_session FOREIGN KEY (session_id) REFERENCES workout_sessions(id),
-            CONSTRAINT FK_session_exercises_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id),
-            CONSTRAINT FK_session_exercises_target FOREIGN KEY (target_id) REFERENCES target_session_exercises(id)
+            CONSTRAINT FK_session_segments_session FOREIGN KEY (session_id) REFERENCES workout_sessions(id),
+            CONSTRAINT FK_session_segments_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id),
+            CONSTRAINT FK_session_segments_target FOREIGN KEY (target_id) REFERENCES target_session_segments(id)
         );
     END
 
     -- =============================
-    -- Session Exercise Sets
+    -- Session Segment Sets
     -- =============================
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='session_exercise_sets' AND xtype='U')
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='session_segment_sets' AND xtype='U')
     BEGIN
-        CREATE TABLE session_exercise_sets (
+        CREATE TABLE session_segment_sets (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-            session_exercise_id UNIQUEIDENTIFIER NOT NULL,
+            session_segment_id UNIQUEIDENTIFIER NOT NULL,
             set_number INT NOT NULL,
             is_warmup BIT NOT NULL DEFAULT 0,
             reps INT NOT NULL,
@@ -213,7 +211,7 @@ BEGIN TRY
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
-            CONSTRAINT FK_session_exercise_sets_session_exercise FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id)
+            CONSTRAINT FK_session_segment_sets_segment FOREIGN KEY (session_segment_id) REFERENCES session_segments(id)
         );
     END
 

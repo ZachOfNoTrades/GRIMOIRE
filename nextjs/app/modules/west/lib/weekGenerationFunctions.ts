@@ -120,9 +120,9 @@ async function calculateEstimates(transaction: any, weekId: string): Promise<Exe
         ses.reps,
         ses.weight
       FROM workout_sessions ws
-      JOIN session_exercises se ON se.session_id = ws.id
+      JOIN session_segments se ON se.session_id = ws.id
       JOIN exercises e ON se.exercise_id = e.id
-      JOIN session_exercise_sets ses ON ses.session_exercise_id = se.id
+      JOIN session_segment_sets ses ON ses.session_segment_id = se.id
       WHERE ws.week_id = @weekId AND ses.is_warmup = 0 AND ses.weight > 0 AND ses.reps > 0
       ORDER BY e.id
     `);
@@ -281,7 +281,7 @@ async function buildTargetsFromExistingSessions(
       .input('sessionId', session.id)
       .query(`
         SELECT tse.exercise_id, tse.order_index
-        FROM target_session_exercises tse
+        FROM target_session_segments tse
         WHERE tse.session_id = @sessionId
         ORDER BY tse.order_index ASC
       `);
@@ -305,7 +305,7 @@ async function buildTargetsFromExistingSessions(
           .input('sessionId', sourceSessionId)
           .query(`
             SELECT tse.exercise_id, tse.order_index
-            FROM target_session_exercises tse
+            FROM target_session_segments tse
             WHERE tse.session_id = @sessionId
             ORDER BY tse.order_index ASC
           `);
@@ -318,7 +318,7 @@ async function buildTargetsFromExistingSessions(
             .input('sessionId', sourceSessionId)
             .query(`
               SELECT DISTINCT se.exercise_id, se.order_index
-              FROM session_exercises se
+              FROM session_segments se
               WHERE se.session_id = @sessionId
               ORDER BY se.order_index ASC
             `);
@@ -380,7 +380,7 @@ async function buildTargetsFromSourceWeek(
       .input('sessionId', sourceSession.id)
       .query(`
         SELECT tse.exercise_id, tse.order_index
-        FROM target_session_exercises tse
+        FROM target_session_segments tse
         WHERE tse.session_id = @sessionId
         ORDER BY tse.order_index ASC
       `);
@@ -392,7 +392,7 @@ async function buildTargetsFromSourceWeek(
         .input('sessionId', sourceSession.id)
         .query(`
           SELECT DISTINCT se.exercise_id, se.order_index
-          FROM session_exercises se
+          FROM session_segments se
           WHERE se.session_id = @sessionId
           ORDER BY se.order_index ASC
         `);
@@ -460,10 +460,10 @@ async function deleteExistingTargets(transaction: any, sessionId: string): Promi
   await transaction.request()
     .input('sessionId', sessionId)
     .query(`
-      UPDATE session_exercises
+      UPDATE session_segments
       SET target_id = NULL, modified_at = GETDATE()
       WHERE target_id IN (
-        SELECT id FROM target_session_exercises WHERE session_id = @sessionId
+        SELECT id FROM target_session_segments WHERE session_id = @sessionId
       )
     `);
 
@@ -471,16 +471,16 @@ async function deleteExistingTargets(transaction: any, sessionId: string): Promi
   await transaction.request()
     .input('sessionId', sessionId)
     .query(`
-      DELETE FROM target_session_exercise_sets
-      WHERE target_session_exercise_id IN (
-        SELECT id FROM target_session_exercises WHERE session_id = @sessionId
+      DELETE FROM target_session_segment_sets
+      WHERE target_session_segment_id IN (
+        SELECT id FROM target_session_segments WHERE session_id = @sessionId
       )
     `);
 
-  // Delete target exercises
+  // Delete target segments
   await transaction.request()
     .input('sessionId', sessionId)
-    .query(`DELETE FROM target_session_exercises WHERE session_id = @sessionId`);
+    .query(`DELETE FROM target_session_segments WHERE session_id = @sessionId`);
 }
 
 async function insertTargets(
@@ -490,29 +490,29 @@ async function insertTargets(
 ): Promise<void> {
 
   for (const exercise of exercises) {
-    const targetExerciseResult = await transaction.request()
+    const targetSegmentResult = await transaction.request()
       .input('sessionId', sessionId)
       .input('exerciseId', exercise.exerciseId)
       .input('orderIndex', exercise.orderIndex)
       .query(`
-        INSERT INTO target_session_exercises (session_id, exercise_id, order_index)
+        INSERT INTO target_session_segments (session_id, exercise_id, order_index)
         OUTPUT INSERTED.id
         VALUES (@sessionId, @exerciseId, @orderIndex)
       `);
 
-    const targetExerciseId = targetExerciseResult.recordset[0].id;
+    const targetSegmentId = targetSegmentResult.recordset[0].id;
 
     for (const set of exercise.sets) {
       await transaction.request()
-        .input('targetExerciseId', targetExerciseId)
+        .input('targetSegmentId', targetSegmentId)
         .input('setNumber', set.set_number)
         .input('isWarmup', set.is_warmup ? 1 : 0)
         .input('reps', set.reps)
         .input('weight', set.weight)
         .input('rpe', set.rpe)
         .query(`
-          INSERT INTO target_session_exercise_sets (target_session_exercise_id, set_number, is_warmup, reps, weight, rpe)
-          VALUES (@targetExerciseId, @setNumber, @isWarmup, @reps, @weight, @rpe)
+          INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe)
+          VALUES (@targetSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe)
         `);
     }
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionExercisesAndTargets, updateSessionExercises } from '../../../../lib/sessionExerciseFunctions';
+import { getSegmentsAndTargets, updateSegments } from '../../../../lib/sessionExerciseFunctions';
 
 export async function GET(
   request: Request,
@@ -8,14 +8,14 @@ export async function GET(
   try {
     const { id } = await context.params;
 
-    const { exercises, targets } = await getSessionExercisesAndTargets(id);
+    const { exercises, targets } = await getSegmentsAndTargets(id);
 
     return NextResponse.json({ exercises, targets });
 
   } catch (error) {
     console.error('Error in GET /api/sessions/[id]/exercises:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch session exercises' },
+      { error: 'Failed to fetch session segments' },
       { status: 500 }
     );
   }
@@ -29,17 +29,17 @@ export async function PUT(
     const { id } = await context.params;
     const exercises = await request.json();
 
-    await updateSessionExercises(id, exercises);
+    await updateSegments(id, exercises);
 
-    // Return the updated exercises with targets
-    const { exercises: updatedExercises, targets } = await getSessionExercisesAndTargets(id);
+    // Return the updated segments with targets
+    const { exercises: updatedSegments, targets } = await getSegmentsAndTargets(id);
 
-    return NextResponse.json({ exercises: updatedExercises, targets });
+    return NextResponse.json({ exercises: updatedSegments, targets });
 
   } catch (error) {
     console.error('Error in PUT /api/sessions/[id]/exercises:', error);
     return NextResponse.json(
-      { error: 'Failed to update session exercises' },
+      { error: 'Failed to update session segments' },
       { status: 500 }
     );
   }

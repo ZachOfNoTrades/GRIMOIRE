@@ -6,10 +6,10 @@ import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer,
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
-import { SessionExerciseWithSets, TargetSessionExercise } from "../../../types/sessionExercise";
+import { SegmentWithSets, TargetSegment } from "../../../types/sessionExercise";
 import { Exercise } from "../../../types/exercise";
 import DeleteSessionModal from "./DeleteSessionModal";
-import EditExerciseModal from "./EditExerciseModal";
+import EditSegmentModal from "./EditExerciseModal";
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
 
@@ -18,8 +18,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   // DATA
   const [session, setSession] = useState<WorkoutSession | null>(null);
-  const [loggedSessionExercises, setLoggedSessionExercises] = useState<SessionExerciseWithSets[]>([]);
-  const [targetExercises, setTargetSessionExercises] = useState<TargetSessionExercise[]>([]);
+  const [loggedSegments, setLoggedSegments] = useState<SegmentWithSets[]>([]);
+  const [targetSegments, setTargetSegments] = useState<TargetSegment[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
 
   // INPUT
@@ -34,18 +34,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isExerciseModalOpen, setIsExerciseModalOpen] = useState(false);
-  const [exerciseModalData, setExerciseModalData] = useState<SessionExerciseWithSets | null>(null);
-  const [isSavingExercise, setIsSavingExercise] = useState(false);
+  const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
+  const [segmentModalData, setSegmentModalData] = useState<SegmentWithSets | null>(null);
+  const [isSavingSegment, setIsSavingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   // DERIVED
   const timerStart = session?.resumed_at ?? session?.started_at ?? null;
   const timerOffset = session?.resumed_at ? (session.duration ?? 0) : 0;
   const isInProgress = !!timerStart && !session?.is_completed;
-  const linkedTargetExerciseIds = new Set(loggedSessionExercises.map((e) => e.target_id).filter(Boolean));
-  const unlinkedTargetExercises = targetExercises.filter((t) => !linkedTargetExerciseIds.has(t.id));
-  const totalExerciseCount = loggedSessionExercises.length + unlinkedTargetExercises.length;
+  const linkedTargetSegmentIds = new Set(loggedSegments.map((e) => e.target_id).filter(Boolean));
+  const unlinkedTargetSegments = targetSegments.filter((t) => !linkedTargetSegmentIds.has(t.id));
+  const totalSegmentCount = loggedSegments.length + unlinkedTargetSegments.length;
 
 
 
@@ -82,8 +82,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
       if (exercisesResponse.ok) {
         const data = await exercisesResponse.json();
-        setLoggedSessionExercises(data.exercises);
-        setTargetSessionExercises(data.targets);
+        setLoggedSegments(data.exercises);
+        setTargetSegments(data.targets);
       }
     } catch (error) {
       console.error("Error fetching session data:", error);
@@ -261,30 +261,30 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     });
   };
 
-  // EXERCISE HANDLERS
-  const handleOpenExercise = (exercise: SessionExerciseWithSets) => {
-    setExerciseModalData(exercise);
-    setIsExerciseModalOpen(true);
+  // SEGMENT HANDLERS
+  const handleOpenSegment = (segment: SegmentWithSets) => {
+    setSegmentModalData(segment);
+    setIsSegmentModalOpen(true);
   };
 
   // TODO - Block editing if session not started
 
-  // Initialize a new EditExerciseModal and pass target set data (modal will handle filling out sets[])
-  const handleOpenTargetExercise = (target: TargetSessionExercise) => {
-    const newSessionExerciseId = crypto.randomUUID();
-    const newSessionExercise: SessionExerciseWithSets = {
-      id: newSessionExerciseId,
+  // Initialize a new EditSegmentModal and pass target set data (modal will handle filling out sets[])
+  const handleOpenTargetSegment = (target: TargetSegment) => {
+    const newSegmentId = crypto.randomUUID();
+    const newSegment: SegmentWithSets = {
+      id: newSegmentId,
       session_id: id,
       exercise_id: target.exercise_id,
       exercise_name: target.exercise_name,
       target_id: target.id,
-      order_index: loggedSessionExercises.length + 1,
+      order_index: loggedSegments.length + 1,
       notes: null,
       created_at: new Date(),
       modified_at: new Date(),
       sets: target.sets.map((ts) => ({
         id: crypto.randomUUID(),
-        session_exercise_id: newSessionExerciseId,
+        session_segment_id: newSegmentId,
         set_number: ts.set_number,
         is_warmup: ts.is_warmup,
         reps: 0,
@@ -297,25 +297,25 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       })),
       target: target,
     };
-    setExerciseModalData(newSessionExercise);
-    setIsExerciseModalOpen(true);
+    setSegmentModalData(newSegment);
+    setIsSegmentModalOpen(true);
   };
 
-  const handleAddExercise = () => {
-    const exerciseId = crypto.randomUUID();
-    const newExercise: SessionExerciseWithSets = {
-      id: exerciseId,
+  const handleAddSegment = () => {
+    const segmentId = crypto.randomUUID();
+    const newSegment: SegmentWithSets = {
+      id: segmentId,
       session_id: id,
       exercise_id: "",
       exercise_name: "",
       target_id: null,
-      order_index: loggedSessionExercises.length + 1,
+      order_index: loggedSegments.length + 1,
       notes: null,
       created_at: new Date(),
       modified_at: new Date(),
       sets: [{
         id: crypto.randomUUID(),
-        session_exercise_id: exerciseId,
+        session_segment_id: segmentId,
         set_number: 1,
         is_warmup: false,
         reps: 0,
@@ -328,29 +328,29 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }],
       target: null,
     };
-    setExerciseModalData(newExercise);
-    setIsExerciseModalOpen(true);
+    setSegmentModalData(newSegment);
+    setIsSegmentModalOpen(true);
   };
 
-  const handleSaveExercise = async (editedExercise: SessionExerciseWithSets) => {
-    setIsSavingExercise(true);
+  const handleSaveSegment = async (editedSegment: SegmentWithSets) => {
+    setIsSavingSegment(true);
     try {
-      // Check if exercise already exists in the list
-      const existingIndex = loggedSessionExercises.findIndex(ex => ex.id === editedExercise.id);
-      let updatedExercises: SessionExerciseWithSets[];
+      // Check if segment already exists in the list
+      const existingIndex = loggedSegments.findIndex(ex => ex.id === editedSegment.id);
+      let updatedSegments: SegmentWithSets[];
 
       if (existingIndex >= 0) {
-        // Replace existing exercise
-        updatedExercises = loggedSessionExercises.map(ex =>
-          ex.id === editedExercise.id ? editedExercise : ex
+        // Replace existing segment
+        updatedSegments = loggedSegments.map(ex =>
+          ex.id === editedSegment.id ? editedSegment : ex
         );
       } else {
-        // Add new exercise
-        updatedExercises = [...loggedSessionExercises, editedExercise];
+        // Add new segment
+        updatedSegments = [...loggedSegments, editedSegment];
       }
 
       // Strip empty uncompleted sets before saving
-      const filteredExercises = updatedExercises.map(ex => ({
+      const filteredSegments = updatedSegments.map(ex => ({
         ...ex,
         sets: ex.sets.filter(s => s.is_completed || hasSetData(s)),
       }));
@@ -358,7 +358,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(filteredExercises),
+        body: JSON.stringify(filteredSegments),
       });
 
       if (!response.ok) {
@@ -368,37 +368,37 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }
 
       const data = await response.json();
-      setLoggedSessionExercises(data.exercises);
-      setTargetSessionExercises(data.targets);
-      setIsExerciseModalOpen(false);
+      setLoggedSegments(data.exercises);
+      setTargetSegments(data.targets);
+      setIsSegmentModalOpen(false);
       toast.success("Exercise saved");
     } catch (error) {
       toast.error("Failed to save exercise");
-      console.error("Error saving exercise:", error);
+      console.error("Error saving segment:", error);
     } finally {
-      setIsSavingExercise(false);
+      setIsSavingSegment(false);
     }
   };
 
-  const handleRemoveExercise = async () => {
-    if (!exerciseModalData) return;
+  const handleRemoveSegment = async () => {
+    if (!segmentModalData) return;
 
-    // If the exercise is new (not yet saved), just close the modal
-    const exists = loggedSessionExercises.some(ex => ex.id === exerciseModalData.id);
+    // If the segment is new (not yet saved), just close the modal
+    const exists = loggedSegments.some(ex => ex.id === segmentModalData.id);
     if (!exists) {
-      setIsExerciseModalOpen(false);
+      setIsSegmentModalOpen(false);
       return;
     }
 
-    setIsSavingExercise(true);
+    setIsSavingSegment(true);
     try {
-      const updatedExercises = loggedSessionExercises.filter(ex => ex.id !== exerciseModalData.id);
-      updatedExercises.forEach((ex, i) => { ex.order_index = i + 1; });
+      const updatedSegments = loggedSegments.filter(ex => ex.id !== segmentModalData.id);
+      updatedSegments.forEach((ex, i) => { ex.order_index = i + 1; });
 
       const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedExercises),
+        body: JSON.stringify(updatedSegments),
       });
 
       if (!response.ok) {
@@ -408,15 +408,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }
 
       const data = await response.json();
-      setLoggedSessionExercises(data.exercises);
-      setTargetSessionExercises(data.targets);
-      setIsExerciseModalOpen(false);
+      setLoggedSegments(data.exercises);
+      setTargetSegments(data.targets);
+      setIsSegmentModalOpen(false);
       toast.success("Exercise removed");
     } catch (error) {
       toast.error("Failed to remove exercise");
-      console.error("Error removing exercise:", error);
+      console.error("Error removing segment:", error);
     } finally {
-      setIsSavingExercise(false);
+      setIsSavingSegment(false);
     }
   };
 
@@ -424,10 +424,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const hasSetData = (set: { weight: number; reps: number; rpe: number | null; notes: string | null }) =>
     set.weight > 0 || set.reps > 0 || set.rpe !== null || (set.notes !== null && set.notes !== '');
 
-  const isExerciseComplete = (exercise: SessionExerciseWithSets): boolean => {
-    return exercise.sets.some((s) => s.is_completed);
+  const isSegmentComplete = (segment: SegmentWithSets): boolean => {
+    return segment.sets.some((s) => s.is_completed);
   };
-  const completedExerciseCount = loggedSessionExercises.filter(isExerciseComplete).length;
+  const completedSegmentCount = loggedSegments.filter(isSegmentComplete).length;
 
   // LOADING PLACEHOLDER
   if (isLoading) {
@@ -672,7 +672,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     {/* EXERCISE COUNT */}
                     <div>
                       <label className="text-secondary">Exercises</label>
-                      <p className="text-primary">{completedExerciseCount}/{totalExerciseCount}</p>
+                      <p className="text-primary">{completedSegmentCount}/{totalSegmentCount}</p>
                     </div>
 
                     {/* SESSION NOTES */}
@@ -688,33 +688,33 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             </div>
           )}
 
-          {/* EXERCISES CARD */}
+          {/* SEGMENTS CARD */}
           <div className="card">
 
             {/* CARD HEADER */}
             <div className="card-header">
 
               {/* TITLE */}
-              <h2 className="text-card-title">Exercises ({completedExerciseCount}/{totalExerciseCount})</h2>
+              <h2 className="text-card-title">Exercises ({completedSegmentCount}/{totalSegmentCount})</h2>
             </div>
 
             {/* CARD CONTENT */}
             <div className="card-content">
 
-              {loggedSessionExercises.length === 0 && targetExercises.length === 0 && (
+              {loggedSegments.length === 0 && targetSegments.length === 0 && (
 
                 // EMPTY STATE
                 <p className="table-empty">No exercises added in this session</p>
               )}
 
-              {/* LOGGED EXERCISE SUB-CARDS */}
-              {loggedSessionExercises.map((exercise) => (
+              {/* LOGGED SEGMENT SUB-CARDS */}
+              {loggedSegments.map((segment) => (
 
-                // EXERCISE SUB-CARD
+                // SEGMENT SUB-CARD
                 <div
-                  key={exercise.id}
+                  key={segment.id}
                   className="sub-card cursor-pointer"
-                  onClick={() => handleOpenExercise(exercise)}
+                  onClick={() => handleOpenSegment(segment)}
                 >
 
                   {/* SUB-CARD HEADER */}
@@ -722,41 +722,41 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                     {/* EXERCISE NAME */}
                     <div className="flex items-center gap-2">
-                      {isExerciseComplete(exercise)
+                      {isSegmentComplete(segment)
                         ? <CircleCheck className="icon-success !w-4 !h-4" />
                         : <Circle className="icon-muted !w-4 !h-4" />
                       }
-                      <h3 className="text-card-title">{exercise.exercise_name}</h3>
+                      <h3 className="text-card-title">{segment.exercise_name}</h3>
                     </div>
 
                     {/* ORIGINAL TARGET EXERCISE HINT (when selected exercise was swapped) */}
-                    {exercise.target && exercise.target.exercise_id !== exercise.exercise_id && (
-                      <p className="text-secondary">Swapped from {exercise.target.exercise_name}</p>
+                    {segment.target && segment.target.exercise_id !== segment.exercise_id && (
+                      <p className="text-secondary">Swapped from {segment.target.exercise_name}</p>
                     )}
                   </div>
 
                   {/* SUB-CARD CONTENT */}
                   <div className="sub-card-content">
 
-                    {/* EXERCISE NOTES */}
-                    {exercise.notes && (
+                    {/* SEGMENT NOTES */}
+                    {segment.notes && (
                       <div className="text-secondary flex items-center gap-1">
                         <StickyNote className="w-3 h-3" />
-                        <span>{exercise.notes}</span>
+                        <span>{segment.notes}</span>
                       </div>
                     )}
 
                     {/* SETS */}
                     {(() => {
-                      const warmupSets = exercise.sets.filter((s) => s.is_warmup);
-                      const workingSets = exercise.sets.filter((s) => !s.is_warmup);
-                      const unlinkedWarmupTargets = exercise.target
-                        ? exercise.target.sets.filter((ts) => ts.is_warmup && !warmupSets.some((s) => s.set_number === ts.set_number))
+                      const warmupSets = segment.sets.filter((s) => s.is_warmup);
+                      const workingSets = segment.sets.filter((s) => !s.is_warmup);
+                      const unlinkedWarmupTargets = segment.target
+                        ? segment.target.sets.filter((ts) => ts.is_warmup && !warmupSets.some((s) => s.set_number === ts.set_number))
                         : [];
-                      const unlinkedWorkingTargets = exercise.target
-                        ? exercise.target.sets.filter((ts) => !ts.is_warmup && !workingSets.some((s) => s.set_number === ts.set_number))
+                      const unlinkedWorkingTargets = segment.target
+                        ? segment.target.sets.filter((ts) => !ts.is_warmup && !workingSets.some((s) => s.set_number === ts.set_number))
                         : [];
-                      const hasContent = exercise.sets.length > 0 || unlinkedWarmupTargets.length > 0 || unlinkedWorkingTargets.length > 0;
+                      const hasContent = segment.sets.length > 0 || unlinkedWarmupTargets.length > 0 || unlinkedWorkingTargets.length > 0;
 
                       return !hasContent ? (
 
@@ -769,8 +769,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                           {/* WARMUP SET ROWS */}
                           {warmupSets.map((set) => {
-                            const targetSet = exercise.target
-                              ? exercise.target.sets.find((ts) => ts.set_number === set.set_number && ts.is_warmup)
+                            const targetSet = segment.target
+                              ? segment.target.sets.find((ts) => ts.set_number === set.set_number && ts.is_warmup)
                               : null;
                             const targetDiffers = targetSet && (
                               set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
@@ -796,8 +796,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                           {/* WORKING SET ROWS */}
                           {workingSets.map((set) => {
-                            const targetSet = exercise.target
-                              ? exercise.target.sets.find((ts) => ts.set_number === set.set_number && !ts.is_warmup)
+                            const targetSet = segment.target
+                              ? segment.target.sets.find((ts) => ts.set_number === set.set_number && !ts.is_warmup)
                               : null;
                             const targetDiffers = targetSet && (
                               set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
@@ -829,13 +829,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
               ))}
 
               {/* UNLINKED TARGET CARDS */}
-              {unlinkedTargetExercises.map((target) => (
+              {unlinkedTargetSegments.map((target) => (
 
                 // TARGET SUB-CARD
                 <div
                   key={target.id}
                   className="sub-card cursor-pointer"
-                  onClick={() => handleOpenTargetExercise(target)}
+                  onClick={() => handleOpenTargetSegment(target)}
                 >
 
                   {/* SUB-CARD HEADER */}
@@ -882,9 +882,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               ))}
 
-              {/* ADD EXERCISE BUTTON */}
+              {/* ADD SEGMENT BUTTON */}
               <Button
-                onClick={handleAddExercise}
+                onClick={handleAddSegment}
                 className="btn-link"
               >
                 <Plus className="w-4 h-4" />
@@ -932,15 +932,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         isDeleting={isDeletingSession}
       />
 
-      {/* EDIT EXERCISE MODAL */}
-      <EditExerciseModal
-        isOpen={isExerciseModalOpen}
-        onClose={() => setIsExerciseModalOpen(false)}
-        onSave={handleSaveExercise}
-        onRemove={handleRemoveExercise}
-        exercise={exerciseModalData}
+      {/* EDIT SEGMENT MODAL */}
+      <EditSegmentModal
+        isOpen={isSegmentModalOpen}
+        onClose={() => setIsSegmentModalOpen(false)}
+        onSave={handleSaveSegment}
+        onRemove={handleRemoveSegment}
+        segment={segmentModalData}
         exercises={exercises}
-        isSaving={isSavingExercise}
+        isSaving={isSavingSegment}
       />
     </div>
   );

@@ -224,7 +224,7 @@ BEGIN TRY
     ('Full Body', 'Quick workout', NULL, NULL, NULL, NULL, NULL, 0, 0);
 
     -- =============================
-    -- Target Session Exercises and Sets (Push Day - Week 1)
+    -- Target Session Segments and Sets (Push Day - Week 1)
     -- =============================
 
     DECLARE @pushDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '33333333-3333-3333-3333-333333333333' AND order_index = 1);
@@ -234,11 +234,11 @@ BEGIN TRY
     DECLARE @tricepExtensionId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Tricep Extension');
     DECLARE @lateralRaiseId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Lateral Raise');
 
-    -- Target exercises for Push Day
+    -- Target segments for Push Day
     DECLARE @tse_bench UNIQUEIDENTIFIER = NEWID();
     DECLARE @tse_incline UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO target_session_exercises (id, session_id, exercise_id, order_index) VALUES
+    INSERT INTO target_session_segments (id, session_id, exercise_id, order_index) VALUES
     (@tse_bench, @pushDayId, @benchPressId, 1),
     (@tse_incline, @pushDayId, @inclineBenchId, 2);
 
@@ -248,7 +248,7 @@ BEGIN TRY
     DECLARE @tss_bench_2 UNIQUEIDENTIFIER = NEWID();
     DECLARE @tss_bench_3 UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO target_session_exercise_sets (id, target_session_exercise_id, set_number, is_warmup, reps, weight, rpe) VALUES
+    INSERT INTO target_session_segment_sets (id, target_session_segment_id, set_number, is_warmup, reps, weight, rpe) VALUES
     (@tss_bench_w1, @tse_bench, 1, 1, 8, 185.0, 6.0),
     (@tss_bench_1, @tse_bench, 1, 0, 6, 205.0, 7.0),
     (@tss_bench_2, @tse_bench, 2, 0, 6, 215.0, 8.0),
@@ -259,13 +259,13 @@ BEGIN TRY
     DECLARE @tss_incline_2 UNIQUEIDENTIFIER = NEWID();
     DECLARE @tss_incline_3 UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO target_session_exercise_sets (id, target_session_exercise_id, set_number, is_warmup, reps, weight, rpe) VALUES
+    INSERT INTO target_session_segment_sets (id, target_session_segment_id, set_number, is_warmup, reps, weight, rpe) VALUES
     (@tss_incline_1, @tse_incline, 1, 0, 8, 145.0, 7.0),
     (@tss_incline_2, @tse_incline, 2, 0, 8, 145.0, 7.5),
     (@tss_incline_3, @tse_incline, 3, 0, 8, 145.0, 8.0);
 
     -- =============================
-    -- Session Exercises and Sets
+    -- Session Segments and Sets
     -- =============================
 
     DECLARE @se_push_bench UNIQUEIDENTIFIER = NEWID();
@@ -274,14 +274,14 @@ BEGIN TRY
     DECLARE @se_push_tricep UNIQUEIDENTIFIER = NEWID();
     DECLARE @se_push_lateral UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO session_exercises (id, session_id, exercise_id, target_id, order_index, notes) VALUES
+    INSERT INTO session_segments (id, session_id, exercise_id, target_id, order_index, notes) VALUES
     (@se_push_bench, @pushDayId, @benchPressId, @tse_bench, 1, 'Felt strong on warmups'),
     (@se_push_incline, @pushDayId, @inclineBenchId, @tse_incline, 2, NULL),
     (@se_push_ohp, @pushDayId, @overheadPressId, NULL, 3, NULL),
     (@se_push_tricep, @pushDayId, @tricepExtensionId, NULL, 4, NULL),
     (@se_push_lateral, @pushDayId, @lateralRaiseId, NULL, 5, NULL);
 
-    INSERT INTO session_exercise_sets (session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed) VALUES
+    INSERT INTO session_segment_sets (session_segment_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed) VALUES
     -- Bench Press: 1 warmup + 3 working sets
     (@se_push_bench, 1, 1, 8, 185.0, 6.5, NULL, 1),
     (@se_push_bench, 1, 0, 6, 205.0, 7.5, NULL, 1),
@@ -304,7 +304,7 @@ BEGIN TRY
     (@se_push_lateral, 2, 0, 12, 20.0, 7.5, NULL, 1),
     (@se_push_lateral, 3, 0, 12, 20.0, 8.0, NULL, 1);
 
-    -- Leg Day exercises
+    -- Leg Day segments
     DECLARE @legDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '33333333-3333-3333-3333-333333333333' AND order_index = 3);
     DECLARE @backSquatId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Back Squat');
     DECLARE @romanianDeadliftId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Romanian Deadlift');
@@ -318,14 +318,14 @@ BEGIN TRY
     DECLARE @se_leg_split UNIQUEIDENTIFIER = NEWID();
     DECLARE @se_leg_plank UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO session_exercises (id, session_id, exercise_id, target_id, order_index, notes) VALUES
+    INSERT INTO session_segments (id, session_id, exercise_id, target_id, order_index, notes) VALUES
     (@se_leg_squat, @legDayId, @backSquatId, NULL, 1, 'Heavy day'),
     (@se_leg_rdl, @legDayId, @romanianDeadliftId, NULL, 2, NULL),
     (@se_leg_press, @legDayId, @legPressId, NULL, 3, NULL),
     (@se_leg_split, @legDayId, @splitSquatId, NULL, 4, 'Left side weaker'),
     (@se_leg_plank, @legDayId, @plankId, NULL, 5, NULL);
 
-    INSERT INTO session_exercise_sets (session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed) VALUES
+    INSERT INTO session_segment_sets (session_segment_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed) VALUES
     -- Back Squat: 1 warmup + 4 working sets
     (@se_leg_squat, 1, 1, 5, 135.0, NULL, NULL, 1),
     (@se_leg_squat, 1, 0, 5, 205.0, 7.0, NULL, 1),
@@ -349,7 +349,7 @@ BEGIN TRY
     (@se_leg_plank, 2, 0, 1, 0.0, 7.5, '40 seconds', 1),
     (@se_leg_plank, 3, 0, 1, 0.0, 8.0, '35 seconds', 1);
 
-    -- Pull Day exercises
+    -- Pull Day segments
     DECLARE @pullDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '33333333-3333-3333-3333-333333333333' AND order_index = 2);
     DECLARE @pullUpId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Pull-Up');
     DECLARE @barbellRowId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Barbell Row');
@@ -363,14 +363,14 @@ BEGIN TRY
     DECLARE @se_pull_face UNIQUEIDENTIFIER = NEWID();
     DECLARE @se_pull_curl UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO session_exercises (id, session_id, exercise_id, target_id, order_index, notes) VALUES
+    INSERT INTO session_segments (id, session_id, exercise_id, target_id, order_index, notes) VALUES
     (@se_pull_pullup, @pullDayId, @pullUpId, NULL, 1, NULL),
     (@se_pull_row, @pullDayId, @barbellRowId, NULL, 2, 'Overhand grip'),
     (@se_pull_lat, @pullDayId, @latPulldownId, NULL, 3, NULL),
     (@se_pull_face, @pullDayId, @facePullId, NULL, 4, NULL),
     (@se_pull_curl, @pullDayId, @bicepCurlId, NULL, 5, 'Hammer curls to avoid elbow');
 
-    INSERT INTO session_exercise_sets (session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed) VALUES
+    INSERT INTO session_segment_sets (session_segment_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed) VALUES
     -- Pull-Up: 1 warmup (bodyweight) + 2 working sets (weighted)
     (@se_pull_pullup, 1, 1, 8, 0.0, NULL, 'Bodyweight', 1),
     (@se_pull_pullup, 1, 0, 6, 25.0, 8.0, 'Added 25lb', 1),
@@ -393,7 +393,7 @@ BEGIN TRY
     (@se_pull_curl, 3, 0, 10, 30.0, 8.0, NULL, 1);
 
     -- =============================
-    -- Target Session Exercises and Sets (Pull Day - Week 2, currently active)
+    -- Target Session Segments and Sets (Pull Day - Week 2, currently active)
     -- =============================
 
     DECLARE @pullDay2Id UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '55555555-5555-5555-5555-555555555555' AND order_index = 2);
@@ -403,11 +403,11 @@ BEGIN TRY
     DECLARE @facePullId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Face Pull');
     DECLARE @bicepCurlId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Bicep Curl');
 
-    -- Target exercises for Pull Day Week 2
+    -- Target segments for Pull Day Week 2
     DECLARE @tse_pull2_pullup UNIQUEIDENTIFIER = NEWID();
     DECLARE @tse_pull2_row UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO target_session_exercises (id, session_id, exercise_id, order_index) VALUES
+    INSERT INTO target_session_segments (id, session_id, exercise_id, order_index) VALUES
     (@tse_pull2_pullup, @pullDay2Id, @pullUpId2, 1),
     (@tse_pull2_row, @pullDay2Id, @barbellRowId2, 2);
 
@@ -416,7 +416,7 @@ BEGIN TRY
     DECLARE @tss_pull2_pullup_1 UNIQUEIDENTIFIER = NEWID();
     DECLARE @tss_pull2_pullup_2 UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO target_session_exercise_sets (id, target_session_exercise_id, set_number, is_warmup, reps, weight, rpe) VALUES
+    INSERT INTO target_session_segment_sets (id, target_session_segment_id, set_number, is_warmup, reps, weight, rpe) VALUES
     (@tss_pull2_pullup_w1, @tse_pull2_pullup, 1, 1, 8, 0.0, NULL),
     (@tss_pull2_pullup_1, @tse_pull2_pullup, 1, 0, 6, 25.0, 7.5),
     (@tss_pull2_pullup_2, @tse_pull2_pullup, 2, 0, 6, 25.0, 8.0);
@@ -426,26 +426,26 @@ BEGIN TRY
     DECLARE @tss_pull2_row_2 UNIQUEIDENTIFIER = NEWID();
     DECLARE @tss_pull2_row_3 UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO target_session_exercise_sets (id, target_session_exercise_id, set_number, is_warmup, reps, weight, rpe) VALUES
+    INSERT INTO target_session_segment_sets (id, target_session_segment_id, set_number, is_warmup, reps, weight, rpe) VALUES
     (@tss_pull2_row_1, @tse_pull2_row, 1, 0, 8, 165.0, 7.0),
     (@tss_pull2_row_2, @tse_pull2_row, 2, 0, 8, 165.0, 7.5),
     (@tss_pull2_row_3, @tse_pull2_row, 3, 0, 8, 165.0, 8.0);
 
-    -- Session exercises for Pull Day Week 2 (linked to targets where applicable)
+    -- Session segments for Pull Day Week 2 (linked to targets where applicable)
     DECLARE @se_pull2_pullup UNIQUEIDENTIFIER = NEWID();
     DECLARE @se_pull2_row UNIQUEIDENTIFIER = NEWID();
     DECLARE @se_pull2_lat UNIQUEIDENTIFIER = NEWID();
     DECLARE @se_pull2_face UNIQUEIDENTIFIER = NEWID();
     DECLARE @se_pull2_curl UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO session_exercises (id, session_id, exercise_id, target_id, order_index, notes) VALUES
+    INSERT INTO session_segments (id, session_id, exercise_id, target_id, order_index, notes) VALUES
     (@se_pull2_pullup, @pullDay2Id, @pullUpId2, @tse_pull2_pullup, 1, NULL),
     (@se_pull2_row, @pullDay2Id, @barbellRowId2, @tse_pull2_row, 2, NULL),
     (@se_pull2_lat, @pullDay2Id, @latPulldownId2, NULL, 3, NULL),
     (@se_pull2_face, @pullDay2Id, @facePullId2, NULL, 4, NULL),
     (@se_pull2_curl, @pullDay2Id, @bicepCurlId2, NULL, 5, NULL);
 
-    INSERT INTO session_exercise_sets (session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed) VALUES
+    INSERT INTO session_segment_sets (session_segment_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed) VALUES
     -- Pull-Up: 1 warmup + 2 working (some values differ from targets)
     (@se_pull2_pullup, 1, 1, 8, 0.0, NULL, NULL, 1),
     (@se_pull2_pullup, 1, 0, 7, 25.0, 7.0, NULL, 1),
@@ -468,7 +468,7 @@ BEGIN TRY
     (@se_pull2_curl, 3, 0, 10, 35.0, 8.0, NULL, 1);
 
     -- =============================
-    -- Target Session Exercises and Sets (Leg Day - Week 2, not started)
+    -- Target Session Segments and Sets (Leg Day - Week 2, not started)
     -- =============================
 
     DECLARE @legDay2Id UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '55555555-5555-5555-5555-555555555555' AND order_index = 3);
@@ -476,18 +476,18 @@ BEGIN TRY
     DECLARE @romanianDeadliftId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Romanian Deadlift');
     DECLARE @legPressId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Leg Press');
 
-    -- Target exercises for Leg Day Week 2
+    -- Target segments for Leg Day Week 2
     DECLARE @tse_leg2_squat UNIQUEIDENTIFIER = NEWID();
     DECLARE @tse_leg2_rdl UNIQUEIDENTIFIER = NEWID();
     DECLARE @tse_leg2_press UNIQUEIDENTIFIER = NEWID();
 
-    INSERT INTO target_session_exercises (id, session_id, exercise_id, order_index) VALUES
+    INSERT INTO target_session_segments (id, session_id, exercise_id, order_index) VALUES
     (@tse_leg2_squat, @legDay2Id, @backSquatId2, 1),
     (@tse_leg2_rdl, @legDay2Id, @romanianDeadliftId2, 2),
     (@tse_leg2_press, @legDay2Id, @legPressId2, 3);
 
     -- Target sets for Back Squat: 1 warmup + 4 working
-    INSERT INTO target_session_exercise_sets (target_session_exercise_id, set_number, is_warmup, reps, weight, rpe) VALUES
+    INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe) VALUES
     (@tse_leg2_squat, 1, 1, 5, 135.0, NULL),
     (@tse_leg2_squat, 1, 0, 5, 215.0, 7.0),
     (@tse_leg2_squat, 2, 0, 5, 225.0, 7.5),
@@ -495,13 +495,13 @@ BEGIN TRY
     (@tse_leg2_squat, 4, 0, 3, 245.0, 8.5);
 
     -- Target sets for Romanian Deadlift: 3 working
-    INSERT INTO target_session_exercise_sets (target_session_exercise_id, set_number, is_warmup, reps, weight, rpe) VALUES
+    INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe) VALUES
     (@tse_leg2_rdl, 1, 0, 8, 195.0, 7.0),
     (@tse_leg2_rdl, 2, 0, 8, 195.0, 7.5),
     (@tse_leg2_rdl, 3, 0, 6, 205.0, 8.0);
 
     -- Target sets for Leg Press: 3 working
-    INSERT INTO target_session_exercise_sets (target_session_exercise_id, set_number, is_warmup, reps, weight, rpe) VALUES
+    INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe) VALUES
     (@tse_leg2_press, 1, 0, 10, 380.0, 7.0),
     (@tse_leg2_press, 2, 0, 10, 380.0, 7.5),
     (@tse_leg2_press, 3, 0, 8, 400.0, 8.0);

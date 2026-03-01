@@ -80,14 +80,14 @@ export async function getProgramById(programId: string): Promise<Program> {
           w.is_completed    AS week_is_completed,
           COALESCE((
             SELECT SUM(ses.reps * ses.weight)
-            FROM session_exercise_sets ses
-            JOIN session_exercises se ON ses.session_exercise_id = se.id
+            FROM session_segment_sets ses
+            JOIN session_segments se ON ses.session_segment_id = se.id
             JOIN workout_sessions ws2 ON se.session_id = ws2.id
             WHERE ws2.week_id = w.id AND ses.is_warmup = 0
           ), 0)             AS week_volume,
           CAST(CASE WHEN EXISTS (
             SELECT 1
-            FROM target_session_exercises tse
+            FROM target_session_segments tse
             JOIN workout_sessions ws3 ON tse.session_id = ws3.id
             WHERE ws3.week_id = w.id
           ) THEN 1 ELSE 0 END AS BIT) AS week_has_targets,
@@ -361,7 +361,7 @@ export async function createProgram(payload: CreateProgramPayload): Promise<stri
                 .input('exerciseId', targetExercise.exercise_id)
                 .input('orderIndex', targetExercise.order_index)
                 .query(`
-                  INSERT INTO target_session_exercises (session_id, exercise_id, order_index)
+                  INSERT INTO target_session_segments (session_id, exercise_id, order_index)
                   OUTPUT INSERTED.id
                   VALUES (@sessionId, @exerciseId, @orderIndex)
                 `);
@@ -370,15 +370,15 @@ export async function createProgram(payload: CreateProgramPayload): Promise<stri
 
               for (const targetSet of targetExercise.sets) {
                 await transaction.request()
-                  .input('targetSessionExerciseId', targetExerciseId)
+                  .input('targetSessionSegmentId', targetExerciseId)
                   .input('setNumber', targetSet.set_number)
                   .input('isWarmup', targetSet.is_warmup ? 1 : 0)
                   .input('reps', targetSet.reps)
                   .input('weight', targetSet.weight)
                   .input('rpe', targetSet.rpe)
                   .query(`
-                    INSERT INTO target_session_exercise_sets (target_session_exercise_id, set_number, is_warmup, reps, weight, rpe)
-                    VALUES (@targetSessionExerciseId, @setNumber, @isWarmup, @reps, @weight, @rpe)
+                    INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe)
+                    VALUES (@targetSessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe)
                   `);
               }
             }

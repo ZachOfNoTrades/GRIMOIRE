@@ -347,21 +347,21 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
     await transaction.begin();
 
     try {
-      // Delete sets for all exercises in this session
+      // Delete sets for all segments in this session
       await transaction.request()
         .input('id', id)
         .query(`
-          DELETE FROM session_exercise_sets
-          WHERE session_exercise_id IN (
-            SELECT id FROM session_exercises WHERE session_id = @id
+          DELETE FROM session_segment_sets
+          WHERE session_segment_id IN (
+            SELECT id FROM session_segments WHERE session_id = @id
           )
         `);
 
-      // Delete exercises for this session
+      // Delete segments for this session
       await transaction.request()
         .input('id', id)
         .query(`
-          DELETE FROM session_exercises WHERE session_id = @id
+          DELETE FROM session_segments WHERE session_id = @id
         `);
 
       // Delete the session

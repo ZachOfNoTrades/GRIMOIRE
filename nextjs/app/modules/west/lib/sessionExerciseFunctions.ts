@@ -1,28 +1,28 @@
 import { getWestConnection, closeWestConnection } from './db';
-import { SessionExerciseWithSets, TargetSessionExercise } from '../types/sessionExercise';
+import { SegmentWithSets, TargetSegment } from '../types/sessionExercise';
 
-export async function getSessionExercisesAndTargets(sessionId: string): Promise<{
-  exercises: SessionExerciseWithSets[];
-  targets: TargetSessionExercise[];
+export async function getSegmentsAndTargets(sessionId: string): Promise<{
+  exercises: SegmentWithSets[];
+  targets: TargetSegment[];
 }> {
   let pool;
   try {
     pool = await getWestConnection();
 
-    // Load session exercises and sets
-    const exerciseResult = await pool.request()
+    // Load session segments and sets
+    const segmentResult = await pool.request()
       .input('sessionId', sessionId)
       .query(`
         SELECT
-          se.id AS session_exercise_id,
+          se.id AS session_segment_id,
           se.session_id,
           se.exercise_id,
           e.name AS exercise_name,
           se.target_id,
           se.order_index,
-          se.notes AS exercise_notes,
-          se.created_at AS exercise_created_at,
-          se.modified_at AS exercise_modified_at,
+          se.notes AS segment_notes,
+          se.created_at AS segment_created_at,
+          se.modified_at AS segment_modified_at,
           ses.id AS set_id,
           ses.set_number,
           ses.reps,
@@ -33,32 +33,32 @@ export async function getSessionExercisesAndTargets(sessionId: string): Promise<
           ses.notes AS set_notes,
           ses.created_at AS set_created_at,
           ses.modified_at AS set_modified_at
-        FROM session_exercises se
+        FROM session_segments se
         INNER JOIN exercises e ON se.exercise_id = e.id
-        LEFT JOIN session_exercise_sets ses ON se.id = ses.session_exercise_id
+        LEFT JOIN session_segment_sets ses ON se.id = ses.session_segment_id
         WHERE se.session_id = @sessionId
         ORDER BY se.order_index, ses.is_warmup DESC, ses.set_number
       `);
 
-    if (exerciseResult.recordset.length === 0) {
-      console.warn(`No session exercises found for session id: '${sessionId}'`);
+    if (segmentResult.recordset.length === 0) {
+      console.warn(`No session segments found for session id: '${sessionId}'`);
     }
 
     // Group flat rows into nested structure
-    const exerciseMap = new Map<string, SessionExerciseWithSets>();
+    const segmentMap = new Map<string, SegmentWithSets>();
 
-    for (const row of exerciseResult.recordset) {
-      if (!exerciseMap.has(row.session_exercise_id)) {
-        exerciseMap.set(row.session_exercise_id, {
-          id: row.session_exercise_id,
+    for (const row of segmentResult.recordset) {
+      if (!segmentMap.has(row.session_segment_id)) {
+        segmentMap.set(row.session_segment_id, {
+          id: row.session_segment_id,
           session_id: row.session_id,
           exercise_id: row.exercise_id,
           exercise_name: row.exercise_name,
           target_id: row.target_id,
           order_index: row.order_index,
-          notes: row.exercise_notes,
-          created_at: row.exercise_created_at,
-          modified_at: row.exercise_modified_at,
+          notes: row.segment_notes,
+          created_at: row.segment_created_at,
+          modified_at: row.segment_modified_at,
           sets: [],
           target: null,
         });
@@ -66,10 +66,10 @@ export async function getSessionExercisesAndTargets(sessionId: string): Promise<
 
       // Add set if it exists (LEFT JOIN may produce null set data)
       if (row.set_id) {
-        const exercise = exerciseMap.get(row.session_exercise_id)!;
-        exercise.sets.push({
+        const segment = segmentMap.get(row.session_segment_id)!;
+        segment.sets.push({
           id: row.set_id,
-          session_exercise_id: row.session_exercise_id,
+          session_segment_id: row.session_segment_id,
           set_number: row.set_number,
           is_warmup: row.is_warmup,
           reps: row.reps,
@@ -88,15 +88,15 @@ export async function getSessionExercisesAndTargets(sessionId: string): Promise<
       .input('sessionId', sessionId)
       .query(`
         SELECT
-          tse.id AS target_exercise_id,
+          tse.id AS target_segment_id,
           tse.session_id,
           tse.exercise_id,
           e.name AS exercise_name,
           tse.order_index,
-          tse.created_at AS target_exercise_created_at,
-          tse.modified_at AS target_exercise_modified_at,
+          tse.created_at AS target_segment_created_at,
+          tse.modified_at AS target_segment_modified_at,
           tss.id AS target_set_id,
-          tss.target_session_exercise_id,
+          tss.target_session_segment_id,
           tss.set_number,
           tss.is_warmup,
           tss.reps,
@@ -104,40 +104,40 @@ export async function getSessionExercisesAndTargets(sessionId: string): Promise<
           tss.rpe,
           tss.created_at AS target_set_created_at,
           tss.modified_at AS target_set_modified_at
-        FROM target_session_exercises tse
+        FROM target_session_segments tse
         INNER JOIN exercises e ON tse.exercise_id = e.id
-        LEFT JOIN target_session_exercise_sets tss ON tse.id = tss.target_session_exercise_id
+        LEFT JOIN target_session_segment_sets tss ON tse.id = tss.target_session_segment_id
         WHERE tse.session_id = @sessionId
         ORDER BY tse.order_index, tss.is_warmup DESC, tss.set_number
       `);
 
     if (targetResult.recordset.length === 0) {
-      console.warn(`No target exercises found for session id: '${sessionId}'`);
+      console.warn(`No target segments found for session id: '${sessionId}'`);
     }
 
-    // Group targets into TargetSessionExercise objects
-    const targetMap = new Map<string, TargetSessionExercise>();
+    // Group targets into TargetSegment objects
+    const targetMap = new Map<string, TargetSegment>();
 
     for (const row of targetResult.recordset) {
-      if (!targetMap.has(row.target_exercise_id)) {
-        targetMap.set(row.target_exercise_id, {
-          id: row.target_exercise_id,
+      if (!targetMap.has(row.target_segment_id)) {
+        targetMap.set(row.target_segment_id, {
+          id: row.target_segment_id,
           session_id: row.session_id,
           exercise_id: row.exercise_id,
           exercise_name: row.exercise_name,
           order_index: row.order_index,
-          created_at: row.target_exercise_created_at,
-          modified_at: row.target_exercise_modified_at,
+          created_at: row.target_segment_created_at,
+          modified_at: row.target_segment_modified_at,
           sets: [],
         });
       }
 
       // Add target set if it exists
       if (row.target_set_id) {
-        const targetExercise = targetMap.get(row.target_exercise_id)!;
-        targetExercise.sets.push({
+        const targetSegment = targetMap.get(row.target_segment_id)!;
+        targetSegment.sets.push({
           id: row.target_set_id,
-          target_session_exercise_id: row.target_session_exercise_id,
+          target_session_segment_id: row.target_session_segment_id,
           set_number: row.set_number,
           is_warmup: row.is_warmup,
           reps: row.reps,
@@ -149,19 +149,19 @@ export async function getSessionExercisesAndTargets(sessionId: string): Promise<
       }
     }
 
-    // Attach targets to exercises
-    for (const exercise of exerciseMap.values()) {
-      if (exercise.target_id) {
-        exercise.target = targetMap.get(exercise.target_id) ?? null;
+    // Attach targets to segments
+    for (const segment of segmentMap.values()) {
+      if (segment.target_id) {
+        segment.target = targetMap.get(segment.target_id) ?? null;
       }
     }
 
     return {
-      exercises: Array.from(exerciseMap.values()),
+      exercises: Array.from(segmentMap.values()),
       targets: Array.from(targetMap.values()),
     };
   } catch (error) {
-    console.error('Error fetching session exercises and targets:', error);
+    console.error('Error fetching session segments and targets:', error);
     throw error;
   } finally {
     if (pool) {
@@ -170,7 +170,7 @@ export async function getSessionExercisesAndTargets(sessionId: string): Promise<
   }
 }
 
-export async function updateSessionExercises(sessionId: string, exercises: SessionExerciseWithSets[]): Promise<void> {
+export async function updateSegments(sessionId: string, segments: SegmentWithSets[]): Promise<void> {
   let pool;
   try {
     pool = await getWestConnection();
@@ -178,73 +178,73 @@ export async function updateSessionExercises(sessionId: string, exercises: Sessi
     await transaction.begin();
 
     try {
-      const submittedExerciseIds = new Set(exercises.map(e => e.id));
-      const submittedSetIds = new Set(exercises.flatMap(e => e.sets.map(s => s.id)));
+      const submittedSegmentIds = new Set(segments.map(e => e.id));
+      const submittedSetIds = new Set(segments.flatMap(e => e.sets.map(s => s.id)));
 
-      // Get existing exercise IDs for this session
-      const existingExercisesResult = await transaction.request()
+      // Get existing segment IDs for this session
+      const existingSegmentsResult = await transaction.request()
         .input('sessionId', sessionId)
-        .query(`SELECT id FROM session_exercises WHERE session_id = @sessionId`);
+        .query(`SELECT id FROM session_segments WHERE session_id = @sessionId`);
 
-      // Delete removed exercises (sets first due to FK, then exercises)
-      for (const row of existingExercisesResult.recordset) {
-        if (!submittedExerciseIds.has(row.id)) {
+      // Delete removed segments (sets first due to FK, then segments)
+      for (const row of existingSegmentsResult.recordset) {
+        if (!submittedSegmentIds.has(row.id)) {
           await transaction.request()
-            .input('sessionExerciseId', row.id)
-            .query(`DELETE FROM session_exercise_sets WHERE session_exercise_id = @sessionExerciseId`);
+            .input('sessionSegmentId', row.id)
+            .query(`DELETE FROM session_segment_sets WHERE session_segment_id = @sessionSegmentId`);
           await transaction.request()
-            .input('sessionExerciseId', row.id)
-            .query(`DELETE FROM session_exercises WHERE id = @sessionExerciseId`);
+            .input('sessionSegmentId', row.id)
+            .query(`DELETE FROM session_segments WHERE id = @sessionSegmentId`);
         }
       }
 
-      // Delete removed sets from remaining exercises
-      for (const exercise of exercises) {
+      // Delete removed sets from remaining segments
+      for (const segment of segments) {
         const existingSetsResult = await transaction.request()
-          .input('sessionExerciseId', exercise.id)
-          .query(`SELECT id FROM session_exercise_sets WHERE session_exercise_id = @sessionExerciseId`);
+          .input('sessionSegmentId', segment.id)
+          .query(`SELECT id FROM session_segment_sets WHERE session_segment_id = @sessionSegmentId`);
 
         for (const row of existingSetsResult.recordset) {
           if (!submittedSetIds.has(row.id)) {
             await transaction.request()
               .input('setId', row.id)
-              .query(`DELETE FROM session_exercise_sets WHERE id = @setId`);
+              .query(`DELETE FROM session_segment_sets WHERE id = @setId`);
           }
         }
       }
 
-      // Upsert exercises and sets
-      for (const exercise of exercises) {
+      // Upsert segments and sets
+      for (const segment of segments) {
 
-        // Upsert session exercise
+        // Upsert session segment
         await transaction.request()
-          .input('sessionExerciseId', exercise.id)
-          .input('sessionId', exercise.session_id)
-          .input('exerciseId', exercise.exercise_id)
-          .input('targetId', exercise.target_id)
-          .input('orderIndex', exercise.order_index)
-          .input('exerciseNotes', exercise.notes)
+          .input('sessionSegmentId', segment.id)
+          .input('sessionId', segment.session_id)
+          .input('exerciseId', segment.exercise_id)
+          .input('targetId', segment.target_id)
+          .input('orderIndex', segment.order_index)
+          .input('segmentNotes', segment.notes)
           .query(`
-            MERGE INTO session_exercises AS dest
-            USING (SELECT @sessionExerciseId AS id) AS source
+            MERGE INTO session_segments AS dest
+            USING (SELECT @sessionSegmentId AS id) AS source
             ON dest.id = source.id
             WHEN MATCHED THEN
               UPDATE SET
                 exercise_id = @exerciseId,
                 target_id = @targetId,
                 order_index = @orderIndex,
-                notes = @exerciseNotes,
+                notes = @segmentNotes,
                 modified_at = GETDATE()
             WHEN NOT MATCHED THEN
               INSERT (id, session_id, exercise_id, target_id, order_index, notes)
-              VALUES (@sessionExerciseId, @sessionId, @exerciseId, @targetId, @orderIndex, @exerciseNotes);
+              VALUES (@sessionSegmentId, @sessionId, @exerciseId, @targetId, @orderIndex, @segmentNotes);
           `);
 
         // Upsert each set
-        for (const set of exercise.sets) {
+        for (const set of segment.sets) {
           await transaction.request()
             .input('setId', set.id)
-            .input('sessionExerciseId', exercise.id)
+            .input('sessionSegmentId', segment.id)
             .input('setNumber', set.set_number)
             .input('isWarmup', set.is_warmup)
             .input('reps', set.reps)
@@ -253,7 +253,7 @@ export async function updateSessionExercises(sessionId: string, exercises: Sessi
             .input('setNotes', set.notes)
             .input('isCompleted', set.is_completed)
             .query(`
-              MERGE INTO session_exercise_sets AS dest
+              MERGE INTO session_segment_sets AS dest
               USING (SELECT @setId AS id) AS source
               ON dest.id = source.id
               WHEN MATCHED THEN
@@ -267,8 +267,8 @@ export async function updateSessionExercises(sessionId: string, exercises: Sessi
                   is_completed = @isCompleted,
                   modified_at = GETDATE()
               WHEN NOT MATCHED THEN
-                INSERT (id, session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed)
-                VALUES (@setId, @sessionExerciseId, @setNumber, @isWarmup, @reps, @weight, @rpe, @setNotes, @isCompleted);
+                INSERT (id, session_segment_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed)
+                VALUES (@setId, @sessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @setNotes, @isCompleted);
             `);
         }
       }
@@ -279,7 +279,7 @@ export async function updateSessionExercises(sessionId: string, exercises: Sessi
       throw error;
     }
   } catch (error) {
-    console.error('Error updating session exercises:', error);
+    console.error('Error updating session segments:', error);
     throw error;
   } finally {
     if (pool) {

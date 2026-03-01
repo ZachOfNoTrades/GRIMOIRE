@@ -1,4 +1,4 @@
-export interface TargetSessionExercise {
+export interface TargetSegment {
   id: string;
   session_id: string;
   exercise_id: string;
@@ -6,12 +6,12 @@ export interface TargetSessionExercise {
   order_index: number;
   created_at: Date;
   modified_at: Date;
-  sets: TargetSessionExerciseSet[];
+  sets: TargetSegmentSet[];
 }
 
-export interface TargetSessionExerciseSet {
+export interface TargetSegmentSet {
   id: string;
-  target_session_exercise_id: string;
+  target_session_segment_id: string;
   set_number: number;
   is_warmup: boolean;
   reps: number;
@@ -21,7 +21,7 @@ export interface TargetSessionExerciseSet {
   modified_at: Date;
 }
 
-export interface SessionExercise {
+export interface Segment {
   id: string;
   session_id: string;
   exercise_id: string;
@@ -33,9 +33,9 @@ export interface SessionExercise {
   modified_at: Date;
 }
 
-export interface SessionExerciseSet {
+export interface SegmentSet {
   id: string;
-  session_exercise_id: string;
+  session_segment_id: string;
   set_number: number;
   is_warmup: boolean;
   reps: number;
@@ -47,7 +47,7 @@ export interface SessionExerciseSet {
   modified_at: Date;
 }
 
-export interface SessionExerciseWithSets extends SessionExercise {
-  sets: SessionExerciseSet[];
-  target: TargetSessionExercise | null;
+export interface SegmentWithSets extends Segment {
+  sets: SegmentSet[];
+  target: TargetSegment | null;
 }
