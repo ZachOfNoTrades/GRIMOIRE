@@ -27,6 +27,7 @@ export default function GeneratePowerliftingPage() {
   const [deadlift1RM, setDeadlift1RM] = useState("");
   const [totalWeeks, setTotalWeeks] = useState("");
   const [daysPerWeek, setDaysPerWeek] = useState("");
+  const [generateWithLlm, setGenerateWithLlm] = useState(false);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -88,6 +89,7 @@ export default function GeneratePowerliftingPage() {
           deadlift1RM: Number(deadlift1RM),
           totalWeeks: Number(totalWeeks),
           daysPerWeek: Number(daysPerWeek),
+          generateWithLlm: generateWithLlm,
         }),
       });
 
@@ -304,6 +306,18 @@ export default function GeneratePowerliftingPage() {
                 </p>
               </div>
             )}
+
+            {/* LLM FIRST WEEK CHECKBOX */}
+            <div className="flex items-center gap-2 mt-4">
+              <input
+                type="checkbox"
+                id="useAI"
+                checked={generateWithLlm}
+                onChange={(e) => setGenerateWithLlm(e.target.checked)}
+                className="checkbox"
+              />
+              <label htmlFor="useLlm" className="text-secondary cursor-pointer">Generate first week with AI</label>
+            </div>
           </div>
         </div>
 
@@ -315,7 +329,7 @@ export default function GeneratePowerliftingPage() {
             disabled={!isFormValid || isSubmitting}
           >
             <Zap className="w-4 h-4" />
-            {isSubmitting ? "Generating..." : "Generate Program"}
+            {isSubmitting ? ("Generating...") : "Generate Program"}
           </Button>
         </div>
       </main>

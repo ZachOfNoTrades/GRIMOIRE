@@ -166,6 +166,7 @@ export interface CreateProgramTargetExercise {
 export interface CreateProgramSession {
   order_index: number;
   name: string;
+  notes?: string | null;
   target_exercises: CreateProgramTargetExercise[];
 }
 

@@ -8,7 +8,7 @@ import { getAllExercisesWithMuscleGroups } from './exerciseFunctions';
 import { createProgram } from './programFunctions';
 
 export function buildPrompt(input: GenerateProgramInput, exercises: ExerciseSummary[]): string {
-  const templatePath = join(process.cwd(), 'app', 'modules', 'west', 'lib', 'prompts', 'generateProgram.md');
+  const templatePath = join(process.cwd(), 'nextjs', 'app', 'modules', 'west', 'lib', 'prompts', 'generateProgram.md');
   const template = readFileSync(templatePath, 'utf-8');
   const exerciseListJson = JSON.stringify(exercises, null, 2);
 

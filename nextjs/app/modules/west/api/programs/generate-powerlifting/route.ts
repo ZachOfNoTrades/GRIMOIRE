@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generatePowerliftingProgram } from '../../../lib/powerliftingProgramGenerator';
+import { generateFirstWeekPlanWithLlm } from '../../../lib/llmWeekGenerationFunctions';
 import { createProgram } from '../../../lib/programFunctions';
 
 export async function POST(request: Request) {
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
       deadlift1RM,
       totalWeeks,
       daysPerWeek,
+      generateWithLlm,
     } = await request.json();
 
     // Validate exercise IDs
@@ -47,8 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'totalWeeks must be a positive integer' }, { status: 400 });
     }
 
-    // Generate program payload via algorithm
-    const payload = generatePowerliftingProgram({
+    const generatorInput = {
       squatExerciseId,
       benchExerciseId,
       deadliftExerciseId,
@@ -57,7 +58,19 @@ export async function POST(request: Request) {
       deadlift1RM,
       totalWeeks,
       daysPerWeek,
-    });
+    };
+
+    // TODO: the first week generation could technically be called from generatePowerliftingProgram
+    // instead of being spliced here
+
+    // Generate program payload via algorithm
+    const payload = generatePowerliftingProgram(generatorInput, generateWithLlm);
+
+    // If AI mode, generate first week sessions via LLM and splice into payload
+    if (generateWithLlm === true) {
+      const llmSessions = await generateFirstWeekPlanWithLlm(generatorInput);
+      payload.blocks[0].weeks[0].sessions = llmSessions;
+    }
 
     // Save to database
     const programId = await createProgram(payload);

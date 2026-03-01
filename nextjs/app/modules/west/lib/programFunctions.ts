@@ -347,10 +347,11 @@ export async function createProgram(payload: CreateProgramPayload): Promise<stri
               .input('weekId', weekId)
               .input('orderIndex', session.order_index)
               .input('name', session.name)
+              .input('notes', session.notes ?? null)
               .query(`
-                INSERT INTO workout_sessions (week_id, order_index, name)
+                INSERT INTO workout_sessions (week_id, order_index, name, notes)
                 OUTPUT INSERTED.id
-                VALUES (@weekId, @orderIndex, @name)
+                VALUES (@weekId, @orderIndex, @name, @notes)
               `);
 
             const sessionId = sessionResult.recordset[0].id;

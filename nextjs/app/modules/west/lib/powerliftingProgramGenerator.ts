@@ -215,7 +215,7 @@ export function calculateWeekParams(phase: BlockPhase, weekIndex: number, totalB
 // Main Generator
 // =============================
 
-export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): CreateProgramPayload {
+export function generatePowerliftingProgram(input: PowerliftingGeneratorInput, llmGenerated: boolean): CreateProgramPayload {
   const totalWeeks = input.totalWeeks;
 
   if (totalWeeks < 1) {
@@ -243,40 +243,32 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
 
   for (let blockIndex = 0; blockIndex < blockConfigs.length; blockIndex++) {
     const { phase, weekCount } = blockConfigs[blockIndex];
-    const isFirstBlock = blockIndex === 0;
     const weeks: CreateProgramWeek[] = [];
 
     for (let weekIndex = 0; weekIndex < weekCount; weekIndex++) {
       const weekParams = calculateWeekParams(phase, weekIndex, weekCount);
-      const isFirstWeek = isFirstBlock && weekIndex === 0;
+      const isFirstWeek = blockIndex === 0 && weekIndex === 0;
       const weekName = weekParams.isDeload ? 'Deload' : null;
       const sessions: CreateProgramSession[] = [];
 
-      // Sessions only generated for the first block
-      if (isFirstBlock) {
+      // Generate first week sessions via template for non-LLM-generated program
+      if (isFirstWeek && !llmGenerated) {
         for (let sessionIndex = 0; sessionIndex < templates.length; sessionIndex++) {
           const template = templates[sessionIndex];
-          const targetExercises: CreateProgramTargetExercise[] = [];
+          const exercise = exercises[template.exerciseIndex];
+          const workingWeight = round5(exercise.oneRepMax * weekParams.intensity);
 
-          // Target exercises only generated for the first week (subsequent weeks use Generate)
-          if (isFirstWeek) {
-            const exercise = exercises[template.exerciseIndex];
-            const workingWeight = round5(exercise.oneRepMax * weekParams.intensity);
-
-            const warmupSets = generateWarmupSets(workingWeight);
-            const workingSets = generateWorkingSets(weekParams.reps, workingWeight, weekParams.rpe, weekParams.workingSets);
-
-            targetExercises.push({
-              exercise_id: exercise.exerciseId,
-              order_index: 1,
-              sets: [...warmupSets, ...workingSets],
-            });
-          }
+          const warmupSets = generateWarmupSets(workingWeight);
+          const workingSets = generateWorkingSets(weekParams.reps, workingWeight, weekParams.rpe, weekParams.workingSets);
 
           sessions.push({
             order_index: sessionIndex + 1,
             name: template.name,
-            target_exercises: targetExercises,
+            target_exercises: [{
+              exercise_id: exercise.exerciseId,
+              order_index: 1,
+              sets: [...warmupSets, ...workingSets],
+            }],
           });
         }
       }
