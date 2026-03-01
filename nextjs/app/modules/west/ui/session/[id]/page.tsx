@@ -2,13 +2,12 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, CircleCheck, RotateCcw, Play, Loader2, Timer } from "lucide-react";
+import { StickyNote, Plus, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
 import { SessionExerciseWithSets, TargetSessionExercise } from "../../../types/sessionExercise";
 import { Exercise } from "../../../types/exercise";
-import SessionNavbar from "./SessionNavbar";
 import DeleteSessionModal from "./DeleteSessionModal";
 import EditExerciseModal from "./EditExerciseModal";
 import SessionTimer from "../../../components/SessionTimer";
@@ -37,7 +36,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [exerciseModalData, setExerciseModalData] = useState<SessionExerciseWithSets | null>(null);
   const [isSavingExercise, setIsSavingExercise] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [statusLabel, setStatusLabel] = useState("");
 
   // DERIVED
   const timerStart = session?.resumed_at ?? session?.started_at ?? null;
@@ -215,12 +213,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleStartSession = () => {
-    setStatusLabel("Starting...");
     updateSessionStatus({ is_current: true, started_at: new Date() });
   };
 
   const handleResumeSession = () => {
-    setStatusLabel("Resuming...");
     updateSessionStatus({ is_completed: false, is_current: true, resumed_at: new Date() });
   };
 
@@ -230,37 +226,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       ? (session.duration ?? 0) + Math.floor((Date.now() - new Date(session.resumed_at).getTime()) / 1000)
       : Math.floor((Date.now() - new Date(session.started_at!).getTime()) / 1000);
 
-    setStatusLabel("Saving...");
     updateSessionStatus({
       is_completed: true,
       is_current: false,
       resumed_at: null,
       duration: elapsed,
     });
-  };
-
-  const handleResetSession = async () => {
-    setStatusLabel("Resetting...");
-    setIsUpdatingStatus(true);
-    try {
-      const response = await fetch(`/modules/west/api/sessions/${id}`, {
-        method: "PATCH",
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to reset session");
-        return;
-      }
-
-      const updatedSession = await response.json();
-      setSession(updatedSession);
-    } catch (error) {
-      toast.error("Failed to reset session");
-      console.error("Error resetting session:", error);
-    } finally {
-      setIsUpdatingStatus(false);
-    }
   };
 
   // EXERCISE HANDLERS
@@ -434,20 +405,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
       <Toaster />
 
-      {/* SESSION NAVBAR */}
-      {session && (
-        <SessionNavbar
-          isEditing={isEditingSession}
-          isSaving={isSavingSession}
-          onBack={() => router.back()}
-          onDelete={() => setIsDeleteModalOpen(true)}
-          onEdit={handleStartEditSession}
-          onCancel={handleCancelEditSession}
-          onSave={handleSaveSession}
-        />
-      )}
-
       <main className="page-container">
+
+        {/* BACK BUTTON */}
+        <Button className="btn-link mb-2" onClick={() => router.back()}>
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back</span>
+        </Button>
 
         {/* HEADER */}
         <div className="mb-4">
@@ -469,47 +433,41 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 {/* TITLE */}
                 <h2 className="text-card-title">Session Info</h2>
 
-                {/* STATUS ACTION BUTTONS */}
-                <div className="flex items-center gap-2 h-9">
-                  {isUpdatingStatus ? (
+                {/* SESSION ACTION BUTTONS */}
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto sm:h-9">
+                  {!isEditingSession ? (
 
-                    // STATUS INDICATOR ("Saving..." etc)
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-secondary)' }} />
-                      <span className="text-secondary">{statusLabel}</span>
-                    </>
-                  ) : session.is_completed ? (
-
-                    // RESUME WORKOUT BUTTON
-                    <Button className="btn-link" onClick={handleResumeSession}>
-                      <RotateCcw className="w-4 h-4" />
-                      Resume Workout
-                    </Button>
-                  ) : session.is_current && (session.started_at || session.resumed_at) ? (
-
-                    // IN-PROGRESS BUTTONS
+                    // VIEW MODE ACTIONS
                     <>
 
-                      {/* RESET BUTTON (only for sessions that have never been completed) */}
-                      {!session.resumed_at && (
-                        <Button className="btn-link" onClick={handleResetSession}>
-                          Reset
-                        </Button>
-                      )}
+                      {/* DELETE BUTTON */}
+                      <Button className="btn-delete w-full sm:w-auto" onClick={() => setIsDeleteModalOpen(true)}>
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </Button>
 
-                      {/* COMPLETE BUTTON */}
-                      <Button className="btn-primary" onClick={handleCompleteSession}>
-                        <CircleCheck className="w-4 h-4" />
-                        Complete
+                      {/* EDIT BUTTON */}
+                      <Button className="btn-primary w-full sm:w-auto" onClick={handleStartEditSession}>
+                        <Edit2 className="w-4 h-4" />
+                        <span>Edit</span>
                       </Button>
                     </>
                   ) : (
 
-                    // START BUTTON
-                    <Button className="btn-primary" onClick={handleStartSession}>
-                      <Play className="w-4 h-4" />
-                      Start Workout
-                    </Button>
+                    // EDIT MODE ACTIONS
+                    <>
+
+                      {/* CANCEL BUTTON */}
+                      <Button className="btn-link w-full sm:w-auto" onClick={handleCancelEditSession} disabled={isSavingSession}>
+                        Cancel
+                      </Button>
+
+                      {/* SAVE BUTTON */}
+                      <Button className="btn-success w-full sm:w-auto" onClick={handleSaveSession} disabled={isSavingSession}>
+                        <Save className="w-4 h-4" />
+                        <span>{isSavingSession ? "Saving..." : "Save"}</span>
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -797,6 +755,34 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </main>
+
+      {/* BOTTOM ACTION BAR */}
+      {session && (
+        <div className="bottom-action-bar">
+          {session.is_completed ? (
+
+            // RESUME WORKOUT BUTTON
+            <Button className="btn-link w-full sm:w-auto" onClick={handleResumeSession} disabled={isUpdatingStatus}>
+              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              {isUpdatingStatus ? "Resuming..." : "Resume Workout"}
+            </Button>
+          ) : session.is_current && (session.started_at || session.resumed_at) ? (
+
+            // COMPLETE BUTTON
+            <Button className="btn-primary w-full sm:w-auto" onClick={handleCompleteSession} disabled={isUpdatingStatus}>
+              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
+              {isUpdatingStatus ? "Saving..." : "Complete"}
+            </Button>
+          ) : (
+
+            // START BUTTON
+            <Button className="btn-primary w-full sm:w-auto" onClick={handleStartSession} disabled={isUpdatingStatus}>
+              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {isUpdatingStatus ? "Starting..." : "Start Workout"}
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* DELETE SESSION MODAL */}
       <DeleteSessionModal
