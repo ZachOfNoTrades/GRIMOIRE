@@ -27,6 +27,8 @@ export async function callLLM(prompt: string): Promise<string> {
   switch (provider) {
     case 'claude-code':
       return callClaudeCode(prompt);
+    case 'local':
+      return callLocalLLM(prompt);
     default:
       throw new Error(`Unsupported LLM_PROVIDER: '${provider}'`);
   }
@@ -68,6 +70,42 @@ async function callClaudeCode(prompt: string): Promise<string> {
     proc.stdin.write(prompt);
     proc.stdin.end();
   });
+}
+
+async function callLocalLLM(prompt: string): Promise<string> {
+  const serverUrl = process.env.LLM_SERVER_URL;
+  const model = process.env.LLM_MODEL;
+
+  if (!serverUrl) {
+    throw new Error('LLM_SERVER_URL environment variable is not set');
+  }
+  if (!model) {
+    throw new Error('LLM_MODEL environment variable is not set');
+  }
+
+  // Auto-prepend http:// if no protocol specified
+  const baseUrl = serverUrl.match(/^https?:\/\//) ? serverUrl : `http://${serverUrl}`;
+
+  // OpenAI-compatible chat completions endpoint
+  const url = `${baseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Local LLM request failed (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 export function parseLLMResponse(rawContent: string): CreateProgramPayload {
