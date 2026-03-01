@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSegmentsAndTargets, updateSegments } from '../../../../lib/sessionExerciseFunctions';
+import { getSegmentsAndTargets, updateSegments } from '../../../../lib/segmentFunctions';
 
 export async function GET(
   request: Request,

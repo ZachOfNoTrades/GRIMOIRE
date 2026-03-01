@@ -6,10 +6,10 @@ import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer,
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
-import { SegmentWithSets, TargetSegment } from "../../../types/sessionExercise";
+import { SegmentWithSets, TargetSegment } from "../../../types/segment";
 import { Exercise } from "../../../types/exercise";
 import DeleteSessionModal from "./DeleteSessionModal";
-import EditSegmentModal from "./EditExerciseModal";
+import EditSegmentModal from "./EditSegmentModal";
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
 

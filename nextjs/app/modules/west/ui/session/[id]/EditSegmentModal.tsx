@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import SubModal from "@/components/SubModal";
-import { SegmentWithSets } from "../../../types/sessionExercise";
+import { SegmentWithSets } from "../../../types/segment";
 import { Exercise } from "../../../types/exercise";
 
 enum SetField {

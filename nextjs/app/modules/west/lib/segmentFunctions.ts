@@ -1,5 +1,5 @@
 import { getWestConnection, closeWestConnection } from './db';
-import { SegmentWithSets, TargetSegment } from '../types/sessionExercise';
+import { SegmentWithSets, TargetSegment } from '../types/segment';
 
 export async function getSegmentsAndTargets(sessionId: string): Promise<{
   exercises: SegmentWithSets[];
