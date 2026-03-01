@@ -1,7 +1,7 @@
 "use client"
 
 import { X } from 'lucide-react';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface ModalProps {
@@ -21,6 +21,18 @@ export default function Modal({
     footer,
     disableClose = false
 }: ModalProps) {
+
+    // Lock background scroll when modal is open
+    useEffect(() => {
+        if (!isOpen) return;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            // Only restore scroll if no other modals remain
+            if (document.querySelectorAll('.modal-backdrop').length === 0) {
+                document.body.style.overflow = '';
+            }
+        };
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
