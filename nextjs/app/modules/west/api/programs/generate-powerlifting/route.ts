@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generatePowerliftingProgram } from '../../../lib/powerliftingProgramGenerator';
 import { createProgram } from '../../../lib/programFunctions';
-import { getAllExercisesWithMuscleGroups } from '../../../lib/exerciseFunctions';
 
 export async function POST(request: Request) {
   try {
@@ -48,9 +47,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'totalWeeks must be a positive integer' }, { status: 400 });
     }
 
-    // Fetch exercise catalog for accessory name lookups
-    const exercises = await getAllExercisesWithMuscleGroups();
-
     // Generate program payload via algorithm
     const payload = generatePowerliftingProgram({
       squatExerciseId,
@@ -61,7 +57,6 @@ export async function POST(request: Request) {
       deadlift1RM,
       totalWeeks,
       daysPerWeek,
-      exerciseCatalog: exercises.map(e => ({ id: e.id, name: e.name })),
     });
 
     // Save to database

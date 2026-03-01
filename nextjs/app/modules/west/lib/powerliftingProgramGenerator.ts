@@ -25,57 +25,40 @@ export interface PowerliftingGeneratorInput {
   deadlift1RM: number;
   totalWeeks: number;
   daysPerWeek: number;      // 3-6
-  exerciseCatalog: { id: string; name: string }[];
 }
 
 // =============================
-// Session Templates
+// Session Template Generation
 // =============================
 
-// Primary lift key: "squat" | "bench" | "deadlift" | "squat_var" | "bench_var" | "deadlift_var"
-type PrimaryLiftKey = 'squat' | 'bench' | 'deadlift' | 'squat_var' | 'bench_var' | 'deadlift_var';
+interface ExerciseInput {
+  exerciseId: string;
+  oneRepMax: number;
+  label: string;
+}
 
 interface SessionTemplate {
   name: string;
-  primary: PrimaryLiftKey;
-  accessories: string[]; // exercise names looked up from catalog
+  exerciseIndex: number;
 }
 
-const SESSION_TEMPLATES: Record<number, SessionTemplate[]> = {
-  3: [
-    { name: 'Squat Day', primary: 'squat', accessories: ['Leg Press', 'Split Squat', 'Plank'] },
-    { name: 'Bench Day', primary: 'bench', accessories: ['Overhead Press', 'Barbell Row', 'Tricep Extension'] },
-    { name: 'Deadlift Day', primary: 'deadlift', accessories: ['Romanian Deadlift', 'Lat Pulldown', 'Bicep Curl'] },
-  ],
-  4: [
-    { name: 'Squat Day', primary: 'squat', accessories: ['Leg Press', 'Split Squat', 'Plank'] },
-    { name: 'Bench Day', primary: 'bench', accessories: ['Tricep Extension', 'Lateral Raise'] },
-    { name: 'Deadlift Day', primary: 'deadlift', accessories: ['Barbell Row', 'Bicep Curl'] },
-    { name: 'Upper Day', primary: 'bench_var', accessories: ['Cable Row', 'Face Pull', 'Lateral Raise'] },
-  ],
-  5: [
-    { name: 'Squat Day', primary: 'squat', accessories: ['Leg Press', 'Plank'] },
-    { name: 'Bench Day', primary: 'bench', accessories: ['Tricep Extension', 'Lateral Raise'] },
-    { name: 'Deadlift Day', primary: 'deadlift', accessories: ['Barbell Row', 'Bicep Curl'] },
-    { name: 'Squat Var Day', primary: 'squat_var', accessories: ['Lunges', 'Dead Bug'] },
-    { name: 'Bench Var Day', primary: 'bench_var', accessories: ['Cable Row', 'Face Pull'] },
-  ],
-  6: [
-    { name: 'Squat Day', primary: 'squat', accessories: ['Leg Press', 'Plank'] },
-    { name: 'Bench Day', primary: 'bench', accessories: ['Tricep Extension', 'Lateral Raise'] },
-    { name: 'Deadlift Day', primary: 'deadlift', accessories: ['Barbell Row', 'Bicep Curl'] },
-    { name: 'Squat Var Day', primary: 'squat_var', accessories: ['Split Squat', 'Dead Bug'] },
-    { name: 'Bench Var Day', primary: 'bench_var', accessories: ['Cable Row', 'Face Pull'] },
-    { name: 'DL Var Day', primary: 'deadlift_var', accessories: ['Pull-Up', 'Lateral Raise'] },
-  ],
-};
+// Build session templates by cycling through exercises round-robin
+function buildSessionTemplates(daysPerWeek: number, exercises: ExerciseInput[]): SessionTemplate[] {
+  const templates: SessionTemplate[] = [];
 
-// Variation exercise names and their 1RM reduction factors relative to the parent competition lift
-const VARIATION_MAP: Record<string, { name: string; factor: number }> = {
-  squat_var: { name: 'Front Squat', factor: 0.80 },
-  bench_var: { name: 'Incline Bench Press', factor: 0.85 },
-  deadlift_var: { name: 'Romanian Deadlift', factor: 0.70 },
-};
+  for (let i = 0; i < daysPerWeek; i++) {
+    const exerciseIndex = i % exercises.length;
+    const dayNumber = Math.floor(i / exercises.length) + 1;
+    const suffix = dayNumber > 1 ? ` ${dayNumber}` : '';
+
+    templates.push({
+      name: `${exercises[exerciseIndex].label} Day${suffix}`,
+      exerciseIndex,
+    });
+  }
+
+  return templates;
+}
 
 // =============================
 // Utility Functions
@@ -84,12 +67,6 @@ const VARIATION_MAP: Record<string, { name: string; factor: number }> = {
 // Round weight to nearest 5 lbs
 export function round5(weight: number): number {
   return Math.round(weight / 5) * 5;
-}
-
-// Look up exercise ID by name from catalog. Returns null if not found.
-function findExerciseId(catalog: { id: string; name: string }[], name: string): string | null {
-  const exercise = catalog.find(e => e.name === name);
-  return exercise ? exercise.id : null;
 }
 
 // =============================
@@ -168,7 +145,7 @@ export function generateWarmupSets(workingWeight: number): CreateProgramTargetSe
   return sets;
 }
 
-// Generate working sets for a primary lift
+// Generate working sets for a segment
 export function generateWorkingSets(reps: number, weight: number, rpe: number, setCount: number): CreateProgramTargetSet[] {
   const sets: CreateProgramTargetSet[] = [];
   for (let i = 0; i < setCount; i++) {
@@ -246,26 +223,14 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
   }
 
   const { hypertrophyWeeks, strengthWeeks, peakingWeeks } = calculateBlockSplit(totalWeeks);
-  const templates = SESSION_TEMPLATES[input.daysPerWeek];
 
-  // Build exercise ID lookup for primary lifts and variations
-  const primaryLiftMap: Record<PrimaryLiftKey, { exerciseId: string; oneRepMax: number }> = {
-    squat: { exerciseId: input.squatExerciseId, oneRepMax: input.squat1RM },
-    bench: { exerciseId: input.benchExerciseId, oneRepMax: input.bench1RM },
-    deadlift: { exerciseId: input.deadliftExerciseId, oneRepMax: input.deadlift1RM },
-    squat_var: {
-      exerciseId: findExerciseId(input.exerciseCatalog, VARIATION_MAP.squat_var.name) || input.squatExerciseId,
-      oneRepMax: input.squat1RM * VARIATION_MAP.squat_var.factor,
-    },
-    bench_var: {
-      exerciseId: findExerciseId(input.exerciseCatalog, VARIATION_MAP.bench_var.name) || input.benchExerciseId,
-      oneRepMax: input.bench1RM * VARIATION_MAP.bench_var.factor,
-    },
-    deadlift_var: {
-      exerciseId: findExerciseId(input.exerciseCatalog, VARIATION_MAP.deadlift_var.name) || input.deadliftExerciseId,
-      oneRepMax: input.deadlift1RM * VARIATION_MAP.deadlift_var.factor,
-    },
-  };
+  // Exercise inputs in rotation order
+  const exercises: ExerciseInput[] = [
+    { exerciseId: input.squatExerciseId, oneRepMax: input.squat1RM, label: 'Squat' },
+    { exerciseId: input.benchExerciseId, oneRepMax: input.bench1RM, label: 'Bench' },
+    { exerciseId: input.deadliftExerciseId, oneRepMax: input.deadlift1RM, label: 'Deadlift' },
+  ];
+  const templates = buildSessionTemplates(input.daysPerWeek, exercises);
 
   // Build blocks — only include phases with > 0 weeks
   const blockConfigs: { phase: BlockPhase; weekCount: number }[] = [
@@ -295,35 +260,17 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
 
           // Target exercises only generated for the first week (subsequent weeks use Generate)
           if (isFirstWeek) {
-            let exerciseOrder = 0;
-
-            // Primary lift
-            const primaryLift = primaryLiftMap[template.primary];
-            const workingWeight = round5(primaryLift.oneRepMax * weekParams.intensity);
-            exerciseOrder++;
+            const exercise = exercises[template.exerciseIndex];
+            const workingWeight = round5(exercise.oneRepMax * weekParams.intensity);
 
             const warmupSets = generateWarmupSets(workingWeight);
             const workingSets = generateWorkingSets(weekParams.reps, workingWeight, weekParams.rpe, weekParams.workingSets);
 
             targetExercises.push({
-              exercise_id: primaryLift.exerciseId,
-              order_index: exerciseOrder,
+              exercise_id: exercise.exerciseId,
+              order_index: 1,
               sets: [...warmupSets, ...workingSets],
             });
-
-            // Accessory exercises
-            for (const accessoryName of template.accessories) {
-              const accessoryId = findExerciseId(input.exerciseCatalog, accessoryName);
-              if (!accessoryId) continue; // Skip if exercise not in catalog
-
-              exerciseOrder++;
-
-              targetExercises.push({
-                exercise_id: accessoryId,
-                order_index: exerciseOrder,
-                sets: generateAccessorySets(phase.accessoryReps, weekParams.rpe, weekParams.accessorySets),
-              });
-            }
           }
 
           sessions.push({
