@@ -42,6 +42,7 @@ export interface SessionExerciseSet {
   weight: number;
   rpe: number | null;
   notes: string | null;
+  is_completed: boolean;
   created_at: Date;
   modified_at: Date;
 }

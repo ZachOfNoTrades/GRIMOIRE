@@ -209,6 +209,7 @@ BEGIN TRY
             weight DECIMAL(6,1) NOT NULL,
             rpe DECIMAL(3,1),
             notes NVARCHAR(MAX),
+            is_completed BIT NOT NULL DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 

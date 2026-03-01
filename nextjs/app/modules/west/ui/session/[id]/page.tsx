@@ -291,6 +291,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         weight: 0,
         rpe: null,
         notes: null,
+        is_completed: false,
         created_at: new Date(),
         modified_at: new Date(),
       })),
@@ -321,6 +322,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         weight: 0,
         rpe: null,
         notes: null,
+        is_completed: false,
         created_at: new Date(),
         modified_at: new Date(),
       }],
@@ -347,10 +349,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         updatedExercises = [...loggedSessionExercises, editedExercise];
       }
 
+      // Strip empty uncompleted sets before saving
+      const filteredExercises = updatedExercises.map(ex => ({
+        ...ex,
+        sets: ex.sets.filter(s => s.is_completed || hasSetData(s)),
+      }));
+
       const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedExercises),
+        body: JSON.stringify(filteredExercises),
       });
 
       if (!response.ok) {
@@ -412,11 +420,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  // Helper: check if a set contains any manually entered data
+  const hasSetData = (set: { weight: number; reps: number; rpe: number | null; notes: string | null }) =>
+    set.weight > 0 || set.reps > 0 || set.rpe !== null || (set.notes !== null && set.notes !== '');
+
   const isExerciseComplete = (exercise: SessionExerciseWithSets): boolean => {
-    if (!exercise.target) return true;
-    return exercise.target.sets.every((targetSet) =>
-      exercise.sets.some((set) => set.set_number === targetSet.set_number && set.is_warmup === targetSet.is_warmup)
-    );
+    return exercise.sets.some((s) => s.is_completed);
   };
   const completedExerciseCount = loggedSessionExercises.filter(isExerciseComplete).length;
 
@@ -796,7 +805,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                             return (
                               // WORKING SET ROW
-                              <p key={set.id}>
+                              <p key={set.id} className={!set.is_completed ? 'text-secondary' : ''}>
                                 <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
                                 {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
                                 {targetDiffers && <span className="text-secondary"> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}

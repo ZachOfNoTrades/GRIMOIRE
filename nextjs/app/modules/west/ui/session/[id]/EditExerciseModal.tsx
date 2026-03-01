@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { Plus, StickyNote, X } from "lucide-react";
+import { Plus, StickyNote, X, Circle, CircleCheck } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
@@ -92,6 +92,7 @@ export default function EditExerciseModal({
             weight: 0,
             rpe: null,
             notes: null,
+            is_completed: false,
             created_at: new Date(),
             modified_at: new Date(),
           });
@@ -108,6 +109,7 @@ export default function EditExerciseModal({
             weight: 0,
             rpe: null,
             notes: null,
+            is_completed: false,
             created_at: new Date(),
             modified_at: new Date(),
           });
@@ -158,7 +160,6 @@ export default function EditExerciseModal({
   const handleAddSet = (isWarmup: boolean) => {
     const setsOfType = editedExercise.sets.filter((s) => s.is_warmup === isWarmup);
 
-    // TODO - default to target stats once "set completion" is implemented
     const newSet = {
       id: crypto.randomUUID(),
       session_exercise_id: editedExercise.id,
@@ -168,6 +169,7 @@ export default function EditExerciseModal({
       weight: 0,
       rpe: null,
       notes: null,
+      is_completed: false,
       created_at: new Date(),
       modified_at: new Date(),
     };
@@ -189,12 +191,65 @@ export default function EditExerciseModal({
     else {
       const updatedSets = editedExercise.sets.map((s) => {
         if (s.id !== setId) return s;
-        return { ...s, weight: 0, reps: 0, rpe: null, notes: null };
+        return { ...s, weight: 0, reps: 0, rpe: null, notes: null, is_completed: false };
       });
       setEditedExercise({ ...editedExercise, sets: updatedSets });
     }
 
     // UI hides clear button for any other scenarios
+  };
+
+  const handleToggleSetCompleted = (setId: string) => {
+    const set = editedExercise.sets.find((s) => s.id === setId);
+    if (!set) return;
+
+    // Find target set at the same set index so values can be copied into fields not entered by user
+    const targetSetData = editedExercise.target?.sets.find(
+      (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
+    );
+
+    const hasLoggedSetData = set.weight > 0 || set.reps > 0 || set.rpe !== null || set.notes !== null;
+
+    // If handling toggling from OFF to ON
+    if (!set.is_completed) {
+
+      // No target or logged data, can't toggle as complete 
+      if (!hasLoggedSetData && !targetSetData) {
+        console.error(`handleToggleSetCompleted() called but set has no target or logged data!`);
+        return;
+      }
+
+      // Iterate through all sets and edit the one to be marked complete
+      const updatedSets = editedExercise.sets.map((set) => {
+        if (set.id !== setId) return set; // If not the desired set, exit
+
+        // Autofill empty fields from target when available
+        if (targetSetData) {
+          return {
+            ...set,
+            weight: set.weight > 0 ? set.weight : targetSetData.weight,
+            reps: set.reps > 0 ? set.reps : targetSetData.reps,
+            rpe: set.rpe !== null ? set.rpe : targetSetData.rpe,
+            is_completed: true,
+          };
+        }
+
+        // No target available, just mark completed
+        return { ...set, is_completed: true };
+      });
+      setEditedExercise({ ...editedExercise, sets: updatedSets });
+    }
+
+    // If handling toggling from ON to OFF
+    else {
+
+      // Iterate through all sets and edit the one to be un-marked complete
+      const updatedSets = editedExercise.sets.map((set) => {
+        if (set.id !== setId) return set; // If not desired set, exit
+        return { ...set, is_completed: false };
+      });
+      setEditedExercise({ ...editedExercise, sets: updatedSets });
+    }
   };
 
   // SET NOTES HANDLERS
@@ -233,9 +288,22 @@ export default function EditExerciseModal({
     const hasSetData = set.weight > 0 || set.reps > 0 || set.rpe !== null || set.notes !== null;
     const isBeyondTarget = set.set_number > exerciseTargetSetCount; // Determines if current set index is greater than target set count
     const showDeleteSet = isLastInSection && (isBeyondTarget || hasSetData);
+    const canComplete = hasSetData || !!targetSet; // Can complete if has data OR has target to autofill from
 
     return (
       <div key={set.id} className="flex items-center gap-2">
+
+        {/* COMPLETION TOGGLE */}
+        <Button
+          onClick={() => handleToggleSetCompleted(set.id)}
+          className={`btn-link mt-5 ${!canComplete ? 'invisible' : ''}`}
+          title={set.is_completed ? "Mark incomplete" : "Mark complete"}
+        >
+          {set.is_completed
+            ? <CircleCheck className="icon-success !w-4 !h-4" />
+            : <Circle className="icon-muted !w-4 !h-4" />
+          }
+        </Button>
 
         {/* WEIGHT INPUT */}
         <div className="flex flex-col flex-1">

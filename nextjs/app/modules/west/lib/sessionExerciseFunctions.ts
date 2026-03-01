@@ -29,6 +29,7 @@ export async function getSessionExercisesAndTargets(sessionId: string): Promise<
           ses.weight,
           ses.rpe,
           ses.is_warmup,
+          ses.is_completed,
           ses.notes AS set_notes,
           ses.created_at AS set_created_at,
           ses.modified_at AS set_modified_at
@@ -75,6 +76,7 @@ export async function getSessionExercisesAndTargets(sessionId: string): Promise<
           weight: row.weight,
           rpe: row.rpe,
           notes: row.set_notes,
+          is_completed: row.is_completed,
           created_at: row.set_created_at,
           modified_at: row.set_modified_at,
         });
@@ -249,6 +251,7 @@ export async function updateSessionExercises(sessionId: string, exercises: Sessi
             .input('weight', set.weight)
             .input('rpe', set.rpe)
             .input('setNotes', set.notes)
+            .input('isCompleted', set.is_completed)
             .query(`
               MERGE INTO session_exercise_sets AS dest
               USING (SELECT @setId AS id) AS source
@@ -261,10 +264,11 @@ export async function updateSessionExercises(sessionId: string, exercises: Sessi
                   reps = @reps,
                   rpe = @rpe,
                   notes = @setNotes,
+                  is_completed = @isCompleted,
                   modified_at = GETDATE()
               WHEN NOT MATCHED THEN
-                INSERT (id, session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes)
-                VALUES (@setId, @sessionExerciseId, @setNumber, @isWarmup, @reps, @weight, @rpe, @setNotes);
+                INSERT (id, session_exercise_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed)
+                VALUES (@setId, @sessionExerciseId, @setNumber, @isWarmup, @reps, @weight, @rpe, @setNotes, @isCompleted);
             `);
         }
       }
