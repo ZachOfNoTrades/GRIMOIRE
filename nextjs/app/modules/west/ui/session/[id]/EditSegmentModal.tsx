@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react";
-import { Plus, StickyNote, X, Circle, CircleCheck } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, StickyNote, X, Circle, CircleCheck, EllipsisVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
@@ -42,6 +42,9 @@ export default function EditSegmentModal({
 
   // STATE
   const [notesSetId, setNotesSetId] = useState<string | null>(null);
+  const [openMenuSetId, setOpenMenuSetId] = useState<string | null>(null);
+  const [menuDirection, setMenuDirection] = useState<"down" | "up">("down");
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // DERIVED
   const warmupSets = editedSegment?.sets.filter((s) => s.is_warmup) ?? [];
@@ -119,6 +122,17 @@ export default function EditSegmentModal({
       setEditedSegment(clonedSegment);
     }
   }, [isOpen, segment]);
+
+  // Close action menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuSetId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (!editedSegment) return null;
 
@@ -261,7 +275,7 @@ export default function EditSegmentModal({
 
   const handleSaveSetNotes = () => {
     if (notesSetId === null) return;
-    handleSetFieldChange(notesSetId, SetField.Notes, editedSetNotes);
+    handleSetFieldChange(notesSetId, SetField.Notes, editedSetNotes.trim());
     setNotesSetId(null);
     setEditedSetNotes("");
   };
@@ -271,12 +285,18 @@ export default function EditSegmentModal({
     setEditedSetNotes("");
   };
 
+  // Dismiss mobile keyboard on Enter
+  const handleEnterBlur = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+  };
+
   const handleSave = () => {
     if (!editedSegment.exercise_id) {
       toast.error("Please select an exercise");
       return;
     }
-    onSave(editedSegment);
+    const trimmedNotes = editedSegment.notes?.trim() || null;
+    onSave({ ...editedSegment, notes: trimmedNotes });
   };
 
   // Create and build JSX for a set row
@@ -287,11 +307,18 @@ export default function EditSegmentModal({
     const segmentTargetSetCount = set.is_warmup ? targetWarmupCount : targetWorkingCount;
     const hasSetData = set.weight > 0 || set.reps > 0 || set.rpe !== null || set.notes !== null;
     const isBeyondTarget = set.set_number > segmentTargetSetCount; // Determines if current set index is greater than target set count
-    const showDeleteSet = isLastInSection && (isBeyondTarget || hasSetData);
-    const canComplete = hasSetData || !!targetSet; // Can complete if has data OR has target to autofill from
+    const showRemoveSet = isLastInSection && isBeyondTarget;
+    const canComplete = set.reps > 0 || (targetSet && targetSet.reps > 0); // Can complete if there are reps or target reps to autofill from
+    const hasNotes = !!set.notes;
 
     return (
-      <div key={set.id} className="flex items-center gap-2">
+      <div key={set.id} className="relative flex items-center gap-2">
+
+        {/* SET NOTES DOT */}
+        {hasNotes && <div className="dot-blue absolute top-1 right-0" />}
+
+        {/* SET INDICATOR BAR */}
+        <div className={isBeyondTarget ? "bar-grey" : "bar-green"} />
 
         {/* COMPLETION TOGGLE */}
         <Button
@@ -306,66 +333,107 @@ export default function EditSegmentModal({
         </Button>
 
         {/* WEIGHT INPUT */}
-        <div className="flex flex-col flex-1">
-          <label className="text-secondary">Weight</label>
+        <div className="flex flex-col flex-1 min-w-15">
+          <label className={`text-secondary ${targetSet?.set_number !== 1 && 'hidden'}`}>Weight</label>
           <input
             type="number"
             value={set.weight || ""}
             onChange={(e) => handleSetFieldChange(set.id, SetField.Weight, e.target.value)}
-            className="input-field text-center"
+            className="input-field input-field-compact text-center"
             placeholder={targetSet ? String(targetSet.weight) : "-"}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={handleEnterBlur}
             step="0.5" // TODO add steps to schema for exercises
             min="0"
           />
         </div>
-        <span className="text-secondary mt-5">x</span>
 
         {/* REPS INPUT */}
-        <div className="flex flex-col flex-1">
-          <label className="text-secondary">Reps</label>
+        <div className="flex flex-col flex-1 min-w-15">
+          <label className={`text-secondary ${targetSet?.set_number !== 1 && 'hidden'}`}>Reps</label>
           <input
             type="number"
             value={set.reps || ""}
             onChange={(e) => handleSetFieldChange(set.id, SetField.Reps, e.target.value)}
-            className="input-field text-center"
+            className="input-field input-field-compact text-center"
             placeholder={targetSet ? String(targetSet.reps) : "-"}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={handleEnterBlur}
             min="0"
           />
         </div>
-        <span className="text-secondary mt-5">@</span>
 
         {/* RPE INPUT */}
-        <div className="flex flex-col flex-1">
-          <label className="text-secondary">RPE</label>
+        <div className="flex flex-col flex-1 min-w-15">
+          <label className={`text-secondary ${targetSet?.set_number !== 1 && 'hidden'}`}>RPE</label>
           <input
             type="number"
             value={set.rpe ?? ""}
             onChange={(e) => handleSetFieldChange(set.id, SetField.Rpe, e.target.value)}
-            className="input-field text-center"
+            className="input-field input-field-compact text-center"
             placeholder={targetSet?.rpe != null ? String(targetSet.rpe) : "-"}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={handleEnterBlur}
             step="0.5"
             min="5"
             max="10"
           />
         </div>
 
-        {/* SET NOTES BUTTON */}
-        <Button
-          onClick={() => handleOpenSetNotes(set.id)}
-          className={`btn-link mt-5 ${set.notes && "btn-link-primary"}`}
-          title={set.notes ? "Edit notes" : "Add notes"}
-        >
-          <StickyNote className="w-4 h-4" />
-        </Button>
+        {/* ACTION MENU */}
+        <div className="relative mt-5" ref={openMenuSetId === set.id ? menuRef : undefined}>
 
-        {/* CLEAR SET BUTTON */}
-        <Button
-          onClick={() => handleClearSet(set.id, isBeyondTarget)}
-          className={`btn-link btn-link-delete mt-5 ${!showDeleteSet ? 'invisible' : ''}`}
-          title="Clear set"
-        >
-          <X className="w-4 h-4" />
-        </Button>
+          {/* MENU TRIGGER */}
+          <Button
+            onClick={(e) => {
+              if (openMenuSetId === set.id) { setOpenMenuSetId(null); return; }
+              const buttonRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const scrollContainer = (e.currentTarget as HTMLElement).closest(".modal-body");
+              const containerBottom = scrollContainer
+                ? scrollContainer.getBoundingClientRect().bottom
+                : window.innerHeight;
+              const spaceBelow = containerBottom - buttonRect.bottom;
+              setMenuDirection(spaceBelow < 120 ? "up" : "down"); // 120px accounts for menu height
+
+              // Preserve scroll position so popover render doesn't shift view
+              const scrollTop = scrollContainer?.scrollTop;
+              setOpenMenuSetId(set.id);
+              if (scrollContainer && scrollTop !== undefined) {
+                requestAnimationFrame(() => { scrollContainer.scrollTop = scrollTop; });
+              }
+            }}
+            className="btn-link"
+          >
+            <EllipsisVertical className="w-4 h-4" />
+          </Button>
+
+          {/* MENU POPOVER */}
+          {openMenuSetId === set.id && (
+            <div className={`popover-menu ${menuDirection === "up" ? "popover-menu-up" : ""}`}>
+
+              {/* NOTES ITEM */}
+              <button
+                onClick={() => { handleOpenSetNotes(set.id); setOpenMenuSetId(null); }}
+                className="popover-item"
+              >
+                <StickyNote className="w-4 h-4 mr-3" />
+                {set.notes ? "Edit Notes" : "Add Notes"}
+                {hasNotes && <div className="dot-blue ml-auto" />}
+              </button>
+
+              {/* REMOVE SET ITEM */}
+              {showRemoveSet && (
+                <button
+                  onClick={() => { handleClearSet(set.id, true); setOpenMenuSetId(null); }}
+                  className="popover-item"
+                >
+                  <X className="w-4 h-4 mr-3" />
+                  Remove Set
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -429,21 +497,9 @@ export default function EditSegmentModal({
         )}
       </div>
 
-      {/* NOTES INPUT */}
-      <div>
-        <label className="text-secondary">Notes</label>
-        <input
-          type="text"
-          placeholder="Exercise notes..."
-          value={editedSegment.notes || ""}
-          onChange={(e) => handleNotesChange(e.target.value)}
-          className="input-field"
-        />
-      </div>
-
       {/* SETS */}
       <div>
-        <label className="text-h1">Sets</label>
+        <label className="text-h2">Sets</label>
 
         <div className="space-y-4">
 
@@ -451,19 +507,21 @@ export default function EditSegmentModal({
           <div className="space-y-4 flex flex-col">
 
             {/* SECTION LABEL */}
-            <label className="text-h2">Warmup</label>
+            <label className="text-h3">Warmup</label>
 
             {/* WARMUP SET ROWS */}
             {warmupSets.map((set, index) => renderSetRow(set, index === warmupSets.length - 1))}
 
             {/* ADD WARMUP SET BUTTON */}
-            <Button
-              onClick={() => handleAddSet(true)}
-              className="btn-link"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Warmup Set</span>
-            </Button>
+            <div className="flex justify-center">
+              <Button
+                onClick={() => handleAddSet(true)}
+                className="btn-link"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Warmup Set</span>
+              </Button>
+            </div>
           </div>
 
           {/* SECTION DIVIDER */}
@@ -473,21 +531,50 @@ export default function EditSegmentModal({
           <div className="space-y-4 flex flex-col">
 
             {/* SECTION LABEL */}
-            <label className="text-h2">Working</label>
+            <label className="text-h3">Working</label>
 
             {/* WORKING SET ROWS */}
             {workingSets.map((set, index) => renderSetRow(set, index === workingSets.length - 1))}
 
             {/* ADD WORKING SET BUTTON */}
-            <Button
-              onClick={() => handleAddSet(false)}
-              className="btn-link"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Working Set</span>
-            </Button>
+            <div className="flex justify-center">
+              <Button
+                onClick={() => handleAddSet(false)}
+                className="btn-link w-auto"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Working Set</span>
+              </Button>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* NOTES INPUT */}
+      <div>
+        <label className="text-h2">Exercise Notes</label>
+        <textarea
+          placeholder="Exercise notes..."
+          value={editedSegment.notes || ""}
+          onChange={(e) => {
+            handleNotesChange(e.target.value);
+            const textarea = e.target;
+            textarea.style.height = "auto";
+            const maxHeight = parseFloat(getComputedStyle(textarea).lineHeight) * 5 + 16;
+            const newHeight = textarea.scrollHeight;
+            textarea.style.height = Math.min(newHeight, maxHeight) + "px";
+            textarea.style.overflowY = newHeight > maxHeight ? "auto" : "hidden";
+          }}
+          className="input-field resize-none overflow-hidden"
+          rows={1}
+          ref={(el) => {
+            if (el) {
+              el.style.height = "auto";
+              el.style.height = el.scrollHeight + "px";
+              el.style.overflowY = "hidden";
+            }
+          }}
+        />
       </div>
 
       {/* SET NOTES SUB-MODAL */}
