@@ -3,7 +3,6 @@ export interface WorkoutSession {
   week_id: string | null;
   order_index: number | null;
   name: string;
-  session_date: Date;
   notes: string | null;
   started_at: Date | null;
   resumed_at: Date | null;

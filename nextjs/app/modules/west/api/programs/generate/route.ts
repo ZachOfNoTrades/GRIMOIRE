@@ -3,7 +3,7 @@ import { generateProgramInBackground } from '../../../lib/llmFunctions';
 
 export async function POST(request: Request) {
   try {
-    const { userPrompt, startDate } = await request.json();
+    const { userPrompt } = await request.json();
 
     // Validate inputs
     if (!userPrompt || typeof userPrompt !== 'string' || userPrompt.trim().length === 0) {
@@ -13,15 +13,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-      return NextResponse.json(
-        { error: 'startDate is required in YYYY-MM-DD format' },
-        { status: 400 }
-      );
-    }
-
     // Fire-and-forget — generation runs in the background
-    generateProgramInBackground({ userPrompt, startDate }).catch(() => {});
+    generateProgramInBackground({ userPrompt }).catch(() => {});
 
     return NextResponse.json(
       { message: 'Program generation started' },

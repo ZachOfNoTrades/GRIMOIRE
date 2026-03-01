@@ -20,8 +20,8 @@ export default function GeneratePowerliftingPage() {
   const [squat1RM, setSquat1RM] = useState("");
   const [bench1RM, setBench1RM] = useState("");
   const [deadlift1RM, setDeadlift1RM] = useState("");
-  const [meetDate, setMeetDate] = useState("");
-  const [daysPerWeek, setDaysPerWeek] = useState("4");
+  const [totalWeeks, setTotalWeeks] = useState("");
+  const [daysPerWeek, setDaysPerWeek] = useState("");
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -29,16 +29,12 @@ export default function GeneratePowerliftingPage() {
 
   // Computed block split preview
   const blockPreview = useMemo(() => {
-    if (!meetDate) return null;
-    const today = new Date();
-    const meetDateObj = new Date(meetDate + "T00:00:00");
-    const daysUntilMeet = Math.floor((meetDateObj.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-    if (daysUntilMeet < Number(daysPerWeek)) return null;
+    const weeks = Number(totalWeeks);
+    if (!weeks || weeks < 1) return null;
 
-    const totalWeeks = Math.max(1, Math.floor(daysUntilMeet / 7));
-    const { hypertrophyWeeks, strengthWeeks, peakingWeeks } = calculateBlockSplit(totalWeeks);
-    return { totalWeeks, hypertrophyWeeks, strengthWeeks, peakingWeeks };
-  }, [meetDate, daysPerWeek]);
+    const { hypertrophyWeeks, strengthWeeks, peakingWeeks } = calculateBlockSplit(weeks);
+    return { totalWeeks: weeks, hypertrophyWeeks, strengthWeeks, peakingWeeks };
+  }, [totalWeeks]);
 
   const router = useRouter();
 
@@ -68,7 +64,8 @@ export default function GeneratePowerliftingPage() {
     Number(squat1RM) > 0 &&
     Number(bench1RM) > 0 &&
     Number(deadlift1RM) > 0 &&
-    blockPreview !== null;
+    Number(totalWeeks) >= 1 &&
+    Number(daysPerWeek) >= 1;
 
   const handleSubmit = async () => {
     if (!isFormValid) return;
@@ -84,7 +81,7 @@ export default function GeneratePowerliftingPage() {
           squat1RM: Number(squat1RM),
           bench1RM: Number(bench1RM),
           deadlift1RM: Number(deadlift1RM),
-          meetDate,
+          totalWeeks: Number(totalWeeks),
           daysPerWeek: Number(daysPerWeek),
         }),
       });
@@ -262,54 +259,44 @@ export default function GeneratePowerliftingPage() {
             {/* SCHEDULE ROW */}
             <div className="flex gap-4 items-end">
 
-              {/* MEET DATE INPUT */}
+              {/* TOTAL WEEKS INPUT */}
               <div className="flex-1">
-                <label className="text-secondary">Meet Date</label>
+                <label className="text-secondary">Total Weeks</label>
                 <input
-                  type="date"
-                  value={meetDate}
-                  onChange={(e) => setMeetDate(e.target.value)}
+                  type="number"
+                  value={totalWeeks}
+                  onChange={(e) => setTotalWeeks(e.target.value)}
                   className="input-field w-full"
+                  min="1"
                 />
               </div>
 
-              {/* DAYS PER WEEK SELECT */}
+              {/* DAYS PER WEEK INPUT */}
               <div className="w-40">
                 <label className="text-secondary">Days / Week</label>
-                <select
+                <input
+                  type="number"
                   value={daysPerWeek}
                   onChange={(e) => setDaysPerWeek(e.target.value)}
                   className="input-field w-full"
-                >
-                  <option value="3">3 days</option>
-                  <option value="4">4 days</option>
-                  <option value="5">5 days</option>
-                  <option value="6">6 days</option>
-                </select>
+                  min="1"
+                />
               </div>
             </div>
 
             {/* BLOCK PREVIEW */}
-            {meetDate && (
+            {blockPreview && (
               <div className="mt-4">
-                {blockPreview ? (
 
-                  // VALID BLOCK SPLIT
-                  <p className="text-secondary">
-                    <span className="font-medium">{blockPreview.totalWeeks} {blockPreview.totalWeeks === 1 ? "week" : "weeks"} total:</span>{" "}
-                    {[
-                      blockPreview.hypertrophyWeeks > 0 && `${blockPreview.hypertrophyWeeks}wk Hypertrophy`,
-                      blockPreview.strengthWeeks > 0 && `${blockPreview.strengthWeeks}wk Strength`,
-                      blockPreview.peakingWeeks > 0 && `${blockPreview.peakingWeeks}wk Peaking`,
-                    ].filter(Boolean).join(" → ")}
-                  </p>
-                ) : (
-
-                  // INSUFFICIENT DAYS WARNING
-                  <p className="text-destructive">
-                    Meet date must be at least {daysPerWeek} days away.
-                  </p>
-                )}
+                {/* BLOCK SPLIT */}
+                <p className="text-secondary">
+                  <span className="font-medium">{blockPreview.totalWeeks} {blockPreview.totalWeeks === 1 ? "week" : "weeks"} total:</span>{" "}
+                  {[
+                    blockPreview.hypertrophyWeeks > 0 && `${blockPreview.hypertrophyWeeks}wk Hypertrophy`,
+                    blockPreview.strengthWeeks > 0 && `${blockPreview.strengthWeeks}wk Strength`,
+                    blockPreview.peakingWeeks > 0 && `${blockPreview.peakingWeeks}wk Peaking`,
+                  ].filter(Boolean).join(" → ")}
+                </p>
               </div>
             )}
           </div>

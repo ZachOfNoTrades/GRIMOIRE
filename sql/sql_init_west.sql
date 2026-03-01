@@ -121,7 +121,6 @@ BEGIN TRY
             week_id UNIQUEIDENTIFIER NULL,
             order_index INT NULL,
             name NVARCHAR(255) NOT NULL,
-            session_date DATE NOT NULL,
             notes NVARCHAR(MAX),
             started_at DATETIME2 NULL, -- timestamp when session was physically started
             resumed_at DATETIME2 NULL, -- timestamp when a completed session was most recently resumed

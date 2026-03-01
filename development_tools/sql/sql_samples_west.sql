@@ -197,37 +197,37 @@ BEGIN TRY
     -- =============================
     -- Workout Sessions
     -- =============================
-    INSERT INTO workout_sessions (name, session_date, notes, week_id, order_index, started_at, resumed_at, duration, is_current, is_completed) VALUES
+    INSERT INTO workout_sessions (name, notes, week_id, order_index, started_at, resumed_at, duration, is_current, is_completed) VALUES
     -- PPL Block 1 Week 1 (completed week)
-    ('Push Day', '2026-02-20', 'Felt strong today', '33333333-3333-3333-3333-333333333333', 1, '2026-02-20 06:00:00', NULL, 3720, 0, 1),
-    ('Pull Day', '2026-02-21', 'Good pump on back', '33333333-3333-3333-3333-333333333333', 2, '2026-02-21 06:30:00', NULL, 4080, 0, 1),
-    ('Leg Day', '2026-02-22', 'Heavy squats', '33333333-3333-3333-3333-333333333333', 3, '2026-02-22 07:00:00', NULL, 5400, 0, 1),
+    ('Push Day', 'Felt strong today', '33333333-3333-3333-3333-333333333333', 1, '2026-02-20 06:00:00', NULL, 3720, 0, 1),
+    ('Pull Day', 'Good pump on back', '33333333-3333-3333-3333-333333333333', 2, '2026-02-21 06:30:00', NULL, 4080, 0, 1),
+    ('Leg Day', 'Heavy squats', '33333333-3333-3333-3333-333333333333', 3, '2026-02-22 07:00:00', NULL, 5400, 0, 1),
     -- PPL Block 1 Week 2 (current week)
-    ('Push Day', '2026-02-27', NULL, '55555555-5555-5555-5555-555555555555', 1, '2026-02-27 06:00:00', NULL, 3900, 0, 1),
-    ('Pull Day', '2026-02-28', NULL, '55555555-5555-5555-5555-555555555555', 2, '2026-02-26 06:30:00', NULL, NULL, 1, 0),
-    ('Leg Day', '2026-03-01', NULL, '55555555-5555-5555-5555-555555555555', 3, NULL, NULL, NULL, 0, 0),
+    ('Push Day', NULL, '55555555-5555-5555-5555-555555555555', 1, '2026-02-27 06:00:00', NULL, 3900, 0, 1),
+    ('Pull Day', NULL, '55555555-5555-5555-5555-555555555555', 2, '2026-02-26 06:30:00', NULL, NULL, 1, 0),
+    ('Leg Day', NULL, '55555555-5555-5555-5555-555555555555', 3, NULL, NULL, NULL, 0, 0),
     -- PPL Block 2 Week 1 (not started)
-    ('Peak Push', '2026-03-06', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 1, NULL, NULL, NULL, 0, 0),
-    ('Peak Pull', '2026-03-07', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 2, NULL, NULL, NULL, 0, 0),
-    ('Peak Legs', '2026-03-08', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 3, NULL, NULL, NULL, 0, 0),
+    ('Peak Push', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 1, NULL, NULL, NULL, 0, 0),
+    ('Peak Pull', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 2, NULL, NULL, NULL, 0, 0),
+    ('Peak Legs', NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 3, NULL, NULL, NULL, 0, 0),
     -- 5/3/1 Accumulation Week 1 (not started)
-    ('Squat Day', '2026-03-10', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 1, NULL, NULL, NULL, 0, 0),
-    ('Press Day', '2026-03-12', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 2, NULL, NULL, NULL, 0, 0),
-    ('Deadlift Day', '2026-03-14', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 3, NULL, NULL, NULL, 0, 0),
+    ('Squat Day', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 1, NULL, NULL, NULL, 0, 0),
+    ('Press Day', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 2, NULL, NULL, NULL, 0, 0),
+    ('Deadlift Day', NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 3, NULL, NULL, NULL, 0, 0),
     -- 5/3/1 Accumulation Week 2 (not started)
-    ('Squat Day', '2026-03-17', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 1, NULL, NULL, NULL, 0, 0),
-    ('Press Day', '2026-03-19', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 2, NULL, NULL, NULL, 0, 0),
-    ('Deadlift Day', '2026-03-21', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 3, NULL, NULL, NULL, 0, 0),
+    ('Squat Day', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 1, NULL, NULL, NULL, 0, 0),
+    ('Press Day', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 2, NULL, NULL, NULL, 0, 0),
+    ('Deadlift Day', NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 3, NULL, NULL, NULL, 0, 0),
     -- Standalone sessions
-    ('Upper Body', '2026-02-23', NULL, NULL, NULL, '2026-02-23 08:00:00', NULL, 2700, 0, 1),
-    ('Lower Body', '2026-02-24', 'Recovery session', NULL, NULL, '2026-02-24 09:00:00', NULL, 3300, 0, 1),
-    ('Full Body', '2026-02-25', 'Quick workout', NULL, NULL, NULL, NULL, NULL, 0, 0);
+    ('Upper Body', NULL, NULL, NULL, '2026-02-23 08:00:00', NULL, 2700, 0, 1),
+    ('Lower Body', 'Recovery session', NULL, NULL, '2026-02-24 09:00:00', NULL, 3300, 0, 1),
+    ('Full Body', 'Quick workout', NULL, NULL, NULL, NULL, NULL, 0, 0);
 
     -- =============================
     -- Target Session Exercises and Sets (Push Day - Week 1)
     -- =============================
 
-    DECLARE @pushDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE name = 'Push Day' AND session_date = '2026-02-20');
+    DECLARE @pushDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '33333333-3333-3333-3333-333333333333' AND order_index = 1);
     DECLARE @benchPressId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Bench Press');
     DECLARE @inclineBenchId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Incline Bench Press');
     DECLARE @overheadPressId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Overhead Press');
@@ -305,7 +305,7 @@ BEGIN TRY
     (@se_push_lateral, 3, 0, 12, 20.0, 8.0, NULL);
 
     -- Leg Day exercises
-    DECLARE @legDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE name = 'Leg Day' AND session_date = '2026-02-22');
+    DECLARE @legDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '33333333-3333-3333-3333-333333333333' AND order_index = 3);
     DECLARE @backSquatId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Back Squat');
     DECLARE @romanianDeadliftId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Romanian Deadlift');
     DECLARE @legPressId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Leg Press');
@@ -350,7 +350,7 @@ BEGIN TRY
     (@se_leg_plank, 3, 0, 1, 0.0, 8.0, '35 seconds');
 
     -- Pull Day exercises
-    DECLARE @pullDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE name = 'Pull Day' AND session_date = '2026-02-21');
+    DECLARE @pullDayId UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '33333333-3333-3333-3333-333333333333' AND order_index = 2);
     DECLARE @pullUpId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Pull-Up');
     DECLARE @barbellRowId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Barbell Row');
     DECLARE @latPulldownId UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Lat Pulldown');
@@ -396,7 +396,7 @@ BEGIN TRY
     -- Target Session Exercises and Sets (Pull Day - Week 2, currently active)
     -- =============================
 
-    DECLARE @pullDay2Id UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE name = 'Pull Day' AND session_date = '2026-02-28');
+    DECLARE @pullDay2Id UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '55555555-5555-5555-5555-555555555555' AND order_index = 2);
     DECLARE @pullUpId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Pull-Up');
     DECLARE @barbellRowId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Barbell Row');
     DECLARE @latPulldownId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Lat Pulldown');
@@ -471,7 +471,7 @@ BEGIN TRY
     -- Target Session Exercises and Sets (Leg Day - Week 2, not started)
     -- =============================
 
-    DECLARE @legDay2Id UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE name = 'Leg Day' AND session_date = '2026-03-01');
+    DECLARE @legDay2Id UNIQUEIDENTIFIER = (SELECT id FROM workout_sessions WHERE week_id = '55555555-5555-5555-5555-555555555555' AND order_index = 3);
     DECLARE @backSquatId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Back Squat');
     DECLARE @romanianDeadliftId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Romanian Deadlift');
     DECLARE @legPressId2 UNIQUEIDENTIFIER = (SELECT id FROM exercises WHERE name = 'Leg Press');

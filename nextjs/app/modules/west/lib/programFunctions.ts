@@ -93,7 +93,6 @@ export async function getProgramById(programId: string): Promise<Program> {
           ) THEN 1 ELSE 0 END AS BIT) AS week_has_targets,
           ws.id             AS session_id,
           ws.name           AS session_name,
-          ws.session_date,
           ws.notes          AS session_notes,
           ws.order_index    AS session_order_index,
           ws.started_at     AS session_started_at,
@@ -173,7 +172,6 @@ export async function getProgramById(programId: string): Promise<Program> {
       const session: ProgramSession = {
         id: row.session_id,
         name: row.session_name,
-        session_date: row.session_date,
         notes: row.session_notes,
         order_index: row.session_order_index,
         started_at: row.session_started_at,
@@ -349,11 +347,10 @@ export async function createProgram(payload: CreateProgramPayload): Promise<stri
               .input('weekId', weekId)
               .input('orderIndex', session.order_index)
               .input('name', session.name)
-              .input('sessionDate', session.session_date)
               .query(`
-                INSERT INTO workout_sessions (week_id, order_index, name, session_date)
+                INSERT INTO workout_sessions (week_id, order_index, name)
                 OUTPUT INSERTED.id
-                VALUES (@weekId, @orderIndex, @name, @sessionDate)
+                VALUES (@weekId, @orderIndex, @name)
               `);
 
             const sessionId = sessionResult.recordset[0].id;

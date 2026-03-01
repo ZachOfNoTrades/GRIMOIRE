@@ -2,7 +2,6 @@ import { CreateProgramPayload } from './program';
 
 export interface GenerateProgramInput {
   userPrompt: string;
-  startDate: string; // YYYY-MM-DD
 }
 
 export interface GenerateProgramResult {

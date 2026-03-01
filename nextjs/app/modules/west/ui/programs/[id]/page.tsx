@@ -250,15 +250,17 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                       )}
                                     </div>
 
-                                    {/* SESSION DATE */}
-                                    <div className="flex items-center gap-1 text-secondary">
+                                    {/* DATE COMPLETED */}
+                                    {session.started_at && (
+                                      <div className="flex items-center gap-1 text-secondary">
 
-                                      {/* CALENDAR ICON */}
-                                      <Calendar className="w-3.5 h-3.5" />
+                                        {/* CALENDAR ICON */}
+                                        <Calendar className="w-3.5 h-3.5" />
 
-                                      {/* DATE */}
-                                      <span className="text-sm">{formatDateShort(session.session_date)}</span>
-                                    </div>
+                                        {/* DATE */}
+                                        <span className="text-sm">{formatDateShort(session.started_at)}</span>
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* SESSION NOTES */}

@@ -16,7 +16,6 @@ export interface NextWeekSessionTargets {
   sessionId: string | null; // null = session needs to be created (next block)
   sessionName: string;
   orderIndex: number;
-  sessionDate: string;
   exercises: NextWeekExerciseTargets[];
 }
 

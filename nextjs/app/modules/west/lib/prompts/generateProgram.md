@@ -21,7 +21,6 @@ sets: CreateProgramTargetSet[];
 interface CreateProgramSession {
 order_index: number; // Sequential starting at 1 within the week
 name: string; // Descriptive session name (e.g., "Upper Body A", "Lower Body B")
-session_date: string; // YYYY-MM-DD format
 target_exercises: CreateProgramTargetExercise[];
 }
 
@@ -57,12 +56,9 @@ You MUST only use exercise_id values from this list. Do NOT invent exercise IDs.
 
 {{USER_PROMPT}}
 
-The program starts on {{START_DATE}}.
-
 ## Rules
 
 1. Every exercise_id MUST be a UUID from the available exercises list above.
-2. Session dates must be in YYYY-MM-DD format, starting from the provided start date.
-3. set_number starts at 1 and increments independently for warmup sets and working sets.
-4. Weight values are in pounds. Use 0 for bodyweight exercises.
-5. The response must be a single JSON object matching CreateProgramPayload — nothing else.
+2. set_number starts at 1 and increments independently for warmup sets and working sets.
+3. Weight values are in pounds. Use 0 for bodyweight exercises.
+4. The response must be a single JSON object matching CreateProgramPayload — nothing else.

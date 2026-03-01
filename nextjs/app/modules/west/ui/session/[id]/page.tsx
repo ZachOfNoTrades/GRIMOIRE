@@ -531,11 +531,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       />
                     </div>
 
-                    {/* DATE (READ-ONLY) */}
-                    <div>
-                      <label className="text-secondary">Date</label>
-                      <p className="text-primary">{formatDateLong(session.session_date)}</p>
-                    </div>
+                    {/* DATE COMPLETED (READ-ONLY) */}
+                    {session.started_at && (
+                      <div>
+                        <label className="text-secondary">Date</label>
+                        <p className="text-primary">{formatDateLong(session.started_at)}</p>
+                      </div>
+                    )}
 
                     {/* NOTES INPUT */}
                     <div>
@@ -571,11 +573,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       </div>
                     )}
 
-                    {/* DATE */}
-                    <div>
-                      <label className="text-secondary">Date</label>
-                      <p className="text-primary">{formatDateLong(session.session_date)}</p>
-                    </div>
+                    {/* DATE COMPLETED */}
+                    {session.started_at && (
+                      <div>
+                        <label className="text-secondary">Date</label>
+                        <p className="text-primary">{formatDateLong(session.started_at)}</p>
+                      </div>
+                    )}
 
                     {/* EXERCISE COUNT */}
                     <div>

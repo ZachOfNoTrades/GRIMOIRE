@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       squat1RM,
       bench1RM,
       deadlift1RM,
-      meetDate,
+      totalWeeks,
       daysPerWeek,
     } = await request.json();
 
@@ -38,24 +38,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'deadlift1RM must be a positive number' }, { status: 400 });
     }
 
-    // Validate days per week (must validate before meet date since min days depends on it)
-    if (typeof daysPerWeek !== 'number' || ![3, 4, 5, 6].includes(daysPerWeek)) {
-      return NextResponse.json({ error: 'daysPerWeek must be 3, 4, 5, or 6' }, { status: 400 });
+    // Validate days per week
+    if (typeof daysPerWeek !== 'number' || !Number.isInteger(daysPerWeek) || daysPerWeek < 1) {
+      return NextResponse.json({ error: 'daysPerWeek must be a positive integer' }, { status: 400 });
     }
 
-    // Validate meet date
-    if (!meetDate || !/^\d{4}-\d{2}-\d{2}$/.test(meetDate)) {
-      return NextResponse.json({ error: 'meetDate is required in YYYY-MM-DD format' }, { status: 400 });
-    }
-
-    const today = new Date();
-    const meetDateObj = new Date(meetDate + 'T00:00:00');
-    const daysUntilMeet = Math.floor((meetDateObj.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-    if (daysUntilMeet < daysPerWeek) {
-      return NextResponse.json(
-        { error: `Meet date must be at least ${daysPerWeek} days away to fit one week of training.` },
-        { status: 400 }
-      );
+    // Validate total weeks
+    if (typeof totalWeeks !== 'number' || !Number.isInteger(totalWeeks) || totalWeeks < 1) {
+      return NextResponse.json({ error: 'totalWeeks must be a positive integer' }, { status: 400 });
     }
 
     // Fetch exercise catalog for accessory name lookups
@@ -69,7 +59,7 @@ export async function POST(request: Request) {
       squat1RM,
       bench1RM,
       deadlift1RM,
-      meetDate,
+      totalWeeks,
       daysPerWeek,
       exerciseCatalog: exercises.map(e => ({ id: e.id, name: e.name })),
     });

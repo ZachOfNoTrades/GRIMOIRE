@@ -14,8 +14,7 @@ export function buildPrompt(input: GenerateProgramInput, exercises: ExerciseSumm
 
   return template
     .replace('{{EXERCISE_LIST}}', exerciseListJson)
-    .replace('{{USER_PROMPT}}', input.userPrompt)
-    .replace('{{START_DATE}}', input.startDate);
+    .replace('{{USER_PROMPT}}', input.userPrompt);
 }
 
 export async function callLLM(prompt: string): Promise<string> {
@@ -134,16 +133,6 @@ export function validateGeneratedPayload(
 
         if (!session.name || typeof session.name !== 'string') {
           errors.push(`${sessionLabel}: name is required`);
-        }
-
-        // Validate session_date format
-        if (!session.session_date || !/^\d{4}-\d{2}-\d{2}$/.test(session.session_date)) {
-          errors.push(`${sessionLabel}: session_date must be YYYY-MM-DD format`);
-        } else {
-          const dateCheck = new Date(session.session_date);
-          if (isNaN(dateCheck.getTime())) {
-            errors.push(`${sessionLabel}: session_date is not a valid date`);
-          }
         }
 
         if (!Array.isArray(session.target_exercises)) continue;

@@ -59,7 +59,6 @@ export default function WestHomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: `Workout ${today}`,
-          sessionDate: today,
         }),
       });
 

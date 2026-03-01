@@ -6,15 +6,11 @@ import {
   NextWeekSessionTargets,
 } from '../types/weekGeneration';
 import {
-  DAY_OFFSETS,
   round5,
   calculateWeekParams,
   generateWarmupSets,
   generateWorkingSets,
   generateAccessorySets,
-  formatDate,
-  getNextMonday,
-  addDays,
 } from './powerliftingProgramGenerator';
 import { BlockPhase, BLOCK_PHASES, CreateProgramTargetSet } from '../types/program';
 
@@ -73,14 +69,7 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
         estimates,
       );
 
-      // 6. Get the last session date from the source week for date calculation
-      const lastDateResult = await transaction.request()
-        .input('weekId', weekId)
-        .query(`SELECT MAX(session_date) AS last_date FROM workout_sessions WHERE week_id = @weekId`);
-
-      const lastSessionDate = lastDateResult.recordset[0]?.last_date;
-
-      // 7. Save: insert targets (and create sessions if crossing blocks)
+      // 6. Save: insert targets (and create sessions if crossing blocks)
       for (const session of sessionTargets) {
         if (session.sessionId) {
 
@@ -91,17 +80,14 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
         } else {
 
           // NEW SESSION (next block): create session row
-          const sessionDate = calculateSessionDate(lastSessionDate, session.orderIndex, sessionTargets.length);
-
           const sessionResult = await transaction.request()
             .input('weekId', nextWeek.weekId)
             .input('orderIndex', session.orderIndex)
             .input('name', session.sessionName)
-            .input('sessionDate', sessionDate)
             .query(`
-              INSERT INTO workout_sessions (week_id, order_index, name, session_date)
+              INSERT INTO workout_sessions (week_id, order_index, name)
               OUTPUT INSERTED.id
-              VALUES (@weekId, @orderIndex, @name, @sessionDate)
+              VALUES (@weekId, @orderIndex, @name)
             `);
 
           const newSessionId = sessionResult.recordset[0].id;
@@ -240,7 +226,7 @@ async function findNextWeek(
   const existingSessionsResult = await transaction.request()
     .input('nextWeekId', nextWeekId)
     .query(`
-      SELECT id, name, order_index, session_date
+      SELECT id, name, order_index
       FROM workout_sessions
       WHERE week_id = @nextWeekId
       ORDER BY order_index ASC
@@ -359,7 +345,6 @@ async function buildTargetsFromExistingSessions(
       sessionId: session.id,
       sessionName: session.name,
       orderIndex: session.order_index,
-      sessionDate: formatDate(new Date(session.session_date)),
       exercises,
     });
   }
@@ -432,7 +417,6 @@ async function buildTargetsFromSourceWeek(
       sessionId: null, // New sessions need to be created
       sessionName: sourceSession.name,
       orderIndex: sourceSession.order_index,
-      sessionDate: '', // Will be calculated on save
       exercises,
     });
   }
@@ -534,17 +518,3 @@ async function insertTargets(
   }
 }
 
-function calculateSessionDate(lastSessionDate: Date | null, orderIndex: number, totalSessions: number): string {
-  if (!lastSessionDate) {
-    return formatDate(new Date());
-  }
-
-  // Get the Monday after the source week's last session
-  const monday = getNextMonday(addDays(new Date(lastSessionDate), 1));
-
-  // Use DAY_OFFSETS for proper spacing, fall back to sequential if no pattern exists
-  const offsets = DAY_OFFSETS[totalSessions];
-  const dayOffset = offsets ? offsets[orderIndex - 1] ?? (orderIndex - 1) : (orderIndex - 1);
-
-  return formatDate(addDays(monday, dayOffset));
-}

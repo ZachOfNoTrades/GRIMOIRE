@@ -18,9 +18,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name, sessionDate } = await request.json();
+    const { name } = await request.json();
 
-    const id = await createWorkoutSession(name, sessionDate);
+    const id = await createWorkoutSession(name);
     return NextResponse.json({ id }, { status: 201 });
 
   } catch (error) {

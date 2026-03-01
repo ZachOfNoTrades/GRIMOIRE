@@ -23,7 +23,7 @@ export interface PowerliftingGeneratorInput {
   squat1RM: number;
   bench1RM: number;
   deadlift1RM: number;
-  meetDate: string;         // YYYY-MM-DD
+  totalWeeks: number;
   daysPerWeek: number;      // 3-6
   exerciseCatalog: { id: string; name: string }[];
 }
@@ -70,14 +70,6 @@ const SESSION_TEMPLATES: Record<number, SessionTemplate[]> = {
   ],
 };
 
-// Day offsets from Monday for each frequency
-export const DAY_OFFSETS: Record<number, number[]> = {
-  3: [0, 2, 4],           // Mon, Wed, Fri
-  4: [0, 1, 3, 4],        // Mon, Tue, Thu, Fri
-  5: [0, 1, 2, 4, 5],     // Mon, Tue, Wed, Fri, Sat
-  6: [0, 1, 2, 3, 4, 5],  // Mon-Sat
-};
-
 // Variation exercise names and their 1RM reduction factors relative to the parent competition lift
 const VARIATION_MAP: Record<string, { name: string; factor: number }> = {
   squat_var: { name: 'Front Squat', factor: 0.80 },
@@ -92,30 +84,6 @@ const VARIATION_MAP: Record<string, { name: string; factor: number }> = {
 // Round weight to nearest 5 lbs
 export function round5(weight: number): number {
   return Math.round(weight / 5) * 5;
-}
-
-// Format date as YYYY-MM-DD
-export function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-// Get the next Monday on or after a given date
-export function getNextMonday(date: Date): Date {
-  const result = new Date(date);
-  const dayOfWeek = result.getDay(); // 0=Sun, 1=Mon, ...
-  const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
-  result.setDate(result.getDate() + daysUntilMonday);
-  return result;
-}
-
-// Add days to a date
-export function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
 }
 
 // Look up exercise ID by name from catalog. Returns null if not found.
@@ -271,18 +239,14 @@ export function calculateWeekParams(phase: BlockPhase, weekIndex: number, totalB
 // =============================
 
 export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): CreateProgramPayload {
-  const today = new Date();
-  const meetDate = new Date(input.meetDate + 'T00:00:00');
-  const totalWeeks = Math.floor((meetDate.getTime() - today.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  const totalWeeks = input.totalWeeks;
 
   if (totalWeeks < 1) {
-    throw new Error(`Meet date must be at least 1 week away. Current gap: ${totalWeeks} weeks.`);
+    throw new Error(`Total weeks must be at least 1. Received: ${totalWeeks}.`);
   }
 
   const { hypertrophyWeeks, strengthWeeks, peakingWeeks } = calculateBlockSplit(totalWeeks);
   const templates = SESSION_TEMPLATES[input.daysPerWeek];
-  const dayOffsets = DAY_OFFSETS[input.daysPerWeek];
-  const startDate = getNextMonday(today);
 
   // Build exercise ID lookup for primary lifts and variations
   const primaryLiftMap: Record<PrimaryLiftKey, { exerciseId: string; oneRepMax: number }> = {
@@ -310,7 +274,6 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
     { phase: PEAKING, weekCount: peakingWeeks },
   ].filter(config => config.weekCount > 0);
 
-  let globalWeekCounter = 0; // Tracks week offset for session date calculation
   const blocks: CreateProgramBlock[] = [];
 
   for (let blockIndex = 0; blockIndex < blockConfigs.length; blockIndex++) {
@@ -328,7 +291,6 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
       if (isFirstBlock) {
         for (let sessionIndex = 0; sessionIndex < templates.length; sessionIndex++) {
           const template = templates[sessionIndex];
-          const sessionDate = addDays(startDate, globalWeekCounter * 7 + dayOffsets[sessionIndex]);
           const targetExercises: CreateProgramTargetExercise[] = [];
 
           // Target exercises only generated for the first week (subsequent weeks use Generate)
@@ -367,7 +329,6 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
           sessions.push({
             order_index: sessionIndex + 1,
             name: template.name,
-            session_date: formatDate(sessionDate),
             target_exercises: targetExercises,
           });
         }
@@ -379,8 +340,6 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
         description: null,
         sessions,
       });
-
-      globalWeekCounter++;
     }
 
     blocks.push({
@@ -394,7 +353,7 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput): 
   }
 
   return {
-    name: `Powerlifting Meet Prep \u2014 ${totalWeeks}wk`,
+    name: `Powerlifting Meet Prep — ${totalWeeks}wk`,
     description: `${input.daysPerWeek} days/week | S/B/D: ${input.squat1RM}/${input.bench1RM}/${input.deadlift1RM}`,
     blocks,
   };

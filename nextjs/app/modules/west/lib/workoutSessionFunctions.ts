@@ -6,7 +6,7 @@ export async function getAllWorkoutSessions(): Promise<WorkoutSession[]> {
   try {
     pool = await getWestConnection();
     const result = await pool.request().query(`
-      SELECT * FROM workout_sessions ORDER BY session_date DESC
+      SELECT * FROM workout_sessions ORDER BY started_at DESC
     `);
 
     if (result.recordset.length === 0) {
@@ -24,17 +24,16 @@ export async function getAllWorkoutSessions(): Promise<WorkoutSession[]> {
   }
 }
 
-export async function createWorkoutSession(name: string, sessionDate: string): Promise<string> {
+export async function createWorkoutSession(name: string): Promise<string> {
   let pool;
   try {
     pool = await getWestConnection();
     const result = await pool.request()
       .input('name', name)
-      .input('sessionDate', sessionDate)
       .query(`
-        INSERT INTO workout_sessions (name, session_date)
+        INSERT INTO workout_sessions (name)
         OUTPUT INSERTED.id
-        VALUES (@name, @sessionDate)
+        VALUES (@name)
       `);
 
     return result.recordset[0].id;

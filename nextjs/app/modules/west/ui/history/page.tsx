@@ -230,7 +230,7 @@ export default function HistoryPage() {
                           onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
                         >
                           <td className="table-cell">{session.name}</td>
-                          <td className="table-cell">{formatDateShortWithYear(session.session_date)}</td>
+                          <td className="table-cell">{session.started_at ? formatDateShortWithYear(session.started_at) : "—"}</td>
                         </tr>
                       ))
                     )}
