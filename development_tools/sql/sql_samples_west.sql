@@ -7,12 +7,9 @@ BEGIN TRANSACTION WestDbSampleRecords;
 BEGIN TRY
 
     INSERT INTO exercises (name, description, is_disabled) VALUES
-    ('Back Squat', 'Primary competition squat', 0),
     ('Front Squat', 'Quad emphasis variation', 0),
     ('Leg Press', 'Machine variation', 0),
-    ('Conventional Deadlift', 'Competition deadlift', 0),
     ('Romanian Deadlift', 'Hamstring emphasis', 0),
-    ('Bench Press', 'Competition bench', 0),
     ('Incline Bench Press', 'Upper chest emphasis', 0),
     ('Overhead Press', 'Standing press', 0),
     ('Pull-Up', 'Vertical pull', 0),

@@ -54,6 +54,17 @@ BEGIN TRY
     END
 
     -- =============================
+    -- Seed Exercises
+    -- =============================
+    IF NOT EXISTS (SELECT 1 FROM exercises WHERE id = 'EEEE0001-EEEE-EEEE-EEEE-EEEEEEEE0001')
+    BEGIN
+        INSERT INTO exercises (id, name, description, is_disabled) VALUES
+        ('EEEE0001-EEEE-EEEE-EEEE-EEEEEEEE0001', 'Back Squat', 'Primary competition squat', 0),
+        ('EEEE0002-EEEE-EEEE-EEEE-EEEEEEEE0002', 'Conventional Deadlift', 'Competition deadlift', 0),
+        ('EEEE0003-EEEE-EEEE-EEEE-EEEEEEEE0003', 'Bench Press', 'Competition bench', 0);
+    END
+
+    -- =============================
     -- Programs
     -- =============================
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='programs' AND xtype='U')

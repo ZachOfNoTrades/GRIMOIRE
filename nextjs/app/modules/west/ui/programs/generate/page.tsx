@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
-import { ExerciseSummary } from "../../../types/exercise";
+import {
+  ExerciseSummary,
+  BACK_SQUAT_ID,
+  CONVENTIONAL_DEADLIFT_ID,
+  BENCH_PRESS_ID,
+} from "../../../types/exercise";
 import { calculateBlockSplit } from "../../../lib/powerliftingProgramGenerator";
 
 export default function GeneratePowerliftingPage() {
@@ -14,9 +19,9 @@ export default function GeneratePowerliftingPage() {
   const [exercises, setExercises] = useState<ExerciseSummary[]>([]);
 
   // INPUT
-  const [squatExerciseId, setSquatExerciseId] = useState("");
-  const [benchExerciseId, setBenchExerciseId] = useState("");
-  const [deadliftExerciseId, setDeadliftExerciseId] = useState("");
+  const [squatExerciseId, setSquatExerciseId] = useState(BACK_SQUAT_ID);
+  const [benchExerciseId, setBenchExerciseId] = useState(BENCH_PRESS_ID);
+  const [deadliftExerciseId, setDeadliftExerciseId] = useState(CONVENTIONAL_DEADLIFT_ID);
   const [squat1RM, setSquat1RM] = useState("");
   const [bench1RM, setBench1RM] = useState("");
   const [deadlift1RM, setDeadlift1RM] = useState("");
