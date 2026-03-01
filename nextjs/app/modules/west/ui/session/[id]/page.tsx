@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X } from "lucide-react";
+import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -27,6 +27,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [editedSessionNotes, setEditedSessionNotes] = useState("");
   const [editedStartDate, setEditedStartDate] = useState("");
   const [editedDuration, setEditedDuration] = useState("");
+  const [generateDescription, setGenerateDescription] = useState("");
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -38,6 +39,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [segmentModalData, setSegmentModalData] = useState<SegmentWithSets | null>(null);
   const [isSavingSegment, setIsSavingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // DERIVED
   const timerStart = session?.resumed_at ?? session?.started_at ?? null;
@@ -420,6 +422,40 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  // GENERATE HANDLER
+  const handleGenerateExercises = async () => {
+    if (!generateDescription.trim()) {
+      toast.error("Please describe the session");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch(`/modules/west/api/sessions/${id}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: generateDescription.trim() }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to generate exercises");
+        return;
+      }
+
+      const data = await response.json();
+      setLoggedSegments(data.exercises);
+      setTargetSegments(data.targets);
+      setGenerateDescription("");
+      toast.success("Exercises generated");
+    } catch (error) {
+      toast.error("Failed to generate exercises");
+      console.error("Error generating exercises:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Helper: check if a set contains any manually entered data
   const hasSetData = (set: { weight: number; reps: number; rpe: number | null; notes: string | null }) =>
     set.weight > 0 || set.reps > 0 || set.rpe !== null || (set.notes !== null && set.notes !== '');
@@ -702,9 +738,37 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             <div className="card-content">
 
               {loggedSegments.length === 0 && targetSegments.length === 0 && (
+                session?.week_id === null ? (
 
-                // EMPTY STATE
-                <p className="table-empty">No exercises added in this session</p>
+                  // GENERATE EXERCISES UI (standalone sessions only)
+                  <div className="flex flex-col gap-3">
+
+                    {/* DESCRIPTION INPUT */}
+                    <input
+                      type="text"
+                      value={generateDescription}
+                      onChange={(e) => setGenerateDescription(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !isGenerating) handleGenerateExercises(); }}
+                      className="input-field"
+                      placeholder="Describe this session..."
+                      disabled={isGenerating}
+                    />
+
+                    {/* GENERATE BUTTON */}
+                    <Button
+                      className="btn-primary"
+                      onClick={handleGenerateExercises}
+                      disabled={isGenerating || !generateDescription.trim()}
+                    >
+                      {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      <span>{isGenerating ? "Generating..." : "Generate"}</span>
+                    </Button>
+                  </div>
+                ) : (
+
+                  // EMPTY STATE (program sessions)
+                  <p className="table-empty">No exercises added in this session</p>
+                )
               )}
 
               {/* LOGGED SEGMENT SUB-CARDS */}
