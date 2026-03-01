@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X } from "lucide-react";
+import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -45,6 +45,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const isInProgress = !!timerStart && !session?.is_completed;
   const linkedTargetExerciseIds = new Set(loggedSessionExercises.map((e) => e.target_id).filter(Boolean));
   const unlinkedTargetExercises = targetExercises.filter((t) => !linkedTargetExerciseIds.has(t.id));
+  const totalExerciseCount = loggedSessionExercises.length + unlinkedTargetExercises.length;
+
+
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -409,6 +412,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  const isExerciseComplete = (exercise: SessionExerciseWithSets): boolean => {
+    if (!exercise.target) return true;
+    return exercise.target.sets.every((targetSet) =>
+      exercise.sets.some((set) => set.set_number === targetSet.set_number && set.is_warmup === targetSet.is_warmup)
+    );
+  };
+  const completedExerciseCount = loggedSessionExercises.filter(isExerciseComplete).length;
+
   // LOADING PLACEHOLDER
   if (isLoading) {
     return (
@@ -652,7 +663,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     {/* EXERCISE COUNT */}
                     <div>
                       <label className="text-secondary">Exercises</label>
-                      <p className="text-primary">{loggedSessionExercises.length}</p>
+                      <p className="text-primary">{completedExerciseCount}/{totalExerciseCount}</p>
                     </div>
 
                     {/* SESSION NOTES */}
@@ -675,7 +686,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             <div className="card-header">
 
               {/* TITLE */}
-              <h2 className="text-card-title">Exercises ({loggedSessionExercises.length})</h2>
+              <h2 className="text-card-title">Exercises ({completedExerciseCount}/{totalExerciseCount})</h2>
             </div>
 
             {/* CARD CONTENT */}
@@ -701,7 +712,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   <div className="sub-card-header">
 
                     {/* EXERCISE NAME */}
-                    <h3 className="text-card-title">{exercise.exercise_name}</h3>
+                    <div className="flex items-center gap-2">
+                      {isExerciseComplete(exercise)
+                        ? <CircleCheck className="icon-success !w-4 !h-4" />
+                        : <Circle className="icon-muted !w-4 !h-4" />
+                      }
+                      <h3 className="text-card-title">{exercise.exercise_name}</h3>
+                    </div>
 
                     {/* ORIGINAL TARGET EXERCISE HINT (when selected exercise was swapped) */}
                     {exercise.target && exercise.target.exercise_id !== exercise.exercise_id && (
@@ -816,7 +833,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   <div className="sub-card-header">
 
                     {/* EXERCISE NAME */}
-                    <h3 className="text-card-title">{target.exercise_name}</h3>
+                    <div className="flex items-center gap-2">
+                      <Circle className="icon-muted !w-4 !h-4" />
+                      <h3 className="text-card-title">{target.exercise_name}</h3>
+                    </div>
                   </div>
 
                   {/* SUB-CARD CONTENT */}
