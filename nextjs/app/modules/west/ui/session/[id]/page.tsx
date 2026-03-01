@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2 } from "lucide-react";
+import { StickyNote, Plus, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -11,7 +11,7 @@ import { Exercise } from "../../../types/exercise";
 import DeleteSessionModal from "./DeleteSessionModal";
 import EditExerciseModal from "./EditExerciseModal";
 import SessionTimer from "../../../components/SessionTimer";
-import { formatDuration, formatDateLong } from "../../../utils/format";
+import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -25,6 +25,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   // INPUT
   const [editedSessionName, setEditedSessionName] = useState("");
   const [editedSessionNotes, setEditedSessionNotes] = useState("");
+  const [editedStartDate, setEditedStartDate] = useState("");
+  const [editedDuration, setEditedDuration] = useState("");
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -104,6 +106,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     if (!session) return;
     setEditedSessionName(session.name);
     setEditedSessionNotes(session.notes || "");
+    if (session.started_at) {
+      setEditedStartDate(new Date(session.started_at).toISOString().split("T")[0]);
+    }
+    if (session.duration != null) {
+      setEditedDuration(secondsToHHMMSS(session.duration));
+    }
     setIsEditingSession(true);
   };
 
@@ -111,6 +119,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setIsEditingSession(false);
     setEditedSessionName("");
     setEditedSessionNotes("");
+    setEditedStartDate("");
+    setEditedDuration("");
   };
 
   const handleSaveSession = async () => {
@@ -122,15 +132,29 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
     setIsSavingSession(true);
     try {
+      // Build updated started_at from edited date (preserve original time)
+      let updatedStartedAt = session.started_at;
+      if (session.started_at && editedStartDate) {
+        const original = new Date(session.started_at);
+        const [year, month, day] = editedStartDate.split("-").map(Number);
+        original.setFullYear(year, month - 1, day);
+        updatedStartedAt = original;
+      }
+
+      // Convert edited duration (HH:MM:SS) back to seconds
+      const updatedDuration = editedDuration
+        ? hhmmssToSeconds(editedDuration)
+        : session.duration;
+
       const response = await fetch(`/modules/west/api/sessions/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: editedSessionName.trim(),
           notes: editedSessionNotes.trim() || null,
-          started_at: session.started_at,
+          started_at: updatedStartedAt,
           resumed_at: session.resumed_at,
-          duration: session.duration,
+          duration: updatedDuration,
           is_current: session.is_current,
           is_completed: session.is_completed,
         }),
@@ -459,7 +483,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                       {/* CANCEL BUTTON */}
                       <Button className="btn-link w-full sm:w-auto" onClick={handleCancelEditSession} disabled={isSavingSession}>
-                        Cancel
+                        <X className="w-4 h-4" />
+                        <span>Cancel</span>
                       </Button>
 
                       {/* SAVE BUTTON */}
@@ -489,11 +514,96 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       />
                     </div>
 
-                    {/* DATE COMPLETED (READ-ONLY) */}
-                    {session.started_at && (
+                    {/* DURATION INPUT (HH:MM:SS) */}
+                    {session.started_at && session.duration != null && !isInProgress && (
+                      <div>
+                        <label className="text-secondary">Duration</label>
+                        <div className="flex items-center gap-1">
+                          {/* HOURS */}
+                          <input
+                            type="number"
+                            min="0"
+                            max="99"
+                            value={editedDuration.split(":")[0] || ""}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const parts = editedDuration.split(":");
+                              const raw = e.target.value;
+                              parts[0] = raw === "" ? "" : String(Math.max(0, parseInt(raw) || 0)).padStart(2, "0");
+                              setEditedDuration(parts.join(":"));
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === "") {
+                                const parts = editedDuration.split(":");
+                                parts[0] = "00";
+                                setEditedDuration(parts.join(":"));
+                              }
+                            }}
+                            className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
+                          />
+                          <span className="text-muted font-medium">h</span>
+
+                          {/* MINUTES */}
+                          <input
+                            type="number"
+                            min="0"
+                            max="59"
+                            value={editedDuration.split(":")[1] || ""}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const parts = editedDuration.split(":");
+                              const raw = e.target.value;
+                              parts[1] = raw === "" ? "" : String(Math.min(59, Math.max(0, parseInt(raw) || 0))).padStart(2, "0");
+                              setEditedDuration(parts.join(":"));
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === "") {
+                                const parts = editedDuration.split(":");
+                                parts[1] = "00";
+                                setEditedDuration(parts.join(":"));
+                              }
+                            }}
+                            className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
+                          />
+                          <span className="text-muted font-medium">m</span>
+
+                          {/* SECONDS */}
+                          <input
+                            type="number"
+                            min="0"
+                            max="59"
+                            value={editedDuration.split(":")[2] || ""}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const parts = editedDuration.split(":");
+                              const raw = e.target.value;
+                              parts[2] = raw === "" ? "" : String(Math.min(59, Math.max(0, parseInt(raw) || 0))).padStart(2, "0");
+                              setEditedDuration(parts.join(":"));
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === "") {
+                                const parts = editedDuration.split(":");
+                                parts[2] = "00";
+                                setEditedDuration(parts.join(":"));
+                              }
+                            }}
+                            className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
+                          />
+                          <span className="text-muted font-medium">s</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* DATE INPUT */}
+                    {session.started_at && !isInProgress && (
                       <div>
                         <label className="text-secondary">Date</label>
-                        <p className="text-primary">{formatDateLong(session.started_at)}</p>
+                        <input
+                          type="date"
+                          value={editedStartDate}
+                          onChange={(e) => setEditedStartDate(e.target.value)}
+                          className="input-field"
+                        />
                       </div>
                     )}
 

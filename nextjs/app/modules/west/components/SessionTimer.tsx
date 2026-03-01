@@ -20,7 +20,7 @@ export default function SessionTimer({ startedAt, offsetSeconds = 0, compact = f
       const now = new Date();
       const start = new Date(startedAt);
       const diffMs = now.getTime() - start.getTime();
-      if (diffMs < 0) return "0:00";
+      if (diffMs < 0) return "00:00:00";
       return formatDuration(offsetSeconds + Math.floor(diffMs / 1000));
     };
 
