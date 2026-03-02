@@ -1,10 +1,7 @@
 import { getWestConnection, closeWestConnection } from './db';
 import { Exercise, ExerciseSummary, ExerciseHistoryEntry } from '../types/exercise';
-
-// Calculate estimated 1RM using the Epley formula: weight × (1 + reps / 30)
-export function calculateEstimatedOneRepMax(weight: number, reps: number): number {
-  return Math.round(weight * (1 + reps / 30));
-}
+// TODO: Update all other e1RM calculations across the codebase to use this shared util
+import { calculateEstimatedOneRepMax } from '../utils/calc';
 
 export async function getAllExercises(includeDisabled: boolean = false): Promise<Exercise[]> {
   let pool;

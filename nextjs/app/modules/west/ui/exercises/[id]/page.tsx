@@ -2,12 +2,13 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Dumbbell, History, Pencil } from "lucide-react";
+import { ArrowLeft, BarChart3, Dumbbell, History, Pencil } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
 import { ExerciseHistoryEntry } from "../../../types/exercise";
 import { formatDateLong, formatDateShortWithYear } from "../../../utils/format";
+import { calculateEstimatedOneRepMax } from "../../../utils/calc";
 import DisableExerciseModal from "./DisableExerciseModal";
 import EnableExerciseModal from "./EnableExerciseModal";
 
@@ -34,6 +35,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const [isEnableModalOpen, setIsEnableModalOpen] = useState(false);
   const [isEnabling, setIsEnabling] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [selectedTab, setSelectedTab] = useState<"stats" | "history">("stats");
 
   const router = useRouter();
 
@@ -489,75 +491,152 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
 
-          {/* EXERCISE HISTORY CARD */}
+          {/* STATS / HISTORY CARD */}
           <div className="card">
 
-            {/* CARD HEADER */}
-            <div className="card-header">
+            {/* TAB HEADERS */}
+            <nav className="flex space-x-4 px-3 mb-2 border-b border-card" role="tablist">
 
-              {/* TITLE */}
-              <h2 className="text-card-title">
-                <History className="w-5 h-5" />
-                History
-              </h2>
-            </div>
+              {/* STATS TAB */}
+              <button
+                className={`tab-button ${selectedTab === "stats" ? "tab-button-active" : ""}`}
+                onClick={() => setSelectedTab("stats")}
+                role="tab"
+                aria-selected={selectedTab === "stats"}
+                aria-controls="stats-panel"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Stats</span>
+              </button>
 
-            {/* CARD CONTENT */}
-            <div className="card-content">
-              {isHistoryLoading ? (
+              {/* HISTORY TAB */}
+              <button
+                className={`tab-button ${selectedTab === "history" ? "tab-button-active" : ""}`}
+                onClick={() => setSelectedTab("history")}
+                role="tab"
+                aria-selected={selectedTab === "history"}
+                aria-controls="history-panel"
+              >
+                <History className="w-4 h-4" />
+                <span>History</span>
+              </button>
+            </nav>
 
-                // LOADING PLACEHOLDER
-                <p className="text-page-subtitle text-center py-4">Loading history...</p>
-              ) : history.length === 0 ? (
+            {/* TAB CONTENT */}
+            <div className="card-content" role="tabpanel" id={`${selectedTab}-panel`}>
+              {selectedTab === "stats" ? (
 
-                // EMPTY PLACEHOLDER
-                <p className="text-page-subtitle text-center py-4">No session history found</p>
-              ) : (
+                // STATS TAB CONTENT
+                (() => {
+                  if (isHistoryLoading) {
+                    return <p className="text-page-subtitle text-center py-4">Loading stats...</p>;
+                  }
 
-                // SESSION SUB-CARDS
-                <div className="flex flex-col gap-3">
-                  {history.map((entry) => (
+                  // Compute stats from history
+                  const workingSets = history.flatMap((entry) =>
+                    entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps > 0)
+                  );
 
-                    // SESSION SUB-CARD
-                    <div
-                      key={entry.session_id}
-                      className="card card-clickable"
-                      onClick={() => router.push(`/modules/west/ui/session/${entry.session_id}`)}
-                    >
+                  if (workingSets.length === 0) {
+                    return <p className="text-page-subtitle text-center py-4">No stats available</p>;
+                  }
 
-                      {/* SUB-CARD CONTENT */}
-                      <div className="card-content !gap-1">
+                  // Estimated 1RM from best working set by Epley
+                  const bestOneRepMax = Math.max(
+                    ...workingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps))
+                  );
 
-                        {/* SESSION NAME AND DATE */}
-                        <div className="flex items-baseline justify-between gap-4">
-                          <h3 className="text-h2">{entry.session_name}</h3>
+                  // Best volume set (highest weight × reps)
+                  const bestVolumeSet = workingSets.reduce((best, set) =>
+                    set.weight * set.reps > best.weight * best.reps ? set : best
+                  );
 
-                          {/* DATE */}
-                          <span className="text-secondary text-sm whitespace-nowrap">
-                            {formatDateShortWithYear(entry.started_at!)}
-                          </span>
-                        </div>
+                  // Best weight set (heaviest weight lifted)
+                  const bestWeightSet = workingSets.reduce((best, set) =>
+                    set.weight > best.weight ? set : best
+                  );
 
-                        {/* PROGRAM NAME */}
-                        {entry.program_name && (
-                          <p className="text-secondary text-sm">{entry.program_name}</p>
-                        )}
+                  return (
+                    <div className="stat-section">
 
-                        {/* SETS LIST */}
-                        <div className="flex flex-col gap-0.5 mt-1">
-                          {entry.sets.map((set, index) => (
+                      {/* ESTIMATED 1RM */}
+                      <div className="stat-card">
+                        <p className="stat-label">e1RM</p>
+                        <p className="stat-value">{bestOneRepMax} lbs</p>
+                      </div>
 
-                            // SET LINE
-                            <p key={index} className={`text-sm ${set.is_warmup ? "text-secondary" : "text-primary"}`}>
-                              {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
-                              {set.rpe != null && <span className="text-secondary"> @{set.rpe}</span>}
-                            </p>
-                          ))}
-                        </div>
+                      {/* BEST VOLUME SET */}
+                      <div className="stat-card">
+                        <p className="stat-label">Best Volume Set</p>
+                        <p className="stat-value">{bestVolumeSet.weight} x {bestVolumeSet.reps}</p>
+                      </div>
+
+                      {/* BEST WEIGHT SET */}
+                      <div className="stat-card">
+                        <p className="stat-label">Best Weight Set</p>
+                        <p className="stat-value">{bestWeightSet.weight} x {bestWeightSet.reps}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })()
+              ) : (
+
+                // HISTORY TAB CONTENT
+                isHistoryLoading ? (
+
+                  // LOADING PLACEHOLDER
+                  <p className="text-page-subtitle text-center py-4">Loading history...</p>
+                ) : history.length === 0 ? (
+
+                  // EMPTY PLACEHOLDER
+                  <p className="text-page-subtitle text-center py-4">No session history found</p>
+                ) : (
+
+                  // SESSION SUB-CARDS
+                  <div className="flex flex-col gap-3">
+                    {history.map((entry) => (
+
+                      // SESSION SUB-CARD
+                      <div
+                        key={entry.session_id}
+                        className="card cursor-pointer"
+                        onClick={() => router.push(`/modules/west/ui/session/${entry.session_id}`)}
+                      >
+
+                        {/* SUB-CARD CONTENT */}
+                        <div className="card-content !gap-1">
+
+                          {/* SESSION NAME AND DATE */}
+                          <div className="flex items-baseline justify-between gap-4">
+                            <h3 className="text-h2">{entry.session_name}</h3>
+
+                            {/* DATE */}
+                            <span className="text-secondary text-sm whitespace-nowrap">
+                              {formatDateShortWithYear(entry.started_at!)}
+                            </span>
+                          </div>
+
+                          {/* PROGRAM NAME */}
+                          {entry.program_name && (
+                            <p className="text-secondary text-sm">{entry.program_name}</p>
+                          )}
+
+                          {/* SETS LIST */}
+                          <div className="flex flex-col gap-0.5 mt-1">
+                            {entry.sets.map((set, index) => (
+
+                              // SET LINE
+                              <p key={index} className={`text-sm ${set.is_warmup ? "text-secondary" : "text-primary"}`}>
+                                {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
+                                {set.rpe != null && <span className="text-secondary"> @{set.rpe}</span>}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
               )}
             </div>
           </div>
