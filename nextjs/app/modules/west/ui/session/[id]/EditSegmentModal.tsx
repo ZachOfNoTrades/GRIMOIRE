@@ -8,6 +8,7 @@ import Modal from "@/components/Modal";
 import SubModal from "@/components/SubModal";
 import { SegmentWithSets } from "../../../types/segment";
 import { Exercise } from "../../../types/exercise";
+import { generateUUID } from "../../../utils/id";
 
 enum SetField {
   Weight = "weight",
@@ -87,7 +88,7 @@ export default function EditSegmentModal({
         // Add additional warmup sets to reach target count, if necessary
         for (let i = loggedWarmupCount + 1; i <= targetWarmupCount; i++) {
           clonedSegment.sets.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             session_segment_id: clonedSegment.id,
             set_number: i,
             is_warmup: true,
@@ -104,7 +105,7 @@ export default function EditSegmentModal({
         // Add additional working sets to reach target count, if necessary
         for (let i = loggedWorkingCount + 1; i <= targetWorkingCount; i++) {
           clonedSegment.sets.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             session_segment_id: clonedSegment.id,
             set_number: i,
             is_warmup: false,
@@ -175,7 +176,7 @@ export default function EditSegmentModal({
     const setsOfType = editedSegment.sets.filter((s) => s.is_warmup === isWarmup);
 
     const newSet = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       session_segment_id: editedSegment.id,
       set_number: setsOfType.length + 1,
       is_warmup: isWarmup,

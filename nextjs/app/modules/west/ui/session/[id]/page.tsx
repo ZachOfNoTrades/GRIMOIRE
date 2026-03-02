@@ -12,6 +12,7 @@ import DeleteSessionModal from "./DeleteSessionModal";
 import EditSegmentModal from "./EditSegmentModal";
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
+import { generateUUID } from "../../../utils/id";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -271,7 +272,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   // Initialize a new EditSegmentModal and pass target set data (modal will handle filling out sets[])
   const handleOpenTargetSegment = (target: TargetSegment) => {
-    const newSegmentId = crypto.randomUUID();
+    const newSegmentId = generateUUID();
     const newSegment: SegmentWithSets = {
       id: newSegmentId,
       session_id: id,
@@ -283,7 +284,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       created_at: new Date(),
       modified_at: new Date(),
       sets: target.sets.map((ts) => ({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         session_segment_id: newSegmentId,
         set_number: ts.set_number,
         is_warmup: ts.is_warmup,
@@ -302,7 +303,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleAddSegment = () => {
-    const segmentId = crypto.randomUUID();
+    const segmentId = generateUUID();
     const newSegment: SegmentWithSets = {
       id: segmentId,
       session_id: id,
@@ -314,7 +315,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       created_at: new Date(),
       modified_at: new Date(),
       sets: [{
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         session_segment_id: segmentId,
         set_number: 1,
         is_warmup: false,
