@@ -228,7 +228,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                   <div className="sub-card-header">
 
                                     {/* SESSION NAME */}
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
 
                                       {/* STATUS ICON */}
                                       {session.is_completed ? (
@@ -252,10 +252,10 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
 
                                     {/* DATE COMPLETED */}
                                     {session.started_at && (
-                                      <div className="flex items-center gap-1 text-secondary">
+                                      <div className="flex items-center gap-1 text-secondary whitespace-nowrap ml-3">
 
                                         {/* CALENDAR ICON */}
-                                        <Calendar className="w-3.5 h-3.5" />
+                                        <Calendar className="w-3.5 h-3.5 shrink-0" />
 
                                         {/* DATE */}
                                         <span className="text-sm">{formatDateShort(session.started_at)}</span>
