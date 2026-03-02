@@ -364,6 +364,23 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
           DELETE FROM session_segments WHERE session_id = @id
         `);
 
+      // Delete target sets for all target segments in this session
+      await transaction.request()
+        .input('id', id)
+        .query(`
+          DELETE FROM target_session_segment_sets
+          WHERE target_session_segment_id IN (
+            SELECT id FROM target_session_segments WHERE session_id = @id
+          )
+        `);
+
+      // Delete target segments for this session
+      await transaction.request()
+        .input('id', id)
+        .query(`
+          DELETE FROM target_session_segments WHERE session_id = @id
+        `);
+
       // Delete the session
       const result = await transaction.request()
         .input('id', id)
