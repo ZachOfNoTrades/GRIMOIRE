@@ -51,3 +51,15 @@ export interface SegmentWithSets extends Segment {
   sets: SegmentSet[];
   target: TargetSegment | null;
 }
+
+export interface GeneratedSegment {
+  exercise_id: string;
+  order_index: number;
+  sets: {
+    set_number: number;
+    is_warmup: boolean;
+    reps: number;
+    weight: number;
+    rpe: number | null;
+  }[];
+}

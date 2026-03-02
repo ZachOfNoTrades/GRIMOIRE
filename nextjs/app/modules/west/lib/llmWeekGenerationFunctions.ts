@@ -1,7 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { callLLM } from './llmFunctions';
-import { PowerliftingGeneratorInput, calculateBlockSplit } from './powerliftingProgramGenerator';
+import { PowerliftingGeneratorInput } from './powerliftingProgramGenerator';
+import { calculateBlockSplit } from '../utils/calc';
 import { ExerciseSummary } from '../types/exercise';
 import { LLMSessionPlan } from '../types/weekGeneration';
 import {

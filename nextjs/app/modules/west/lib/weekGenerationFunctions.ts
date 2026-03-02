@@ -6,12 +6,12 @@ import {
   NextWeekSessionTargets,
 } from '../types/weekGeneration';
 import {
-  round5,
   calculateWeekParams,
   generateWarmupSets,
   generateWorkingSets,
   generateAccessorySets,
 } from './powerliftingProgramGenerator';
+import { round5 } from '../utils/calc';
 import { BlockPhase, BLOCK_PHASES, CreateProgramTargetSet } from '../types/program';
 
 // Generates and saves next-week targets (and next-block sessions if needed) based on

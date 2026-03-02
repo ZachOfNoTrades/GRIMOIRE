@@ -4,8 +4,7 @@ import { join } from 'path';
 import { getWorkoutSessionById } from '../../../../lib/workoutSessionFunctions';
 import { getAllExercisesWithMuscleGroups } from '../../../../lib/exerciseFunctions';
 import { callLLM, parseLLMResponse } from '../../../../lib/llmFunctions';
-import { updateSegments, getSegmentsAndTargets } from '../../../../lib/segmentFunctions';
-import { SegmentWithSets } from '../../../../types/segment';
+import { createGeneratedTargets, getSegmentsAndTargets } from '../../../../lib/segmentFunctions';
 
 interface LLMTargetSet {
   set_number: number;
@@ -82,42 +81,9 @@ export async function POST(
       );
     }
 
-    // Convert LLM output to SegmentWithSets[] format
-    const segments: SegmentWithSets[] = parsed.target_exercises.map((te) => {
-      const segmentId = crypto.randomUUID();
-      const exerciseName = exercises.find(e => e.id === te.exercise_id)?.name || '';
+    await createGeneratedTargets(id, parsed.target_exercises);
 
-      return {
-        id: segmentId,
-        session_id: id,
-        exercise_id: te.exercise_id,
-        exercise_name: exerciseName,
-        target_id: null,
-        order_index: te.order_index,
-        notes: null,
-        created_at: new Date(),
-        modified_at: new Date(),
-        sets: te.sets.map((s) => ({
-          id: crypto.randomUUID(),
-          session_segment_id: segmentId,
-          set_number: s.set_number,
-          is_warmup: s.is_warmup,
-          reps: s.reps,
-          weight: s.weight,
-          rpe: s.rpe,
-          notes: null,
-          is_completed: false,
-          created_at: new Date(),
-          modified_at: new Date(),
-        })),
-        target: null,
-      };
-    });
-
-    // Save to database
-    await updateSegments(id, segments);
-
-    // Return updated segments (same shape as GET exercises endpoint)
+    // Get newly created session segments and targets
     const { exercises: updatedSegments, targets } = await getSegmentsAndTargets(id);
     console.log(`[GenerateSession] Generated ${updatedSegments.length} exercises for session '${session.name}'`);
 

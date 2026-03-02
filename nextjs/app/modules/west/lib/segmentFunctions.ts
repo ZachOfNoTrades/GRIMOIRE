@@ -1,5 +1,5 @@
 import { getWestConnection, closeWestConnection } from './db';
-import { SegmentWithSets, TargetSegment } from '../types/segment';
+import { SegmentWithSets, TargetSegment, GeneratedSegment } from '../types/segment';
 
 export async function getSegmentsAndTargets(sessionId: string): Promise<{
   exercises: SegmentWithSets[];
@@ -280,6 +280,62 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
     }
   } catch (error) {
     console.error('Error updating session segments:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+export async function createGeneratedTargets(
+  sessionId: string,
+  generatedExercises: GeneratedSegment[],
+): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      for (const exercise of generatedExercises) {
+
+        // Insert target segment
+        const targetSegmentResult = await transaction.request()
+          .input('sessionId', sessionId)
+          .input('exerciseId', exercise.exercise_id)
+          .input('orderIndex', exercise.order_index)
+          .query(`
+            INSERT INTO target_session_segments (session_id, exercise_id, order_index)
+            OUTPUT INSERTED.id
+            VALUES (@sessionId, @exerciseId, @orderIndex)
+          `);
+        const targetSegmentId = targetSegmentResult.recordset[0].id;
+
+        // Insert target sets
+        for (const set of exercise.sets) {
+          await transaction.request()
+            .input('targetSegmentId', targetSegmentId)
+            .input('setNumber', set.set_number)
+            .input('isWarmup', set.is_warmup ? 1 : 0)
+            .input('reps', set.reps)
+            .input('weight', set.weight)
+            .input('rpe', set.rpe)
+            .query(`
+              INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe)
+              VALUES (@targetSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe)
+            `);
+        }
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error creating generated targets:', error);
     throw error;
   } finally {
     if (pool) {

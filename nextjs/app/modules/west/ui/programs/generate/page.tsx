@@ -11,7 +11,7 @@ import {
   CONVENTIONAL_DEADLIFT_ID,
   BENCH_PRESS_ID,
 } from "../../../types/exercise";
-import { calculateBlockSplit } from "../../../lib/powerliftingProgramGenerator";
+import { calculateBlockSplit } from "../../../utils/calc";
 
 export default function GeneratePowerliftingPage() {
 
