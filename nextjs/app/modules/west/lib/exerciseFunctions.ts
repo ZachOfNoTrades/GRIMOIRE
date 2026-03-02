@@ -1,6 +1,11 @@
 import { getWestConnection, closeWestConnection } from './db';
 import { Exercise, ExerciseSummary } from '../types/exercise';
 
+// Calculate estimated 1RM using the Epley formula: weight × (1 + reps / 30)
+export function calculateEstimatedOneRepMax(weight: number, reps: number): number {
+  return Math.round(weight * (1 + reps / 30));
+}
+
 export async function getAllExercises(includeDisabled: boolean = false): Promise<Exercise[]> {
   let pool;
   try {
@@ -156,10 +161,22 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
   try {
     pool = await getWestConnection();
     const result = await pool.request().query(`
-      SELECT e.id, e.name, mg.name AS muscle_group_name, emg.is_primary
+      SELECT e.id, e.name, mg.name AS muscle_group_name, emg.is_primary,
+             best.best_set_weight, best.best_set_reps
       FROM exercises e
       LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
       LEFT JOIN muscle_groups mg ON emg.muscle_group_id = mg.id
+      LEFT JOIN (
+        SELECT exercise_id, weight AS best_set_weight, reps AS best_set_reps
+        FROM (
+          SELECT se.exercise_id, ses.weight, ses.reps,
+            ROW_NUMBER() OVER (PARTITION BY se.exercise_id ORDER BY ses.weight * ses.reps DESC) AS rn
+          FROM session_segment_sets ses
+          JOIN session_segments se ON ses.session_segment_id = se.id
+          WHERE ses.is_warmup = 0 AND ses.weight > 0 AND ses.reps > 0
+        ) ranked
+        WHERE rn = 1
+      ) best ON e.id = best.exercise_id
       WHERE e.is_disabled = 0
       ORDER BY e.name, emg.is_primary DESC, mg.name
     `);
@@ -179,6 +196,9 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
           name: row.name,
           primary_muscles: [],
           secondary_muscles: [],
+          estimated_one_rep_max: row.best_set_weight && row.best_set_reps
+            ? calculateEstimatedOneRepMax(row.best_set_weight, row.best_set_reps)
+            : null,
         });
       }
 

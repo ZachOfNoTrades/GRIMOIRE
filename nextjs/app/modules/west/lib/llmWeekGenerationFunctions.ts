@@ -1,8 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { callLLM } from './llmFunctions';
-import { getAllExercisesWithMuscleGroups } from './exerciseFunctions';
 import { PowerliftingGeneratorInput, calculateBlockSplit } from './powerliftingProgramGenerator';
+import { ExerciseSummary } from '../types/exercise';
 import { LLMSessionPlan } from '../types/weekGeneration';
 import {
   CreateProgramSession,
@@ -21,6 +21,7 @@ function buildFirstWeekPlanPrompt(
   input: PowerliftingGeneratorInput,
   phase: BlockPhase,
   exerciseNames: { squat: string; bench: string; deadlift: string },
+  exerciseE1rms: { squat: number | null; bench: number | null; deadlift: number | null },
 ): string {
   const promptsDir = join(process.cwd(), 'nextjs', 'app', 'modules', 'west', 'lib', 'prompts');
   const baseTemplate = readFileSync(join(promptsDir, 'generateFirstWeekPlan.md'), 'utf-8');
@@ -39,11 +40,11 @@ function buildFirstWeekPlanPrompt(
     .replace(/\{\{WORKING_SETS\}\}/g, String(phase.workingSets))
     .replace(/\{\{BASE_RPE\}\}/g, String(phase.baseRPE))
     .replace(/\{\{SQUAT_EXERCISE_NAME\}\}/g, exerciseNames.squat)
-    .replace(/\{\{SQUAT_1RM\}\}/g, String(input.squat1RM))
+    .replace(/\{\{SQUAT_1RM\}\}/g, String(exerciseE1rms.squat ?? 'unknown'))
     .replace(/\{\{BENCH_EXERCISE_NAME\}\}/g, exerciseNames.bench)
-    .replace(/\{\{BENCH_1RM\}\}/g, String(input.bench1RM))
+    .replace(/\{\{BENCH_1RM\}\}/g, String(exerciseE1rms.bench ?? 'unknown'))
     .replace(/\{\{DEADLIFT_EXERCISE_NAME\}\}/g, exerciseNames.deadlift)
-    .replace(/\{\{DEADLIFT_1RM\}\}/g, String(input.deadlift1RM));
+    .replace(/\{\{DEADLIFT_1RM\}\}/g, String(exerciseE1rms.deadlift ?? 'unknown'));
 }
 
 function parseFirstWeekPlanResponse(rawContent: string): LLMSessionPlan[] {
@@ -107,6 +108,7 @@ function validateFirstWeekPlans(plans: LLMSessionPlan[], expectedCount: number):
 
 export async function generateFirstWeekPlanWithLlm(
   input: PowerliftingGeneratorInput,
+  allExercises: ExerciseSummary[],
 ): Promise<CreateProgramSession[]> {
   const startTime = Date.now();
 
@@ -128,16 +130,21 @@ export async function generateFirstWeekPlanWithLlm(
 
   /**
    * STEP 2: COMPILE EXERCISE LIST
-   * Fetch exercise information for injection into prompt
+   * Find e1RM for competition lifts for better prompt context
    */
 
-  const allExercises = await getAllExercisesWithMuscleGroups();
-  const exerciseLookup = new Map(allExercises.map(e => [e.id, e.name]));
+  const exerciseLookup = new Map(allExercises.map(e => [e.id, e]));
 
   const exerciseNames = {
-    squat: exerciseLookup.get(input.squatExerciseId) || 'Squat',
-    bench: exerciseLookup.get(input.benchExerciseId) || 'Bench Press',
-    deadlift: exerciseLookup.get(input.deadliftExerciseId) || 'Deadlift',
+    squat: exerciseLookup.get(input.squatExerciseId)?.name || 'Squat',
+    bench: exerciseLookup.get(input.benchExerciseId)?.name || 'Bench Press',
+    deadlift: exerciseLookup.get(input.deadliftExerciseId)?.name || 'Deadlift',
+  };
+
+  const exerciseE1rms = {
+    squat: exerciseLookup.get(input.squatExerciseId)?.estimated_one_rep_max ?? null,
+    bench: exerciseLookup.get(input.benchExerciseId)?.estimated_one_rep_max ?? null,
+    deadlift: exerciseLookup.get(input.deadliftExerciseId)?.estimated_one_rep_max ?? null,
   };
 
   /**
@@ -147,7 +154,7 @@ export async function generateFirstWeekPlanWithLlm(
 
   console.log(`[FirstWeekLLM] Generating ${input.daysPerWeek} session plans...`);
 
-  const planPrompt = buildFirstWeekPlanPrompt(input, phase, exerciseNames);
+  const planPrompt = buildFirstWeekPlanPrompt(input, phase, exerciseNames, exerciseE1rms);
   const planRaw = await callLLM(planPrompt);
   const sessionPlans = parseFirstWeekPlanResponse(planRaw);
 

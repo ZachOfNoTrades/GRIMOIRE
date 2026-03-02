@@ -22,9 +22,6 @@ export default function GeneratePowerliftingPage() {
   const [squatExerciseId, setSquatExerciseId] = useState(BACK_SQUAT_ID);
   const [benchExerciseId, setBenchExerciseId] = useState(BENCH_PRESS_ID);
   const [deadliftExerciseId, setDeadliftExerciseId] = useState(CONVENTIONAL_DEADLIFT_ID);
-  const [squat1RM, setSquat1RM] = useState("");
-  const [bench1RM, setBench1RM] = useState("");
-  const [deadlift1RM, setDeadlift1RM] = useState("");
   const [totalWeeks, setTotalWeeks] = useState("");
   const [daysPerWeek, setDaysPerWeek] = useState("");
   const [generateWithLlm, setGenerateWithLlm] = useState(false);
@@ -67,9 +64,6 @@ export default function GeneratePowerliftingPage() {
     squatExerciseId &&
     benchExerciseId &&
     deadliftExerciseId &&
-    Number(squat1RM) > 0 &&
-    Number(bench1RM) > 0 &&
-    Number(deadlift1RM) > 0 &&
     Number(totalWeeks) >= 1 &&
     Number(daysPerWeek) >= 1;
 
@@ -84,9 +78,6 @@ export default function GeneratePowerliftingPage() {
           squatExerciseId,
           benchExerciseId,
           deadliftExerciseId,
-          squat1RM: Number(squat1RM),
-          bench1RM: Number(bench1RM),
-          deadlift1RM: Number(deadlift1RM),
           totalWeeks: Number(totalWeeks),
           daysPerWeek: Number(daysPerWeek),
           generateWithLlm: generateWithLlm,
@@ -171,19 +162,6 @@ export default function GeneratePowerliftingPage() {
                   ))}
                 </select>
               </div>
-
-              {/* SQUAT 1RM INPUT */}
-              <div className="w-32">
-                <label className="text-secondary">1RM (lbs)</label>
-                <input
-                  type="number"
-                  value={squat1RM}
-                  onChange={(e) => setSquat1RM(e.target.value)}
-                  placeholder="405"
-                  className="input-field w-full"
-                  min="0"
-                />
-              </div>
             </div>
 
             {/* BENCH ROW */}
@@ -203,19 +181,6 @@ export default function GeneratePowerliftingPage() {
                   ))}
                 </select>
               </div>
-
-              {/* BENCH 1RM INPUT */}
-              <div className="w-32">
-                <label className="text-secondary">1RM (lbs)</label>
-                <input
-                  type="number"
-                  value={bench1RM}
-                  onChange={(e) => setBench1RM(e.target.value)}
-                  placeholder="275"
-                  className="input-field w-full"
-                  min="0"
-                />
-              </div>
             </div>
 
             {/* DEADLIFT ROW */}
@@ -234,19 +199,6 @@ export default function GeneratePowerliftingPage() {
                     <option key={ex.id} value={ex.id}>{ex.name}</option>
                   ))}
                 </select>
-              </div>
-
-              {/* DEADLIFT 1RM INPUT */}
-              <div className="w-32">
-                <label className="text-secondary">1RM (lbs)</label>
-                <input
-                  type="number"
-                  value={deadlift1RM}
-                  onChange={(e) => setDeadlift1RM(e.target.value)}
-                  placeholder="495"
-                  className="input-field w-full"
-                  min="0"
-                />
               </div>
             </div>
           </div>

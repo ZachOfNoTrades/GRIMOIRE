@@ -11,6 +11,8 @@ import {
   CreateProgramTargetExercise,
   CreateProgramTargetSet,
 } from '../types/program';
+import { getAllExercisesWithMuscleGroups } from './exerciseFunctions';
+import { generateFirstWeekPlanWithLlm } from './llmWeekGenerationFunctions';
 
 // =============================
 // Input Types
@@ -20,9 +22,6 @@ export interface PowerliftingGeneratorInput {
   squatExerciseId: string;
   benchExerciseId: string;
   deadliftExerciseId: string;
-  squat1RM: number;
-  bench1RM: number;
-  deadlift1RM: number;
   totalWeeks: number;
   daysPerWeek: number;      // 3-6
 }
@@ -33,7 +32,7 @@ export interface PowerliftingGeneratorInput {
 
 interface ExerciseInput {
   exerciseId: string;
-  oneRepMax: number;
+  oneRepMax: number | null;
   label: string;
 }
 
@@ -215,7 +214,10 @@ export function calculateWeekParams(phase: BlockPhase, weekIndex: number, totalB
 // Main Generator
 // =============================
 
-export function generatePowerliftingProgram(input: PowerliftingGeneratorInput, llmGenerated: boolean): CreateProgramPayload {
+export async function generatePowerliftingProgram(
+  input: PowerliftingGeneratorInput,
+  llmGenerated: boolean,
+): Promise<CreateProgramPayload> {
   const totalWeeks = input.totalWeeks;
 
   if (totalWeeks < 1) {
@@ -224,11 +226,15 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput, l
 
   const { hypertrophyWeeks, strengthWeeks, peakingWeeks } = calculateBlockSplit(totalWeeks);
 
+  // Fetch exercise list with e1RM data
+  const allExercises = await getAllExercisesWithMuscleGroups();
+  const exerciseLookup = new Map(allExercises.map(e => [e.id, e]));
+
   // Exercise inputs in rotation order
   const exercises: ExerciseInput[] = [
-    { exerciseId: input.squatExerciseId, oneRepMax: input.squat1RM, label: 'Squat' },
-    { exerciseId: input.benchExerciseId, oneRepMax: input.bench1RM, label: 'Bench' },
-    { exerciseId: input.deadliftExerciseId, oneRepMax: input.deadlift1RM, label: 'Deadlift' },
+    { exerciseId: input.squatExerciseId, oneRepMax: exerciseLookup.get(input.squatExerciseId)?.estimated_one_rep_max ?? null, label: 'Squat' },
+    { exerciseId: input.benchExerciseId, oneRepMax: exerciseLookup.get(input.benchExerciseId)?.estimated_one_rep_max ?? null, label: 'Bench' },
+    { exerciseId: input.deadliftExerciseId, oneRepMax: exerciseLookup.get(input.deadliftExerciseId)?.estimated_one_rep_max ?? null, label: 'Deadlift' },
   ];
   const templates = buildSessionTemplates(input.daysPerWeek, exercises);
 
@@ -256,10 +262,11 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput, l
         for (let sessionIndex = 0; sessionIndex < templates.length; sessionIndex++) {
           const template = templates[sessionIndex];
           const exercise = exercises[template.exerciseIndex];
-          const workingWeight = round5(exercise.oneRepMax * weekParams.intensity);
+          const workingWeight = exercise.oneRepMax ? round5(exercise.oneRepMax * weekParams.intensity) : 0;
 
-          const warmupSets = generateWarmupSets(workingWeight);
-          const workingSets = generateWorkingSets(weekParams.reps, workingWeight, weekParams.rpe, weekParams.workingSets);
+          const targetSets = workingWeight > 0
+            ? [...generateWarmupSets(workingWeight), ...generateWorkingSets(weekParams.reps, workingWeight, weekParams.rpe, weekParams.workingSets)]
+            : generateAccessorySets(weekParams.reps, weekParams.rpe, weekParams.workingSets);
 
           sessions.push({
             order_index: sessionIndex + 1,
@@ -267,10 +274,16 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput, l
             target_exercises: [{
               exercise_id: exercise.exerciseId,
               order_index: 1,
-              sets: [...warmupSets, ...workingSets],
+              sets: targetSets,
             }],
           });
         }
+      }
+
+      // Generate first week sessions via LLM
+      if (isFirstWeek && llmGenerated) {
+        const llmSessions = await generateFirstWeekPlanWithLlm(input, allExercises);
+        sessions.push(...llmSessions);
       }
 
       weeks.push({
@@ -293,7 +306,7 @@ export function generatePowerliftingProgram(input: PowerliftingGeneratorInput, l
 
   return {
     name: `Powerlifting Meet Prep — ${totalWeeks}wk`,
-    description: `${input.daysPerWeek} days/week | S/B/D: ${input.squat1RM}/${input.bench1RM}/${input.deadlift1RM}`,
+    description: `${input.daysPerWeek} days/week | S/B/D e1RM: ${exercises[0].oneRepMax ?? '—'}/${exercises[1].oneRepMax ?? '—'}/${exercises[2].oneRepMax ?? '—'}`,
     blocks,
   };
 }

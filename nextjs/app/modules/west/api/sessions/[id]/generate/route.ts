@@ -31,19 +31,13 @@ export async function POST(
 ) {
   try {
     const { id } = await context.params;
-    const { description } = await request.json();
-
-    if (!description || typeof description !== 'string' || description.trim().length === 0) {
-      return NextResponse.json({ error: 'description is required' }, { status: 400 });
-    }
-
-    // Verify session exists and is standalone (not part of a program)
+    // Verify session exists
     const session = await getWorkoutSessionById(id);
-    if (session.week_id !== null) {
-      return NextResponse.json(
-        { error: 'Cannot generate exercises for a program session' },
-        { status: 400 }
-      );
+
+    // Use session notes as the description for LLM generation
+    const sessionDescription = session.notes?.trim() || '';
+    if (sessionDescription.length === 0) {
+      return NextResponse.json({ error: 'Session notes are required for generation' }, { status: 400 });
     }
 
     // Fetch exercise list for the prompt
@@ -57,11 +51,11 @@ export async function POST(
 
     const prompt = template
       .replace('{{SESSION_NAME}}', session.name)
-      .replace('{{USER_DESCRIPTION}}', description.trim())
+      .replace('{{USER_DESCRIPTION}}', sessionDescription)
       .replace('{{EXERCISE_LIST}}', exerciseListJson);
 
     // Call LLM
-    console.log(`[GenerateSession] Calling LLM for session '${session.name}' with description: '${description.trim()}'`);
+    console.log(`[GenerateSession] Calling LLM for session '${session.name}' with description: '${sessionDescription}'`);
     const rawContent = await callLLM(prompt);
 
     // Parse response (reuse parseLLMResponse which strips code fences)

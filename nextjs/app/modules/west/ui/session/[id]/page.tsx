@@ -27,8 +27,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [editedSessionNotes, setEditedSessionNotes] = useState("");
   const [editedStartDate, setEditedStartDate] = useState("");
   const [editedDuration, setEditedDuration] = useState("");
-  const [generateDescription, setGenerateDescription] = useState("");
-
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingSession, setIsEditingSession] = useState(false);
@@ -424,8 +422,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   // GENERATE HANDLER
   const handleGenerateExercises = async () => {
-    if (!generateDescription.trim()) {
-      toast.error("Please describe the session");
+    if (!session?.notes?.trim()) {
+      toast.error("Session notes are required for generation");
       return;
     }
 
@@ -433,8 +431,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     try {
       const response = await fetch(`/modules/west/api/sessions/${id}/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: generateDescription.trim() }),
       });
 
       if (!response.ok) {
@@ -446,7 +442,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       const data = await response.json();
       setLoggedSegments(data.exercises);
       setTargetSegments(data.targets);
-      setGenerateDescription("");
       toast.success("Exercises generated");
     } catch (error) {
       toast.error("Failed to generate exercises");
@@ -738,37 +733,20 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             <div className="card-content">
 
               {loggedSegments.length === 0 && targetSegments.length === 0 && (
-                session?.week_id === null ? (
 
-                  // GENERATE EXERCISES UI (standalone sessions only)
-                  <div className="flex flex-col gap-3">
+                // GENERATE EXERCISES UI
+                <div className="flex flex-col gap-3">
 
-                    {/* DESCRIPTION INPUT */}
-                    <input
-                      type="text"
-                      value={generateDescription}
-                      onChange={(e) => setGenerateDescription(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && !isGenerating) handleGenerateExercises(); }}
-                      className="input-field"
-                      placeholder="Describe this session..."
-                      disabled={isGenerating}
-                    />
-
-                    {/* GENERATE BUTTON */}
-                    <Button
-                      className="btn-primary"
-                      onClick={handleGenerateExercises}
-                      disabled={isGenerating || !generateDescription.trim()}
-                    >
-                      {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      <span>{isGenerating ? "Generating..." : "Generate"}</span>
-                    </Button>
-                  </div>
-                ) : (
-
-                  // EMPTY STATE (program sessions)
-                  <p className="table-empty">No exercises added in this session</p>
-                )
+                  {/* GENERATE BUTTON */}
+                  <Button
+                    className="btn-primary"
+                    onClick={handleGenerateExercises}
+                    disabled={isGenerating || !session?.notes?.trim()}
+                  >
+                    {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    <span>{isGenerating ? "Generating..." : "Generate Exercises"}</span>
+                  </Button>
+                </div>
               )}
 
               {/* LOGGED SEGMENT SUB-CARDS */}

@@ -12,6 +12,7 @@ export interface ExerciseSummary {
   name: string;
   primary_muscles: string[];
   secondary_muscles: string[];
+  estimated_one_rep_max: number | null;
 }
 
 // =============================

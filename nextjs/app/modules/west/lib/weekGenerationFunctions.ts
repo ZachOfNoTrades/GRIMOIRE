@@ -110,6 +110,7 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
   }
 }
 
+// TODO: Deprecate in favor of functions in exerciseFunctions
 async function calculateEstimates(transaction: any, weekId: string): Promise<ExerciseEstimate[]> {
   const performanceResult = await transaction.request()
     .input('weekId', weekId)
