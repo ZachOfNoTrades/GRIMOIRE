@@ -785,7 +785,6 @@ body {
   width: 5px;
   border-radius: 9999px;
   align-self: stretch;
-  margin-top: 1.25rem;
   flex-shrink: 0;
   background: var(--input-border);
 }
@@ -793,7 +792,6 @@ body {
   width: 5px;
   border-radius: 9999px;
   align-self: stretch;
-  margin-top: 1.25rem;
   flex-shrink: 0;
   background: var(--badge-success-text);
 }

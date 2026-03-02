@@ -300,7 +300,7 @@ export default function EditSegmentModal({
   };
 
   // Create and build JSX for a set row
-  const renderSetRow = (set: typeof editedSegment.sets[0], isLastInSection: boolean) => {
+  const renderSetRow = (set: typeof editedSegment.sets[0], isFirstInSection: boolean, isLastInSection: boolean) => {
     const targetSet = editedSegment.target?.sets.find(
       (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
     );
@@ -318,12 +318,12 @@ export default function EditSegmentModal({
         {hasNotes && <div className="dot-blue absolute top-1 right-0" />}
 
         {/* SET INDICATOR BAR */}
-        <div className={isBeyondTarget ? "bar-grey" : "bar-green"} />
+        <div className={`${isFirstInSection ? 'mt-5' : ''} ${isBeyondTarget ? "bar-grey" : "bar-green"}`} />
 
         {/* COMPLETION TOGGLE */}
         <Button
           onClick={() => handleToggleSetCompleted(set.id)}
-          className={`btn-link mt-5 ${!canComplete ? 'invisible' : ''}`}
+          className={`btn-link ${isFirstInSection ? 'mt-5' : ''} ${!canComplete ? 'invisible' : ''}`}
           title={set.is_completed ? "Mark incomplete" : "Mark complete"}
         >
           {set.is_completed
@@ -334,7 +334,7 @@ export default function EditSegmentModal({
 
         {/* WEIGHT INPUT */}
         <div className="flex flex-col flex-1 min-w-15">
-          <label className={`text-secondary ${targetSet?.set_number !== 1 && 'hidden'}`}>Weight</label>
+          <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Weight</label>
           <input
             type="number"
             value={set.weight || ""}
@@ -350,7 +350,7 @@ export default function EditSegmentModal({
 
         {/* REPS INPUT */}
         <div className="flex flex-col flex-1 min-w-15">
-          <label className={`text-secondary ${targetSet?.set_number !== 1 && 'hidden'}`}>Reps</label>
+          <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Reps</label>
           <input
             type="number"
             value={set.reps || ""}
@@ -365,7 +365,7 @@ export default function EditSegmentModal({
 
         {/* RPE INPUT */}
         <div className="flex flex-col flex-1 min-w-15">
-          <label className={`text-secondary ${targetSet?.set_number !== 1 && 'hidden'}`}>RPE</label>
+          <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>RPE</label>
           <input
             type="number"
             value={set.rpe ?? ""}
@@ -381,7 +381,7 @@ export default function EditSegmentModal({
         </div>
 
         {/* ACTION MENU */}
-        <div className="relative mt-5" ref={openMenuSetId === set.id ? menuRef : undefined}>
+        <div className={`relative ${isFirstInSection ? 'mt-5' : ''}`} ref={openMenuSetId === set.id ? menuRef : undefined}>
 
           {/* MENU TRIGGER */}
           <Button
@@ -510,7 +510,7 @@ export default function EditSegmentModal({
             <label className="text-h3">Warmup</label>
 
             {/* WARMUP SET ROWS */}
-            {warmupSets.map((set, index) => renderSetRow(set, index === warmupSets.length - 1))}
+            {warmupSets.map((set, index) => renderSetRow(set, index === 0, index === warmupSets.length - 1))}
 
             {/* ADD WARMUP SET BUTTON */}
             <div className="flex justify-center">
@@ -534,7 +534,7 @@ export default function EditSegmentModal({
             <label className="text-h3">Working</label>
 
             {/* WORKING SET ROWS */}
-            {workingSets.map((set, index) => renderSetRow(set, index === workingSets.length - 1))}
+            {workingSets.map((set, index) => renderSetRow(set, index === 0, index === workingSets.length - 1))}
 
             {/* ADD WORKING SET BUTTON */}
             <div className="flex justify-center">
