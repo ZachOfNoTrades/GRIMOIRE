@@ -2,11 +2,12 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Dumbbell, Pencil } from "lucide-react";
+import { ArrowLeft, Dumbbell, History, Pencil } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
-import { formatDateLong } from "../../../utils/format";
+import { ExerciseHistoryEntry } from "../../../types/exercise";
+import { formatDateLong, formatDateShortWithYear } from "../../../utils/format";
 import DisableExerciseModal from "./DisableExerciseModal";
 import EnableExerciseModal from "./EnableExerciseModal";
 
@@ -16,6 +17,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   // DATA
   const [exercise, setExercise] = useState<ExerciseWithMuscleGroups | null>(null);
   const [allMuscleGroups, setAllMuscleGroups] = useState<MuscleGroup[]>([]);
+  const [history, setHistory] = useState<ExerciseHistoryEntry[]>([]);
 
   // INPUT
   const [editedName, setEditedName] = useState("");
@@ -31,6 +33,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const [isDisabling, setIsDisabling] = useState(false);
   const [isEnableModalOpen, setIsEnableModalOpen] = useState(false);
   const [isEnabling, setIsEnabling] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
 
   const router = useRouter();
 
@@ -38,6 +41,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     fetchExercise();
     fetchAllMuscleGroups();
+    fetchHistory();
   }, [id]);
 
   const fetchExercise = async () => {
@@ -70,6 +74,22 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
       setAllMuscleGroups(data);
     } catch (error) {
       console.error("Error fetching muscle groups:", error);
+    }
+  };
+
+  const fetchHistory = async () => {
+    setIsHistoryLoading(true);
+    try {
+      const response = await fetch(`/modules/west/api/exercises/${id}/history`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch exercise history");
+      }
+      const data = await response.json();
+      setHistory(data);
+    } catch (error) {
+      console.error("Error fetching exercise history:", error);
+    } finally {
+      setIsHistoryLoading(false);
     }
   };
 
@@ -465,6 +485,79 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     <p className="text-primary">{formatDateLong(exercise.created_at)}</p>
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+
+          {/* EXERCISE HISTORY CARD */}
+          <div className="card">
+
+            {/* CARD HEADER */}
+            <div className="card-header">
+
+              {/* TITLE */}
+              <h2 className="text-card-title">
+                <History className="w-5 h-5" />
+                History
+              </h2>
+            </div>
+
+            {/* CARD CONTENT */}
+            <div className="card-content">
+              {isHistoryLoading ? (
+
+                // LOADING PLACEHOLDER
+                <p className="text-page-subtitle text-center py-4">Loading history...</p>
+              ) : history.length === 0 ? (
+
+                // EMPTY PLACEHOLDER
+                <p className="text-page-subtitle text-center py-4">No session history found</p>
+              ) : (
+
+                // SESSION SUB-CARDS
+                <div className="flex flex-col gap-3">
+                  {history.map((entry) => (
+
+                    // SESSION SUB-CARD
+                    <div
+                      key={entry.session_id}
+                      className="card card-clickable"
+                      onClick={() => router.push(`/modules/west/ui/session/${entry.session_id}`)}
+                    >
+
+                      {/* SUB-CARD CONTENT */}
+                      <div className="card-content !gap-1">
+
+                        {/* SESSION NAME AND DATE */}
+                        <div className="flex items-baseline justify-between gap-4">
+                          <h3 className="text-h2">{entry.session_name}</h3>
+
+                          {/* DATE */}
+                          <span className="text-secondary text-sm whitespace-nowrap">
+                            {formatDateShortWithYear(entry.started_at!)}
+                          </span>
+                        </div>
+
+                        {/* PROGRAM NAME */}
+                        {entry.program_name && (
+                          <p className="text-secondary text-sm">{entry.program_name}</p>
+                        )}
+
+                        {/* SETS LIST */}
+                        <div className="flex flex-col gap-0.5 mt-1">
+                          {entry.sets.map((set, index) => (
+
+                            // SET LINE
+                            <p key={index} className={`text-sm ${set.is_warmup ? "text-secondary" : "text-primary"}`}>
+                              {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
+                              {set.rpe != null && <span className="text-secondary"> @{set.rpe}</span>}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>

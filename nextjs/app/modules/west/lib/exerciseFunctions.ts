@@ -1,5 +1,5 @@
 import { getWestConnection, closeWestConnection } from './db';
-import { Exercise, ExerciseSummary } from '../types/exercise';
+import { Exercise, ExerciseSummary, ExerciseHistoryEntry } from '../types/exercise';
 
 // Calculate estimated 1RM using the Epley formula: weight × (1 + reps / 30)
 export function calculateEstimatedOneRepMax(weight: number, reps: number): number {
@@ -216,6 +216,72 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
     return Array.from(exerciseMap.values());
   } catch (error) {
     console.error('Error fetching exercises with muscle groups:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+export async function getExerciseHistory(exerciseId: string): Promise<ExerciseHistoryEntry[]> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('exerciseId', exerciseId)
+      .query(`
+        SELECT
+          ws.id AS session_id,
+          ws.name AS session_name,
+          ws.started_at,
+          p.name AS program_name,
+          sss.set_number,
+          sss.is_warmup,
+          sss.reps,
+          sss.weight,
+          sss.rpe
+        FROM session_segments ss
+        JOIN workout_sessions ws ON ss.session_id = ws.id
+        JOIN session_segment_sets sss ON sss.session_segment_id = ss.id
+        LEFT JOIN weeks w ON ws.week_id = w.id
+        LEFT JOIN blocks b ON w.block_id = b.id
+        LEFT JOIN programs p ON b.program_id = p.id
+        WHERE ss.exercise_id = @exerciseId
+          AND ws.started_at IS NOT NULL
+        ORDER BY ws.started_at DESC, sss.is_warmup DESC, sss.set_number ASC
+      `);
+
+    if (result.recordset.length === 0) {
+      console.warn(`No exercise history found for exercise id: '${exerciseId}'`);
+    }
+
+    // Group flat rows by session
+    const sessionMap = new Map<string, ExerciseHistoryEntry>();
+
+    for (const row of result.recordset) {
+      if (!sessionMap.has(row.session_id)) {
+        sessionMap.set(row.session_id, {
+          session_id: row.session_id,
+          session_name: row.session_name,
+          started_at: row.started_at,
+          program_name: row.program_name,
+          sets: [],
+        });
+      }
+
+      sessionMap.get(row.session_id)!.sets.push({
+        set_number: row.set_number,
+        is_warmup: row.is_warmup,
+        reps: row.reps,
+        weight: row.weight,
+        rpe: row.rpe,
+      });
+    }
+
+    return Array.from(sessionMap.values());
+  } catch (error) {
+    console.error('Error fetching exercise history:', error);
     throw error;
   } finally {
     if (pool) {

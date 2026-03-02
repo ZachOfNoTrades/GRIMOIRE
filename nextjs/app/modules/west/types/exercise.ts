@@ -15,6 +15,22 @@ export interface ExerciseSummary {
   estimated_one_rep_max: number | null;
 }
 
+export interface ExerciseHistorySet {
+  set_number: number;
+  is_warmup: boolean;
+  reps: number;
+  weight: number;
+  rpe: number | null;
+}
+
+export interface ExerciseHistoryEntry {
+  session_id: string;
+  session_name: string;
+  started_at: Date | null;
+  program_name: string | null;
+  sets: ExerciseHistorySet[];
+}
+
 // =============================
 // Seed Exercise GUIDs (seeded in init script)
 // =============================
