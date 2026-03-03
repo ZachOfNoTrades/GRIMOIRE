@@ -1,9 +1,5 @@
 import { CreateProgramPayload } from './program';
 
-export interface GenerateProgramInput {
-  userPrompt: string;
-}
-
 export interface GenerateProgramResult {
   programPayload: CreateProgramPayload;
   modelUsed: string;

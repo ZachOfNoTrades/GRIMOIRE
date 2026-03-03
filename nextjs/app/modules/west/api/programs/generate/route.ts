@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { generateProgramInBackground } from '../../../lib/llmFunctions';
+import { generateProgramFromTemplate } from '../../../lib/llmFunctions';
 
 export async function POST(request: Request) {
   try {
@@ -13,18 +13,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fire-and-forget — generation runs in the background
-    generateProgramInBackground(templateId).catch(() => {});
+    const id = await generateProgramFromTemplate(templateId);
 
-    return NextResponse.json(
-      { message: 'Program generation started' },
-      { status: 200 }
-    );
+    return NextResponse.json({ id });
 
   } catch (error) {
     console.error('Error in POST /api/programs/generate:', error);
     return NextResponse.json(
-      { error: 'Failed to start program generation' },
+      { error: 'Failed to generate program' },
       { status: 500 }
     );
   }

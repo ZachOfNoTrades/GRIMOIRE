@@ -1,20 +1,16 @@
-import { readFileSync } from 'fs';
 import { spawn } from 'child_process';
-import { join } from 'path';
 import { CreateProgramPayload } from '../types/program';
-import { ExerciseSummary } from '../types/exercise';
-import { GenerateProgramInput, GenerateProgramResult, ValidationResult } from '../types/llm';
+import { GeneratedSegment } from '../types/segment';
+import { GenerateProgramResult, ValidationResult } from '../types/llm';
 import { getAllExercisesWithMuscleGroups } from './exerciseFunctions';
-import { createProgram } from './programFunctions';
+import { createProgram, getFirstWeekId } from './programFunctions';
+import { getProgramTemplateById } from './programTemplateFunctions';
+import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
+import { insertSessionsIntoWeek } from './weekGenerationFunctions';
+import { assemblePrompt } from './promptLoader';
 
-export function buildPrompt(input: GenerateProgramInput, exercises: ExerciseSummary[]): string {
-  const templatePath = join(process.cwd(), 'nextjs', 'app', 'modules', 'west', 'lib', 'prompts', 'generateProgram.md');
-  const template = readFileSync(templatePath, 'utf-8');
-  const exerciseListJson = JSON.stringify(exercises, null, 2);
-
-  return template
-    .replace('{{EXERCISE_LIST}}', exerciseListJson)
-    .replace('{{USER_PROMPT}}', input.userPrompt);
+export function buildPrompt(templateContext: string | null): string {
+  return assemblePrompt('generateProgram.md', templateContext);
 }
 
 export async function callLLM(prompt: string): Promise<string> {
@@ -124,10 +120,8 @@ export function parseLLMResponse(rawContent: string): CreateProgramPayload {
   }
 }
 
-export function validateGeneratedPayload(
-  payload: CreateProgramPayload,
-  validExerciseIds: Set<string>,
-): ValidationResult {
+// Validates structure-only program payload
+export function validateProgramPayload(payload: CreateProgramPayload): ValidationResult {
   const errors: string[] = [];
 
   // Program-level validation
@@ -153,59 +147,6 @@ export function validateGeneratedPayload(
 
     if (!Array.isArray(block.weeks) || block.weeks.length === 0) {
       errors.push(`${blockLabel}: must have at least one week`);
-      continue;
-    }
-
-    for (let weekIndex = 0; weekIndex < block.weeks.length; weekIndex++) {
-      const week = block.weeks[weekIndex];
-      const weekLabel = `${blockLabel} > Week ${weekIndex + 1}`;
-
-      if (!Array.isArray(week.sessions) || week.sessions.length === 0) {
-        errors.push(`${weekLabel}: must have at least one session`);
-        continue;
-      }
-
-      for (let sessionIndex = 0; sessionIndex < week.sessions.length; sessionIndex++) {
-        const session = week.sessions[sessionIndex];
-        const sessionLabel = `${weekLabel} > Session ${sessionIndex + 1}`;
-
-        if (!session.name || typeof session.name !== 'string') {
-          errors.push(`${sessionLabel}: name is required`);
-        }
-
-        if (!Array.isArray(session.target_exercises)) continue;
-
-        for (let exerciseIndex = 0; exerciseIndex < session.target_exercises.length; exerciseIndex++) {
-          const exercise = session.target_exercises[exerciseIndex];
-          const exerciseLabel = `${sessionLabel} > Exercise ${exerciseIndex + 1}`;
-
-          // Validate exercise_id exists in the database
-          if (!exercise.exercise_id || !validExerciseIds.has(exercise.exercise_id)) {
-            errors.push(`${exerciseLabel}: exercise_id '${exercise.exercise_id}' is not a valid exercise`);
-          }
-
-          if (!Array.isArray(exercise.sets)) continue;
-
-          for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
-            const set = exercise.sets[setIndex];
-            const setLabel = `${exerciseLabel} > Set ${setIndex + 1}`;
-
-            if (typeof set.reps !== 'number' || set.reps <= 0) {
-              errors.push(`${setLabel}: reps must be a positive number`);
-            }
-
-            if (typeof set.weight !== 'number' || set.weight < 0) {
-              errors.push(`${setLabel}: weight must be zero or positive`);
-            }
-
-            if (set.rpe !== null && set.rpe !== undefined) {
-              if (typeof set.rpe !== 'number' || set.rpe < 1 || set.rpe > 10) {
-                errors.push(`${setLabel}: rpe must be between 1 and 10, or null`);
-              }
-            }
-          }
-        }
-      }
     }
   }
 
@@ -213,10 +154,9 @@ export function validateGeneratedPayload(
 }
 
 export async function generateProgram(
-  input: GenerateProgramInput,
-  exercises: ExerciseSummary[],
+  templateContext: string | null,
 ): Promise<GenerateProgramResult> {
-  const prompt = buildPrompt(input, exercises);
+  const prompt = buildPrompt(templateContext);
   const rawContent = await callLLM(prompt);
   const programPayload = parseLLMResponse(rawContent);
 
@@ -226,9 +166,54 @@ export async function generateProgram(
   };
 }
 
-// Self-contained background generation function. Fetches exercises, generates via LLM,
-// validates, and saves the program. All errors are caught and logged internally.
-export async function generateProgramInBackground(input: GenerateProgramInput): Promise<void> {
+// Generates target exercises and sets for a single session using the session formatting file + context.
+// Returns validated GeneratedSegment[] ready for insertion into target tables.
+export async function generateSessionTargetsWithLlm(
+  sessionContext: string | null,
+  sessionName: string,
+  sessionDescription: string,
+): Promise<GeneratedSegment[]> {
+
+  // Fetch exercise list for the prompt
+  const exercises = await getAllExercisesWithMuscleGroups();
+  const validExerciseIds = new Set(exercises.map(e => e.id));
+  const exerciseListJson = JSON.stringify(exercises, null, 2);
+
+  // Build prompt from formatting file + DB context
+  const basePrompt = assemblePrompt('generateSession.md', sessionContext);
+  const prompt = basePrompt
+    .replace('{{SESSION_NAME}}', sessionName)
+    .replace('{{USER_DESCRIPTION}}', sessionDescription)
+    .replace('{{EXERCISE_LIST}}', exerciseListJson);
+
+  console.log(`[GenerateSessionTargets] Calling LLM for session '${sessionName}'`);
+  const rawContent = await callLLM(prompt);
+
+  // Parse response (reuse parseLLMResponse which strips code fences)
+  const parsed = parseLLMResponse(rawContent) as unknown as { target_exercises: GeneratedSegment[] };
+
+  if (!parsed.target_exercises || !Array.isArray(parsed.target_exercises)) {
+    throw new Error('LLM returned invalid response structure — expected { target_exercises: [] }');
+  }
+
+  // Validate exercise IDs
+  const invalidIds = parsed.target_exercises
+    .filter(te => !validExerciseIds.has(te.exercise_id))
+    .map(te => te.exercise_id);
+
+  if (invalidIds.length > 0) {
+    throw new Error(`LLM returned invalid exercise IDs: ${invalidIds.join(', ')}`);
+  }
+
+  console.log(`[GenerateSessionTargets] Generated ${parsed.target_exercises.length} exercises for session '${sessionName}'`);
+  return parsed.target_exercises;
+}
+
+// Two-stage generation:
+// Stage 1: LLM generates program structure (blocks + weeks, no sessions)
+// Stage 2: LLM generates session plans for week 1 (names + descriptions, no exercises)
+// Returns the created program ID.
+export async function generateProgramFromTemplate(templateId: string): Promise<string> {
   const startTime = Date.now();
   const heartbeat = setInterval(() => {
     const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -236,23 +221,55 @@ export async function generateProgramInBackground(input: GenerateProgramInput): 
   }, 15000); // Log every 15 seconds
 
   try {
-    const exercises = await getAllExercisesWithMuscleGroups();
-    const validExerciseIds = new Set(exercises.map(e => e.id)); // Verify no hallucinated exercise IDs
+    // Load template (program_prompt, week_prompt, days_per_week)
+    const template = await getProgramTemplateById(templateId);
 
-    const { programPayload } = await generateProgram(input, exercises);
+    // STAGE 1: Generate program structure via LLM
+    console.log('[GenerateProgram] Stage 1: Generating program structure...');
+    const { programPayload } = await generateProgram(template.program_prompt);
 
-    const validation = validateGeneratedPayload(programPayload, validExerciseIds);
-    if (!validation.valid) {
-      console.error('[GenerateProgram] Failed validation:', validation.errors);
-      return;
+    // Normalize: LLM returns structure-only, ensure each week has sessions: []
+    for (const block of programPayload.blocks) {
+      for (const week of block.weeks) {
+        if (!week.sessions) {
+          week.sessions = [];
+        }
+      }
     }
 
-    const programId = await createProgram(programPayload);
-    const totalSeconds = Math.round((Date.now() - startTime) / 1000);
-    console.log(`[GenerateProgram] Completed in ${totalSeconds}s. Program id: '${programId}'`);
-  } catch (error) {
-    const totalSeconds = Math.round((Date.now() - startTime) / 1000);
-    console.error(`[GenerateProgram] Failed after ${totalSeconds}s:`, error);
+    // Validate structure-only payload
+    const validation = validateProgramPayload(programPayload);
+    if (!validation.valid) {
+      throw new Error(`Program validation failed: ${validation.errors.join('; ')}`);
+    }
+
+    // Save program structure to database
+    const programId = await createProgram(programPayload, templateId);
+    const stage1Seconds = Math.round((Date.now() - startTime) / 1000);
+    console.log(`[GenerateProgram] Stage 1 complete in ${stage1Seconds}s. Program id: '${programId}'`);
+
+    // STAGE 2: Generate week 1 session plans via LLM
+    console.log('[GenerateProgram] Stage 2: Generating week 1 sessions...');
+
+    // Find week 1 (first week of first block)
+    const week1 = await getFirstWeekId(programId);
+    if (week1) {
+      // Generate session plans via LLM
+      const sessionPlans = await generateNextWeekPlanWithLlm(
+        template.week_prompt,
+        template.days_per_week,
+      );
+
+      // Insert sessions into week 1
+      await insertSessionsIntoWeek(week1.weekId, sessionPlans);
+
+      const totalSeconds = Math.round((Date.now() - startTime) / 1000);
+      console.log(`[GenerateProgram] Stage 2 complete in ${totalSeconds}s. ${sessionPlans.length} sessions created.`);
+    } else {
+      console.warn('[GenerateProgram] Stage 2 skipped: no weeks found in program');
+    }
+
+    return programId;
   } finally {
     clearInterval(heartbeat);
   }

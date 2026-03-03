@@ -24,4 +24,4 @@ description: string; // 2-4 sentences: primary focus, accessory categories, inte
 4. order_index starts at 1 and increments sequentially.
 5. The response must be a JSON array of SessionPlan objects — nothing else.
 
-{{PROGRAM_CONTEXT}}
+{{TEMPLATE_CONTEXT}}

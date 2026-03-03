@@ -6,7 +6,7 @@ export async function getAllPrograms(): Promise<ProgramSummary[]> {
   try {
     pool = await getWestConnection();
     const result = await pool.request().query(`
-      SELECT id, name, description, is_current, is_completed, created_at, modified_at
+      SELECT id, name, description, template_id, is_current, is_completed, created_at, modified_at
       FROM programs
       ORDER BY created_at DESC
     `);
@@ -60,6 +60,7 @@ export async function getProgramById(programId: string): Promise<Program> {
           p.id              AS program_id,
           p.name            AS program_name,
           p.description     AS program_description,
+          p.template_id     AS program_template_id,
           p.is_current      AS program_is_current,
           p.is_completed    AS program_is_completed,
           p.created_at      AS program_created_at,
@@ -118,6 +119,7 @@ export async function getProgramById(programId: string): Promise<Program> {
       id: firstRow.program_id,
       name: firstRow.program_name,
       description: firstRow.program_description,
+      template_id: firstRow.program_template_id,
       is_current: firstRow.program_is_current,
       is_completed: firstRow.program_is_completed,
       created_at: firstRow.program_created_at,
@@ -290,7 +292,7 @@ async function setProgramAsCurrent(transaction: any, programId: string): Promise
 }
 
 // Create full program with all children records, returns GUID assigned from database
-export async function createProgram(payload: CreateProgramPayload): Promise<string> {
+export async function createProgram(payload: CreateProgramPayload, templateId?: string | null): Promise<string> {
   let pool;
   try {
     pool = await getWestConnection();
@@ -302,10 +304,11 @@ export async function createProgram(payload: CreateProgramPayload): Promise<stri
       const programResult = await transaction.request()
         .input('name', payload.name)
         .input('description', payload.description)
+        .input('templateId', templateId ?? null)
         .query(`
-          INSERT INTO programs (name, description)
+          INSERT INTO programs (name, description, template_id)
           OUTPUT INSERTED.id
-          VALUES (@name, @description)
+          VALUES (@name, @description, @templateId)
         `);
 
       const programId = programResult.recordset[0].id;
@@ -406,10 +409,67 @@ export async function createProgram(payload: CreateProgramPayload): Promise<stri
   }
 }
 
+export async function getTemplateIdForProgram(programId: string): Promise<string | null> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('programId', programId)
+      .query(`SELECT template_id FROM programs WHERE id = @programId`);
+
+    if (result.recordset.length === 0) {
+      throw new Error(`No program found for id: '${programId}'`);
+    }
+
+    return result.recordset[0].template_id;
+  } catch (error) {
+    console.error('Error fetching template id for program:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
+// Returns the first week's ID and block tag for a program (first block, first week by order)
+export async function getFirstWeekId(programId: string): Promise<{ weekId: string; blockTag: string | null } | null> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('programId', programId)
+      .query(`
+        SELECT TOP 1 w.id AS week_id, b.tag AS block_tag
+        FROM weeks w
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId
+        ORDER BY b.order_index ASC, w.week_number ASC
+      `);
+
+    if (result.recordset.length === 0) {
+      return null;
+    }
+
+    return {
+      weekId: result.recordset[0].week_id,
+      blockTag: result.recordset[0].block_tag,
+    };
+  } catch (error) {
+    console.error('Error fetching first week id for program:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 export async function updateProgram(
   programId: string,
   name: string,
   description: string | null,
+  templateId?: string | null,
 ): Promise<void> {
   let pool;
   try {
@@ -418,9 +478,10 @@ export async function updateProgram(
       .input('programId', programId)
       .input('name', name)
       .input('description', description)
+      .input('templateId', templateId ?? null)
       .query(`
         UPDATE programs
-        SET name = @name, description = @description, modified_at = GETDATE()
+        SET name = @name, description = @description, template_id = @templateId, modified_at = GETDATE()
         WHERE id = @programId
       `);
 

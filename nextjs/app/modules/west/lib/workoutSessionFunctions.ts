@@ -495,3 +495,33 @@ export async function getWorkoutSessionCount(): Promise<number> {
     }
   }
 }
+
+export async function getTemplateIdForSession(sessionId: string): Promise<string | null> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request()
+      .input('sessionId', sessionId)
+      .query(`
+        SELECT p.template_id
+        FROM workout_sessions ws
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        JOIN programs p ON b.program_id = p.id
+        WHERE ws.id = @sessionId
+      `);
+
+    if (result.recordset.length === 0) {
+      return null;
+    }
+
+    return result.recordset[0].template_id;
+  } catch (error) {
+    console.error('Error fetching template id for session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { ProgramTemplateSummary } from "../../../types/programTemplate";
 
-export default function GeneratePowerliftingPage() {
+export default function GenerateProgramPage() {
 
   // DATA
   const [templates, setTemplates] = useState<ProgramTemplateSummary[]>([]);
