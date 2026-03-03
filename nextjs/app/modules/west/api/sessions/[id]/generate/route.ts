@@ -14,17 +14,13 @@ export async function POST(
     // Verify session exists
     const session = await getWorkoutSessionById(id);
 
-    // Look up template through session's program chain
+    // If program session, fetch session prompt from template
     const templateId = await getTemplateIdForSession(id);
-    if (!templateId) {
-      return NextResponse.json(
-        { error: 'Session is not linked to a program with a template' },
-        { status: 400 }
-      );
+    let sessionContext: string | null = null;
+    if (templateId) {
+      const programTemplate = await getProgramTemplateById(templateId);
+      sessionContext = programTemplate.session_prompt;
     }
-
-    // Load session context from template (may be null — formatting rules come from .md file)
-    const programTemplate = await getProgramTemplateById(templateId);
 
     // Use session notes as the description for LLM generation
     const sessionDescription = session.notes?.trim() || '';
@@ -34,7 +30,7 @@ export async function POST(
 
     // Generate targets via LLM
     const targetExercises = await generateSessionTargetsWithLlm(
-      programTemplate.session_prompt,
+      sessionContext,
       session.name,
       sessionDescription,
     );
@@ -50,11 +46,6 @@ export async function POST(
     // Handle 404 from getWorkoutSessionById
     if (error?.message?.includes('No workout session found')) {
       return NextResponse.json({ error: error.message }, { status: 404 });
-    }
-
-    // Handle 404 from getProgramTemplateById
-    if (error?.message?.includes('No program template found')) {
-      return NextResponse.json({ error: 'Program template not found' }, { status: 404 });
     }
 
     // Handle LLM validation errors
