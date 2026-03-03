@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { CreateProgramPayload } from '../types/program';
 import { GeneratedSegment } from '../types/segment';
 import { GenerateProgramResult, ValidationResult } from '../types/llm';
-import { getAllExercisesWithMuscleGroups } from './exerciseFunctions';
+import { getAllExercises } from './exerciseFunctions';
 import { createProgram, getFirstWeekId } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
 import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
@@ -228,17 +228,12 @@ export async function generateSessionTargetsWithLlm(
   sessionDescription: string,
 ): Promise<GeneratedSegment[]> {
 
-  // Fetch exercise list for the prompt
-  const exercises = await getAllExercisesWithMuscleGroups();
-  const validExerciseIds = new Set(exercises.map(e => e.id));
-  const exerciseListJson = JSON.stringify(exercises, null, 2);
 
   // Build prompt from formatting file + DB context
   const basePrompt = assemblePrompt('generateSession.md', sessionContext);
   const prompt = basePrompt
     .replace('{{SESSION_NAME}}', sessionName)
-    .replace('{{USER_DESCRIPTION}}', sessionDescription)
-    .replace('{{EXERCISE_LIST}}', exerciseListJson);
+    .replace('{{USER_DESCRIPTION}}', sessionDescription);
 
   console.log(`[GenerateSessionTargets] Calling LLM for session '${sessionName}'`);
   const outputFile = await callLLM(prompt);
@@ -252,6 +247,9 @@ export async function generateSessionTargetsWithLlm(
   }
 
   // Validate exercise IDs
+  const exercises = await getAllExercises();
+  const validExerciseIds = new Set(exercises.map(e => e.id));
+
   const invalidIds = parsed.target_exercises
     .filter(te => !validExerciseIds.has(te.exercise_id))
     .map(te => te.exercise_id);

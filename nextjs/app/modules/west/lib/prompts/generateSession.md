@@ -13,7 +13,7 @@ rpe: number | null; // Rate of perceived exertion 1-10, or null
 }
 
 interface TargetExercise {
-exercise_id: string; // MUST be a UUID from the exercise list below
+exercise_id: string; // MUST be a valid UUID from the exercises table
 order_index: number; // Sequential starting at 1 within this session
 sets: TargetSet[];
 }
@@ -29,15 +29,9 @@ target_exercises: TargetExercise[];
 - **Session Name**: {{SESSION_NAME}}
 - **Description**: {{USER_DESCRIPTION}}
 
-## Available Exercises
-
-You MUST only use exercise_id values from this list. Do NOT invent exercise IDs.
-
-{{EXERCISE_LIST}}
-
 ## Rules
 
-1. Every exercise_id MUST be a UUID from the available exercises list above.
+1. Every exercise_id MUST be a valid UUID from the exercises table. Use the SQL Query skill to discover available exercises (query by muscle group, name, etc.).
 2. Include an appropriate quantity of exercises based on the session description. If unsure, use 5 as a fallback.
 3. The first exercise should be the primary compound movement for the session.
 4. For compound exercises, include warmup sets ramping up to working weight, then working sets.

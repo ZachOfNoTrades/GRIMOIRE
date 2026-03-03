@@ -14,6 +14,10 @@ The tool returns JSON: `{ success: true, rowCount: N, data: [...] }` or `{ succe
 
 **Constraints**: SELECT only, max 100 rows, 5-second timeout.
 
+### Exercises
+
+The `exercises` table is the authoritative source of valid exercise IDs. Query it to discover available exercises — you can filter by name, muscle group, etc. Do NOT invent exercise IDs.
+
 ### Database Schema
 
 A reference guide of the full schema is located at: `app/modules/west/lib/prompts/databaseSchema.md`
