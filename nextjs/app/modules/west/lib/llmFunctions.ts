@@ -58,8 +58,8 @@ async function callClaudeCode(prompt: string, outputFile: string): Promise<strin
         '-p', // Print mode: accepts prompt from stdin, outputs response, then exits
         '--output-format', 'text', // Output plain text instead of JSON/streaming format
         '--no-session-persistence', // Don't save conversation to session history
-        '--tools', 'Write', // Only allow the Write tool (for writing the output file)
-        '--permission-mode', 'acceptEdits', // Auto-accept file edits without prompting
+        '--tools', 'Write,Bash', // Write for output file, Bash for SQL queries
+        '--permission-mode', 'bypassPermissions', // Auto-accept all tool use (scoped by --tools above)
       ], {
       timeout: timeoutMs,
       shell: true,
@@ -90,8 +90,7 @@ async function callClaudeCode(prompt: string, outputFile: string): Promise<strin
       // Log stdout for debugging
       const stdoutTrimmed = stdout.trim();
       if (stdoutTrimmed.length > 0) {
-        const preview = stdoutTrimmed.length > 200 ? stdoutTrimmed.substring(0, 200) + '...' : stdoutTrimmed;
-        console.log(`[CallClaudeCode] stdout (${stdoutTrimmed.length} chars): ${preview}`);
+        console.log(`[CallClaudeCode] stdout (${stdoutTrimmed.length} chars):\n${stdoutTrimmed}`);
       }
 
       // Verify the LLM wrote the output file
