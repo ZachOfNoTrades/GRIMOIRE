@@ -10,6 +10,7 @@ interface ModalProps {
     title: string;
     children: ReactNode;
     footer?: ReactNode;
+    subHeader?: ReactNode;
     disableClose?: boolean;
 }
 
@@ -19,6 +20,7 @@ export default function Modal({
     title,
     children,
     footer,
+    subHeader,
     disableClose = false
 }: ModalProps) {
 
@@ -57,6 +59,9 @@ export default function Modal({
                         <X className="w-5 h-5" />
                     </Button>
                 </div>
+
+                {/* SUB HEADER */}
+                {subHeader}
 
                 {/* MODAL BODY */}
                 <div className="modal-body">
