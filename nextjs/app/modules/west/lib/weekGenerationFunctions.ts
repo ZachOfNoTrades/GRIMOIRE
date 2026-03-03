@@ -4,6 +4,32 @@ import { getTemplateIdForProgram } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
 import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
 
+// Sets the first session (by order_index) in a week as is_current
+export async function setFirstSessionAsCurrent(weekId: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    await pool.request()
+      .input('weekId', weekId)
+      .query(`
+        UPDATE workout_sessions
+        SET is_current = 1, modified_at = GETDATE()
+        WHERE id = (
+          SELECT TOP 1 id FROM workout_sessions
+          WHERE week_id = @weekId
+          ORDER BY order_index ASC
+        )
+      `);
+  } catch (error) {
+    console.error('Error setting first session as current:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 // Inserts session plans (names + descriptions, no exercises) into a week
 export async function insertSessionsIntoWeek(
   weekId: string,

@@ -6,7 +6,7 @@ import { getAllExercisesWithMuscleGroups } from './exerciseFunctions';
 import { createProgram, getFirstWeekId } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
 import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
-import { insertSessionsIntoWeek } from './weekGenerationFunctions';
+import { insertSessionsIntoWeek, setFirstSessionAsCurrent } from './weekGenerationFunctions';
 import { assemblePrompt } from './promptLoader';
 
 export function buildPrompt(templateContext: string | null): string {
@@ -262,6 +262,8 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
 
       // Insert sessions into week 1
       await insertSessionsIntoWeek(week1.weekId, sessionPlans);
+
+      await setFirstSessionAsCurrent(week1.weekId);
 
       const totalSeconds = Math.round((Date.now() - startTime) / 1000);
       console.log(`[GenerateProgram] Stage 2 complete in ${totalSeconds}s. ${sessionPlans.length} sessions created.`);
