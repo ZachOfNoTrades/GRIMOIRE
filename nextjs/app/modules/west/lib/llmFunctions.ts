@@ -79,11 +79,11 @@ async function callClaudeCode(prompt: string): Promise<string> {
         return;
       }
 
-      // Write response to file for debugging/inspection
+      // Write response to file
       writeFileSync(outputFile, result, 'utf-8');
       console.log(`[CallClaudeCode] Response written to: ${outputFile}`);
 
-      resolve(result);
+      resolve(outputFile);
     });
 
     proc.stdin.write(prompt);
@@ -124,7 +124,24 @@ async function callLocalLLM(prompt: string): Promise<string> {
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  const content = data.choices[0].message.content;
+
+  // Write response to file
+  const tmpDir = join(process.cwd(), '.tmp');
+  if (!existsSync(tmpDir)) {
+    mkdirSync(tmpDir, { recursive: true });
+  }
+  const outputFile = join(tmpDir, `llm-output-${randomUUID()}.json`);
+  writeFileSync(outputFile, content, 'utf-8');
+  console.log(`[CallLocalLLM] Response written to: ${outputFile}`);
+
+  return outputFile;
+}
+
+export function readLLMOutput(filePath: string): string {
+  const content = readFileSync(filePath, 'utf-8');
+  console.log(`[ReadLLMOutput] Read ${content.length} chars from: ${filePath}`);
+  return content;
 }
 
 export function parseLLMResponse(rawContent: string): CreateProgramPayload {
@@ -236,7 +253,8 @@ export async function generateProgram(
   exercises: ExerciseSummary[],
 ): Promise<GenerateProgramResult> {
   const prompt = buildPrompt(input, exercises);
-  const rawContent = await callLLM(prompt);
+  const outputFile = await callLLM(prompt);
+  const rawContent = readLLMOutput(outputFile);
   const programPayload = parseLLMResponse(rawContent);
 
   return {

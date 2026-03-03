@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { getWorkoutSessionById } from '../../../../lib/workoutSessionFunctions';
 import { getAllExercisesWithMuscleGroups } from '../../../../lib/exerciseFunctions';
-import { callLLM, parseLLMResponse } from '../../../../lib/llmFunctions';
+import { callLLM, readLLMOutput, parseLLMResponse } from '../../../../lib/llmFunctions';
 import { createGeneratedTargets, getSegmentsAndTargets } from '../../../../lib/segmentFunctions';
 
 interface LLMTargetSet {
@@ -55,7 +55,8 @@ export async function POST(
 
     // Call LLM
     console.log(`[GenerateSession] Calling LLM for session '${session.name}' with description: '${sessionDescription}'`);
-    const rawContent = await callLLM(prompt);
+    const outputFile = await callLLM(prompt);
+    const rawContent = readLLMOutput(outputFile);
 
     // Parse response (reuse parseLLMResponse which strips code fences)
     const parsed = parseLLMResponse(rawContent) as unknown as LLMSessionTargets;

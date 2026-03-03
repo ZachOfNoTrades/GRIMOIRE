@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { callLLM } from './llmFunctions';
+import { callLLM, readLLMOutput } from './llmFunctions';
 import { PowerliftingGeneratorInput } from './powerliftingProgramGenerator';
 import { calculateBlockSplit } from '../utils/calc';
 import { ExerciseSummary } from '../types/exercise';
@@ -24,7 +24,7 @@ function buildFirstWeekPlanPrompt(
   exerciseNames: { squat: string; bench: string; deadlift: string },
   exerciseE1rms: { squat: number | null; bench: number | null; deadlift: number | null },
 ): string {
-  const promptsDir = join(process.cwd(), 'nextjs', 'app', 'modules', 'west', 'lib', 'prompts');
+  const promptsDir = join(process.cwd(), 'app', 'modules', 'west', 'lib', 'prompts');
   const baseTemplate = readFileSync(join(promptsDir, 'generateFirstWeekPlan.md'), 'utf-8');
   const programContext = readFileSync(join(promptsDir, 'powerliftingFirstWeekContext.md'), 'utf-8');
 
@@ -156,7 +156,8 @@ export async function generateFirstWeekPlanWithLlm(
   console.log(`[FirstWeekLLM] Generating ${input.daysPerWeek} session plans...`);
 
   const planPrompt = buildFirstWeekPlanPrompt(input, phase, exerciseNames, exerciseE1rms);
-  const planRaw = await callLLM(planPrompt);
+  const outputFile = await callLLM(planPrompt);
+  const planRaw = readLLMOutput(outputFile);
   const sessionPlans = parseFirstWeekPlanResponse(planRaw);
 
   const validation = validateFirstWeekPlans(sessionPlans, input.daysPerWeek);
