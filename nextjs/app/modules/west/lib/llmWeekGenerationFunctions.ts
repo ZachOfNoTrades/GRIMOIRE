@@ -1,3 +1,4 @@
+import { unlinkSync } from 'fs';
 import { callLLM, readLLMOutput } from './llmFunctions';
 import { assemblePrompt } from './promptLoader';
 import { LLMSessionPlan } from '../types/weekGeneration';
@@ -85,6 +86,7 @@ export async function generateNextWeekPlanWithLlm(
   const planPrompt = buildWeekPlanPrompt(weekContext, daysPerWeek);
   const outputFile = await callLLM(planPrompt);
   const planRaw = readLLMOutput(outputFile);
+  try { unlinkSync(outputFile); } catch { } // Clear temp file
   const sessionPlans = parseWeekPlanResponse(planRaw);
 
   const validation = validateWeekPlans(sessionPlans);

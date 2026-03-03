@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { spawn } from 'child_process';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
@@ -212,6 +212,7 @@ export async function generateProgram(
   const prompt = buildPrompt(templateContext);
   const outputFile = await callLLM(prompt);
   const rawContent = readLLMOutput(outputFile);
+  try { unlinkSync(outputFile); } catch { } // Clear temp file
   const programPayload = parseLLMResponse(rawContent);
 
   return {
@@ -238,6 +239,7 @@ export async function generateSessionTargetsWithLlm(
   console.log(`[GenerateSessionTargets] Calling LLM for session '${sessionName}'`);
   const outputFile = await callLLM(prompt);
   const rawContent = readLLMOutput(outputFile);
+  try { unlinkSync(outputFile); } catch { } // Clear temp file
 
   // Parse response (reuse parseLLMResponse which strips code fences)
   const parsed = parseLLMResponse(rawContent) as unknown as { target_exercises: GeneratedSegment[] };
