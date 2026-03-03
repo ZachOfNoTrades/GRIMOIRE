@@ -25,6 +25,7 @@ interface EditSegmentModalProps {
   segment: SegmentWithSets | null;
   exercises: Exercise[];
   isSaving: boolean;
+  isDeleting: boolean;
 }
 
 export default function EditSegmentModal({
@@ -35,6 +36,7 @@ export default function EditSegmentModal({
   segment,
   exercises,
   isSaving,
+  isDeleting,
 }: EditSegmentModalProps) {
 
   // INPUT
@@ -444,23 +446,23 @@ export default function EditSegmentModal({
       isOpen={isOpen}
       onClose={onClose}
       title={editedSegment.exercise_name || "New Exercise"}
-      disableClose={isSaving}
+      disableClose={isSaving || isDeleting}
       footer={
         <>
 
           {/* REMOVE BUTTON */}
           <Button
             onClick={onRemove}
-            disabled={isSaving}
+            disabled={isSaving || isDeleting}
             className="btn-delete mr-auto"
           >
-            Remove
+            {isDeleting ? "Deleting..." : "Delete"}
           </Button>
 
           {/* CANCEL BUTTON */}
           <Button
             onClick={onClose}
-            disabled={isSaving}
+            disabled={isSaving || isDeleting}
             className="btn-link"
           >
             Cancel
@@ -469,7 +471,7 @@ export default function EditSegmentModal({
           {/* SAVE BUTTON */}
           <Button
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || isDeleting}
             className="btn-success"
           >
             {isSaving ? "Saving..." : "Save"}

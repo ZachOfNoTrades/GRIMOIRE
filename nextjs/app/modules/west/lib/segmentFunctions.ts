@@ -288,6 +288,64 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
   }
 }
 
+export async function deleteSegment(sessionId: string, segmentId: string | null, targetId: string | null): Promise<void> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Delete logged segment and its sets (if it exists in DB)
+      if (segmentId) {
+        await transaction.request()
+          .input('segmentId', segmentId)
+          .query(`DELETE FROM session_segment_sets WHERE session_segment_id = @segmentId`);
+        await transaction.request()
+          .input('segmentId', segmentId)
+          .query(`DELETE FROM session_segments WHERE id = @segmentId`);
+      }
+
+      // Delete target segment and its sets
+      if (targetId) {
+        await transaction.request()
+          .input('targetId', targetId)
+          .query(`DELETE FROM target_session_segment_sets WHERE target_session_segment_id = @targetId`);
+        await transaction.request()
+          .input('targetId', targetId)
+          .query(`DELETE FROM target_session_segments WHERE id = @targetId`);
+      }
+
+      // Reorder remaining segments
+      await transaction.request()
+        .input('sessionId', sessionId)
+        .query(`
+          WITH ordered AS (
+            SELECT id, ROW_NUMBER() OVER (ORDER BY order_index) AS new_order
+            FROM session_segments
+            WHERE session_id = @sessionId
+          )
+          UPDATE session_segments
+          SET order_index = ordered.new_order, modified_at = GETDATE()
+          FROM session_segments
+          INNER JOIN ordered ON session_segments.id = ordered.id
+        `);
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deleting segment:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 export async function createGeneratedTargets(
   sessionId: string,
   generatedExercises: GeneratedSegment[],

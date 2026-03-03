@@ -37,6 +37,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
   const [segmentModalData, setSegmentModalData] = useState<SegmentWithSets | null>(null);
   const [isSavingSegment, setIsSavingSegment] = useState(false);
+  const [isDeletingSegment, setIsDeletingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -71,25 +72,37 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const fetchSessionData = async () => {
     setIsLoading(true);
     try {
-      const [sessionResponse, exercisesResponse] = await Promise.all([
-        fetch(`/modules/west/api/sessions/${id}`),
-        fetch(`/modules/west/api/sessions/${id}/exercises`),
-      ]);
+      await Promise.all([fetchSession(), fetchSegments()]);
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
-      if (sessionResponse.ok) {
-        const sessionData = await sessionResponse.json();
-        setSession(sessionData);
+  const fetchSession = async () => {
+    try {
+      const response = await fetch(`/modules/west/api/sessions/${id}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        setSession(data);
       }
+    } catch (error) {
+      console.error("Error fetching session:", error);
+    }
+  }
 
-      if (exercisesResponse.ok) {
-        const data = await exercisesResponse.json();
+  const fetchSegments = async () => {
+    try {
+      const response = await fetch(`/modules/west/api/sessions/${id}/exercises`);
+      if (response.ok) {
+        const data = await response.json();
         setLoggedSegments(data.exercises);
         setTargetSegments(data.targets);
       }
     } catch (error) {
-      console.error("Error fetching session data:", error);
-    } finally {
-      setIsLoading(false);
+      console.error("Error fetching segments:", error);
     }
   };
 
@@ -381,25 +394,25 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const handleRemoveSegment = async () => {
+  const handleDeleteSegment = async () => {
     if (!segmentModalData) return;
 
-    // If the segment is new (not yet saved), just close the modal
-    const exists = loggedSegments.some(ex => ex.id === segmentModalData.id);
-    if (!exists) {
+    // If the segment is unsaved and has no target, just close the modal
+    const existsInDb = loggedSegments.some(ex => ex.id === segmentModalData.id);
+    if (!existsInDb && !segmentModalData.target_id) {
       setIsSegmentModalOpen(false);
       return;
     }
 
-    setIsSavingSegment(true);
+    setIsDeletingSegment(true);
     try {
-      const updatedSegments = loggedSegments.filter(ex => ex.id !== segmentModalData.id);
-      updatedSegments.forEach((ex, i) => { ex.order_index = i + 1; });
-
       const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
-        method: "PUT",
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedSegments),
+        body: JSON.stringify({
+          segmentId: existsInDb ? segmentModalData.id : null,
+          targetId: segmentModalData.target_id || null,
+        }),
       });
 
       if (!response.ok) {
@@ -408,16 +421,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         return;
       }
 
-      const data = await response.json();
-      setLoggedSegments(data.exercises);
-      setTargetSegments(data.targets);
+      await fetchSegments();
       setIsSegmentModalOpen(false);
       toast.success("Exercise removed");
     } catch (error) {
       toast.error("Failed to remove exercise");
       console.error("Error removing segment:", error);
     } finally {
-      setIsSavingSegment(false);
+      setIsDeletingSegment(false);
     }
   };
 
@@ -980,10 +991,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         isOpen={isSegmentModalOpen}
         onClose={() => setIsSegmentModalOpen(false)}
         onSave={handleSaveSegment}
-        onRemove={handleRemoveSegment}
+        onRemove={handleDeleteSegment}
         segment={segmentModalData}
         exercises={exercises}
         isSaving={isSavingSegment}
+        isDeleting={isDeletingSegment}
       />
     </div>
   );
