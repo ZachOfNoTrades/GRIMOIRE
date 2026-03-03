@@ -45,7 +45,7 @@ export async function POST(
     const exerciseListJson = JSON.stringify(exercises, null, 2);
 
     // Build prompt from template
-    const templatePath = join(process.cwd(), 'nextjs', 'app', 'modules', 'west', 'lib', 'prompts', 'generateSession.md');
+    const templatePath = join(process.cwd(), 'app', 'modules', 'west', 'lib', 'prompts', 'generateSession.md');
     const template = readFileSync(templatePath, 'utf-8');
 
     const prompt = template

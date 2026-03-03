@@ -23,6 +23,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Temp files
+.tmp/
+
 # Misc
 .DS_Store
 *.pem

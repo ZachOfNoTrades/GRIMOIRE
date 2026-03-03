@@ -1,6 +1,7 @@
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { spawn } from 'child_process';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import { CreateProgramPayload } from '../types/program';
 import { ExerciseSummary } from '../types/exercise';
 import { GenerateProgramInput, GenerateProgramResult, ValidationResult } from '../types/llm';
@@ -8,7 +9,7 @@ import { getAllExercisesWithMuscleGroups } from './exerciseFunctions';
 import { createProgram } from './programFunctions';
 
 export function buildPrompt(input: GenerateProgramInput, exercises: ExerciseSummary[]): string {
-  const templatePath = join(process.cwd(), 'nextjs', 'app', 'modules', 'west', 'lib', 'prompts', 'generateProgram.md');
+  const templatePath = join(process.cwd(), 'app', 'modules', 'west', 'lib', 'prompts', 'generateProgram.md');
   const template = readFileSync(templatePath, 'utf-8');
   const exerciseListJson = JSON.stringify(exercises, null, 2);
 
@@ -35,7 +36,14 @@ export async function callLLM(prompt: string): Promise<string> {
 }
 
 async function callClaudeCode(prompt: string): Promise<string> {
-  const timeoutMs = 300000; // 300-second timeout for program generation
+  const timeoutMs = 300000; // 300-second timeout
+
+  // Prepare output file for LLM response
+  const tmpDir = join(process.cwd(), '.tmp');
+  if (!existsSync(tmpDir)) {
+    mkdirSync(tmpDir, { recursive: true });
+  }
+  const outputFile = join(tmpDir, `llm-output-${randomUUID()}.json`);
 
   return new Promise((resolve, reject) => {
     const proc = spawn('claude', ['-p', '--output-format', 'text'], {
@@ -60,11 +68,22 @@ async function callClaudeCode(prompt: string): Promise<string> {
     });
 
     proc.on('close', (code) => {
-      if (code === 0) {
-        resolve(stdout.trim());
-      } else {
+      if (code !== 0) {
         reject(new Error(`Claude CLI exited with code ${code}: ${stderr.trim()}`));
+        return;
       }
+
+      const result = stdout.trim();
+      if (result.length === 0) {
+        reject(new Error('Claude CLI completed but returned empty response'));
+        return;
+      }
+
+      // Write response to file for debugging/inspection
+      writeFileSync(outputFile, result, 'utf-8');
+      console.log(`[CallClaudeCode] Response written to: ${outputFile}`);
+
+      resolve(result);
     });
 
     proc.stdin.write(prompt);
