@@ -3,18 +3,18 @@ import { generateProgramInBackground } from '../../../lib/llmFunctions';
 
 export async function POST(request: Request) {
   try {
-    const { userPrompt } = await request.json();
+    const { templateId } = await request.json();
 
     // Validate inputs
-    if (!userPrompt || typeof userPrompt !== 'string' || userPrompt.trim().length === 0) {
+    if (!templateId || typeof templateId !== 'string') {
       return NextResponse.json(
-        { error: 'userPrompt is required' },
+        { error: 'templateId is required' },
         { status: 400 }
       );
     }
 
     // Fire-and-forget — generation runs in the background
-    generateProgramInBackground({ userPrompt }).catch(() => {});
+    generateProgramInBackground(templateId).catch(() => {});
 
     return NextResponse.json(
       { message: 'Program generation started' },
