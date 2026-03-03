@@ -1,8 +1,8 @@
-You are a personal trainer generating exercises and sets for a single training session.
+Generate exercises and sets for a single training session.
 
-## Output Format
+## Output Schema
 
-Respond with ONLY a valid JSON object matching the following TypeScript schema. No explanation, no markdown, no code fences — just the raw JSON.
+Respond with a valid JSON object matching the following TypeScript schema.
 
 interface TargetSet {
 set_number: number; // Sequential within warmup/working groups (starts at 1)

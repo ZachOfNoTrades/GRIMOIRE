@@ -1,8 +1,8 @@
-You are a workout program designer. Your task is to generate a structured workout program as a JSON object. You are creating the program structure only — blocks and weeks. Sessions and exercises are generated separately.
+Generate a structured workout program as a JSON object. Create the program structure only — blocks and weeks. Sessions and exercises are generated separately.
 
-## Output Format
+## Output Schema
 
-Respond with ONLY a valid JSON object matching the following TypeScript schema. No explanation, no markdown, no code fences — just the raw JSON.
+Respond with a valid JSON object matching the following TypeScript schema.
 
 interface CreateProgramWeek {
 week_number: number; // Sequential starting at 1 within the block

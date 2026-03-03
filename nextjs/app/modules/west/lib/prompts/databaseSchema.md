@@ -37,17 +37,34 @@ Links exercises to muscle groups (many-to-many).
 
 Unique constraint on (exercise_id, muscle_group_id).
 
+### program_templates
+
+Reusable templates that drive LLM-based program generation.
+
+| Column         | Type                  | Notes                                   |
+| -------------- | --------------------- | --------------------------------------- |
+| id             | UNIQUEIDENTIFIER (PK) |                                         |
+| name           | NVARCHAR(255)         |                                         |
+| description    | NVARCHAR(MAX)         |                                         |
+| program_prompt | NVARCHAR(MAX)         | Prompt context for program structure    |
+| week_prompt    | NVARCHAR(MAX)         | Prompt context for weekly session plans |
+| session_prompt | NVARCHAR(MAX)         | Prompt context for session exercises    |
+| days_per_week  | INT                   | Default 4                               |
+| created_at     | DATETIME2             |                                         |
+| modified_at    | DATETIME2             |                                         |
+
 ### programs
 
-| Column       | Type                  | Notes                        |
-| ------------ | --------------------- | ---------------------------- |
-| id           | UNIQUEIDENTIFIER (PK) |                              |
-| name         | NVARCHAR(255)         |                              |
-| description  | NVARCHAR(MAX)         |                              |
-| is_current   | BIT                   | 1 = currently active program |
-| is_completed | BIT                   | 1 = finished                 |
-| created_at   | DATETIME2             |                              |
-| modified_at  | DATETIME2             |                              |
+| Column       | Type                                      | Notes                        |
+| ------------ | ----------------------------------------- | ---------------------------- |
+| id           | UNIQUEIDENTIFIER (PK)                     |                              |
+| name         | NVARCHAR(255)                             |                              |
+| description  | NVARCHAR(MAX)                             |                              |
+| template_id  | UNIQUEIDENTIFIER (FK → program_templates) | Nullable                     |
+| is_current   | BIT                                       | 1 = currently active program |
+| is_completed | BIT                                       | 1 = finished                 |
+| created_at   | DATETIME2                                 |                              |
+| modified_at  | DATETIME2                                 |                              |
 
 ### blocks
 
@@ -163,12 +180,13 @@ Actual performed sets.
 ### Hierarchy
 
 ```
-programs
-  └─ blocks (ordered by order_index)
-       └─ weeks (ordered by week_number)
-            └─ workout_sessions (ordered by order_index)
-                 ├─ target_session_segments → target_session_segment_sets  (the plan)
-                 └─ session_segments → session_segment_sets               (what was done)
+program_templates
+  └─ programs (via template_id, nullable)
+       └─ blocks (ordered by order_index)
+            └─ weeks (ordered by week_number)
+                 └─ workout_sessions (ordered by order_index)
+                      ├─ target_session_segments → target_session_segment_sets  (the plan)
+                      └─ session_segments → session_segment_sets               (what was done)
 ```
 
 ### Useful Query Patterns

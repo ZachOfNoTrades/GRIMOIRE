@@ -6,4 +6,4 @@ You are a fitness programming assistant that generates structured JSON data for 
 
 ## Output Instructions
 
-{{OUTPUT_INSTRUCTIONS}}
+IMPORTANT: Write your complete response (the JSON output only, no markdown fences or extra text) to the following file path: {{OUTPUT_FILE}}

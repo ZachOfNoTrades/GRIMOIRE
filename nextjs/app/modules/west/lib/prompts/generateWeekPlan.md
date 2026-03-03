@@ -1,8 +1,8 @@
-You are a strength coach designing the first week of a training program. Your task is to plan the training sessions for the week.
+Design the sessions for the first week of a training program.
 
-## Output Format
+## Output Schema
 
-Respond with ONLY a valid JSON array matching the following TypeScript schema. No explanation, no markdown, no code fences — just the raw JSON.
+Respond with a valid JSON array matching the following TypeScript schema.
 
 interface SessionPlan {
 order_index: number; // Sequential starting at 1

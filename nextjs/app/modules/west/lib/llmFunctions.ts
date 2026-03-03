@@ -10,40 +10,46 @@ import { createProgram, getFirstWeekId } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
 import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
 import { insertSessionsIntoWeek, setFirstSessionAsCurrent } from './weekGenerationFunctions';
-import { assemblePrompt } from './promptLoader';
+import { assemblePrompt, loadPromptFile } from './promptLoader';
 
 export function buildPrompt(templateContext: string | null): string {
   return assemblePrompt('generateProgram.md', templateContext);
 }
 
-export async function callLLM(prompt: string): Promise<string> {
+export async function callLLM(taskPrompt: string): Promise<string> {
   const provider = process.env.LLM_PROVIDER;
 
   if (!provider) {
     throw new Error('LLM_PROVIDER environment variable is not set');
   }
 
-  switch (provider) {
-    case 'claude-code':
-      return callClaudeCode(prompt);
-    case 'local':
-      return callLocalLLM(prompt);
-    default:
-      throw new Error(`Unsupported LLM_PROVIDER: '${provider}'`);
-  }
-}
-
-async function callClaudeCode(prompt: string): Promise<string> {
-  const timeoutMs = 300000; // 300-second timeout
-
   // Prepare output file path for the LLM to write to
   const tmpDir = join(process.cwd(), '.tmp');
   if (!existsSync(tmpDir)) {
     mkdirSync(tmpDir, { recursive: true });
   }
+
   const outputFile = join(tmpDir, `llm-output-${randomUUID()}.json`);
   const outputFilePosix = outputFile.replace(/\\/g, '/'); // Replace backslashes with forward slashes for better readability by LLM
-  const promptWithOutputInstructions = `${prompt}\n\n---\nIMPORTANT: Write your complete response (the JSON output only, no markdown fences or extra text) to the following file path:\n${outputFilePosix}\n\nUse the Write tool to create this file. The file must contain ONLY the raw JSON response.\n---`;
+
+  // Wrap task prompt in base prompt template
+  const basePrompt = loadPromptFile('basePrompt.md');
+  const prompt = basePrompt
+    .replace('{{TASK_PROMPT}}', taskPrompt)
+    .replace('{{OUTPUT_FILE}}', outputFilePosix);
+
+  switch (provider) {
+    case 'claude-code':
+      return callClaudeCode(prompt, outputFile);
+    case 'local':
+      return callLocalLLM(prompt, outputFile);
+    default:
+      throw new Error(`Unsupported LLM_PROVIDER: '${provider}'`);
+  }
+}
+
+async function callClaudeCode(prompt: string, outputFile: string): Promise<string> {
+  const timeoutMs = 300000; // 300-second timeout
 
   return new Promise((resolve, reject) => {
     const proc = spawn(
@@ -98,12 +104,12 @@ async function callClaudeCode(prompt: string): Promise<string> {
       resolve(outputFile);
     });
 
-    proc.stdin.write(promptWithOutputInstructions);
+    proc.stdin.write(prompt);
     proc.stdin.end();
   });
 }
 
-async function callLocalLLM(prompt: string): Promise<string> {
+async function callLocalLLM(prompt: string, outputFile: string): Promise<string> {
   const serverUrl = process.env.LLM_SERVER_URL;
   const model = process.env.LLM_MODEL;
 
@@ -139,11 +145,6 @@ async function callLocalLLM(prompt: string): Promise<string> {
   const content = data.choices[0].message.content;
 
   // Write response to file
-  const tmpDir = join(process.cwd(), '.tmp');
-  if (!existsSync(tmpDir)) {
-    mkdirSync(tmpDir, { recursive: true });
-  }
-  const outputFile = join(tmpDir, `llm-output-${randomUUID()}.json`);
   writeFileSync(outputFile, content, 'utf-8');
   console.log(`[CallLocalLLM] Response written to: ${outputFile}`);
 
