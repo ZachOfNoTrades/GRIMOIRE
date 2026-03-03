@@ -95,7 +95,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   const fetchSegments = async () => {
     try {
-      const response = await fetch(`/modules/west/api/sessions/${id}/exercises`);
+      const response = await fetch(`/modules/west/api/sessions/${id}/segments`);
       if (response.ok) {
         const data = await response.json();
         setLoggedSegments(data.exercises);
@@ -369,7 +369,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         sets: ex.sets.filter(s => s.is_completed || hasSetData(s)),
       }));
 
-      const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
+      const response = await fetch(`/modules/west/api/sessions/${id}/segments`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(filteredSegments),
@@ -406,7 +406,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
     setIsDeletingSegment(true);
     try {
-      const response = await fetch(`/modules/west/api/sessions/${id}/exercises`, {
+      const response = await fetch(`/modules/west/api/sessions/${id}/segments`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
