@@ -38,15 +38,25 @@ export async function callLLM(prompt: string): Promise<string> {
 async function callClaudeCode(prompt: string): Promise<string> {
   const timeoutMs = 300000; // 300-second timeout
 
-  // Prepare output file for LLM response
+  // Prepare output file path for the LLM to write to
   const tmpDir = join(process.cwd(), '.tmp');
   if (!existsSync(tmpDir)) {
     mkdirSync(tmpDir, { recursive: true });
   }
   const outputFile = join(tmpDir, `llm-output-${randomUUID()}.json`);
+  const outputFilePosix = outputFile.replace(/\\/g, '/'); // Replace backslashes with forward slashes for better readability by LLM
+  const promptWithOutputInstructions = `${prompt}\n\n---\nIMPORTANT: Write your complete response (the JSON output only, no markdown fences or extra text) to the following file path:\n${outputFilePosix}\n\nUse the Write tool to create this file. The file must contain ONLY the raw JSON response.\n---`;
 
   return new Promise((resolve, reject) => {
-    const proc = spawn('claude', ['-p', '--output-format', 'text'], {
+    const proc = spawn(
+      'claude',
+      [
+        '-p', // Print mode: accepts prompt from stdin, outputs response, then exits
+        '--output-format', 'text', // Output plain text instead of JSON/streaming format
+        '--no-session-persistence', // Don't save conversation to session history
+        '--tools', 'Write', // Only allow the Write tool (for writing the output file)
+        '--permission-mode', 'acceptEdits', // Auto-accept file edits without prompting
+      ], {
       timeout: timeoutMs,
       shell: true,
       env: { ...process.env },
@@ -73,20 +83,24 @@ async function callClaudeCode(prompt: string): Promise<string> {
         return;
       }
 
-      const result = stdout.trim();
-      if (result.length === 0) {
-        reject(new Error('Claude CLI completed but returned empty response'));
+      // Log stdout for debugging
+      const stdoutTrimmed = stdout.trim();
+      if (stdoutTrimmed.length > 0) {
+        const preview = stdoutTrimmed.length > 200 ? stdoutTrimmed.substring(0, 200) + '...' : stdoutTrimmed;
+        console.log(`[CallClaudeCode] stdout (${stdoutTrimmed.length} chars): ${preview}`);
+      }
+
+      // Verify the LLM wrote the output file
+      if (!existsSync(outputFile)) {
+        reject(new Error(`Claude CLI completed but did not write output file: ${outputFile}`));
         return;
       }
 
-      // Write response to file
-      writeFileSync(outputFile, result, 'utf-8');
-      console.log(`[CallClaudeCode] Response written to: ${outputFile}`);
-
+      console.log(`[CallClaudeCode] Output file written by LLM: ${outputFile}`);
       resolve(outputFile);
     });
 
-    proc.stdin.write(prompt);
+    proc.stdin.write(promptWithOutputInstructions);
     proc.stdin.end();
   });
 }
