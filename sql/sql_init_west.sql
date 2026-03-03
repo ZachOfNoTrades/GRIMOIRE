@@ -65,6 +65,24 @@ BEGIN TRY
     END
 
     -- =============================
+    -- Program Templates
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='program_templates' AND xtype='U')
+    BEGIN
+        CREATE TABLE program_templates (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            name NVARCHAR(255) NOT NULL,
+            description NVARCHAR(MAX),
+            program_prompt NVARCHAR(MAX),
+            week_prompt NVARCHAR(MAX),
+            session_prompt NVARCHAR(MAX),
+            days_per_week INT NOT NULL DEFAULT 4,
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE()
+        );
+    END
+
+    -- =============================
     -- Programs
     -- =============================
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='programs' AND xtype='U')
@@ -73,10 +91,13 @@ BEGIN TRY
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             name NVARCHAR(255) NOT NULL,
             description NVARCHAR(MAX),
+            template_id UNIQUEIDENTIFIER NULL,
             is_current BIT CHECK (is_current IN (0,1)) DEFAULT 0, -- 1 = currently active
             is_completed BIT CHECK (is_completed IN (0,1)) DEFAULT 0, -- 1 = finished
             created_at DATETIME2 DEFAULT GETDATE(),
-            modified_at DATETIME2 DEFAULT GETDATE()
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT FK_programs_template FOREIGN KEY (template_id) REFERENCES program_templates(id)
         );
     END
 

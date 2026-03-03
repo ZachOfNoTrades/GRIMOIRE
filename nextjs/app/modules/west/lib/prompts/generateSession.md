@@ -44,3 +44,5 @@ You MUST only use exercise_id values from this list. Do NOT invent exercise IDs.
 5. set_number starts at 1 and increments independently for warmup sets and working sets within each exercise.
 6. Round all weights to the nearest 5 lbs.
 7. The response must be a single JSON object with a target_exercises array — nothing else.
+
+{{TEMPLATE_CONTEXT}}

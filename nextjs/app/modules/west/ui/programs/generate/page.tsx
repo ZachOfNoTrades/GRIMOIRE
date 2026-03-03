@@ -1,59 +1,41 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
-import {
-  ExerciseSummary,
-  BACK_SQUAT_ID,
-  CONVENTIONAL_DEADLIFT_ID,
-  BENCH_PRESS_ID,
-} from "../../../types/exercise";
-import { calculateBlockSplit } from "../../../utils/calc";
+import { ProgramTemplateSummary } from "../../../types/programTemplate";
 
-export default function GeneratePowerliftingPage() {
+export default function GenerateProgramPage() {
 
   // DATA
-  const [exercises, setExercises] = useState<ExerciseSummary[]>([]);
+  const [templates, setTemplates] = useState<ProgramTemplateSummary[]>([]);
 
   // INPUT
-  const [squatExerciseId, setSquatExerciseId] = useState(BACK_SQUAT_ID);
-  const [benchExerciseId, setBenchExerciseId] = useState(BENCH_PRESS_ID);
-  const [deadliftExerciseId, setDeadliftExerciseId] = useState(CONVENTIONAL_DEADLIFT_ID);
-  const [totalWeeks, setTotalWeeks] = useState("");
-  const [daysPerWeek, setDaysPerWeek] = useState("");
-  const [generateWithLlm, setGenerateWithLlm] = useState(false);
+  const [templateId, setTemplateId] = useState("");
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Computed block split preview
-  const blockPreview = useMemo(() => {
-    const weeks = Number(totalWeeks);
-    if (!weeks || weeks < 1) return null;
-
-    const { hypertrophyWeeks, strengthWeeks, peakingWeeks } = calculateBlockSplit(weeks);
-    return { totalWeeks: weeks, hypertrophyWeeks, strengthWeeks, peakingWeeks };
-  }, [totalWeeks]);
-
   const router = useRouter();
 
   useEffect(() => {
-    fetchExercises();
+    fetchData();
   }, []);
 
-  const fetchExercises = async () => {
+  const fetchData = async () => {
     try {
-      const response = await fetch("/modules/west/api/exercises");
-      if (!response.ok) throw new Error("Failed to fetch exercises");
-      const data = await response.json();
-      setExercises(data);
+      const templatesResponse = await fetch("/modules/west/api/program-templates");
+
+      if (templatesResponse.ok) {
+        const templateData = await templatesResponse.json();
+        setTemplates(templateData);
+      }
     } catch (error) {
-      console.error("Error fetching exercises:", error);
-      toast.error("Failed to load exercises");
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
     } finally {
       setIsLoading(false);
     }
@@ -61,26 +43,17 @@ export default function GeneratePowerliftingPage() {
 
   // Validation check for submit button
   const isFormValid =
-    squatExerciseId &&
-    benchExerciseId &&
-    deadliftExerciseId &&
-    Number(totalWeeks) >= 1 &&
-    Number(daysPerWeek) >= 1;
+    templateId;
 
   const handleSubmit = async () => {
     if (!isFormValid) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch("/modules/west/api/programs/generate-powerlifting", {
+      const response = await fetch("/modules/west/api/programs/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          squatExerciseId,
-          benchExerciseId,
-          deadliftExerciseId,
-          totalWeeks: Number(totalWeeks),
-          daysPerWeek: Number(daysPerWeek),
-          generateWithLlm: generateWithLlm,
+          templateId: templateId
         }),
       });
 
@@ -131,77 +104,7 @@ export default function GeneratePowerliftingPage() {
           </Button>
 
           {/* TITLE */}
-          <h1 className="text-page-title">Generate Powerlifting Program</h1>
-        </div>
-
-        {/* COMPETITION LIFTS CARD */}
-        <div className="card mb-6">
-
-          {/* HEADER */}
-          <div className="card-header">
-            <h2 className="text-card-title">Competition Lifts</h2>
-          </div>
-
-          {/* CARD CONTENT */}
-          <div className="card-content">
-
-            {/* SQUAT ROW */}
-            <div className="flex gap-4 items-end">
-
-              {/* SQUAT EXERCISE SELECT */}
-              <div className="flex-1">
-                <label className="text-secondary">Squat</label>
-                <select
-                  value={squatExerciseId}
-                  onChange={(e) => setSquatExerciseId(e.target.value)}
-                  className="input-field w-full"
-                >
-                  <option value="" disabled>Select exercise...</option>
-                  {exercises.map((ex) => (
-                    <option key={ex.id} value={ex.id}>{ex.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* BENCH ROW */}
-            <div className="flex gap-4 items-end">
-
-              {/* BENCH EXERCISE SELECT */}
-              <div className="flex-1">
-                <label className="text-secondary">Bench</label>
-                <select
-                  value={benchExerciseId}
-                  onChange={(e) => setBenchExerciseId(e.target.value)}
-                  className="input-field w-full"
-                >
-                  <option value="" disabled>Select exercise...</option>
-                  {exercises.map((ex) => (
-                    <option key={ex.id} value={ex.id}>{ex.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* DEADLIFT ROW */}
-            <div className="flex gap-4 items-end">
-
-              {/* DEADLIFT EXERCISE SELECT */}
-              <div className="flex-1">
-                <label className="text-secondary">Deadlift</label>
-                <select
-                  value={deadliftExerciseId}
-                  onChange={(e) => setDeadliftExerciseId(e.target.value)}
-                  className="input-field w-full"
-                >
-                  <option value="" disabled>Select exercise...</option>
-                  {exercises.map((ex) => (
-                    <option key={ex.id} value={ex.id}>{ex.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+          <h1 className="text-page-title">Generate Program</h1>
         </div>
 
         {/* SCHEDULE CARD */}
@@ -209,66 +112,25 @@ export default function GeneratePowerliftingPage() {
 
           {/* HEADER */}
           <div className="card-header">
-            <h2 className="text-card-title">Schedule</h2>
+            <h2 className="text-card-title">Program</h2>
           </div>
 
           {/* CARD CONTENT */}
           <div className="card-content">
 
-            {/* SCHEDULE ROW */}
-            <div className="flex gap-4 items-end">
-
-              {/* TOTAL WEEKS INPUT */}
-              <div className="flex-1">
-                <label className="text-secondary">Total Weeks</label>
-                <input
-                  type="number"
-                  value={totalWeeks}
-                  onChange={(e) => setTotalWeeks(e.target.value)}
-                  className="input-field w-full"
-                  min="1"
-                />
-              </div>
-
-              {/* DAYS PER WEEK INPUT */}
-              <div className="w-40">
-                <label className="text-secondary">Days / Week</label>
-                <input
-                  type="number"
-                  value={daysPerWeek}
-                  onChange={(e) => setDaysPerWeek(e.target.value)}
-                  className="input-field w-full"
-                  min="1"
-                />
-              </div>
-            </div>
-
-            {/* BLOCK PREVIEW */}
-            {blockPreview && (
-              <div className="mt-4">
-
-                {/* BLOCK SPLIT */}
-                <p className="text-secondary">
-                  <span className="font-medium">{blockPreview.totalWeeks} {blockPreview.totalWeeks === 1 ? "week" : "weeks"} total:</span>{" "}
-                  {[
-                    blockPreview.hypertrophyWeeks > 0 && `${blockPreview.hypertrophyWeeks}wk Hypertrophy`,
-                    blockPreview.strengthWeeks > 0 && `${blockPreview.strengthWeeks}wk Strength`,
-                    blockPreview.peakingWeeks > 0 && `${blockPreview.peakingWeeks}wk Peaking`,
-                  ].filter(Boolean).join(" → ")}
-                </p>
-              </div>
-            )}
-
-            {/* LLM FIRST WEEK CHECKBOX */}
-            <div className="flex items-center gap-2 mt-4">
-              <input
-                type="checkbox"
-                id="useAI"
-                checked={generateWithLlm}
-                onChange={(e) => setGenerateWithLlm(e.target.checked)}
-                className="checkbox"
-              />
-              <label htmlFor="useLlm" className="text-secondary cursor-pointer">Generate first week with AI</label>
+            {/* TEMPLATE SELECT */}
+            <div>
+              <label className="text-secondary">Template</label>
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className="input-field w-full"
+              >
+                <option value="">Select a program...</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

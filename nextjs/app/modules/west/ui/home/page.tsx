@@ -167,6 +167,13 @@ export default function WestHomePage() {
               <h2 className="text-card-title">Workout History</h2>
             </div>
           </Link>
+
+          {/* TEMPLATES CARD */}
+          <Link href="/modules/west/ui/templates">
+            <div className="module-card">
+              <h2 className="text-card-title">Program Templates</h2>
+            </div>
+          </Link>
         </div>
       </div>
     </div>
