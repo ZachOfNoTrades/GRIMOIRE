@@ -433,10 +433,13 @@ body {
   transition: all 200ms ease-in-out;
 }
 
-.sub-card:hover {
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  border-color: var(--input-border);
-  transform: translateY(-2px);
+/* Using @media fixes stuck hover state on mobile */
+@media (hover: hover) {
+  .sub-card:hover {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    border-color: var(--input-border);
+    transform: translateY(-2px);
+  }
 }
 
 .sub-card-muted {
@@ -591,18 +594,9 @@ body {
   animation: modal-card-in 250ms ease-out;
 }
 
-.modal-card-compact {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  padding: 1.5rem;
-  max-width: 450px;
-  max-height: 90vh;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  animation: modal-card-in 250ms ease-out;
+.modal-card-full {
+  height: 85vh;
+  max-height: none;
 }
 
 .modal-header {
@@ -627,10 +621,6 @@ body {
   .modal-body {
     padding: 1.5rem 0.5rem;
   }
-}
-
-.modal-body-compact {
-  padding: 0rem;
 }
 
 .modal-footer {
@@ -835,9 +825,11 @@ body {
   transition: all 150ms;
 }
 
-.popover-item:hover {
-  background: var(--hover-bg);
-  color: var(--hover-text);
+@media (hover: hover) {
+  .popover-item:hover {
+    background: var(--hover-bg);
+    color: var(--hover-text);
+  }
 }
 
 /* Indicator Bar */
@@ -1088,8 +1080,10 @@ body {
   color: var(--btn-link-text);
 }
 
-.btn-link:hover {
-  color: var(--btn-link-hover);
+@media (hover: hover) {
+  .btn-link:hover {
+    color: var(--btn-link-hover);
+  }
 }
 
 .btn.btn-link:disabled {

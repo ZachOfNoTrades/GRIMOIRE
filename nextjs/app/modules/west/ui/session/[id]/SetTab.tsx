@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Plus, StickyNote, X, Circle, CircleCheck, EllipsisVertical, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import SubModal from "@/components/SubModal";
+import Modal from "@/components/Modal";
 import { SegmentWithSets } from "../../../types/segment";
 import { generateUUID } from "../../../utils/id";
 
@@ -475,10 +475,11 @@ export default function SetTab({
       </div>
 
       {/* SET NOTES SUB-MODAL */}
-      <SubModal
+      <Modal
         isOpen={notesSetId !== null}
         onClose={handleCancelSetNotes}
         title="Set Notes"
+        zIndex={60}
         footer={
           <>
 
@@ -510,7 +511,7 @@ export default function SetTab({
           placeholder="Add notes for this set..."
           autoFocus
         />
-      </SubModal>
+      </Modal>
 
     </>
   );

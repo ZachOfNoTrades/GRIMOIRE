@@ -12,6 +12,8 @@ interface ModalProps {
     footer?: ReactNode;
     subHeader?: ReactNode;
     disableClose?: boolean;
+    fullHeight?: boolean;
+    zIndex?: number;
 }
 
 export default function Modal({
@@ -21,17 +23,21 @@ export default function Modal({
     children,
     footer,
     subHeader,
-    disableClose = false
+    disableClose = false,
+    fullHeight = false,
+    zIndex,
 }: ModalProps) {
 
     // Lock background scroll when modal is open
     useEffect(() => {
         if (!isOpen) return;
         document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
         return () => {
             // Only restore scroll if no other modals remain
             if (document.querySelectorAll('.modal-backdrop').length === 0) {
                 document.body.style.overflow = '';
+                document.documentElement.style.overflow = '';
             }
         };
     }, [isOpen]);
@@ -41,10 +47,10 @@ export default function Modal({
     return (
 
         // BACKDROP
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" style={zIndex ? { zIndex } : undefined}>
 
             {/* MODAL CARD */}
-            <div className="modal-card">
+            <div className={`modal-card${fullHeight ? ' modal-card-full' : ''}`}>
 
                 {/* MODAL HEADER */}
                 <div className="modal-header">

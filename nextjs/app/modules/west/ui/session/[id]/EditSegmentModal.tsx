@@ -209,6 +209,7 @@ export default function EditSegmentModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
+      fullHeight
       title={
         <span className="flex items-center gap-2">
           {editedSegment.exercise_name || "New Exercise"}

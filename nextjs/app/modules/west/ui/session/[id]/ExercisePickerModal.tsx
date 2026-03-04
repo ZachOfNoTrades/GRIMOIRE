@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import SubModal from "@/components/SubModal";
+import Modal from "@/components/Modal";
 import { ExerciseSummary } from "../../../types/exercise";
 
 interface ExercisePickerModalProps {
@@ -181,11 +181,13 @@ export default function ExercisePickerModal({
 
 
   return (
-    <SubModal
+    <Modal
       isOpen={isOpen}
       onClose={onClose}
       title="Select Exercise"
       disableClose={isSaving}
+      zIndex={60}
+      fullHeight
     >
       <div className="flex flex-col h-[80vh]">
 
@@ -302,6 +304,6 @@ export default function ExercisePickerModal({
           </div>
         )}
       </div>
-    </SubModal>
+    </Modal>
   );
 }
