@@ -188,6 +188,10 @@
   --color-border-default: var(--alert-default-border);
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--solid-background);
   color: var(--solid-foreground);
