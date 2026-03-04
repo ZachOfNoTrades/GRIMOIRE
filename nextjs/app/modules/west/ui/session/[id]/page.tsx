@@ -420,11 +420,21 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         updatedSegments = [...loggedSegments, editedSegment];
       }
 
-      // Strip empty uncompleted sets before saving
-      const filteredSegments = updatedSegments.map(ex => ({
-        ...ex,
-        sets: ex.sets.filter(s => s.is_completed || hasSetData(s)),
-      }));
+      // Strip trailing empty uncompleted sets before saving (preserve empty sets before completed ones)
+      const filteredSegments = updatedSegments.map(ex => {
+        const maxWarmupSetNumber = Math.max(0, ...ex.sets.filter(s => s.is_warmup && (s.is_completed || hasSetData(s))).map(s => s.set_number));
+        const maxWorkingSetNumber = Math.max(0, ...ex.sets.filter(s => !s.is_warmup && (s.is_completed || hasSetData(s))).map(s => s.set_number));
+
+        return {
+          ...ex,
+          sets: ex.sets.filter(s => {
+            if (s.is_completed || hasSetData(s)) return true;
+            // Keep empty uncompleted sets that precede a completed/data set in their group
+            const maxInGroup = s.is_warmup ? maxWarmupSetNumber : maxWorkingSetNumber;
+            return s.set_number <= maxInGroup;
+          }),
+        };
+      });
 
       const response = await fetch(`/modules/west/api/sessions/${id}/segments`, {
         method: "PUT",

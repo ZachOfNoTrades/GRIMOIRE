@@ -85,6 +85,13 @@ export default function SetTab({
     setEditedSegment({ ...editedSegment, sets: updatedSets });
   };
 
+  const handleSetFieldBlur = (setId: string) => {
+    const set = editedSegment.sets.find(s => s.id === setId);
+    if (set?.is_completed) {
+      onAutoSave(editedSegment);
+    }
+  };
+
   const handleAddSet = (isWarmup: boolean) => {
     const setsOfType = editedSegment.sets.filter((s) => s.is_warmup === isWarmup);
 
@@ -204,23 +211,35 @@ export default function SetTab({
   };
 
   // Advance focus on Enter: weight → reps → rpe → mark complete & close keyboard
+  // If the next field already has data, close keyboard instead of advancing
   const handleEnterAdvance = (e: React.KeyboardEvent<HTMLInputElement>, setId: string, field: SetField) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
 
+    const set = editedSegment.sets.find((s) => s.id === setId);
+    if (!set) return;
+
     if (field === SetField.Weight) {
-      document.getElementById(`${setId}-reps`)?.focus();
+      if (set.reps > 0) {
+        (e.target as HTMLInputElement).blur();
+      } else {
+        document.getElementById(`${setId}-reps`)?.focus();
+      }
     } else if (field === SetField.Reps) {
-      document.getElementById(`${setId}-rpe`)?.focus();
+      if (set.rpe !== null) {
+        (e.target as HTMLInputElement).blur();
+      } else {
+        document.getElementById(`${setId}-rpe`)?.focus();
+      }
     } else if (field === SetField.Rpe) {
       (e.target as HTMLInputElement).blur();
-      const set = editedSegment.sets.find((s) => s.id === setId);
-      if (!set || set.is_completed) return;
-      const targetSet = editedSegment.target?.sets.find(
-        (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
-      );
-      const hasData = set.weight > 0 || set.reps > 0 || set.rpe !== null;
-      if (hasData || targetSet) handleToggleSetCompleted(setId);
+      if (!set.is_completed) {
+        const targetSet = editedSegment.target?.sets.find(
+          (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
+        );
+        const hasData = set.weight > 0 || set.reps > 0 || set.rpe !== null;
+        if (hasData || targetSet) handleToggleSetCompleted(setId);
+      }
     }
   };
 
@@ -268,6 +287,7 @@ export default function SetTab({
             className="input-field input-field-compact text-center"
             placeholder={targetSet ? String(targetSet.weight) : "-"}
             onFocus={(e) => e.target.select()}
+            onBlur={() => handleSetFieldBlur(set.id)}
             onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
             step="0.5" // TODO add steps to schema for exercises
             min="0"
@@ -285,6 +305,7 @@ export default function SetTab({
             className="input-field input-field-compact text-center"
             placeholder={targetSet ? String(targetSet.reps) : "-"}
             onFocus={(e) => e.target.select()}
+            onBlur={() => handleSetFieldBlur(set.id)}
             onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Reps)}
             min="0"
           />
@@ -301,6 +322,7 @@ export default function SetTab({
             className="input-field input-field-compact text-center"
             placeholder={targetSet?.rpe != null ? String(targetSet.rpe) : "-"}
             onFocus={(e) => e.target.select()}
+            onBlur={() => handleSetFieldBlur(set.id)}
             onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Rpe)}
             step="0.5"
             min="5"
