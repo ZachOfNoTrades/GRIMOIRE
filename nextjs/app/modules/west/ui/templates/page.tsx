@@ -107,59 +107,61 @@ export default function TemplatesPage() {
           </div>
 
           {/* TABLE */}
-          {isLoading ? (
+          <div className="table-container min-h-[15rem] max-h-[calc(100vh-20rem)]">
+            <table className="table">
 
-            // LOADING PLACEHOLDER
-            <p className="text-page-subtitle text-center py-8">Loading templates...</p>
-          ) : (
+              {/* TABLE HEADERS */}
+              <thead className="table-header">
+                <tr className="table-header-row">
+                  <th className="table-header-cell">Name</th>
+                  <th className="table-header-cell">Description</th>
+                </tr>
+              </thead>
 
-            // CONTENT
-            <div className="table-container max-h-[calc(100vh-20rem)]">
-              <table className="table">
+              {/* TABLE ROWS */}
+              <tbody className="table-body">
 
-                {/* TABLE HEADERS */}
-                <thead className="table-header">
-                  <tr className="table-header-row">
-                    <th className="table-header-cell">Name</th>
-                    <th className="table-header-cell">Description</th>
+                {isLoading ? (
+
+                  // LOADING PLACEHOLDER
+                  <tr>
+                    <td colSpan={2} className="table-empty">
+                      <div className="loading-container">
+                        <div className="loading-spinner" />
+                      </div>
+                    </td>
                   </tr>
-                </thead>
+                ) : templates.length === 0 ? (
 
-                {/* TABLE ROWS */}
-                <tbody className="table-body">
+                  // NO RECORDS FOUND WARNING
+                  <tr>
+                    <td colSpan={2} className="table-empty">No templates found</td>
+                  </tr>
+                ) : filteredTemplates.length === 0 ? (
 
-                  {templates.length === 0 ? (
+                  // NO SEARCH RESULTS FOUND WARNING
+                  <tr>
+                    <td colSpan={2} className="table-empty">No templates match search criteria</td>
+                  </tr>
+                ) : (
 
-                    // NO RECORDS FOUND WARNING
-                    <tr>
-                      <td colSpan={2} className="table-empty">No templates found</td>
+                  // RECORDS MAP
+                  filteredTemplates.map((template) => (
+
+                    // TABLE ROW
+                    <tr
+                      key={template.id}
+                      className="table-row-clickable"
+                      onClick={() => router.push(`/modules/west/ui/templates/${template.id}`)}
+                    >
+                      <td className="table-cell">{template.name}</td>
+                      <td className="table-cell text-secondary">{template.description || "—"}</td>
                     </tr>
-                  ) : filteredTemplates.length === 0 ? (
-
-                    // NO SEARCH RESULTS FOUND WARNING
-                    <tr>
-                      <td colSpan={2} className="table-empty">No templates match search criteria</td>
-                    </tr>
-                  ) : (
-
-                    // RECORDS MAP
-                    filteredTemplates.map((template) => (
-
-                      // TABLE ROW
-                      <tr
-                        key={template.id}
-                        className="table-row-clickable"
-                        onClick={() => router.push(`/modules/west/ui/templates/${template.id}`)}
-                      >
-                        <td className="table-cell">{template.name}</td>
-                        <td className="table-cell text-secondary">{template.description || "—"}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
           {/* SUMMARY */}
           {!isLoading && templates.length > 0 && (

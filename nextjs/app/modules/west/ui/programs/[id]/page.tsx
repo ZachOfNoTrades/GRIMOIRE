@@ -66,7 +66,9 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
     // LOADING PLACEHOLDER
     <div className="page">
       <main className="page-container">
-        <p className="text-page-subtitle text-center py-8">Loading program...</p>
+        <div className="loading-container py-12">
+          <div className="loading-spinner" />
+        </div>
       </main>
     </div>
   );

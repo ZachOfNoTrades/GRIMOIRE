@@ -165,7 +165,9 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="page">
         <main className="page-container">
-          <p className="text-page-subtitle text-center py-8">Loading template...</p>
+          <div className="loading-container py-12">
+            <div className="loading-spinner" />
+          </div>
         </main>
       </div>
     );

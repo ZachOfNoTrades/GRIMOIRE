@@ -534,8 +534,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     return (
       <div className="page">
         <div className="page-container">
-          <div className="flex justify-center items-center py-12">
-            <div className="text-page-subtitle">Loading...</div>
+          <div className="loading-container py-12">
+            <div className="loading-spinner" />
           </div>
         </div>
       </div>

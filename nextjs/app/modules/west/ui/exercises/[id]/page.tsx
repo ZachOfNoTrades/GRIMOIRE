@@ -242,7 +242,9 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="page">
         <main className="page-container">
-          <p className="text-page-subtitle text-center py-8">Loading exercise...</p>
+          <div className="loading-container py-12">
+            <div className="loading-spinner" />
+          </div>
         </main>
       </div>
     );
@@ -529,7 +531,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                 // STATS TAB CONTENT
                 (() => {
                   if (isHistoryLoading) {
-                    return <p className="text-page-subtitle text-center py-4">Loading stats...</p>;
+                    return <div className="loading-container py-4"><div className="loading-spinner" /></div>;
                   }
 
                   // Compute stats from history
@@ -585,7 +587,9 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                 isHistoryLoading ? (
 
                   // LOADING PLACEHOLDER
-                  <p className="text-page-subtitle text-center py-4">Loading history...</p>
+                  <div className="loading-container py-4">
+                    <div className="loading-spinner" />
+                  </div>
                 ) : history.length === 0 ? (
 
                   // EMPTY PLACEHOLDER

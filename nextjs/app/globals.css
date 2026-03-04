@@ -1450,3 +1450,26 @@ body {
 .progress-bar-fill-red {
   background: linear-gradient(to right, var(--progress-bar-fill-red-start), var(--progress-bar-fill-red-end));
 }
+
+/* Loading Spinner */
+@keyframes spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--card-border);
+  border-top-color: var(--color-secondary);
+  border-radius: 9999px;
+  animation: spinner-spin 0.7s linear infinite;
+}
+
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 0;
+}

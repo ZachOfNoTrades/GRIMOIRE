@@ -131,57 +131,59 @@ export default function ExercisesPage() {
           </div>
 
           {/* TABLE */}
-          {isLoading ? (
+          <div className="table-container min-h-[15rem] max-h-[calc(100vh-28rem)]">
+            <table className="table">
 
-            // LOADING PLACEHOLDER
-            <p className="text-page-subtitle text-center py-8">Loading exercises...</p>
-          ) : (
+              {/* TABLE HEADERS */}
+              <thead className="table-header">
+                <tr className="table-header-row">
+                  <th className="table-header-cell">Exercise</th>
+                </tr>
+              </thead>
 
-            // CONTENT
-            <div className="table-container max-h-[calc(100vh-28rem)]">
-              <table className="table">
+              {/* TABLE ROWS */}
+              <tbody className="table-body">
 
-                {/* TABLE HEADERS */}
-                <thead className="table-header">
-                  <tr className="table-header-row">
-                    <th className="table-header-cell">Exercise</th>
+                {isLoading ? (
+
+                  // LOADING PLACEHOLDER
+                  <tr>
+                    <td className="table-empty">
+                      <div className="loading-container">
+                        <div className="loading-spinner" />
+                      </div>
+                    </td>
                   </tr>
-                </thead>
+                ) : exercises.length === 0 ? (
 
-                {/* TABLE ROWS */}
-                <tbody className="table-body">
+                  // NO RECORDS FOUND WARNING
+                  <tr>
+                    <td className="table-empty">No exercises found</td>
+                  </tr>
+                ) : filteredExercises.length === 0 ? (
 
-                  {exercises.length === 0 ? (
+                  // NO SEARCH RESULTS FOUND WARNING
+                  <tr>
+                    <td className="table-empty">No exercises match search criteria</td>
+                  </tr>
+                ) : (
 
-                    // NO RECORDS FOUND WARNING
-                    <tr>
-                      <td className="table-empty">No exercises found</td>
+                  // RECORDS MAP
+                  filteredExercises.map((exercise) => (
+
+                    // TABLE ROW
+                    <tr
+                      key={exercise.id}
+                      className="table-row-clickable"
+                      onClick={() => router.push(`/modules/west/ui/exercises/${exercise.id}`)}
+                    >
+                      <td className="table-cell">{exercise.name}</td>
                     </tr>
-                  ) : filteredExercises.length === 0 ? (
-
-                    // NO SEARCH RESULTS FOUND WARNING
-                    <tr>
-                      <td className="table-empty">No exercises match search criteria</td>
-                    </tr>
-                  ) : (
-
-                    // RECORDS MAP
-                    filteredExercises.map((exercise) => (
-
-                      // TABLE ROW
-                      <tr
-                        key={exercise.id}
-                        className="table-row-clickable"
-                        onClick={() => router.push(`/modules/west/ui/exercises/${exercise.id}`)}
-                      >
-                        <td className="table-cell">{exercise.name}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
           {/* SUMMARY */}
           {!isLoading && statusExercises.length > 0 && (

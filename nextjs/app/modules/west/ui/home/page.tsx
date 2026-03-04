@@ -129,11 +129,18 @@ export default function WestHomePage() {
             {/* HEADER */}
             <div className="card-header">
 
-              {/* PROGRAM NAME */}
-              <h2 className="text-card-title">
-                <Layers className="w-5 h-5" />
-                {currentProgram ? currentProgram.name : "Loading program..."}
-              </h2>
+              {/* TITLE */}
+              <div>
+                <h2 className="text-card-title">
+                  <Layers className="w-5 h-5" />
+                  Program
+                </h2>
+
+                {/* PROGRAM NAME */}
+                <p className="text-page-subtitle">
+                  {currentProgram ? currentProgram.name : "\u00A0"}
+                </p>
+              </div>
             </div>
 
             {/* CHART */}
@@ -141,7 +148,9 @@ export default function WestHomePage() {
               {isLoading ? (
 
                 // LOADING PLACEHOLDER
-                <p className="text-secondary text-center py-8">Loading...</p>
+                <div className="loading-container" style={{ height: 164 }}>
+                  <div className="loading-spinner" />
+                </div>
               ) : currentProgram && (
 
                 // CHART CONTENT

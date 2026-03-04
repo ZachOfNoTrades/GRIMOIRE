@@ -107,55 +107,57 @@ export default function HistoryPage() {
             </div>
 
             {/* TABLE */}
-            {isProgramsLoading ? (
+            <div className="table-container min-h-[15rem] max-h-[calc(100vh-28rem)]">
+              <table className="table">
 
-              // LOADING PLACEHOLDER
-              <p className="text-page-subtitle text-center py-8">Loading programs...</p>
-            ) : (
+                {/* TABLE HEADERS */}
+                <thead className="table-header">
+                  <tr className="table-header-row">
+                    <th className="table-header-cell !px-0"></th>
+                    <th className="table-header-cell">Name</th>
+                    <th className="table-header-cell">Date</th>
+                  </tr>
+                </thead>
 
-              // CONTENT
-              <div className="table-container max-h-[calc(100vh-28rem)]">
-                <table className="table">
+                {/* TABLE ROWS */}
+                <tbody className="table-body">
 
-                  {/* TABLE HEADERS */}
-                  <thead className="table-header">
-                    <tr className="table-header-row">
-                      <th className="table-header-cell !px-0"></th>
-                      <th className="table-header-cell">Name</th>
-                      <th className="table-header-cell">Date</th>
+                  {isProgramsLoading ? (
+
+                    // LOADING PLACEHOLDER
+                    <tr>
+                      <td colSpan={3} className="table-empty">
+                        <div className="loading-container">
+                          <div className="loading-spinner" />
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
+                  ) : programs.length === 0 ? (
 
-                  {/* TABLE ROWS */}
-                  <tbody className="table-body">
+                    // EMPTY PLACEHOLDER
+                    <tr>
+                      <td colSpan={3} className="table-empty">No programs found</td>
+                    </tr>
+                  ) : (
 
-                    {programs.length === 0 ? (
+                    // RECORDS MAP
+                    programs.map((program) => (
 
-                      // EMPTY PLACEHOLDER
-                      <tr>
-                        <td colSpan={3} className="table-empty">No programs found</td>
+                      // TABLE ROW
+                      <tr
+                        key={program.id}
+                        className="table-row-clickable"
+                        onClick={() => router.push(`/modules/west/ui/programs/${program.id}`)}
+                      >
+                        <td className="table-cell !pl-5 !pr-0 text-center">{program.is_current && <div className="dot-blue inline-block" />}</td>
+                        <td className="table-cell w-full truncate max-w-0">{program.name}</td>
+                        <td className="table-cell">{new Date(program.created_at).toISOString().slice(0, 7)}</td>
                       </tr>
-                    ) : (
-
-                      // RECORDS MAP
-                      programs.map((program) => (
-
-                        // TABLE ROW
-                        <tr
-                          key={program.id}
-                          className="table-row-clickable"
-                          onClick={() => router.push(`/modules/west/ui/programs/${program.id}`)}
-                        >
-                          <td className="table-cell !pl-5 !pr-0 text-center">{program.is_current && <div className="dot-blue inline-block" />}</td>
-                          <td className="table-cell w-full truncate max-w-0">{program.name}</td>
-                          <td className="table-cell">{new Date(program.created_at).toISOString().slice(0, 7)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* STANDALONE SESSIONS CARD */}
@@ -183,59 +185,61 @@ export default function HistoryPage() {
             </div>
 
             {/* TABLE */}
-            {isSessionsLoading ? (
+            <div className="table-container min-h-[15rem] max-h-[calc(100vh-28rem)]">
+              <table className="table">
 
-              // LOADING PLACEHOLDER
-              <p className="text-page-subtitle text-center py-8">Loading sessions...</p>
-            ) : (
+                {/* TABLE HEADERS */}
+                <thead className="table-header">
+                  <tr className="table-header-row">
+                    <th className="table-header-cell">Name</th>
+                    <th className="table-header-cell">Created</th>
+                  </tr>
+                </thead>
 
-              // CONTENT
-              <div className="table-container max-h-[calc(100vh-28rem)]">
-                <table className="table">
+                {/* TABLE ROWS */}
+                <tbody className="table-body">
 
-                  {/* TABLE HEADERS */}
-                  <thead className="table-header">
-                    <tr className="table-header-row">
-                      <th className="table-header-cell">Name</th>
-                      <th className="table-header-cell">Created</th>
+                  {isSessionsLoading ? (
+
+                    // LOADING PLACEHOLDER
+                    <tr>
+                      <td colSpan={2} className="table-empty">
+                        <div className="loading-container">
+                          <div className="loading-spinner" />
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
+                  ) : standaloneSessions.length === 0 ? (
 
-                  {/* TABLE ROWS */}
-                  <tbody className="table-body">
+                    // EMPTY PLACEHOLDER
+                    <tr>
+                      <td colSpan={2} className="table-empty">No standalone sessions found</td>
+                    </tr>
+                  ) : filteredSessions.length === 0 ? (
 
-                    {standaloneSessions.length === 0 ? (
+                    // NO SEARCH RESULTS PLACEHOLDER
+                    <tr>
+                      <td colSpan={2} className="table-empty">No sessions match search criteria</td>
+                    </tr>
+                  ) : (
 
-                      // EMPTY PLACEHOLDER
-                      <tr>
-                        <td colSpan={2} className="table-empty">No standalone sessions found</td>
+                    // RECORDS MAP
+                    filteredSessions.map((session) => (
+
+                      // TABLE ROW
+                      <tr
+                        key={session.id}
+                        className="table-row-clickable"
+                        onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
+                      >
+                        <td className="table-cell">{session.name}</td>
+                        <td className="table-cell">{formatDateTimeShort(session.created_at)}</td>
                       </tr>
-                    ) : filteredSessions.length === 0 ? (
-
-                      // NO SEARCH RESULTS PLACEHOLDER
-                      <tr>
-                        <td colSpan={2} className="table-empty">No sessions match search criteria</td>
-                      </tr>
-                    ) : (
-
-                      // RECORDS MAP
-                      filteredSessions.map((session) => (
-
-                        // TABLE ROW
-                        <tr
-                          key={session.id}
-                          className="table-row-clickable"
-                          onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
-                        >
-                          <td className="table-cell">{session.name}</td>
-                          <td className="table-cell">{formatDateTimeShort(session.created_at)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
             {/* SUMMARY */}
             {!isSessionsLoading && filteredSessions.length > 0 && (
