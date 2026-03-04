@@ -518,9 +518,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         return;
       }
 
-      const data = await response.json();
-      setLoggedSegments(data.exercises);
-      setTargetSegments(data.targets);
+      await fetchSegments();
       toast.success("Exercises generated");
     } catch (error) {
       toast.error("Failed to generate exercises");

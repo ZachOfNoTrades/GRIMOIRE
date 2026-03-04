@@ -347,6 +347,23 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
     await transaction.begin();
 
     try {
+      // Look up the session's program ID before deleting (NULL for standalone sessions)
+      const sessionLookup = await transaction.request()
+        .input('id', id)
+        .query(`
+          SELECT ws.id, b.program_id
+          FROM workout_sessions ws
+          LEFT JOIN weeks w ON ws.week_id = w.id
+          LEFT JOIN blocks b ON w.block_id = b.id
+          WHERE ws.id = @id
+        `);
+
+      if (sessionLookup.recordset.length === 0) {
+        throw new Error(`No workout session found for id: '${id}'`);
+      }
+
+      const programId: string | null = sessionLookup.recordset[0].program_id ?? null;
+
       // Delete sets for all segments in this session
       await transaction.request()
         .input('id', id)
@@ -382,14 +399,15 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
         `);
 
       // Delete the session
-      const result = await transaction.request()
+      await transaction.request()
         .input('id', id)
         .query(`
           DELETE FROM workout_sessions WHERE id = @id
         `);
 
-      if (result.rowsAffected[0] === 0) {
-        throw new Error(`No workout session found for id: '${id}'`);
+      // Advance the current pointer to the next incomplete session (program sessions only)
+      if (programId) {
+        await advanceProgramCurrent(transaction, programId);
       }
 
       await transaction.commit();

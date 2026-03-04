@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
 import { generateSessionTargetsWithLlm } from '../../../../lib/llmFunctions';
-import { createGeneratedTargets, getSegmentsAndTargets } from '../../../../lib/segmentFunctions';
+import { createGeneratedTargets } from '../../../../lib/segmentFunctions';
 import { getProgramTemplateById } from '../../../../lib/programTemplateFunctions';
 
 export async function POST(
@@ -37,10 +37,7 @@ export async function POST(
 
     await createGeneratedTargets(id, targetExercises);
 
-    // Get newly created session segments and targets
-    const { exercises: updatedSegments, targets } = await getSegmentsAndTargets(id);
-
-    return NextResponse.json({ exercises: updatedSegments, targets }, { status: 201 });
+    return NextResponse.json({ success: true }, { status: 201 });
 
   } catch (error: any) {
     // Handle 404 from getWorkoutSessionById
