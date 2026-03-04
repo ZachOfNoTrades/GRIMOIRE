@@ -223,9 +223,25 @@ export default function SetTab({
     setEditedSetNotes("");
   };
 
-  // Dismiss mobile keyboard on Enter
-  const handleEnterBlur = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+  // Advance focus on Enter: weight → reps → rpe → mark complete & close keyboard
+  const handleEnterAdvance = (e: React.KeyboardEvent<HTMLInputElement>, setId: string, field: SetField) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+
+    if (field === SetField.Weight) {
+      document.getElementById(`${setId}-reps`)?.focus();
+    } else if (field === SetField.Reps) {
+      document.getElementById(`${setId}-rpe`)?.focus();
+    } else if (field === SetField.Rpe) {
+      (e.target as HTMLInputElement).blur();
+      const set = editedSegment.sets.find((s) => s.id === setId);
+      if (!set || set.is_completed) return;
+      const targetSet = editedSegment.target?.sets.find(
+        (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
+      );
+      const hasData = set.weight > 0 || set.reps > 0 || set.rpe !== null;
+      if (hasData || targetSet) handleToggleSetCompleted(setId);
+    }
   };
 
   // Create and build JSX for a set row
@@ -265,13 +281,14 @@ export default function SetTab({
         <div className="flex flex-col flex-1 min-w-15">
           <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Weight</label>
           <input
+            id={`${set.id}-weight`}
             type="number"
             value={set.weight || ""}
             onChange={(e) => handleSetFieldChange(set.id, SetField.Weight, e.target.value)}
             className="input-field input-field-compact text-center"
             placeholder={targetSet ? String(targetSet.weight) : "-"}
             onFocus={(e) => e.target.select()}
-            onKeyDown={handleEnterBlur}
+            onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
             step="0.5" // TODO add steps to schema for exercises
             min="0"
           />
@@ -281,13 +298,14 @@ export default function SetTab({
         <div className="flex flex-col flex-1 min-w-15">
           <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Reps</label>
           <input
+            id={`${set.id}-reps`}
             type="number"
             value={set.reps || ""}
             onChange={(e) => handleSetFieldChange(set.id, SetField.Reps, e.target.value)}
             className="input-field input-field-compact text-center"
             placeholder={targetSet ? String(targetSet.reps) : "-"}
             onFocus={(e) => e.target.select()}
-            onKeyDown={handleEnterBlur}
+            onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Reps)}
             min="0"
           />
         </div>
@@ -296,13 +314,14 @@ export default function SetTab({
         <div className="flex flex-col flex-1 min-w-15">
           <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>RPE</label>
           <input
+            id={`${set.id}-rpe`}
             type="number"
             value={set.rpe ?? ""}
             onChange={(e) => handleSetFieldChange(set.id, SetField.Rpe, e.target.value)}
             className="input-field input-field-compact text-center"
             placeholder={targetSet?.rpe != null ? String(targetSet.rpe) : "-"}
             onFocus={(e) => e.target.select()}
-            onKeyDown={handleEnterBlur}
+            onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Rpe)}
             step="0.5"
             min="5"
             max="10"
@@ -387,9 +406,7 @@ export default function SetTab({
       </div>
 
       {/* SETS */}
-      <div>
-        <label className="text-h2">Sets</label>
-
+      <div className="mt-4">
         <div className="space-y-4">
 
           {/* WARMUP SETS SECTION */}
@@ -438,14 +455,8 @@ export default function SetTab({
           {!isWarmupSegment && (
             <>
 
-              {/* SECTION DIVIDER */}
-              <div className="border-t" />
-
               {/* WORKING SETS */}
               <div className="space-y-4 flex flex-col">
-
-                {/* SECTION LABEL */}
-                <label className="text-h3">Working</label>
 
                 {/* WORKING SET ROWS */}
                 {workingSets.map((set, index) => renderSetRow(set, index === 0, index === workingSets.length - 1))}

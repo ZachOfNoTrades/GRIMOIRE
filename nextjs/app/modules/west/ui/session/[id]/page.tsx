@@ -41,6 +41,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isGenerating, setIsGenerating] = useState(false);
   const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
   const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
+  const isSavingRef = useRef(false);
+  const pendingSaveRef = useRef<SegmentWithSets | null>(null);
 
   // DERIVED
   const timerStart = session?.resumed_at ?? session?.started_at ?? null;
@@ -394,6 +396,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     // Store latest segment for optimistic update on modal close
     lastSavedSegmentRef.current = editedSegment;
 
+    // If a save is in progress, hold the latest state and save it once the current request completes.
+    // Only the most recent state is kept — intermediate changes are discarded since only the final state matters.
+    if (isSavingRef.current) {
+      pendingSaveRef.current = editedSegment;
+      return;
+    }
+
+    isSavingRef.current = true;
+
     try {
       // Check if segment already exists in the list
       const existingIndex = loggedSegments.findIndex(ex => ex.id === editedSegment.id);
@@ -428,6 +439,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     } catch (error) {
       toast.error("Failed to save");
       console.error("Error saving segment:", error);
+    } finally {
+      isSavingRef.current = false;
+
+      // If a newer state came in while saving, send it now
+      const pending = pendingSaveRef.current;
+      if (pending) {
+        pendingSaveRef.current = null;
+        handleSaveSegment(pending);
+      }
     }
   };
 
@@ -525,7 +545,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   return (
 
     // BACKGROUND
-    <div className="page">
+    <div className="page pb-16">
 
       <Toaster />
 
@@ -747,18 +767,29 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     {/* SESSION NOTES */}
                     <div>
                       <label className="text-secondary">Notes</label>
-                      <input
-                        type="text"
+                      <textarea
                         value={editedSessionNotes}
-                        onChange={(e) => setEditedSessionNotes(e.target.value)}
+                        onChange={(e) => {
+                          setEditedSessionNotes(e.target.value);
+                          const el = e.target;
+                          el.style.height = "auto";
+                          el.style.height = el.scrollHeight + "px";
+                        }}
                         onBlur={(e) => {
                           const trimmed = e.target.value.trim() || null;
                           if (trimmed !== (session.notes || null)) {
                             updateSessionStatus({ notes: trimmed });
                           }
                         }}
-                        className="input-field"
+                        className="input-field resize-none overflow-hidden"
                         placeholder="Session notes..."
+                        rows={1}
+                        ref={(el) => {
+                          if (el) {
+                            el.style.height = "auto";
+                            el.style.height = el.scrollHeight + "px";
+                          }
+                        }}
                       />
                     </div>
                   </>
@@ -853,9 +884,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                             {/* SEGMENT NOTES */}
                             {segment.notes && (
-                              <div className="text-secondary flex items-center gap-1">
-                                <StickyNote className="w-3 h-3" />
-                                <span>{segment.notes}</span>
+                              <div className="text-secondary flex items-start gap-1">
+                                <StickyNote className="w-3 h-3 shrink-0 mt-1" />
+                                <span className="break-all">{segment.notes}</span>
                               </div>
                             )}
 
@@ -995,9 +1026,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                     {/* SEGMENT NOTES */}
                     {segment.notes && (
-                      <div className="text-secondary flex items-center gap-1">
-                        <StickyNote className="w-3 h-3" />
-                        <span>{segment.notes}</span>
+                      <div className="text-secondary flex items-start gap-1">
+                        <StickyNote className="w-3 h-3 shrink-0 mt-1" />
+                        <span className="break-all">{segment.notes}</span>
                       </div>
                     )}
 
@@ -1032,7 +1063,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                               <p key={set.id} className={!set.is_completed ? 'text-secondary' : ''}>
                                 <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
                                 {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                                {targetDiffers && !set.is_completed && <span className="text-secondary"> · {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
+                                {targetDiffers && !set.is_completed && set.weight === 0 && set.reps === 0 && <span className="text-secondary"> · {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
                                 {set.notes && <span className="text-secondary"> - {set.notes}</span>}
                               </p>
                             );
