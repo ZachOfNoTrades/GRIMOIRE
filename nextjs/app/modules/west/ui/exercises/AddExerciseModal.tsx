@@ -19,6 +19,7 @@ export default function AddExerciseModal({
   // INPUT
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("Strength");
 
   // STATE
   const [isSaving, setIsSaving] = useState(false);
@@ -29,6 +30,7 @@ export default function AddExerciseModal({
     if (isOpen) {
       setName("");
       setDescription("");
+      setCategory("Strength");
       setError(null);
     }
   }, [isOpen]);
@@ -49,6 +51,7 @@ export default function AddExerciseModal({
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
+          category,
         }),
       });
 
@@ -122,6 +125,20 @@ export default function AddExerciseModal({
           className="input-field min-h-[80px] resize-y"
           rows={3}
         />
+      </div>
+
+      {/* CATEGORY SELECT */}
+      <div className="flex flex-col gap-1">
+        <label className="text-label">Category</label>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="input-field"
+        >
+          <option value="Strength">Strength</option>
+          <option value="Cardio">Cardio</option>
+          <option value="Mobility">Mobility</option>
+        </select>
       </div>
 
       {/* ERROR MESSAGE */}

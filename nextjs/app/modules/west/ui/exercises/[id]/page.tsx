@@ -23,6 +23,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   // INPUT
   const [editedName, setEditedName] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
+  const [editedCategory, setEditedCategory] = useState("Strength");
   const [editedMuscleGroups, setEditedMuscleGroups] = useState<Array<{ muscleGroupId: string; isPrimary: boolean }>>([]);
 
   // STATE
@@ -129,6 +130,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     if (!exercise) return;
     setEditedName(exercise.name);
     setEditedDescription(exercise.description || "");
+    setEditedCategory(exercise.category);
     setEditedMuscleGroups(
       exercise.muscleGroups.map((mg) => ({
         muscleGroupId: mg.muscle_group_id,
@@ -142,6 +144,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     setIsEditing(false);
     setEditedName("");
     setEditedDescription("");
+    setEditedCategory("Strength");
     setEditedMuscleGroups([]);
   };
 
@@ -160,6 +163,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
         body: JSON.stringify({
           name: editedName.trim(),
           description: editedDescription.trim() || null,
+          category: editedCategory,
           muscleGroups: editedMuscleGroups,
         }),
       });
@@ -384,6 +388,20 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     />
                   </div>
 
+                  {/* CATEGORY SELECT */}
+                  <div>
+                    <label className="text-secondary">Category</label>
+                    <select
+                      value={editedCategory}
+                      onChange={(e) => setEditedCategory(e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="Strength">Strength</option>
+                      <option value="Cardio">Cardio</option>
+                      <option value="Mobility">Mobility</option>
+                    </select>
+                  </div>
+
                   {/* MUSCLE GROUPS TABLE */}
                   <div>
                     <label className="text-secondary">Muscle Groups</label>
@@ -461,6 +479,12 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                   <div>
                     <label className="text-secondary">Description</label>
                     <p className="text-primary">{exercise.description || "—"}</p>
+                  </div>
+
+                  {/* CATEGORY */}
+                  <div>
+                    <label className="text-secondary">Category</label>
+                    <p className="text-primary">{exercise.category}</p>
                   </div>
 
                   {/* MUSCLE GROUPS */}

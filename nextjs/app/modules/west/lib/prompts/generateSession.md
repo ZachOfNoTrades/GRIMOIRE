@@ -14,6 +14,7 @@ rpe: number | null; // Rate of perceived exertion 1-10, or null
 
 interface TargetExercise {
 exercise_id: string; // MUST be a valid UUID from the exercises table
+modifier_id: string | null; // Optional UUID from exercise_modifiers table (e.g., Pause, Tempo, Deficit)
 order_index: number; // Sequential starting at 1, tracked independently per warmup/working group
 is_warmup: boolean; // true for warmup/mobility exercises (stretches, dynamic warmups), false for working exercises
 sets: TargetSet[];

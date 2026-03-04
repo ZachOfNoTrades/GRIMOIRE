@@ -4,14 +4,15 @@ Use this schema to write SELECT queries against the workout tracking database.
 
 ### exercises
 
-| Column      | Type                  | Notes                    |
-| ----------- | --------------------- | ------------------------ |
-| id          | UNIQUEIDENTIFIER (PK) |                          |
-| name        | NVARCHAR(255)         | Unique                   |
-| description | NVARCHAR(MAX)         |                          |
-| is_disabled | BIT                   | 0 = active, 1 = disabled |
-| created_at  | DATETIME2             |                          |
-| modified_at | DATETIME2             |                          |
+| Column      | Type                  | Notes                               |
+| ----------- | --------------------- | ----------------------------------- |
+| id          | UNIQUEIDENTIFIER (PK) |                                     |
+| name        | NVARCHAR(255)         | Unique                              |
+| description | NVARCHAR(MAX)         |                                     |
+| category    | NVARCHAR(50)          | 'Strength', 'Cardio', or 'Mobility' |
+| is_disabled | BIT                   | 0 = active, 1 = disabled            |
+| created_at  | DATETIME2             |                                     |
+| modified_at | DATETIME2             |                                     |
 
 ### muscle_groups
 
@@ -36,6 +37,17 @@ Links exercises to muscle groups (many-to-many).
 | modified_at     | DATETIME2                             |                                  |
 
 Unique constraint on (exercise_id, muscle_group_id).
+
+### exercise_modifiers
+
+Optional modifiers that can be applied to exercises at the segment level (e.g., "Pause", "Tempo", "Deficit").
+
+| Column      | Type                  | Notes  |
+| ----------- | --------------------- | ------ |
+| id          | UNIQUEIDENTIFIER (PK) |        |
+| name        | NVARCHAR(100)         | Unique |
+| created_at  | DATETIME2             |        |
+| modified_at | DATETIME2             |        |
 
 ### program_templates
 
@@ -119,14 +131,16 @@ A block is a training phase within a program (e.g., Hypertrophy, Peaking, Deload
 
 Prescribed exercises for a session (the plan before execution).
 
-| Column      | Type                                     | Notes                             |
-| ----------- | ---------------------------------------- | --------------------------------- |
-| id          | UNIQUEIDENTIFIER (PK)                    |                                   |
-| session_id  | UNIQUEIDENTIFIER (FK → workout_sessions) |                                   |
-| exercise_id | UNIQUEIDENTIFIER (FK → exercises)        |                                   |
-| order_index | INT                                      | Exercise order within the session |
-| created_at  | DATETIME2                                |                                   |
-| modified_at | DATETIME2                                |                                   |
+| Column      | Type                                       | Notes                                               |
+| ----------- | ------------------------------------------ | --------------------------------------------------- |
+| id          | UNIQUEIDENTIFIER (PK)                      |                                                     |
+| session_id  | UNIQUEIDENTIFIER (FK → workout_sessions)   |                                                     |
+| exercise_id | UNIQUEIDENTIFIER (FK → exercises)          |                                                     |
+| modifier_id | UNIQUEIDENTIFIER (FK → exercise_modifiers) | Nullable; optional modifier applied to the exercise |
+| order_index | INT                                        | Exercise order within the session                   |
+| is_warmup   | BIT                                        | 1 = warmup/mobility exercise, 0 = working exercise  |
+| created_at  | DATETIME2                                  |                                                     |
+| modified_at | DATETIME2                                  |                                                     |
 
 ### target_session_segment_sets
 
@@ -148,16 +162,18 @@ Prescribed sets within a target segment.
 
 Actual performed exercises (what the user did).
 
-| Column      | Type                                            | Notes                                    |
-| ----------- | ----------------------------------------------- | ---------------------------------------- |
-| id          | UNIQUEIDENTIFIER (PK)                           |                                          |
-| session_id  | UNIQUEIDENTIFIER (FK → workout_sessions)        |                                          |
-| exercise_id | UNIQUEIDENTIFIER (FK → exercises)               |                                          |
-| target_id   | UNIQUEIDENTIFIER (FK → target_session_segments) | Nullable; links to the prescribed target |
-| order_index | INT                                             |                                          |
-| notes       | NVARCHAR(MAX)                                   |                                          |
-| created_at  | DATETIME2                                       |                                          |
-| modified_at | DATETIME2                                       |                                          |
+| Column      | Type                                            | Notes                                               |
+| ----------- | ----------------------------------------------- | --------------------------------------------------- |
+| id          | UNIQUEIDENTIFIER (PK)                           |                                                     |
+| session_id  | UNIQUEIDENTIFIER (FK → workout_sessions)        |                                                     |
+| exercise_id | UNIQUEIDENTIFIER (FK → exercises)               |                                                     |
+| target_id   | UNIQUEIDENTIFIER (FK → target_session_segments) | Nullable; links to the prescribed target            |
+| modifier_id | UNIQUEIDENTIFIER (FK → exercise_modifiers)      | Nullable; optional modifier applied to the exercise |
+| order_index | INT                                             |                                                     |
+| is_warmup   | BIT                                             | 1 = warmup/mobility exercise, 0 = working exercise  |
+| notes       | NVARCHAR(MAX)                                   |                                                     |
+| created_at  | DATETIME2                                       |                                                     |
+| modified_at | DATETIME2                                       |                                                     |
 
 ### session_segment_sets
 

@@ -37,7 +37,7 @@ export async function PUT(
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const { name, description, muscleGroups } = body;
+    const { name, description, category, muscleGroups } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -46,7 +46,14 @@ export async function PUT(
       );
     }
 
-    await updateExercise(id, name.trim(), description?.trim() || null);
+    if (!category) {
+      return NextResponse.json(
+        { error: 'Exercise category is required' },
+        { status: 400 }
+      );
+    }
+
+    await updateExercise(id, name.trim(), description?.trim() || null, category);
 
     // Update muscle groups if provided
     if (muscleGroups !== undefined) {

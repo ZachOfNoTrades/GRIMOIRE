@@ -16,7 +16,11 @@ The tool returns JSON: `{ success: true, rowCount: N, data: [...] }` or `{ succe
 
 ### Exercises
 
-The `exercises` table is the authoritative source of valid exercise IDs. Query it to discover available exercises — you can filter by name, muscle group, etc. Do NOT invent exercise IDs.
+The `exercises` table is the authoritative source of valid exercise IDs. Query it to discover available exercises — you can filter by name, muscle group, category, etc. Do NOT invent exercise IDs.
+
+### Exercise Modifiers
+
+The `exercise_modifiers` table contains optional modifiers (e.g., "Pause", "Tempo", "Deficit") that can be applied to exercises at the segment level. Query it when a modifier is needed. Do NOT invent modifier IDs.
 
 ### Database Schema
 

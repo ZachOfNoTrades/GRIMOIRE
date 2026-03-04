@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   try {
 
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, category } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const exercise = await createExercise(name.trim(), description?.trim() || null);
+    const exercise = await createExercise(name.trim(), description?.trim() || null, category || 'Strength');
     return NextResponse.json(exercise, { status: 201 });
 
   } catch (error: any) {

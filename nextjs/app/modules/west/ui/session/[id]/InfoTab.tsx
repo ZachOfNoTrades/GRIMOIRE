@@ -38,6 +38,12 @@ export default function InfoTab({ exercise, loading }: InfoTabProps) {
         <label className="text-h2">{exercise.name}</label>
       </div>
 
+      {/* CATEGORY */}
+      <div>
+        <label className="text-secondary">Category</label>
+        <p>{exercise.category}</p>
+      </div>
+
       {/* DESCRIPTION */}
       {exercise.description && (
         <div>

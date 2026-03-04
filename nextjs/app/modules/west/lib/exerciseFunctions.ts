@@ -74,7 +74,7 @@ export async function createExercise(name: string, description: string | null, c
   }
 }
 
-export async function updateExercise(id: string, name: string, description: string | null): Promise<Exercise> {
+export async function updateExercise(id: string, name: string, description: string | null, category: string): Promise<Exercise> {
   let pool;
   try {
     pool = await getWestConnection();
@@ -82,9 +82,10 @@ export async function updateExercise(id: string, name: string, description: stri
       .input('id', id)
       .input('name', name)
       .input('description', description)
+      .input('category', category)
       .query(`
         UPDATE exercises
-        SET name = @name, description = @description, modified_at = GETDATE()
+        SET name = @name, description = @description, category = @category, modified_at = GETDATE()
         OUTPUT INSERTED.*
         WHERE id = @id
       `);
