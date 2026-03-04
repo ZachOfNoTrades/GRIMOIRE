@@ -6,7 +6,7 @@ export async function getAllWorkoutSessions(): Promise<WorkoutSession[]> {
   try {
     pool = await getWestConnection();
     const result = await pool.request().query(`
-      SELECT * FROM workout_sessions ORDER BY started_at DESC
+      SELECT * FROM workout_sessions ORDER BY created_at DESC
     `);
 
     if (result.recordset.length === 0) {

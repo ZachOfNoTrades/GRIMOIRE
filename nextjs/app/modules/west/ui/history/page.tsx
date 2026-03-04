@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, History, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../types/workoutSession";
-import { ProgramSummary, getStatusLabel, getStatusBadge } from "../../types/program";
-import { formatDateShortWithYear } from "../../utils/format";
+import { ProgramSummary } from "../../types/program";
+import { formatDateTimeShort } from "../../utils/format";
 
 export default function HistoryPage() {
 
@@ -114,14 +114,15 @@ export default function HistoryPage() {
             ) : (
 
               // CONTENT
-              <div className="table-container">
+              <div className="table-container max-h-[calc(100vh-28rem)]">
                 <table className="table">
 
                   {/* TABLE HEADERS */}
                   <thead className="table-header">
                     <tr className="table-header-row">
+                      <th className="table-header-cell !px-0"></th>
                       <th className="table-header-cell">Name</th>
-                      <th className="table-header-cell">Status</th>
+                      <th className="table-header-cell">Date</th>
                     </tr>
                   </thead>
 
@@ -132,7 +133,7 @@ export default function HistoryPage() {
 
                       // EMPTY PLACEHOLDER
                       <tr>
-                        <td colSpan={2} className="table-empty">No programs found</td>
+                        <td colSpan={3} className="table-empty">No programs found</td>
                       </tr>
                     ) : (
 
@@ -145,12 +146,9 @@ export default function HistoryPage() {
                           className="table-row-clickable"
                           onClick={() => router.push(`/modules/west/ui/programs/${program.id}`)}
                         >
-                          <td className="table-cell">{program.name}</td>
-                          <td className="table-cell">
-                            <span className={getStatusBadge(program.is_current, program.is_completed)}>
-                              {getStatusLabel(program.is_current, program.is_completed)}
-                            </span>
-                          </td>
+                          <td className="table-cell !pl-5 !pr-0 text-center">{program.is_current && <div className="dot-blue inline-block" />}</td>
+                          <td className="table-cell w-full truncate max-w-0">{program.name}</td>
+                          <td className="table-cell">{new Date(program.created_at).toISOString().slice(0, 7)}</td>
                         </tr>
                       ))
                     )}
@@ -199,7 +197,7 @@ export default function HistoryPage() {
                   <thead className="table-header">
                     <tr className="table-header-row">
                       <th className="table-header-cell">Name</th>
-                      <th className="table-header-cell">Date</th>
+                      <th className="table-header-cell">Created</th>
                     </tr>
                   </thead>
 
@@ -230,7 +228,7 @@ export default function HistoryPage() {
                           onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
                         >
                           <td className="table-cell">{session.name}</td>
-                          <td className="table-cell">{session.started_at ? formatDateShortWithYear(session.started_at) : "—"}</td>
+                          <td className="table-cell">{formatDateTimeShort(session.created_at)}</td>
                         </tr>
                       ))
                     )}

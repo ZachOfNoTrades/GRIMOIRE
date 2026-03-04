@@ -48,3 +48,26 @@ export function formatDateShortWithYear(date: Date): string {
     day: "numeric",
   });
 }
+
+// "Thu, Feb 26, 2026, 3:45:12 PM"
+export function formatTimestamp(date: Date): string {
+  return new Date(date).toLocaleString("en-US", {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+// "2026-03-03 3:45 PM"
+export function formatDateTimeShort(date: Date): string {
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${yyyy}-${mm}-${dd} ${time}`;
+}
