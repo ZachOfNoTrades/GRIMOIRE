@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useRef, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
@@ -36,11 +36,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
   const [segmentModalData, setSegmentModalData] = useState<SegmentWithSets | null>(null);
-  const [isSavingSegment, setIsSavingSegment] = useState(false);
   const [isDeletingSegment, setIsDeletingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
+  const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
 
   // DERIVED
   const timerStart = session?.resumed_at ?? session?.started_at ?? null;
@@ -66,6 +66,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     fetchSessionData();
     fetchExercises();
   }, [id]);
+
+  // Sync session notes state
+  useEffect(() => {
+    if (session) setEditedSessionNotes(session.notes || "");
+  }, [session]);
 
   // Initialize edit mode for new sessions
   useEffect(() => {
@@ -128,7 +133,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const handleStartEditSession = () => {
     if (!session) return;
     setEditedSessionName(session.name);
-    setEditedSessionNotes(session.notes || "");
     if (session.started_at) {
       setEditedStartDate(new Date(session.started_at).toISOString().split("T")[0]);
     }
@@ -141,7 +145,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const handleCancelEditSession = () => {
     setIsEditingSession(false);
     setEditedSessionName("");
-    setEditedSessionNotes("");
     setEditedStartDate("");
     setEditedDuration("");
   };
@@ -174,7 +177,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: editedSessionName.trim(),
-          notes: editedSessionNotes.trim() || null,
+          notes: session.notes,
           started_at: updatedStartedAt,
           resumed_at: session.resumed_at,
           duration: updatedDuration,
@@ -388,7 +391,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleSaveSegment = async (editedSegment: SegmentWithSets) => {
-    setIsSavingSegment(true);
+    // Store latest segment for optimistic update on modal close
+    lastSavedSegmentRef.current = editedSegment;
+
     try {
       // Check if segment already exists in the list
       const existingIndex = loggedSegments.findIndex(ex => ex.id === editedSegment.id);
@@ -418,20 +423,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
       if (!response.ok) {
         const errorData = await response.json();
-        toast.error(errorData.error || "Failed to save exercise");
-        return;
+        toast.error(errorData.error || "Failed to save");
       }
-
-      const data = await response.json();
-      setLoggedSegments(data.exercises);
-      setTargetSegments(data.targets);
-      setIsSegmentModalOpen(false);
-      toast.success("Exercise saved");
     } catch (error) {
-      toast.error("Failed to save exercise");
+      toast.error("Failed to save");
       console.error("Error saving segment:", error);
-    } finally {
-      setIsSavingSegment(false);
     }
   };
 
@@ -711,17 +707,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       </div>
                     )}
 
-                    {/* NOTES INPUT */}
-                    <div>
-                      <label className="text-secondary">Notes</label>
-                      <input
-                        type="text"
-                        value={editedSessionNotes}
-                        onChange={(e) => setEditedSessionNotes(e.target.value)}
-                        className="input-field"
-                        placeholder="Session notes..."
-                      />
-                    </div>
                   </>
                 ) : (
                   <>
@@ -760,12 +745,22 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     </div>
 
                     {/* SESSION NOTES */}
-                    {session.notes && (
-                      <div>
-                        <label className="text-secondary">Notes</label>
-                        <p className="text-primary">{session.notes}</p>
-                      </div>
-                    )}
+                    <div>
+                      <label className="text-secondary">Notes</label>
+                      <input
+                        type="text"
+                        value={editedSessionNotes}
+                        onChange={(e) => setEditedSessionNotes(e.target.value)}
+                        onBlur={(e) => {
+                          const trimmed = e.target.value.trim() || null;
+                          if (trimmed !== (session.notes || null)) {
+                            updateSessionStatus({ notes: trimmed });
+                          }
+                        }}
+                        className="input-field"
+                        placeholder="Session notes..."
+                      />
+                    </div>
                   </>
                 )}
               </div>
@@ -1156,13 +1151,29 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       {/* EDIT SEGMENT MODAL */}
       <EditSegmentModal
         isOpen={isSegmentModalOpen}
-        onClose={() => setIsSegmentModalOpen(false)}
+        onClose={() => {
+          setIsSegmentModalOpen(false);
+          const saved = lastSavedSegmentRef.current;
+          if (saved) {
+            // Apply last auto-saved segment to local state (avoids re-fetch delay)
+            setLoggedSegments((prev) => {
+              const exists = prev.some((s) => s.id === saved.id);
+              if (exists) {
+                return prev.map((s) => s.id === saved.id ? saved : s);
+              }
+              return [...prev, saved];
+            });
+            lastSavedSegmentRef.current = null;
+          }
+          // Silent background refresh from DB
+          fetchSegments();
+        }}
         onSave={handleSaveSegment}
         onRemove={handleDeleteSegment}
         segment={segmentModalData}
         exercises={exercises}
-        isSaving={isSavingSegment}
         isDeleting={isDeletingSegment}
+        onExerciseCreated={(exercise) => setExercises((prev) => [...prev, exercise].sort((a, b) => a.name.localeCompare(b.name)))}
       />
     </div>
   );

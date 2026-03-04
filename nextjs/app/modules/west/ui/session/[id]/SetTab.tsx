@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, StickyNote, X, Circle, CircleCheck, EllipsisVertical } from "lucide-react";
+import { Plus, StickyNote, X, Circle, CircleCheck, EllipsisVertical, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SubModal from "@/components/SubModal";
+import ExercisePickerModal from "./ExercisePickerModal";
 import { SegmentWithSets } from "../../../types/segment";
 import { Exercise } from "../../../types/exercise";
 import { generateUUID } from "../../../utils/id";
@@ -20,6 +21,8 @@ interface SetTabProps {
   setEditedSegment: (segment: SegmentWithSets) => void;
   exercises: Exercise[];
   isWarmupSegment: boolean;
+  onAutoSave: (segment: SegmentWithSets) => void;
+  onExerciseCreated: (exercise: Exercise) => void;
 }
 
 export default function SetTab({
@@ -27,6 +30,8 @@ export default function SetTab({
   setEditedSegment,
   exercises,
   isWarmupSegment,
+  onAutoSave,
+  onExerciseCreated,
 }: SetTabProps) {
 
   // INPUT
@@ -35,6 +40,8 @@ export default function SetTab({
   // STATE
   const [notesSetId, setNotesSetId] = useState<string | null>(null);
   const [openMenuSetId, setOpenMenuSetId] = useState<string | null>(null);
+  const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
+  const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
   const [menuDirection, setMenuDirection] = useState<"down" | "up">("down");
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -178,7 +185,9 @@ export default function SetTab({
         // No target available, just mark completed
         return { ...set, is_completed: true };
       });
-      setEditedSegment({ ...editedSegment, sets: updatedSets });
+      const updatedSegment = { ...editedSegment, sets: updatedSets };
+      setEditedSegment(updatedSegment);
+      onAutoSave(updatedSegment);
     }
 
     // If handling toggling from ON to OFF
@@ -189,7 +198,9 @@ export default function SetTab({
         if (set.id !== setId) return set; // If not desired set, exit
         return { ...set, is_completed: false };
       });
-      setEditedSegment({ ...editedSegment, sets: updatedSets });
+      const updatedSegment = { ...editedSegment, sets: updatedSets };
+      setEditedSegment(updatedSegment);
+      onAutoSave(updatedSegment);
     }
   };
 
@@ -359,19 +370,15 @@ export default function SetTab({
   return (
     <>
 
-      {/* EXERCISE DROPDOWN */}
+      {/* EXERCISE SELECTOR */}
       <div>
         <label className="text-secondary">Exercise</label>
-        <select
-          value={editedSegment.exercise_id}
-          onChange={(e) => handleExerciseChange(e.target.value)}
-          className="input-field"
+        <button
+          onClick={() => setIsExercisePickerOpen(true)}
+          className="input-field text-left w-full"
         >
-          <option value="" disabled>Select an exercise...</option>
-          {exercises.map((ex) => (
-            <option key={ex.id} value={ex.id}>{ex.name}</option>
-          ))}
-        </select>
+          {editedSegment.exercise_name || <span className="text-muted">Select an exercise...</span>}
+        </button>
 
         {/* ORIGINAL TARGET HINT */}
         {isTargetExerciseSwapped && (
@@ -386,25 +393,46 @@ export default function SetTab({
         <div className="space-y-4">
 
           {/* WARMUP SETS SECTION */}
-          <div className="space-y-4 flex flex-col">
+          {isWarmupSegment ? (
 
-            {/* SECTION LABEL */}
-            {!isWarmupSegment && <label className="text-h3">Warmup</label>}
-
-            {/* WARMUP SET ROWS */}
-            {warmupSets.map((set, index) => renderSetRow(set, index === 0, index === warmupSets.length - 1))}
-
-            {/* ADD WARMUP SET BUTTON */}
-            <div className="flex justify-center">
-              <Button
-                onClick={() => handleAddSet(true)}
-                className="btn-link"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Warmup Set</span>
-              </Button>
+            // Warmup-only segment: show warmup sets directly
+            <div className="space-y-4 flex flex-col">
+              {warmupSets.map((set, index) => renderSetRow(set, index === 0, index === warmupSets.length - 1))}
+              <div className="flex justify-center">
+                <Button onClick={() => handleAddSet(true)} className="btn-link">
+                  <Plus className="w-4 h-4" />
+                  <span>Add Warmup Set</span>
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : (
+
+            // Regular segment: warmup sets in expandable dropdown
+            <div className={`expandable-card ${isWarmupExpanded ? "expandable-card-open" : "py-1"}`}>
+              <div
+                className="expandable-card-toggle"
+                onClick={() => setIsWarmupExpanded(!isWarmupExpanded)}
+              >
+                <h3 className="text-h3">Warmup</h3>
+                {isWarmupExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-muted" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-muted" />
+                )}
+              </div>
+              {isWarmupExpanded && (
+                <div className="expandable-card-content space-y-4 flex flex-col">
+                  {warmupSets.map((set, index) => renderSetRow(set, index === 0, index === warmupSets.length - 1))}
+                  <div className="flex justify-center">
+                    <Button onClick={() => handleAddSet(true)} className="btn-link">
+                      <Plus className="w-4 h-4" />
+                      <span>Add Warmup Set</span>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* WORKING SETS SECTION (hidden for warmup segments) */}
           {!isWarmupSegment && (
@@ -452,6 +480,12 @@ export default function SetTab({
             const newHeight = textarea.scrollHeight;
             textarea.style.height = Math.min(newHeight, maxHeight) + "px";
             textarea.style.overflowY = newHeight > maxHeight ? "auto" : "hidden";
+          }}
+          onBlur={(e) => {
+            const trimmedNotes = e.target.value.trim() || null;
+            const updatedSegment = { ...editedSegment, notes: trimmedNotes };
+            setEditedSegment(updatedSegment);
+            onAutoSave(updatedSegment);
           }}
           className="input-field resize-none overflow-hidden"
           rows={1}
@@ -502,6 +536,15 @@ export default function SetTab({
           autoFocus
         />
       </SubModal>
+
+      {/* EXERCISE PICKER MODAL */}
+      <ExercisePickerModal
+        isOpen={isExercisePickerOpen}
+        onClose={() => setIsExercisePickerOpen(false)}
+        onSelect={(exercise) => handleExerciseChange(exercise.id)}
+        exercises={exercises}
+        onExerciseCreated={onExerciseCreated}
+      />
     </>
   );
 }

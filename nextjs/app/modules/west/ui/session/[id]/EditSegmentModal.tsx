@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { SegmentWithSets } from "../../../types/segment";
@@ -27,8 +26,8 @@ interface EditSegmentModalProps {
   onRemove: () => void;
   segment: SegmentWithSets | null;
   exercises: Exercise[];
-  isSaving: boolean;
   isDeleting: boolean;
+  onExerciseCreated: (exercise: Exercise) => void;
 }
 
 export default function EditSegmentModal({
@@ -38,8 +37,8 @@ export default function EditSegmentModal({
   onRemove,
   segment,
   exercises,
-  isSaving,
   isDeleting,
+  onExerciseCreated,
 }: EditSegmentModalProps) {
 
   // INPUT
@@ -164,13 +163,9 @@ export default function EditSegmentModal({
 
   if (!editedSegment) return null;
 
-  const handleSave = () => {
-    if (!editedSegment.exercise_id) {
-      toast.error("Please select an exercise");
-      return;
-    }
-    const trimmedNotes = editedSegment.notes?.trim() || null;
-    onSave({ ...editedSegment, notes: trimmedNotes });
+  const handleAutoSave = (updatedSegment: SegmentWithSets) => {
+    if (!updatedSegment.exercise_id) return;
+    onSave(updatedSegment);
   };
 
   // Render the active tab content
@@ -183,6 +178,8 @@ export default function EditSegmentModal({
             setEditedSegment={setEditedSegment}
             exercises={exercises}
             isWarmupSegment={editedSegment.is_warmup}
+            onAutoSave={handleAutoSave}
+            onExerciseCreated={onExerciseCreated}
           />
         );
       case "history":
@@ -201,7 +198,7 @@ export default function EditSegmentModal({
       isOpen={isOpen}
       onClose={onClose}
       title={editedSegment.exercise_name || "New Exercise"}
-      disableClose={isSaving || isDeleting}
+      disableClose={isDeleting}
       subHeader={
         // TAB NAVIGATION
         <nav className="flex sm:space-x-1 px-2 border-b border-card" role="tablist">
@@ -222,35 +219,13 @@ export default function EditSegmentModal({
         </nav>
       }
       footer={
-        <>
-
-          {/* REMOVE BUTTON */}
-          <Button
-            onClick={onRemove}
-            disabled={isSaving || isDeleting}
-            className="btn-delete mr-auto"
-          >
-            {isDeleting ? "Deleting..." : "Delete"}
-          </Button>
-
-          {/* CANCEL BUTTON */}
-          <Button
-            onClick={onClose}
-            disabled={isSaving || isDeleting}
-            className="btn-link"
-          >
-            Cancel
-          </Button>
-
-          {/* SAVE BUTTON */}
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || isDeleting}
-            className="btn-success"
-          >
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
-        </>
+        <Button
+          onClick={onRemove}
+          disabled={isDeleting}
+          className="btn-delete mr-auto"
+        >
+          {isDeleting ? "Deleting..." : "Delete"}
+        </Button>
       }
     >
 
