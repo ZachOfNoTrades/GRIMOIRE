@@ -49,17 +49,18 @@ export async function getExerciseById(id: string): Promise<Exercise> {
   }
 }
 
-export async function createExercise(name: string, description: string | null): Promise<Exercise> {
+export async function createExercise(name: string, description: string | null, category: string = 'Strength'): Promise<Exercise> {
   let pool;
   try {
     pool = await getWestConnection();
     const result = await pool.request()
       .input('name', name)
       .input('description', description)
+      .input('category', category)
       .query(`
-        INSERT INTO exercises (name, description)
+        INSERT INTO exercises (name, description, category)
         OUTPUT INSERTED.*
-        VALUES (@name, @description)
+        VALUES (@name, @description, @category)
       `);
 
     return result.recordset[0];
@@ -158,7 +159,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
   try {
     pool = await getWestConnection();
     const result = await pool.request().query(`
-      SELECT e.id, e.name, mg.name AS muscle_group_name, emg.is_primary,
+      SELECT e.id, e.name, e.category, mg.name AS muscle_group_name, emg.is_primary,
              best.best_set_weight, best.best_set_reps
       FROM exercises e
       LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
@@ -191,6 +192,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
         exerciseMap.set(row.id, {
           id: row.id,
           name: row.name,
+          category: row.category,
           primary_muscles: [],
           secondary_muscles: [],
           estimated_one_rep_max: row.best_set_weight && row.best_set_reps

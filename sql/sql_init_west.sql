@@ -15,6 +15,7 @@ BEGIN TRY
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             name NVARCHAR(255) UNIQUE NOT NULL,
             description NVARCHAR(MAX),
+            category NVARCHAR(50) NOT NULL DEFAULT 'Strength',
             is_disabled BIT DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE()
@@ -54,14 +55,16 @@ BEGIN TRY
     END
 
     -- =============================
-    -- Seed Exercises
+    -- Exercise Modifiers
     -- =============================
-    IF NOT EXISTS (SELECT 1 FROM exercises WHERE id = 'EEEE0001-EEEE-EEEE-EEEE-EEEEEEEE0001')
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='exercise_modifiers' AND xtype='U')
     BEGIN
-        INSERT INTO exercises (id, name, description, is_disabled) VALUES
-        ('EEEE0001-EEEE-EEEE-EEEE-EEEEEEEE0001', 'Back Squat', 'Primary competition squat', 0),
-        ('EEEE0002-EEEE-EEEE-EEEE-EEEEEEEE0002', 'Conventional Deadlift', 'Competition deadlift', 0),
-        ('EEEE0003-EEEE-EEEE-EEEE-EEEEEEEE0003', 'Bench Press', 'Competition bench', 0);
+        CREATE TABLE exercise_modifiers (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            name NVARCHAR(100) UNIQUE NOT NULL,
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE()
+        );
     END
 
     -- =============================
@@ -175,13 +178,15 @@ BEGIN TRY
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             session_id UNIQUEIDENTIFIER NOT NULL,
             exercise_id UNIQUEIDENTIFIER NOT NULL,
+            modifier_id UNIQUEIDENTIFIER NULL,
             order_index INT NOT NULL,
             is_warmup BIT NOT NULL DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
             CONSTRAINT FK_target_session_segments_session FOREIGN KEY (session_id) REFERENCES workout_sessions(id),
-            CONSTRAINT FK_target_session_segments_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id)
+            CONSTRAINT FK_target_session_segments_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id),
+            CONSTRAINT FK_target_session_segments_modifier FOREIGN KEY (modifier_id) REFERENCES exercise_modifiers(id)
         );
     END
 
@@ -215,6 +220,7 @@ BEGIN TRY
             session_id UNIQUEIDENTIFIER NOT NULL,
             exercise_id UNIQUEIDENTIFIER NOT NULL,
             target_id UNIQUEIDENTIFIER NULL,
+            modifier_id UNIQUEIDENTIFIER NULL,
             order_index INT NOT NULL,
             is_warmup BIT NOT NULL DEFAULT 0,
             notes NVARCHAR(MAX),
@@ -223,7 +229,8 @@ BEGIN TRY
 
             CONSTRAINT FK_session_segments_session FOREIGN KEY (session_id) REFERENCES workout_sessions(id),
             CONSTRAINT FK_session_segments_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id),
-            CONSTRAINT FK_session_segments_target FOREIGN KEY (target_id) REFERENCES target_session_segments(id)
+            CONSTRAINT FK_session_segments_target FOREIGN KEY (target_id) REFERENCES target_session_segments(id),
+            CONSTRAINT FK_session_segments_modifier FOREIGN KEY (modifier_id) REFERENCES exercise_modifiers(id)
         );
     END
 

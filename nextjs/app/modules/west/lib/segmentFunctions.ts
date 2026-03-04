@@ -19,6 +19,8 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           se.exercise_id,
           e.name AS exercise_name,
           se.target_id,
+          se.modifier_id,
+          em.name AS modifier_name,
           se.order_index,
           se.is_warmup AS segment_is_warmup,
           se.notes AS segment_notes,
@@ -36,6 +38,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           ses.modified_at AS set_modified_at
         FROM session_segments se
         INNER JOIN exercises e ON se.exercise_id = e.id
+        LEFT JOIN exercise_modifiers em ON se.modifier_id = em.id
         LEFT JOIN session_segment_sets ses ON se.id = ses.session_segment_id
         WHERE se.session_id = @sessionId
         ORDER BY se.is_warmup DESC, se.order_index, ses.is_warmup DESC, ses.set_number
@@ -56,6 +59,8 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           exercise_id: row.exercise_id,
           exercise_name: row.exercise_name,
           target_id: row.target_id,
+          modifier_id: row.modifier_id,
+          modifier_name: row.modifier_name,
           order_index: row.order_index,
           is_warmup: row.segment_is_warmup,
           notes: row.segment_notes,
@@ -94,6 +99,8 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           tse.session_id,
           tse.exercise_id,
           e.name AS exercise_name,
+          tse.modifier_id AS target_modifier_id,
+          em.name AS target_modifier_name,
           tse.order_index,
           tse.is_warmup AS target_segment_is_warmup,
           tse.created_at AS target_segment_created_at,
@@ -109,6 +116,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           tss.modified_at AS target_set_modified_at
         FROM target_session_segments tse
         INNER JOIN exercises e ON tse.exercise_id = e.id
+        LEFT JOIN exercise_modifiers em ON tse.modifier_id = em.id
         LEFT JOIN target_session_segment_sets tss ON tse.id = tss.target_session_segment_id
         WHERE tse.session_id = @sessionId
         ORDER BY tse.is_warmup DESC, tse.order_index, tss.is_warmup DESC, tss.set_number
@@ -128,6 +136,8 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           session_id: row.session_id,
           exercise_id: row.exercise_id,
           exercise_name: row.exercise_name,
+          modifier_id: row.target_modifier_id,
+          modifier_name: row.target_modifier_name,
           order_index: row.order_index,
           is_warmup: row.target_segment_is_warmup,
           created_at: row.target_segment_created_at,
@@ -226,6 +236,7 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
           .input('sessionId', segment.session_id)
           .input('exerciseId', segment.exercise_id)
           .input('targetId', segment.target_id)
+          .input('modifierId', segment.modifier_id)
           .input('orderIndex', segment.order_index)
           .input('isWarmup', segment.is_warmup)
           .input('segmentNotes', segment.notes)
@@ -237,13 +248,14 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
               UPDATE SET
                 exercise_id = @exerciseId,
                 target_id = @targetId,
+                modifier_id = @modifierId,
                 order_index = @orderIndex,
                 is_warmup = @isWarmup,
                 notes = @segmentNotes,
                 modified_at = GETDATE()
             WHEN NOT MATCHED THEN
-              INSERT (id, session_id, exercise_id, target_id, order_index, is_warmup, notes)
-              VALUES (@sessionSegmentId, @sessionId, @exerciseId, @targetId, @orderIndex, @isWarmup, @segmentNotes);
+              INSERT (id, session_id, exercise_id, target_id, modifier_id, order_index, is_warmup, notes)
+              VALUES (@sessionSegmentId, @sessionId, @exerciseId, @targetId, @modifierId, @orderIndex, @isWarmup, @segmentNotes);
           `);
 
         // Upsert each set
@@ -369,12 +381,13 @@ export async function createGeneratedTargets(
         const targetSegmentResult = await transaction.request()
           .input('sessionId', sessionId)
           .input('exerciseId', exercise.exercise_id)
+          .input('modifierId', exercise.modifier_id)
           .input('orderIndex', exercise.order_index)
           .input('isWarmup', exercise.is_warmup ? 1 : 0)
           .query(`
-            INSERT INTO target_session_segments (session_id, exercise_id, order_index, is_warmup)
+            INSERT INTO target_session_segments (session_id, exercise_id, modifier_id, order_index, is_warmup)
             OUTPUT INSERTED.id
-            VALUES (@sessionId, @exerciseId, @orderIndex, @isWarmup)
+            VALUES (@sessionId, @exerciseId, @modifierId, @orderIndex, @isWarmup)
           `);
         const targetSegmentId = targetSegmentResult.recordset[0].id;
 

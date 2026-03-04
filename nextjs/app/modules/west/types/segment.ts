@@ -3,6 +3,8 @@ export interface TargetSegment {
   session_id: string;
   exercise_id: string;
   exercise_name: string;
+  modifier_id: string | null;
+  modifier_name: string | null;
   order_index: number;
   is_warmup: boolean;
   created_at: Date;
@@ -28,6 +30,8 @@ export interface Segment {
   exercise_id: string;
   exercise_name: string;
   target_id: string | null;
+  modifier_id: string | null;
+  modifier_name: string | null;
   order_index: number;
   is_warmup: boolean;
   notes: string | null;
@@ -56,6 +60,7 @@ export interface SegmentWithSets extends Segment {
 
 export interface GeneratedSegment {
   exercise_id: string;
+  modifier_id: string | null;
   order_index: number;
   is_warmup: boolean;
   sets: {
