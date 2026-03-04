@@ -902,12 +902,21 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                             {/* SETS */}
                             {(() => {
-                              const unlinkedTargetSets = segment.target
-                                ? segment.target.sets.filter((ts) => !segment.sets.some((s) => s.set_number === ts.set_number && s.is_warmup === ts.is_warmup))
-                                : [];
-                              const hasContent = segment.sets.length > 0 || unlinkedTargetSets.length > 0;
+                              // Build a unified list ordered by set_number: show logged if it has data, otherwise show target
+                              const targetSets = segment.target?.sets ?? [];
+                              const allSetNumbers = [...new Set([
+                                ...segment.sets.map(s => s.set_number),
+                                ...targetSets.map(ts => ts.set_number),
+                              ])].sort((a, b) => a - b);
 
-                              return !hasContent ? (
+                              const rows = allSetNumbers.map(num => {
+                                const logged = segment.sets.find(s => s.set_number === num);
+                                const target = targetSets.find(ts => ts.set_number === num && ts.is_warmup === (logged?.is_warmup ?? true));
+                                const useLogged = logged && (logged.is_completed || hasSetData(logged));
+                                return { num, logged: useLogged ? logged : null, target: !useLogged ? target : null };
+                              }).filter(r => r.logged || r.target);
+
+                              return rows.length === 0 ? (
 
                                 // NO SETS PLACEHOLDER
                                 <p className="text-secondary">No sets recorded</p>
@@ -915,23 +924,22 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                                 // SETS
                                 <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
+                                  {rows.map((row) => row.logged ? (
 
-                                  {/* LOGGED SET ROWS */}
-                                  {segment.sets.map((set) => (
-                                    <p key={set.id} className={!set.is_completed ? 'text-secondary' : ''}>
-                                      <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                                      {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                                      {set.notes && <span className="text-secondary"> - {set.notes}</span>}
+                                    // LOGGED SET ROW
+                                    <p key={row.logged.id} className={!row.logged.is_completed ? 'text-secondary' : ''}>
+                                      <span>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</span>
+                                      {row.logged.rpe !== null && <span> @ {row.logged.rpe}RPE</span>}
+                                      {row.logged.notes && <span className="text-secondary"> - {row.logged.notes}</span>}
                                     </p>
-                                  ))}
+                                  ) : row.target ? (
 
-                                  {/* UNLINKED TARGET SET ROWS */}
-                                  {unlinkedTargetSets.map((ts) => (
-                                    <p key={ts.id} className="text-secondary">
-                                      <span>{ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
-                                      {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
+                                    // TARGET SET ROW
+                                    <p key={row.target.id} className="text-secondary">
+                                      <span>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</span>
+                                      {row.target.rpe !== null && <span> @ {row.target.rpe}RPE</span>}
                                     </p>
-                                  ))}
+                                  ) : null)}
                                 </div>
                               );
                             })()}
@@ -1044,13 +1052,22 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                     {/* SETS */}
                     {(() => {
+                      // Build a unified list ordered by set_number: show logged if it has data, otherwise show target
                       const workingSets = segment.sets.filter((s) => !s.is_warmup);
-                      const unlinkedWorkingTargets = segment.target
-                        ? segment.target.sets.filter((ts) => !ts.is_warmup && !workingSets.some((s) => s.set_number === ts.set_number))
-                        : [];
-                      const hasContent = workingSets.length > 0 || unlinkedWorkingTargets.length > 0;
+                      const workingTargets = segment.target?.sets.filter((ts) => !ts.is_warmup) ?? [];
+                      const allSetNumbers = [...new Set([
+                        ...workingSets.map(s => s.set_number),
+                        ...workingTargets.map(ts => ts.set_number),
+                      ])].sort((a, b) => a - b);
 
-                      return !hasContent ? (
+                      const rows = allSetNumbers.map(num => {
+                        const logged = workingSets.find(s => s.set_number === num);
+                        const target = workingTargets.find(ts => ts.set_number === num);
+                        const useLogged = logged && (logged.is_completed || hasSetData(logged));
+                        return { num, logged: useLogged ? logged : null, target: !useLogged ? target : null };
+                      }).filter(r => r.logged || r.target);
+
+                      return rows.length === 0 ? (
 
                         // NO SETS PLACEHOLDER
                         <p className="text-secondary">No sets recorded</p>
@@ -1058,34 +1075,22 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                         // SETS
                         <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
+                          {rows.map((row) => row.logged ? (
 
-                          {/* WORKING SET ROWS */}
-                          {workingSets.map((set) => {
-                            const targetSet = segment.target
-                              ? segment.target.sets.find((ts) => ts.set_number === set.set_number && !ts.is_warmup)
-                              : null;
-                            const targetDiffers = targetSet && (
-                              set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
-                            );
-
-                            return (
-                              // WORKING SET ROW
-                              <p key={set.id} className={!set.is_completed ? 'text-secondary' : ''}>
-                                <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                                {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                                {targetDiffers && !set.is_completed && set.weight === 0 && set.reps === 0 && <span className="text-secondary"> · {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
-                                {set.notes && <span className="text-secondary"> - {set.notes}</span>}
-                              </p>
-                            );
-                          })}
-
-                          {/* UNLINKED WORKING TARGET ROWS */}
-                          {unlinkedWorkingTargets.map((ts) => (
-                            <p key={ts.id} className="text-secondary">
-                              <span>{ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
-                              {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
+                            // WORKING SET ROW
+                            <p key={row.logged.id} className={!row.logged.is_completed ? 'text-secondary' : ''}>
+                              <span>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</span>
+                              {row.logged.rpe !== null && <span> @ {row.logged.rpe}RPE</span>}
+                              {row.logged.notes && <span className="text-secondary"> - {row.logged.notes}</span>}
                             </p>
-                          ))}
+                          ) : row.target ? (
+
+                            // TARGET SET ROW
+                            <p key={row.target.id} className="text-secondary">
+                              <span>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</span>
+                              {row.target.rpe !== null && <span> @ {row.target.rpe}RPE</span>}
+                            </p>
+                          ) : null)}
                         </div>
                       );
                     })()}
