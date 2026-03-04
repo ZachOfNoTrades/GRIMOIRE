@@ -436,6 +436,11 @@ body {
   transform: translateY(-2px);
 }
 
+.sub-card-muted {
+  background: none;
+  border-color: var(--input-border);
+}
+
 .sub-card-header {
   display: flex;
   align-items: center;

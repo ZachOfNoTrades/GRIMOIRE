@@ -29,6 +29,18 @@ export async function PUT(
     const { id } = await context.params;
     const segments = await request.json();
 
+    // Validate warmup segments have no working sets
+    const invalidWarmupSegment = segments.find(
+      (s: { is_warmup: boolean; sets: { is_warmup: boolean }[] }) =>
+        s.is_warmup && s.sets.some((set: { is_warmup: boolean }) => !set.is_warmup)
+    );
+    if (invalidWarmupSegment) {
+      return NextResponse.json(
+        { error: 'Warmup exercises cannot contain working sets' },
+        { status: 400 }
+      );
+    }
+
     await updateSegments(id, segments);
 
     // Return the updated segments with targets

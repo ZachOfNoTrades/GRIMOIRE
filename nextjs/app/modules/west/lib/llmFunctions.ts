@@ -260,6 +260,15 @@ export async function generateSessionTargetsWithLlm(
     throw new Error(`LLM returned invalid exercise IDs: ${invalidIds.join(', ')}`);
   }
 
+  // Validate warmup segments have only warmup sets
+  const invalidWarmupSegments = parsed.target_exercises
+    .filter(te => te.is_warmup && te.sets.some(s => !s.is_warmup))
+    .map(te => te.exercise_id);
+
+  if (invalidWarmupSegments.length > 0) {
+    throw new Error(`LLM returned warmup exercises with non-warmup sets: ${invalidWarmupSegments.join(', ')}`);
+  }
+
   console.log(`[GenerateSessionTargets] Generated ${parsed.target_exercises.length} exercises for session '${sessionName}'`);
   return parsed.target_exercises;
 }

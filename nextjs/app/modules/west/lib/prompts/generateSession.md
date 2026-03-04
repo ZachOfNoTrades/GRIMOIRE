@@ -14,7 +14,8 @@ rpe: number | null; // Rate of perceived exertion 1-10, or null
 
 interface TargetExercise {
 exercise_id: string; // MUST be a valid UUID from the exercises table
-order_index: number; // Sequential starting at 1 within this session
+order_index: number; // Sequential starting at 1, tracked independently per warmup/working group
+is_warmup: boolean; // true for warmup/mobility exercises (stretches, dynamic warmups), false for working exercises
 sets: TargetSet[];
 }
 
@@ -33,10 +34,9 @@ target_exercises: TargetExercise[];
 
 1. Every exercise_id MUST be a valid UUID from the exercises table. Use the SQL Query skill to discover available exercises (query by muscle group, name, etc.).
 2. Include an appropriate quantity of exercises based on the session description. If unsure, use 5 as a fallback.
-3. The first exercise should be the primary compound movement for the session.
-4. For compound exercises, include warmup sets ramping up to working weight, then working sets.
+3. `order_index` starts at 1 and increments independently for warmup exercises and working exercises.
+4. Warmup exercises (`is_warmup: true`) MUST have all sets with `is_warmup: true`. They should not contain working sets.
 5. set_number starts at 1 and increments independently for warmup sets and working sets within each exercise.
-6. Round all weights to the nearest 5 lbs.
-7. The response must be a single JSON object with a target_exercises array — nothing else.
+6. The response must be a single JSON object with a target_exercises array — nothing else.
 
 {{TEMPLATE_CONTEXT}}

@@ -19,12 +19,14 @@ interface SetTabProps {
   editedSegment: SegmentWithSets;
   setEditedSegment: (segment: SegmentWithSets) => void;
   exercises: Exercise[];
+  isWarmupSegment: boolean;
 }
 
 export default function SetTab({
   editedSegment,
   setEditedSegment,
   exercises,
+  isWarmupSegment,
 }: SetTabProps) {
 
   // INPUT
@@ -387,7 +389,7 @@ export default function SetTab({
           <div className="space-y-4 flex flex-col">
 
             {/* SECTION LABEL */}
-            <label className="text-h3">Warmup</label>
+            {!isWarmupSegment && <label className="text-h3">Warmup</label>}
 
             {/* WARMUP SET ROWS */}
             {warmupSets.map((set, index) => renderSetRow(set, index === 0, index === warmupSets.length - 1))}
@@ -404,29 +406,35 @@ export default function SetTab({
             </div>
           </div>
 
-          {/* SECTION DIVIDER */}
-          <div className="border-t" />
+          {/* WORKING SETS SECTION (hidden for warmup segments) */}
+          {!isWarmupSegment && (
+            <>
 
-          {/* WORKING SETS SECTION */}
-          <div className="space-y-4 flex flex-col">
+              {/* SECTION DIVIDER */}
+              <div className="border-t" />
 
-            {/* SECTION LABEL */}
-            <label className="text-h3">Working</label>
+              {/* WORKING SETS */}
+              <div className="space-y-4 flex flex-col">
 
-            {/* WORKING SET ROWS */}
-            {workingSets.map((set, index) => renderSetRow(set, index === 0, index === workingSets.length - 1))}
+                {/* SECTION LABEL */}
+                <label className="text-h3">Working</label>
 
-            {/* ADD WORKING SET BUTTON */}
-            <div className="flex justify-center">
-              <Button
-                onClick={() => handleAddSet(false)}
-                className="btn-link w-auto"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Working Set</span>
-              </Button>
-            </div>
-          </div>
+                {/* WORKING SET ROWS */}
+                {workingSets.map((set, index) => renderSetRow(set, index === 0, index === workingSets.length - 1))}
+
+                {/* ADD WORKING SET BUTTON */}
+                <div className="flex justify-center">
+                  <Button
+                    onClick={() => handleAddSet(false)}
+                    className="btn-link w-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Working Set</span>
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

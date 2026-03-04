@@ -176,6 +176,7 @@ BEGIN TRY
             session_id UNIQUEIDENTIFIER NOT NULL,
             exercise_id UNIQUEIDENTIFIER NOT NULL,
             order_index INT NOT NULL,
+            is_warmup BIT NOT NULL DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
@@ -215,6 +216,7 @@ BEGIN TRY
             exercise_id UNIQUEIDENTIFIER NOT NULL,
             target_id UNIQUEIDENTIFIER NULL,
             order_index INT NOT NULL,
+            is_warmup BIT NOT NULL DEFAULT 0,
             notes NVARCHAR(MAX),
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),

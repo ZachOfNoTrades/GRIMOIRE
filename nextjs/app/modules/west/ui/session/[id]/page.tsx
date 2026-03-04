@@ -48,6 +48,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const linkedTargetSegmentIds = new Set(loggedSegments.map((e) => e.target_id).filter(Boolean));
   const unlinkedTargetSegments = targetSegments.filter((t) => !linkedTargetSegmentIds.has(t.id));
   const totalSegmentCount = loggedSegments.length + unlinkedTargetSegments.length;
+  const warmupLoggedSegments = loggedSegments.filter((s) => s.is_warmup);
+  const workingLoggedSegments = loggedSegments.filter((s) => !s.is_warmup);
+  const warmupUnlinkedTargets = unlinkedTargetSegments.filter((t) => t.is_warmup);
+  const workingUnlinkedTargets = unlinkedTargetSegments.filter((t) => !t.is_warmup);
+  const hasWarmupSection = warmupLoggedSegments.length > 0 || warmupUnlinkedTargets.length > 0;
 
 
 
@@ -286,13 +291,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   // Initialize a new EditSegmentModal and pass target set data (modal will handle filling out sets[])
   const handleOpenTargetSegment = (target: TargetSegment) => {
     const newSegmentId = generateUUID();
+    const groupSegments = target.is_warmup ? warmupLoggedSegments : workingLoggedSegments;
     const newSegment: SegmentWithSets = {
       id: newSegmentId,
       session_id: id,
       exercise_id: target.exercise_id,
       exercise_name: target.exercise_name,
       target_id: target.id,
-      order_index: loggedSegments.length + 1,
+      order_index: groupSegments.length + 1,
+      is_warmup: target.is_warmup,
       notes: null,
       created_at: new Date(),
       modified_at: new Date(),
@@ -323,7 +330,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       exercise_id: "",
       exercise_name: "",
       target_id: null,
-      order_index: loggedSegments.length + 1,
+      order_index: workingLoggedSegments.length + 1,
+      is_warmup: false,
       notes: null,
       created_at: new Date(),
       modified_at: new Date(),
@@ -332,6 +340,38 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         session_segment_id: segmentId,
         set_number: 1,
         is_warmup: false,
+        reps: 0,
+        weight: 0,
+        rpe: null,
+        notes: null,
+        is_completed: false,
+        created_at: new Date(),
+        modified_at: new Date(),
+      }],
+      target: null,
+    };
+    setSegmentModalData(newSegment);
+    setIsSegmentModalOpen(true);
+  };
+
+  const handleAddWarmupSegment = () => {
+    const segmentId = generateUUID();
+    const newSegment: SegmentWithSets = {
+      id: segmentId,
+      session_id: id,
+      exercise_id: "",
+      exercise_name: "",
+      target_id: null,
+      order_index: warmupLoggedSegments.length + 1,
+      is_warmup: true,
+      notes: null,
+      created_at: new Date(),
+      modified_at: new Date(),
+      sets: [{
+        id: generateUUID(),
+        session_segment_id: segmentId,
+        set_number: 1,
+        is_warmup: true, // warmup segment sets default to warmup
         reps: 0,
         weight: 0,
         rpe: null,
@@ -761,10 +801,200 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
 
-              {/* LOGGED SEGMENT SUB-CARDS */}
-              {loggedSegments.map((segment) => (
+              {/* WARMUP SECTION */}
+              {hasWarmupSection && (
+                <div className="flex flex-col gap-[0.75rem]">
 
-                // SEGMENT SUB-CARD
+                  {/* WARMUP SECTION LABEL */}
+                  <h3 className="text-h3">Warmup</h3>
+
+                  {/* WARMUP LOGGED SEGMENT SUB-CARDS */}
+                  {warmupLoggedSegments.map((segment) => (
+
+                    // WARMUP SEGMENT SUB-CARD
+                    <div
+                      key={segment.id}
+                      className="sub-card sub-card-muted cursor-pointer"
+                      onClick={() => handleOpenSegment(segment)}
+                    >
+
+                      {/* SUB-CARD HEADER */}
+                      <div className="sub-card-header">
+
+                        {/* EXERCISE NAME */}
+                        <div className="flex items-center gap-2">
+                          {isSegmentComplete(segment)
+                            ? <CircleCheck className="icon-success !w-4 !h-4" />
+                            : <Circle className="icon-muted !w-4 !h-4" />
+                          }
+                          <h3 className="text-card-title">{segment.exercise_name}</h3>
+                        </div>
+
+                        {/* ORIGINAL TARGET EXERCISE HINT (when selected exercise was swapped) */}
+                        {segment.target && segment.target.exercise_id !== segment.exercise_id && (
+                          <p className="text-secondary">Swapped from {segment.target.exercise_name}</p>
+                        )}
+                      </div>
+
+                      {/* SUB-CARD CONTENT */}
+                      <div className="sub-card-content">
+
+                        {/* SEGMENT NOTES */}
+                        {segment.notes && (
+                          <div className="text-secondary flex items-center gap-1">
+                            <StickyNote className="w-3 h-3" />
+                            <span>{segment.notes}</span>
+                          </div>
+                        )}
+
+                        {/* SETS */}
+                        {(() => {
+                          const warmupSets = segment.sets.filter((s) => s.is_warmup);
+                          const workingSets = segment.sets.filter((s) => !s.is_warmup);
+                          const unlinkedWarmupTargets = segment.target
+                            ? segment.target.sets.filter((ts) => ts.is_warmup && !warmupSets.some((s) => s.set_number === ts.set_number))
+                            : [];
+                          const unlinkedWorkingTargets = segment.target
+                            ? segment.target.sets.filter((ts) => !ts.is_warmup && !workingSets.some((s) => s.set_number === ts.set_number))
+                            : [];
+                          const hasContent = segment.sets.length > 0 || unlinkedWarmupTargets.length > 0 || unlinkedWorkingTargets.length > 0;
+
+                          return !hasContent ? (
+
+                            // NO SETS PLACEHOLDER
+                            <p className="text-secondary">No sets recorded</p>
+                          ) : (
+
+                            // SETS
+                            <div className="flex flex-col gap-1">
+
+                              {/* WARMUP SET ROWS */}
+                              {warmupSets.map((set) => {
+                                const targetSet = segment.target
+                                  ? segment.target.sets.find((ts) => ts.set_number === set.set_number && ts.is_warmup)
+                                  : null;
+                                const targetDiffers = targetSet && (
+                                  set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
+                                );
+
+                                return (
+                                  // WARMUP SET ROW
+                                  <p key={set.id} className="text-secondary">
+                                    <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                                    {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                                    {targetDiffers && <span> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
+                                  </p>
+                                );
+                              })}
+
+                              {/* UNLINKED WARMUP TARGET ROWS */}
+                              {unlinkedWarmupTargets.map((ts) => (
+                                <p key={ts.id} className="text-secondary">
+                                  <span>Target: {ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
+                                  {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
+                                </p>
+                              ))}
+
+                              {/* WORKING SET ROWS */}
+                              {workingSets.map((set) => {
+                                const targetSet = segment.target
+                                  ? segment.target.sets.find((ts) => ts.set_number === set.set_number && !ts.is_warmup)
+                                  : null;
+                                const targetDiffers = targetSet && (
+                                  set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
+                                );
+
+                                return (
+                                  // WORKING SET ROW
+                                  <p key={set.id} className={!set.is_completed ? 'text-secondary' : ''}>
+                                    <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                                    {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                                    {targetDiffers && <span className="text-secondary"> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
+                                    {set.notes && <span className="text-secondary"> - {set.notes}</span>}
+                                  </p>
+                                );
+                              })}
+
+                              {/* UNLINKED WORKING TARGET ROWS */}
+                              {unlinkedWorkingTargets.map((ts) => (
+                                <p key={ts.id} className="text-secondary">
+                                  <span>Target: {ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
+                                  {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* WARMUP UNLINKED TARGET CARDS */}
+                  {warmupUnlinkedTargets.map((target) => (
+
+                    // WARMUP TARGET SUB-CARD
+                    <div
+                      key={target.id}
+                      className="sub-card sub-card-muted cursor-pointer"
+                      onClick={() => handleOpenTargetSegment(target)}
+                    >
+
+                      {/* SUB-CARD HEADER */}
+                      <div className="sub-card-header">
+
+                        {/* EXERCISE NAME */}
+                        <div className="flex items-center gap-2">
+                          <Circle className="icon-muted !w-4 !h-4" />
+                          <h3 className="text-card-title">{target.exercise_name}</h3>
+                        </div>
+                      </div>
+
+                      {/* SUB-CARD CONTENT */}
+                      <div className="sub-card-content">
+
+                        {/* TARGET SETS */}
+                        {target.sets.length === 0 ? (
+
+                          // NO SETS PLACEHOLDER
+                          <p className="text-secondary">No target sets</p>
+                        ) : (
+
+                          // SETS
+                          <div className="flex flex-col gap-1">
+
+                            {/* WARMUP SET ROWS */}
+                            {target.sets.filter((s) => s.is_warmup).map((set) => (
+                              <p key={set.id} className="text-secondary">
+                                <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                                {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                              </p>
+                            ))}
+
+                            {/* WORKING SET ROWS */}
+                            {target.sets.filter((s) => !s.is_warmup).map((set) => (
+                              <p key={set.id} className="text-secondary">
+                                <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                                {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                </div>
+              )}
+
+              {/* WORKING SECTION LABEL */}
+              {hasWarmupSection && (
+                <h3 className="text-h3">Working</h3>
+              )}
+
+              {/* WORKING LOGGED SEGMENT SUB-CARDS */}
+              {workingLoggedSegments.map((segment) => (
+
+                // WORKING SEGMENT SUB-CARD
                 <div
                   key={segment.id}
                   className="sub-card cursor-pointer"
@@ -882,10 +1112,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               ))}
 
-              {/* UNLINKED TARGET CARDS */}
-              {unlinkedTargetSegments.map((target) => (
+              {/* WORKING UNLINKED TARGET CARDS */}
+              {workingUnlinkedTargets.map((target) => (
 
-                // TARGET SUB-CARD
+                // WORKING TARGET SUB-CARD
                 <div
                   key={target.id}
                   className="sub-card cursor-pointer"
@@ -935,6 +1165,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   </div>
                 </div>
               ))}
+
+              {/* ADD WARMUP SEGMENT BUTTON */}
+              <Button
+                onClick={handleAddWarmupSegment}
+                className="btn-link"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Warmup Exercise</span>
+              </Button>
+
+              {/* DIVIDER */}
+              <div className="border-t" />
 
               {/* ADD SEGMENT BUTTON */}
               <Button

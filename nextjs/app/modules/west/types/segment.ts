@@ -4,6 +4,7 @@ export interface TargetSegment {
   exercise_id: string;
   exercise_name: string;
   order_index: number;
+  is_warmup: boolean;
   created_at: Date;
   modified_at: Date;
   sets: TargetSegmentSet[];
@@ -28,6 +29,7 @@ export interface Segment {
   exercise_name: string;
   target_id: string | null;
   order_index: number;
+  is_warmup: boolean;
   notes: string | null;
   created_at: Date;
   modified_at: Date;
@@ -55,6 +57,7 @@ export interface SegmentWithSets extends Segment {
 export interface GeneratedSegment {
   exercise_id: string;
   order_index: number;
+  is_warmup: boolean;
   sets: {
     set_number: number;
     is_warmup: boolean;

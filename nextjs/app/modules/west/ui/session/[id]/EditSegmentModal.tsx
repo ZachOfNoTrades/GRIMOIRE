@@ -182,6 +182,7 @@ export default function EditSegmentModal({
             editedSegment={editedSegment}
             setEditedSegment={setEditedSegment}
             exercises={exercises}
+            isWarmupSegment={editedSegment.is_warmup}
           />
         );
       case "history":
