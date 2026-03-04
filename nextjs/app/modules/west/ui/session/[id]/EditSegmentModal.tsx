@@ -169,11 +169,13 @@ export default function EditSegmentModal({
   const handleExerciseChange = (exerciseId: string) => {
     const selectedExercise = exercises.find((e) => e.id === exerciseId);
     if (!selectedExercise) return;
-    setEditedSegment({
+    const updatedSegment = {
       ...editedSegment,
       exercise_id: exerciseId,
       exercise_name: selectedExercise.name,
-    });
+    };
+    setEditedSegment(updatedSegment);
+    onSave(updatedSegment);
   };
 
   const handleAutoSave = (updatedSegment: SegmentWithSets) => {
@@ -223,25 +225,6 @@ export default function EditSegmentModal({
         </span>
       }
       disableClose={isDeleting}
-      subHeader={
-        // TAB NAVIGATION
-        <nav className="flex sm:space-x-1 px-2 border-b border-card" role="tablist">
-          {tabs.map((tab) => (
-
-            // TAB BUTTON
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`tab-button max-sm:flex-1 max-sm:justify-center ${activeTab === tab.id ? "tab-button-active" : ""}`}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              aria-controls={`${tab.id}-panel`}
-            >
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </nav>
-      }
       footer={
         <Button
           onClick={onRemove}
@@ -252,6 +235,24 @@ export default function EditSegmentModal({
         </Button>
       }
     >
+
+      {/* TAB NAVIGATION */}
+      <nav className="flex sm:space-x-1 px-2 border-b border-card" role="tablist">
+        {tabs.map((tab) => (
+
+          // TAB BUTTON
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`tab-button max-sm:flex-1 max-sm:justify-center ${activeTab === tab.id ? "tab-button-active" : ""}`}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`${tab.id}-panel`}
+          >
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </nav>
 
       {/* TAB CONTENT */}
       <div className="min-h-[60vh]" role="tabpanel" id={`${activeTab}-panel`} aria-labelledby={`${activeTab}-tab`}>
@@ -266,6 +267,8 @@ export default function EditSegmentModal({
       onSelect={(exercise) => handleExerciseChange(exercise.id)}
       exercises={exercises}
       onExerciseCreated={onExerciseCreated}
+      currentExerciseId={editedSegment.exercise_id}
+      targetExerciseId={editedSegment.target?.exercise_id}
     />
     </>
   );

@@ -161,7 +161,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
     pool = await getWestConnection();
     const result = await pool.request().query(`
       SELECT e.id, e.name, e.category, mg.name AS muscle_group_name, emg.is_primary,
-             best.best_set_weight, best.best_set_reps
+             best.best_set_weight, best.best_set_reps, last_use.last_used_at
       FROM exercises e
       LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
       LEFT JOIN muscle_groups mg ON emg.muscle_group_id = mg.id
@@ -176,6 +176,13 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
         ) ranked
         WHERE rn = 1
       ) best ON e.id = best.exercise_id
+      LEFT JOIN (
+        SELECT se.exercise_id, MAX(ws.started_at) AS last_used_at
+        FROM session_segments se
+        JOIN workout_sessions ws ON se.session_id = ws.id
+        WHERE ws.started_at IS NOT NULL
+        GROUP BY se.exercise_id
+      ) last_use ON e.id = last_use.exercise_id
       WHERE e.is_disabled = 0
       ORDER BY e.name, emg.is_primary DESC, mg.name
     `);
@@ -199,6 +206,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
           estimated_one_rep_max: row.best_set_weight && row.best_set_reps
             ? calculateEstimatedOneRepMax(row.best_set_weight, row.best_set_reps)
             : null,
+          last_used_at: row.last_used_at ?? null,
         });
       }
 

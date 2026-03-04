@@ -15,6 +15,7 @@ export interface ExerciseSummary {
   primary_muscles: string[];
   secondary_muscles: string[];
   estimated_one_rep_max: number | null;
+  last_used_at: Date | null;
 }
 
 export interface ExerciseModifier {

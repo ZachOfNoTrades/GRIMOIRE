@@ -62,6 +62,30 @@ export function formatTimestamp(date: Date): string {
   });
 }
 
+// "(3d ago) 2026-03-01"
+export function formatLastUsed(date: Date | null): string | null {
+  if (!date) return null;
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const dateStr = `${yyyy}-${mm}-${dd}`;
+
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  let relative: string;
+  if (diffDays === 0) relative = "Today";
+  else if (diffDays === 1) relative = "1d ago";
+  else if (diffDays < 7) relative = `${diffDays}d ago`;
+  else if (diffDays < 30) relative = `${Math.floor(diffDays / 7)}w ago`;
+  else if (diffDays < 365) relative = `${Math.floor(diffDays / 30)}m ago`;
+  else relative = `${Math.floor(diffDays / 365)}y ago`;
+
+  return `(${relative}) ${dateStr}`;
+}
+
 // "2026-03-03 3:45 PM"
 export function formatDateTimeShort(date: Date): string {
   const d = new Date(date);

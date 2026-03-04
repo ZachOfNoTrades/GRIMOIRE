@@ -250,6 +250,7 @@ body {
   color: var(--color-primary);
   display: flex;
   align-items: center;
+  flex: 1;
   gap: 0.5rem;
 }
 
@@ -420,6 +421,28 @@ body {
   flex-direction: column;
   flex: 1;
   gap: 0.75rem;
+}
+
+/* LIST ITEMS */
+.list-item {
+  display: flex;
+  align-items: center;
+  background: var(--hover-bg);
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  cursor: pointer;
+  transition: background 150ms ease-in-out;
+}
+
+/* Forces all child elements to inherit */
+.list-item * {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .list-item:hover {
+    background: var(--card-border);
+  }
 }
 
 /* SUB-CARDS */
@@ -629,6 +652,19 @@ body {
   padding-top: 1.5rem;
   gap: 1rem;
 }
+
+/* View slide animations — used for internal view transitions within a single modal */
+
+@keyframes view-slide-in-right {
+  from { opacity: 0; transform: translateX(30%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes view-slide-in-left {
+  from { opacity: 0; transform: translateX(-30%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.view-slide-right { animation: view-slide-in-right 250ms ease-out; }
+.view-slide-left  { animation: view-slide-in-left 250ms ease-out; }
 
 /* Status modifiers — layer onto cards/sub-cards to indicate active or completed state */
 
