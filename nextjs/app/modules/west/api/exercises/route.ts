@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllExercises, createExercise } from '../../lib/exerciseFunctions';
+import { getAllExercises, getAllExercisesWithMuscleGroups, createExercise } from '../../lib/exerciseFunctions';
 
 export async function GET(request: NextRequest) {
   try {
 
     const includeDisabled = request.nextUrl.searchParams.get('includeDisabled') === 'true';
+    const include = request.nextUrl.searchParams.get('include');
+
+    if (include === 'muscles') {
+      const exercises = await getAllExercisesWithMuscleGroups();
+      return NextResponse.json(exercises);
+    }
+
     const exercises = await getAllExercises(includeDisabled);
     return NextResponse.json(exercises);
 

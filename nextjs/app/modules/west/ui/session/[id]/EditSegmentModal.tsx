@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react";
+import { ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
+import ExercisePickerModal from "./ExercisePickerModal";
 import { SegmentWithSets } from "../../../types/segment";
-import { Exercise, ExerciseHistoryEntry } from "../../../types/exercise";
+import { ExerciseSummary, ExerciseHistoryEntry } from "../../../types/exercise";
 import { ExerciseWithMuscleGroups } from "../../../types/muscleGroup";
 import { generateUUID } from "../../../utils/id";
 import SetTab from "./SetTab";
@@ -25,9 +27,9 @@ interface EditSegmentModalProps {
   onSave: (segment: SegmentWithSets) => void;
   onRemove: () => void;
   segment: SegmentWithSets | null;
-  exercises: Exercise[];
+  exercises: ExerciseSummary[];
   isDeleting: boolean;
-  onExerciseCreated: (exercise: Exercise) => void;
+  onExerciseCreated: (exercise: ExerciseSummary) => void;
 }
 
 export default function EditSegmentModal({
@@ -52,6 +54,7 @@ export default function EditSegmentModal({
   const [activeTab, setActiveTab] = useState("sets");
   const [historyLoading, setHistoryLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
 
   // Fetch exercise history and detail data in the background
   const fetchExerciseData = async (exerciseId: string) => {
@@ -163,6 +166,16 @@ export default function EditSegmentModal({
 
   if (!editedSegment) return null;
 
+  const handleExerciseChange = (exerciseId: string) => {
+    const selectedExercise = exercises.find((e) => e.id === exerciseId);
+    if (!selectedExercise) return;
+    setEditedSegment({
+      ...editedSegment,
+      exercise_id: exerciseId,
+      exercise_name: selectedExercise.name,
+    });
+  };
+
   const handleAutoSave = (updatedSegment: SegmentWithSets) => {
     if (!updatedSegment.exercise_id) return;
     onSave(updatedSegment);
@@ -176,10 +189,8 @@ export default function EditSegmentModal({
           <SetTab
             editedSegment={editedSegment}
             setEditedSegment={setEditedSegment}
-            exercises={exercises}
             isWarmupSegment={editedSegment.is_warmup}
             onAutoSave={handleAutoSave}
-            onExerciseCreated={onExerciseCreated}
           />
         );
       case "history":
@@ -194,10 +205,22 @@ export default function EditSegmentModal({
   };
 
   return (
+    <>
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={editedSegment.exercise_name || "New Exercise"}
+      title={
+        <span className="flex items-center gap-2">
+          {editedSegment.exercise_name || "New Exercise"}
+          <Button
+            onClick={() => setIsExercisePickerOpen(true)}
+            className="btn-link"
+            title="Swap exercise"
+          >
+            <ArrowLeftRight className="w-4 h-4" />
+          </Button>
+        </span>
+      }
       disableClose={isDeleting}
       subHeader={
         // TAB NAVIGATION
@@ -234,5 +257,15 @@ export default function EditSegmentModal({
         {renderActiveTab()}
       </div>
     </Modal>
+
+    {/* EXERCISE PICKER MODAL */}
+    <ExercisePickerModal
+      isOpen={isExercisePickerOpen}
+      onClose={() => setIsExercisePickerOpen(false)}
+      onSelect={(exercise) => handleExerciseChange(exercise.id)}
+      exercises={exercises}
+      onExerciseCreated={onExerciseCreated}
+    />
+    </>
   );
 }

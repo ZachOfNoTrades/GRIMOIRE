@@ -612,7 +612,7 @@ body {
 }
 
 .modal-body {
-  padding: 1.5rem 0.5rem;
+  padding: 1.5rem 0.25rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -621,6 +621,12 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+}
+
+@media (min-width: 640px) {
+  .modal-body {
+    padding: 1.5rem 0.5rem;
+  }
 }
 
 .modal-body-compact {

@@ -7,7 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
 import { SegmentWithSets, TargetSegment } from "../../../types/segment";
-import { Exercise } from "../../../types/exercise";
+import { ExerciseSummary } from "../../../types/exercise";
 import DeleteSessionModal from "./DeleteSessionModal";
 import EditSegmentModal from "./EditSegmentModal";
 import SessionTimer from "../../../components/SessionTimer";
@@ -21,7 +21,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [loggedSegments, setLoggedSegments] = useState<SegmentWithSets[]>([]);
   const [targetSegments, setTargetSegments] = useState<TargetSegment[]>([]);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [exercises, setExercises] = useState<ExerciseSummary[]>([]);
 
   // INPUT
   const [editedSessionName, setEditedSessionName] = useState("");
@@ -121,7 +121,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   const fetchExercises = async () => {
     try {
-      const response = await fetch("/modules/west/api/exercises");
+      const response = await fetch("/modules/west/api/exercises?include=muscles");
       if (response.ok) {
         const data = await response.json();
         setExercises(data);
@@ -1204,7 +1204,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         segment={segmentModalData}
         exercises={exercises}
         isDeleting={isDeletingSegment}
-        onExerciseCreated={(exercise) => setExercises((prev) => [...prev, exercise].sort((a, b) => a.name.localeCompare(b.name)))}
+        onExerciseCreated={(exercise) => setExercises((prev) => [...prev, {
+          id: exercise.id,
+          name: exercise.name,
+          primary_muscles: [],
+          secondary_muscles: [],
+          estimated_one_rep_max: null,
+        }].sort((a, b) => a.name.localeCompare(b.name)))}
       />
     </div>
   );

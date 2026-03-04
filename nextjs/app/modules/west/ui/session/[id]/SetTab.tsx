@@ -4,9 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, StickyNote, X, Circle, CircleCheck, EllipsisVertical, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SubModal from "@/components/SubModal";
-import ExercisePickerModal from "./ExercisePickerModal";
 import { SegmentWithSets } from "../../../types/segment";
-import { Exercise } from "../../../types/exercise";
 import { generateUUID } from "../../../utils/id";
 
 enum SetField {
@@ -19,19 +17,15 @@ enum SetField {
 interface SetTabProps {
   editedSegment: SegmentWithSets;
   setEditedSegment: (segment: SegmentWithSets) => void;
-  exercises: Exercise[];
   isWarmupSegment: boolean;
   onAutoSave: (segment: SegmentWithSets) => void;
-  onExerciseCreated: (exercise: Exercise) => void;
 }
 
 export default function SetTab({
   editedSegment,
   setEditedSegment,
-  exercises,
   isWarmupSegment,
   onAutoSave,
-  onExerciseCreated,
 }: SetTabProps) {
 
   // INPUT
@@ -41,7 +35,6 @@ export default function SetTab({
   const [notesSetId, setNotesSetId] = useState<string | null>(null);
   const [openMenuSetId, setOpenMenuSetId] = useState<string | null>(null);
   const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
-  const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
   const [menuDirection, setMenuDirection] = useState<"down" | "up">("down");
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,9 +49,6 @@ export default function SetTab({
     ? editedSegment.target.sets.filter((s) => !s.is_warmup).length
     : 0;
 
-  const isTargetExerciseSwapped = editedSegment.target &&
-    editedSegment.target.exercise_id !== editedSegment.exercise_id;
-
   // Close action menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -69,16 +59,6 @@ export default function SetTab({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const handleExerciseChange = (exerciseId: string) => {
-    const selectedExercise = exercises.find((e) => e.id === exerciseId);
-    if (!selectedExercise) return;
-    setEditedSegment({
-      ...editedSegment,
-      exercise_id: exerciseId,
-      exercise_name: selectedExercise.name,
-    });
-  };
 
   const handleNotesChange = (notes: string) => {
     setEditedSegment({
@@ -389,24 +369,8 @@ export default function SetTab({
   return (
     <>
 
-      {/* EXERCISE SELECTOR */}
-      <div>
-        <label className="text-secondary">Exercise</label>
-        <button
-          onClick={() => setIsExercisePickerOpen(true)}
-          className="input-field text-left w-full"
-        >
-          {editedSegment.exercise_name || <span className="text-muted">Select an exercise...</span>}
-        </button>
-
-        {/* ORIGINAL TARGET HINT */}
-        {isTargetExerciseSwapped && (
-          <p className="text-secondary">Swapped from {editedSegment.target!.exercise_name}</p>
-        )}
-      </div>
-
       {/* SETS */}
-      <div className="mt-4">
+      <div>
         <div className="space-y-4">
 
           {/* WARMUP SETS SECTION */}
@@ -548,14 +512,6 @@ export default function SetTab({
         />
       </SubModal>
 
-      {/* EXERCISE PICKER MODAL */}
-      <ExercisePickerModal
-        isOpen={isExercisePickerOpen}
-        onClose={() => setIsExercisePickerOpen(false)}
-        onSelect={(exercise) => handleExerciseChange(exercise.id)}
-        exercises={exercises}
-        onExerciseCreated={onExerciseCreated}
-      />
     </>
   );
 }
