@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles } from "lucide-react";
+import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -40,6 +40,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isDeletingSegment, setIsDeletingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
 
   // DERIVED
   const timerStart = session?.resumed_at ?? session?.started_at ?? null;
@@ -778,7 +779,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             <div className="card-header">
 
               {/* TITLE */}
-              <h2 className="text-card-title">Exercises ({completedSegmentCount}/{totalSegmentCount})</h2>
+              <h2 className="text-card-title">Exercises</h2>
             </div>
 
             {/* CARD CONTENT */}
@@ -803,185 +804,160 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
               {/* WARMUP SECTION */}
               {hasWarmupSection && (
-                <div className="flex flex-col gap-[0.75rem]">
+                <div
+                  className={`expandable-card ${isWarmupExpanded ? "expandable-card-open" : "py-1"}`}
+                >
 
-                  {/* WARMUP SECTION LABEL */}
-                  <h3 className="text-h3">Warmup</h3>
+                  {/* WARMUP SECTION TOGGLE */}
+                  <div
+                    className="expandable-card-toggle"
+                    onClick={() => setIsWarmupExpanded(!isWarmupExpanded)}
+                  >
+                    <h3 className="text-h3">Warmup</h3>
+                    {isWarmupExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-muted" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-muted" />
+                    )}
+                  </div>
 
-                  {/* WARMUP LOGGED SEGMENT SUB-CARDS */}
-                  {warmupLoggedSegments.map((segment) => (
+                  {/* WARMUP EXPANDED CONTENT */}
+                  {isWarmupExpanded && (
+                    <div className="expandable-card-content">
 
-                    // WARMUP SEGMENT SUB-CARD
-                    <div
-                      key={segment.id}
-                      className="sub-card sub-card-muted cursor-pointer"
-                      onClick={() => handleOpenSegment(segment)}
-                    >
+                      {/* WARMUP LOGGED SEGMENT SUB-CARDS */}
+                      {warmupLoggedSegments.map((segment) => (
 
-                      {/* SUB-CARD HEADER */}
-                      <div className="sub-card-header">
+                        // WARMUP SEGMENT SUB-CARD
+                        <div
+                          key={segment.id}
+                          className="sub-card cursor-pointer"
+                          onClick={() => handleOpenSegment(segment)}
+                        >
 
-                        {/* EXERCISE NAME */}
-                        <div className="flex items-center gap-2">
-                          {isSegmentComplete(segment)
-                            ? <CircleCheck className="icon-success !w-4 !h-4" />
-                            : <Circle className="icon-muted !w-4 !h-4" />
-                          }
-                          <h3 className="text-card-title">{segment.exercise_name}</h3>
-                        </div>
+                          {/* SUB-CARD HEADER */}
+                          <div className="sub-card-header">
 
-                        {/* ORIGINAL TARGET EXERCISE HINT (when selected exercise was swapped) */}
-                        {segment.target && segment.target.exercise_id !== segment.exercise_id && (
-                          <p className="text-secondary">Swapped from {segment.target.exercise_name}</p>
-                        )}
-                      </div>
+                            {/* EXERCISE NAME */}
+                            <div className="flex items-center gap-2">
+                              {isSegmentComplete(segment)
+                                ? <CircleCheck className="icon-success !w-4 !h-4" />
+                                : <Circle className="icon-muted !w-4 !h-4" />
+                              }
+                              <h3 className="text-card-title">{segment.exercise_name}</h3>
+                            </div>
 
-                      {/* SUB-CARD CONTENT */}
-                      <div className="sub-card-content">
-
-                        {/* SEGMENT NOTES */}
-                        {segment.notes && (
-                          <div className="text-secondary flex items-center gap-1">
-                            <StickyNote className="w-3 h-3" />
-                            <span>{segment.notes}</span>
+                            {/* ORIGINAL TARGET EXERCISE HINT (when selected exercise was swapped) */}
+                            {segment.target && segment.target.exercise_id !== segment.exercise_id && (
+                              <p className="text-secondary">Swapped from {segment.target.exercise_name}</p>
+                            )}
                           </div>
-                        )}
 
-                        {/* SETS */}
-                        {(() => {
-                          const warmupSets = segment.sets.filter((s) => s.is_warmup);
-                          const workingSets = segment.sets.filter((s) => !s.is_warmup);
-                          const unlinkedWarmupTargets = segment.target
-                            ? segment.target.sets.filter((ts) => ts.is_warmup && !warmupSets.some((s) => s.set_number === ts.set_number))
-                            : [];
-                          const unlinkedWorkingTargets = segment.target
-                            ? segment.target.sets.filter((ts) => !ts.is_warmup && !workingSets.some((s) => s.set_number === ts.set_number))
-                            : [];
-                          const hasContent = segment.sets.length > 0 || unlinkedWarmupTargets.length > 0 || unlinkedWorkingTargets.length > 0;
+                          {/* SUB-CARD CONTENT */}
+                          <div className="sub-card-content">
 
-                          return !hasContent ? (
+                            {/* SEGMENT NOTES */}
+                            {segment.notes && (
+                              <div className="text-secondary flex items-center gap-1">
+                                <StickyNote className="w-3 h-3" />
+                                <span>{segment.notes}</span>
+                              </div>
+                            )}
 
-                            // NO SETS PLACEHOLDER
-                            <p className="text-secondary">No sets recorded</p>
-                          ) : (
+                            {/* SETS */}
+                            {(() => {
+                              const unlinkedTargetSets = segment.target
+                                ? segment.target.sets.filter((ts) => !segment.sets.some((s) => s.set_number === ts.set_number && s.is_warmup === ts.is_warmup))
+                                : [];
+                              const hasContent = segment.sets.length > 0 || unlinkedTargetSets.length > 0;
 
-                            // SETS
-                            <div className="flex flex-col gap-1">
+                              return !hasContent ? (
 
-                              {/* WARMUP SET ROWS */}
-                              {warmupSets.map((set) => {
-                                const targetSet = segment.target
-                                  ? segment.target.sets.find((ts) => ts.set_number === set.set_number && ts.is_warmup)
-                                  : null;
-                                const targetDiffers = targetSet && (
-                                  set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
-                                );
+                                // NO SETS PLACEHOLDER
+                                <p className="text-secondary">No sets recorded</p>
+                              ) : (
 
-                                return (
-                                  // WARMUP SET ROW
+                                // SETS
+                                <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
+
+                                  {/* LOGGED SET ROWS */}
+                                  {segment.sets.map((set) => (
+                                    <p key={set.id} className={!set.is_completed ? 'text-secondary' : ''}>
+                                      <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                                      {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
+                                      {set.notes && <span className="text-secondary"> - {set.notes}</span>}
+                                    </p>
+                                  ))}
+
+                                  {/* UNLINKED TARGET SET ROWS */}
+                                  {unlinkedTargetSets.map((ts) => (
+                                    <p key={ts.id} className="text-secondary">
+                                      <span>{ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
+                                      {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
+                                    </p>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* WARMUP UNLINKED TARGET CARDS */}
+                      {warmupUnlinkedTargets.map((target) => (
+
+                        // WARMUP TARGET SUB-CARD
+                        <div
+                          key={target.id}
+                          className="sub-card cursor-pointer"
+                          onClick={() => handleOpenTargetSegment(target)}
+                        >
+
+                          {/* SUB-CARD HEADER */}
+                          <div className="sub-card-header">
+
+                            {/* EXERCISE NAME */}
+                            <div className="flex items-center gap-2">
+                              <Circle className="icon-muted !w-4 !h-4" />
+                              <h3 className="text-card-title">{target.exercise_name}</h3>
+                            </div>
+                          </div>
+
+                          {/* SUB-CARD CONTENT */}
+                          <div className="sub-card-content">
+
+                            {/* TARGET SETS */}
+                            {target.sets.length === 0 ? (
+
+                              // NO SETS PLACEHOLDER
+                              <p className="text-secondary">No target sets</p>
+                            ) : (
+
+                              // SETS
+                              <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
+                                {target.sets.map((set) => (
                                   <p key={set.id} className="text-secondary">
                                     <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
                                     {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                                    {targetDiffers && <span> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
                                   </p>
-                                );
-                              })}
-
-                              {/* UNLINKED WARMUP TARGET ROWS */}
-                              {unlinkedWarmupTargets.map((ts) => (
-                                <p key={ts.id} className="text-secondary">
-                                  <span>Target: {ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
-                                  {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
-                                </p>
-                              ))}
-
-                              {/* WORKING SET ROWS */}
-                              {workingSets.map((set) => {
-                                const targetSet = segment.target
-                                  ? segment.target.sets.find((ts) => ts.set_number === set.set_number && !ts.is_warmup)
-                                  : null;
-                                const targetDiffers = targetSet && (
-                                  set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
-                                );
-
-                                return (
-                                  // WORKING SET ROW
-                                  <p key={set.id} className={!set.is_completed ? 'text-secondary' : ''}>
-                                    <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                                    {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                                    {targetDiffers && <span className="text-secondary"> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
-                                    {set.notes && <span className="text-secondary"> - {set.notes}</span>}
-                                  </p>
-                                );
-                              })}
-
-                              {/* UNLINKED WORKING TARGET ROWS */}
-                              {unlinkedWorkingTargets.map((ts) => (
-                                <p key={ts.id} className="text-secondary">
-                                  <span>Target: {ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
-                                  {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
-                                </p>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* WARMUP UNLINKED TARGET CARDS */}
-                  {warmupUnlinkedTargets.map((target) => (
-
-                    // WARMUP TARGET SUB-CARD
-                    <div
-                      key={target.id}
-                      className="sub-card sub-card-muted cursor-pointer"
-                      onClick={() => handleOpenTargetSegment(target)}
-                    >
-
-                      {/* SUB-CARD HEADER */}
-                      <div className="sub-card-header">
-
-                        {/* EXERCISE NAME */}
-                        <div className="flex items-center gap-2">
-                          <Circle className="icon-muted !w-4 !h-4" />
-                          <h3 className="text-card-title">{target.exercise_name}</h3>
-                        </div>
-                      </div>
-
-                      {/* SUB-CARD CONTENT */}
-                      <div className="sub-card-content">
-
-                        {/* TARGET SETS */}
-                        {target.sets.length === 0 ? (
-
-                          // NO SETS PLACEHOLDER
-                          <p className="text-secondary">No target sets</p>
-                        ) : (
-
-                          // SETS
-                          <div className="flex flex-col gap-1">
-
-                            {/* WARMUP SET ROWS */}
-                            {target.sets.filter((s) => s.is_warmup).map((set) => (
-                              <p key={set.id} className="text-secondary">
-                                <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                                {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                              </p>
-                            ))}
-
-                            {/* WORKING SET ROWS */}
-                            {target.sets.filter((s) => !s.is_warmup).map((set) => (
-                              <p key={set.id} className="text-secondary">
-                                <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                                {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                              </p>
-                            ))}
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ))}
+
+                      {/* ADD WARMUP SEGMENT BUTTON */}
+                      <Button
+                        onClick={handleAddWarmupSegment}
+                        className="btn-link"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add Warmup Exercise</span>
+                      </Button>
+
                     </div>
-                  ))}
+                  )}
 
                 </div>
               )}
@@ -1032,15 +1008,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                     {/* SETS */}
                     {(() => {
-                      const warmupSets = segment.sets.filter((s) => s.is_warmup);
                       const workingSets = segment.sets.filter((s) => !s.is_warmup);
-                      const unlinkedWarmupTargets = segment.target
-                        ? segment.target.sets.filter((ts) => ts.is_warmup && !warmupSets.some((s) => s.set_number === ts.set_number))
-                        : [];
                       const unlinkedWorkingTargets = segment.target
                         ? segment.target.sets.filter((ts) => !ts.is_warmup && !workingSets.some((s) => s.set_number === ts.set_number))
                         : [];
-                      const hasContent = segment.sets.length > 0 || unlinkedWarmupTargets.length > 0 || unlinkedWorkingTargets.length > 0;
+                      const hasContent = workingSets.length > 0 || unlinkedWorkingTargets.length > 0;
 
                       return !hasContent ? (
 
@@ -1049,34 +1021,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       ) : (
 
                         // SETS
-                        <div className="flex flex-col gap-1">
-
-                          {/* WARMUP SET ROWS */}
-                          {warmupSets.map((set) => {
-                            const targetSet = segment.target
-                              ? segment.target.sets.find((ts) => ts.set_number === set.set_number && ts.is_warmup)
-                              : null;
-                            const targetDiffers = targetSet && (
-                              set.weight !== targetSet.weight || set.reps !== targetSet.reps || set.rpe !== targetSet.rpe
-                            );
-
-                            return (
-                              // WARMUP SET ROW
-                              <p key={set.id} className="text-secondary">
-                                <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                                {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                                {targetDiffers && <span> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
-                              </p>
-                            );
-                          })}
-
-                          {/* UNLINKED WARMUP TARGET ROWS */}
-                          {unlinkedWarmupTargets.map((ts) => (
-                            <p key={ts.id} className="text-secondary">
-                              <span>Target: {ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
-                              {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
-                            </p>
-                          ))}
+                        <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
 
                           {/* WORKING SET ROWS */}
                           {workingSets.map((set) => {
@@ -1092,7 +1037,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                               <p key={set.id} className={!set.is_completed ? 'text-secondary' : ''}>
                                 <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
                                 {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                                {targetDiffers && <span className="text-secondary"> · Target: {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
+                                {targetDiffers && !set.is_completed && <span className="text-secondary"> · {targetSet.weight} x {targetSet.reps}{targetSet.rpe !== null ? ` @ ${targetSet.rpe}` : ""}</span>}
                                 {set.notes && <span className="text-secondary"> - {set.notes}</span>}
                               </p>
                             );
@@ -1101,7 +1046,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                           {/* UNLINKED WORKING TARGET ROWS */}
                           {unlinkedWorkingTargets.map((ts) => (
                             <p key={ts.id} className="text-secondary">
-                              <span>Target: {ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
+                              <span>{ts.weight > 0 ? `${ts.weight}lb` : "BW"} x {ts.reps}</span>
                               {ts.rpe !== null && <span> @ {ts.rpe}RPE</span>}
                             </p>
                           ))}
@@ -1143,15 +1088,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     ) : (
 
                       // SETS
-                      <div className="flex flex-col gap-1">
-
-                        {/* WARMUP SET ROWS */}
-                        {target.sets.filter((s) => s.is_warmup).map((set) => (
-                          <p key={set.id} className="text-secondary">
-                            <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
-                            {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
-                          </p>
-                        ))}
+                      <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
 
                         {/* WORKING SET ROWS */}
                         {target.sets.filter((s) => !s.is_warmup).map((set) => (
@@ -1165,18 +1102,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   </div>
                 </div>
               ))}
-
-              {/* ADD WARMUP SEGMENT BUTTON */}
-              <Button
-                onClick={handleAddWarmupSegment}
-                className="btn-link"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Warmup Exercise</span>
-              </Button>
-
-              {/* DIVIDER */}
-              <div className="border-t" />
 
               {/* ADD SEGMENT BUTTON */}
               <Button
