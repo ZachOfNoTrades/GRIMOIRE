@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardR
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const PAGE_SIZE_OPTIONS = [10, 50, 100];
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 50, 100, 0]; // 0 = "All"
 
 interface Column {
   header: string;
@@ -18,6 +18,7 @@ interface PaginatedTableProps<T> {
   renderRow: (record: T) => ReactNode;
   emptyMessage?: string;
   containerClassName?: string;
+  pageSizeOptions?: number[];
   defaultPageSize?: number;
 }
 
@@ -33,6 +34,7 @@ function PaginatedTableInner<T>(
     renderRow,
     emptyMessage = "No records found",
     containerClassName = "min-h-[15rem] max-h-[calc(100vh-28rem)]",
+    pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
     defaultPageSize = 10,
   }: PaginatedTableProps<T>,
   ref: Ref<PaginatedTableHandle>,
@@ -47,17 +49,11 @@ function PaginatedTableInner<T>(
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
-  const [pageInput, setPageInput] = useState("1");
-
   const cache = useRef<Map<string, { records: T[]; totalCount: number }>>(new Map());
-  const isNavigating = useRef(false);
 
-  const totalPages = Math.ceil(totalCount / pageSize);
-
-  // Sync page input when page changes
-  useEffect(() => {
-    setPageInput(String(currentPage));
-  }, [currentPage]);
+  const isShowingAll = pageSize === 0;
+  const effectivePageSize = isShowingAll ? totalCount || Number.MAX_SAFE_INTEGER : pageSize;
+  const totalPages = isShowingAll ? 1 : Math.ceil(totalCount / pageSize);
 
   // Fetch a page, using cache if available
   const fetchPage = useCallback(async (page: number, size: number): Promise<{ records: T[]; totalCount: number }> => {
@@ -90,48 +86,28 @@ function PaginatedTableInner<T>(
   }, [fetchPage]);
 
   useEffect(() => {
-    loadPage(currentPage, pageSize);
-  }, [currentPage, pageSize, loadPage]);
+    loadPage(currentPage, effectivePageSize);
+  }, [currentPage, effectivePageSize, loadPage]);
 
-  const handlePageSizeChange = (newPageSize: number) => {
+  const handlePageSizeChange = (newSize: number) => {
     cache.current.clear();
     setCurrentPage(1);
-    setPageSize(newPageSize);
+    setPageSize(newSize);
   };
 
-  // Commit the typed page number, clamping to valid range
-  const handlePageInputCommit = () => {
-    // Skip if a button navigation already fired this interaction
-    if (isNavigating.current) {
-      isNavigating.current = false;
-      return;
-    }
-
-    const parsed = parseInt(pageInput);
-    if (!isNaN(parsed) && parsed >= 1 && parsed <= totalPages && parsed !== currentPage) {
-      setCurrentPage(parsed);
-    } else {
-      setPageInput(String(currentPage));
-    }
-  };
-
-  // Navigate via button, flagging to suppress the competing onBlur commit
-  const handleButtonNavigate = (page: number) => {
-    isNavigating.current = true;
-    setCurrentPage(page);
-  };
+  const pageOptions = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   // Expose refresh to parent via ref
   useImperativeHandle(ref, () => ({
     refresh: () => {
-      const cacheKey = `${currentPage}-${pageSize}`;
+      const cacheKey = `${currentPage}-${effectivePageSize}`;
       cache.current.delete(cacheKey);
-      loadPage(currentPage, pageSize);
+      loadPage(currentPage, effectivePageSize);
     },
-  }), [currentPage, pageSize, loadPage]);
+  }), [currentPage, effectivePageSize, loadPage]);
 
-  const startRecord = totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0;
-  const endRecord = Math.min(currentPage * pageSize, totalCount);
+  const startRecord = totalCount > 0 ? (currentPage - 1) * effectivePageSize + 1 : 0;
+  const endRecord = isShowingAll ? totalCount : Math.min(currentPage * effectivePageSize, totalCount);
 
   return (
     <>
@@ -199,40 +175,40 @@ function PaginatedTableInner<T>(
                 onChange={(e) => handlePageSizeChange(parseInt(e.target.value))}
                 className="input-field !py-1 !px-2 text-sm !w-auto"
               >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>{size} / page</option>
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>{size === 0 ? "All" : `${size} / page`}</option>
                 ))}
               </select>
 
-              {/* PAGE BUTTONS */}
+              {/* PAGE SELECTOR */}
               <div className="flex items-center gap-1">
 
                 {/* PREVIOUS BUTTON */}
                 <Button
-                  onClick={() => handleButtonNavigate(currentPage - 1)}
+                  onClick={() => setCurrentPage(currentPage - 1)}
                   disabled={currentPage <= 1}
                   className="btn-link !px-1.5"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
 
-                {/* PAGE INPUT */}
+                {/* PAGE DROPDOWN */}
                 <div className="flex items-center gap-1 text-sm">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={pageInput}
-                    onChange={(e) => setPageInput(e.target.value)}
-                    onBlur={handlePageInputCommit}
-                    onKeyDown={(e) => { if (e.key === "Enter") handlePageInputCommit(); }}
-                    className="input-field !py-1 !px-1 text-sm text-center !w-12 !min-w-10"
-                  />
+                  <select
+                    value={currentPage}
+                    onChange={(e) => setCurrentPage(parseInt(e.target.value))}
+                    className="input-field !py-1 !px-2 !w-auto !min-w-15 !max-w-20 text-sm text-end"
+                  >
+                    {pageOptions.map((page) => (
+                      <option key={page} value={page}>{page}</option>
+                    ))}
+                  </select>
                   <span className="text-secondary">/ {totalPages}</span>
                 </div>
 
                 {/* NEXT BUTTON */}
                 <Button
-                  onClick={() => handleButtonNavigate(currentPage + 1)}
+                  onClick={() => setCurrentPage(currentPage + 1)}
                   disabled={currentPage >= totalPages}
                   className="btn-link !px-1.5"
                 >
@@ -252,8 +228,8 @@ function PaginatedTableInner<T>(
                 onChange={(e) => handlePageSizeChange(parseInt(e.target.value))}
                 className="input-field !py-1 !px-2 text-sm !w-auto"
               >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>{size} / page</option>
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>{size === 0 ? "All" : `${size} / page`}</option>
                 ))}
               </select>
             </div>
@@ -263,35 +239,35 @@ function PaginatedTableInner<T>(
               {startRecord}–{endRecord} of {totalCount}
             </span>
 
-            {/* PAGE BUTTONS (right) */}
+            {/* PAGE SELECTOR (right) */}
             <div className="flex items-center gap-1 justify-self-end">
 
               {/* PREVIOUS BUTTON */}
               <Button
-                onClick={() => handleButtonNavigate(currentPage - 1)}
+                onClick={() => setCurrentPage(currentPage - 1)}
                 disabled={currentPage <= 1}
                 className="btn-link !px-1.5"
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
 
-              {/* PAGE INPUT */}
+              {/* PAGE DROPDOWN */}
               <div className="flex items-center gap-1 text-sm">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={pageInput}
-                  onChange={(e) => setPageInput(e.target.value)}
-                  onBlur={handlePageInputCommit}
-                  onKeyDown={(e) => { if (e.key === "Enter") handlePageInputCommit(); }}
-                  className="input-field !py-1 !px-1 text-sm text-center !w-12 !min-w-10"
-                />
+                <select
+                  value={currentPage}
+                  onChange={(e) => setCurrentPage(parseInt(e.target.value))}
+                  className="input-field !py-1 !px-2 !w-auto !min-w-10 !max-w-20 text-sm"
+                >
+                  {pageOptions.map((page) => (
+                    <option key={page} value={page}>{page}</option>
+                  ))}
+                </select>
                 <span className="text-secondary">/ {totalPages}</span>
               </div>
 
               {/* NEXT BUTTON */}
               <Button
-                onClick={() => handleButtonNavigate(currentPage + 1)}
+                onClick={() => setCurrentPage(currentPage + 1)}
                 disabled={currentPage >= totalPages}
                 className="btn-link !px-1.5"
               >
