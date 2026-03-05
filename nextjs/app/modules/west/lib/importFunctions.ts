@@ -23,17 +23,18 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
       }
 
       // Create missing exercises
-      for (const exerciseName of payload.new_exercise_names) {
-        if (!exerciseNameToId.has(exerciseName.toLowerCase())) {
+      for (const exercise of payload.new_exercises) {
+        if (!exerciseNameToId.has(exercise.name.toLowerCase())) {
           const result = await transaction.request()
-            .input('name', exerciseName)
-            .input('category', 'Strength')
+            .input('name', exercise.name)
+            .input('description', exercise.description)
+            .input('category', exercise.category)
             .query(`
-              INSERT INTO exercises (name, category)
+              INSERT INTO exercises (name, description, category)
               OUTPUT INSERTED.id
-              VALUES (@name, @category)
+              VALUES (@name, @description, @category)
             `);
-          exerciseNameToId.set(exerciseName.toLowerCase(), result.recordset[0].id);
+          exerciseNameToId.set(exercise.name.toLowerCase(), result.recordset[0].id);
           exercisesCreated++;
         }
       }

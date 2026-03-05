@@ -8,6 +8,8 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   File,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -17,6 +19,7 @@ import {
   ImportPayload,
   ImportResult,
   ImportPreview,
+  NewExerciseInput,
 } from "../../types/import";
 import { EXERCISE_NAME_ALIASES } from "../../utils/exerciseAliases";
 import {
@@ -51,7 +54,7 @@ export default function ImportHistoryModal({
 
   // STATE
   const [isMounted, setIsMounted] = useState(false);
-  const [step, setStep] = useState<"upload" | "mapping" | "preview" | "processing" | "results">("upload");
+  const [step, setStep] = useState<"upload" | "mapping" | "preview" | "exercise-details" | "processing" | "results">("upload");
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +62,8 @@ export default function ImportHistoryModal({
   const [selectedMatchedExerciseNames, setSelectedMatchedExerciseNames] = useState<Set<string>>(new Set());
   const [newExerciseTargetIds, setNewExerciseTargetIds] = useState<Map<string, string>>(new Map());
   const [matchedExerciseTargetIds, setMatchedExerciseTargetIds] = useState<Map<string, string>>(new Map());
+  const [exerciseDetailsIndex, setExerciseDetailsIndex] = useState(0);
+  const [exerciseDetails, setExerciseDetails] = useState<Map<string, NewExerciseInput>>(new Map());
 
   // REFS
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +93,8 @@ export default function ImportHistoryModal({
     setSelectedMatchedExerciseNames(new Set());
     setNewExerciseTargetIds(new Map());
     setMatchedExerciseTargetIds(new Map());
+    setExerciseDetailsIndex(0);
+    setExerciseDetails(new Map());
   };
 
   const fetchExercises = async () => {
@@ -227,6 +234,52 @@ export default function ImportHistoryModal({
     setStep("preview");
   };
 
+  // Computes the list of exercise names that will be created (checked + set to "Create New")
+  const getExercisesToCreate = (): string[] => {
+    if (!preview) return [];
+    return preview.new_exercise_names.filter(name =>
+      selectedNewExerciseNames.has(name) && !newExerciseTargetIds.get(name)
+    );
+  };
+
+  // Navigates from Preview to the Exercise Details step (or skips to import if none to create)
+  const handlePreviewNext = () => {
+    const exercisesToCreate = getExercisesToCreate();
+
+    if (exercisesToCreate.length === 0) {
+      handleImport();
+      return;
+    }
+
+    // Initialize exercise details for each new exercise
+    const details = new Map<string, NewExerciseInput>();
+    for (const name of exercisesToCreate) {
+      const existing = exerciseDetails.get(name);
+      if (existing) {
+        details.set(name, existing); // preserve any previously entered data
+      } else {
+        details.set(name, { name, description: null, category: "Strength" });
+      }
+    }
+    setExerciseDetails(details);
+    setExerciseDetailsIndex(0);
+    setStep("exercise-details");
+  };
+
+  // Updates a field on the currently displayed exercise
+  const updateCurrentExerciseDetail = (field: keyof NewExerciseInput, value: string | null) => {
+    const exercisesToCreate = getExercisesToCreate();
+    const currentName = exercisesToCreate[exerciseDetailsIndex];
+    if (!currentName) return;
+
+    const newDetails = new Map(exerciseDetails);
+    const current = newDetails.get(currentName);
+    if (current) {
+      newDetails.set(currentName, { ...current, [field]: value });
+      setExerciseDetails(newDetails);
+    }
+  };
+
   const handleImport = async () => {
     if (!preview) return;
 
@@ -261,6 +314,13 @@ export default function ImportHistoryModal({
       }
     });
 
+    // New exercises renamed in the exercise details step
+    exerciseDetails.forEach((details, originalName) => {
+      if (details.name !== originalName) {
+        exerciseNameRemapping.set(originalName, details.name);
+      }
+    });
+
     // Filter and transform sessions
     const transformedSessions = preview.sessions
       .map(session => ({
@@ -275,13 +335,15 @@ export default function ImportHistoryModal({
       .filter(session => session.segments.length > 0);
 
     // New exercises to create: checked AND still set to "Create New" (empty target ID)
-    const exercisesToCreate = preview.new_exercise_names.filter(name =>
-      selectedNewExerciseNames.has(name) && !newExerciseTargetIds.get(name)
-    );
+    const exercisesToCreate = getExercisesToCreate();
+    const newExercises: NewExerciseInput[] = exercisesToCreate.map(name => {
+      const details = exerciseDetails.get(name);
+      return details || { name, description: null, category: "Strength" };
+    });
 
     const payload: ImportPayload = {
       sessions: transformedSessions,
-      new_exercise_names: exercisesToCreate,
+      new_exercises: newExercises,
     };
 
     try {
@@ -354,7 +416,7 @@ export default function ImportHistoryModal({
         <div className=" p-6">
 
           {/* STEP INDICATOR BAR */}
-          <div className="flex items-center justify-between mb-8 text-center max-w-xl mx-auto">
+          <div className="flex items-center justify-between mb-8 text-center max-w-2xl mx-auto">
 
             {/* UPLOAD STEP */}
             <div className={`flex items-center ${step === "upload" ? "text-primary" : "text-muted"}`}>
@@ -389,10 +451,21 @@ export default function ImportHistoryModal({
             {/* ARROW */}
             <ArrowRight className="text-muted w-5 h-5" />
 
+            {/* EXERCISES STEP */}
+            <div className={`flex items-center ${step === "exercise-details" ? "text-primary" : "text-muted"}`}>
+              <div className={step === "exercise-details" ? "badge-default" : "badge-muted"}>
+                4
+              </div>
+              <span className="ml-2 font-medium">Exercises</span>
+            </div>
+
+            {/* ARROW */}
+            <ArrowRight className="text-muted w-5 h-5" />
+
             {/* IMPORT STEP */}
             <div className={`flex items-center ${step === "processing" || step === "results" ? "text-primary" : "text-muted"}`}>
               <div className={step === "processing" || step === "results" ? "badge-default" : "badge-muted"}>
-                4
+                5
               </div>
               <span className="ml-2 font-medium">Import</span>
             </div>
@@ -842,16 +915,16 @@ export default function ImportHistoryModal({
                       Back
                     </Button>
 
-                    {/* IMPORT BUTTON */}
+                    {/* NEXT BUTTON */}
                     <Button
-                      onClick={handleImport}
-                      className="btn-success"
+                      onClick={handlePreviewNext}
+                      className="btn-primary"
                       disabled={
                         selectedNewExerciseNames.size === 0 &&
                         selectedMatchedExerciseNames.size === 0
                       }
                     >
-                      Import
+                      Next
                     </Button>
                   </div>
                 </>
@@ -859,14 +932,119 @@ export default function ImportHistoryModal({
             </div>
           )}
 
-          {/* STEP 4 - PROCESSING */}
+          {/* STEP 4 - EXERCISE DETAILS */}
+          {step === "exercise-details" && (() => {
+            const exercisesToCreate = getExercisesToCreate();
+            const currentName = exercisesToCreate[exerciseDetailsIndex];
+            const currentDetails = currentName ? exerciseDetails.get(currentName) : null;
+
+            return (
+              <div>
+
+                {/* HEADER */}
+                <h3 className="text-card-title !mb-4">New Exercises</h3>
+
+                {/* NAVIGATION */}
+                <div className="flex items-center justify-center gap-4 mb-6">
+
+                  {/* PREVIOUS BUTTON */}
+                  <Button
+                    onClick={() => setExerciseDetailsIndex(exerciseDetailsIndex - 1)}
+                    disabled={exerciseDetailsIndex === 0}
+                    className="btn-link"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </Button>
+
+                  {/* COUNTER */}
+                  <span className="text-primary font-medium">
+                    {exerciseDetailsIndex + 1} of {exercisesToCreate.length}
+                  </span>
+
+                  {/* NEXT BUTTON */}
+                  <Button
+                    onClick={() => setExerciseDetailsIndex(exerciseDetailsIndex + 1)}
+                    disabled={exerciseDetailsIndex === exercisesToCreate.length - 1}
+                    className="btn-link"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </Button>
+                </div>
+
+                {/* EXERCISE FORM */}
+                {currentDetails && (
+                  <div className="max-w-lg mx-auto space-y-4">
+
+                    {/* NAME INPUT */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label">Name</label>
+                      <input
+                        type="text"
+                        value={currentDetails.name}
+                        onChange={(e) => updateCurrentExerciseDetail("name", e.target.value)}
+                        className="input-field"
+                      />
+                    </div>
+
+                    {/* DESCRIPTION INPUT */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label">Description</label>
+                      <textarea
+                        value={currentDetails.description || ""}
+                        onChange={(e) => updateCurrentExerciseDetail("description", e.target.value || null)}
+                        placeholder="Optional description..."
+                        className="input-field min-h-[80px] resize-y"
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* CATEGORY SELECT */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label">Category</label>
+                      <select
+                        value={currentDetails.category}
+                        onChange={(e) => updateCurrentExerciseDetail("category", e.target.value)}
+                        className="input-field"
+                      >
+                        <option value="Strength">Strength</option>
+                        <option value="Cardio">Cardio</option>
+                        <option value="Mobility">Mobility</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* ACTION BUTTONS GROUP */}
+                <div className="mt-6 flex justify-end gap-3">
+
+                  {/* BACK BUTTON */}
+                  <Button
+                    onClick={() => setStep("preview")}
+                    className="btn-link"
+                  >
+                    Back
+                  </Button>
+
+                  {/* IMPORT BUTTON */}
+                  <Button
+                    onClick={handleImport}
+                    className="btn-success"
+                  >
+                    Import
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* STEP 5 - PROCESSING */}
           {step === "processing" && (
             <div className="text-center py-12">
               <p className="text-page-subtitle">Processing...</p>
             </div>
           )}
 
-          {/* STEP 4.1 - RESULTS */}
+          {/* STEP 5.1 - RESULTS */}
           {step === "results" && (
             <div>
               {result ? (

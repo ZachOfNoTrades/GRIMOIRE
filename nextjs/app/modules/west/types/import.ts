@@ -20,9 +20,15 @@ export interface ImportSession {
   segments: ImportSegment[];
 }
 
+export interface NewExerciseInput {
+  name: string;
+  description: string | null;
+  category: string;
+}
+
 export interface ImportPayload {
   sessions: ImportSession[];
-  new_exercise_names: string[];
+  new_exercises: NewExerciseInput[];
 }
 
 export interface ImportResult {
