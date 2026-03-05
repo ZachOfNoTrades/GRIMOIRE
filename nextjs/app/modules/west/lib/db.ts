@@ -9,16 +9,23 @@ const config: sql.config = {
     encrypt: true,
     trustServerCertificate: true,
   },
+  pool: {
+    max: 10,
+    min: 0,
+    idleTimeoutMillis: 30000,
+  },
 };
 
+let pool: sql.ConnectionPool | null = null;
+
 export async function getWestConnection(): Promise<sql.ConnectionPool> {
-  const pool = new sql.ConnectionPool(config);
-  await pool.connect();
+  if (!pool || !pool.connected) {
+    pool = new sql.ConnectionPool(config);
+    await pool.connect();
+  }
   return pool;
 }
 
-export async function closeWestConnection(pool: sql.ConnectionPool): Promise<void> {
-  if (pool && pool.connected) {
-    await pool.close();
-  }
+export async function closeWestConnection(_pool: sql.ConnectionPool): Promise<void> {
+  // No-op — singleton pool stays open for reuse
 }
