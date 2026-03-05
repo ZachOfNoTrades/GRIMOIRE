@@ -1,54 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Dumbbell, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Exercise } from "../../types/exercise";
+import PaginatedTable, { PaginatedTableHandle } from "../../components/PaginatedTable";
 import AddExerciseModal from "./AddExerciseModal";
 
 export default function ExercisesPage() {
-
-  // DATA
-  const [exercises, setExercises] = useState<Exercise[]>([]);
 
   // INPUT
   const [searchTerm, setSearchTerm] = useState("");
   const [showDisabled, setShowDisabled] = useState(false);
 
   // STATE
-  const [isLoading, setIsLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [activeSearch, setActiveSearch] = useState("");
 
-  const statusExercises = exercises.filter((exercise) =>
-    showDisabled ? exercise.is_disabled : !exercise.is_disabled
-  );
-  const filteredExercises = statusExercises.filter((exercise) =>
-    !searchTerm || exercise.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
+  const tableRef = useRef<PaginatedTableHandle>(null);
   const router = useRouter();
-
-  // LOAD DATA
-  useEffect(() => {
-    fetchExercises();
-  }, []);
-
-  const fetchExercises = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch("/modules/west/api/exercises?includeDisabled=true");
-      if (!response.ok) {
-        throw new Error("Failed to fetch exercises");
-      }
-      const data = await response.json();
-      setExercises(data);
-    } catch (error) {
-      console.error("Error fetching exercises:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
 
@@ -96,6 +67,7 @@ export default function ExercisesPage() {
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") setActiveSearch(searchTerm); }}
                 className="input-field"
               />
 
@@ -130,74 +102,36 @@ export default function ExercisesPage() {
             </button>
           </div>
 
-          {/* TABLE */}
-          <div className="table-container min-h-[15rem] max-h-[calc(100vh-28rem)]">
-            <table className="table">
+          {/* EXERCISES TABLE */}
+          <PaginatedTable<Exercise>
+            key={`${showDisabled}-${activeSearch}`}
+            ref={tableRef}
+            fetchUrl={(page, pageSize) =>
+              `/modules/west/api/exercises?showDisabled=${showDisabled}&search=${encodeURIComponent(activeSearch)}&page=${page}&pageSize=${pageSize}`
+            }
+            dataKey="exercises"
+            columns={[{ header: "Exercise" }]}
+            defaultPageSize={0}
+            emptyMessage={activeSearch ? "No exercises match search criteria" : "No exercises found"}
+            renderRow={(exercise) => (
 
-              {/* TABLE HEADERS */}
-              <thead className="table-header">
-                <tr className="table-header-row">
-                  <th className="table-header-cell">Exercise</th>
-                </tr>
-              </thead>
-
-              {/* TABLE ROWS */}
-              <tbody className="table-body">
-
-                {isLoading ? (
-
-                  // LOADING PLACEHOLDER
-                  <tr>
-                    <td className="table-empty">
-                      <div className="loading-container">
-                        <div className="loading-spinner" />
-                      </div>
-                    </td>
-                  </tr>
-                ) : exercises.length === 0 ? (
-
-                  // NO RECORDS FOUND WARNING
-                  <tr>
-                    <td className="table-empty">No exercises found</td>
-                  </tr>
-                ) : filteredExercises.length === 0 ? (
-
-                  // NO SEARCH RESULTS FOUND WARNING
-                  <tr>
-                    <td className="table-empty">No exercises match search criteria</td>
-                  </tr>
-                ) : (
-
-                  // RECORDS MAP
-                  filteredExercises.map((exercise) => (
-
-                    // TABLE ROW
-                    <tr
-                      key={exercise.id}
-                      className="table-row-clickable"
-                      onClick={() => router.push(`/modules/west/ui/exercises/${exercise.id}`)}
-                    >
-                      <td className="table-cell">{exercise.name}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* SUMMARY */}
-          {!isLoading && statusExercises.length > 0 && (
-            <div className="text-secondary text-center mt-4">
-              Showing {filteredExercises.length} of {statusExercises.length} {showDisabled ? "disabled" : "enabled"} exercises
-            </div>
-          )}
+              // TABLE ROW
+              <tr
+                key={exercise.id}
+                className="table-row-clickable"
+                onClick={() => router.push(`/modules/west/ui/exercises/${exercise.id}`)}
+              >
+                <td className="table-cell">{exercise.name}</td>
+              </tr>
+            )}
+          />
         </div>
 
         {/* ADD EXERCISE MODAL */}
         <AddExerciseModal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
-          onSaved={fetchExercises}
+          onSaved={() => tableRef.current?.refresh()}
         />
       </main>
     </div>

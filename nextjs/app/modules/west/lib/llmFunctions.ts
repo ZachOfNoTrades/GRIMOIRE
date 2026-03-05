@@ -251,7 +251,7 @@ export async function generateSessionTargetsWithLlm(
   }
 
   // Validate exercise IDs
-  const exercises = await getAllExercises();
+  const { exercises } = await getAllExercises();
   const validExerciseIds = new Set(exercises.map(e => e.id));
 
   const invalidIds = parsed.target_exercises

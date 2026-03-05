@@ -52,7 +52,7 @@ function PaginatedTableInner<T>(
   const cache = useRef<Map<string, { records: T[]; totalCount: number }>>(new Map());
 
   const isShowingAll = pageSize === 0;
-  const effectivePageSize = isShowingAll ? totalCount || Number.MAX_SAFE_INTEGER : pageSize;
+  const effectivePageSize = isShowingAll ? Number.MAX_SAFE_INTEGER : pageSize;
   const totalPages = isShowingAll ? 1 : Math.ceil(totalCount / pageSize);
 
   // Fetch a page, using cache if available

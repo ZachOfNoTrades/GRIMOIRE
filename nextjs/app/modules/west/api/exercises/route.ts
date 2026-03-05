@@ -4,7 +4,6 @@ import { getAllExercises, getAllExercisesWithMuscleGroups, createExercise } from
 export async function GET(request: NextRequest) {
   try {
 
-    const includeDisabled = request.nextUrl.searchParams.get('includeDisabled') === 'true';
     const include = request.nextUrl.searchParams.get('include');
 
     if (include === 'muscles') {
@@ -12,8 +11,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(exercises);
     }
 
-    const exercises = await getAllExercises(includeDisabled);
-    return NextResponse.json(exercises);
+    const showDisabled = request.nextUrl.searchParams.get('showDisabled') === 'true';
+    const search = request.nextUrl.searchParams.get('search') || undefined;
+    const page = request.nextUrl.searchParams.get('page') ? parseInt(request.nextUrl.searchParams.get('page')!) : undefined;
+    const pageSize = request.nextUrl.searchParams.get('pageSize') ? parseInt(request.nextUrl.searchParams.get('pageSize')!) : undefined;
+
+    const result = await getAllExercises({ showDisabled, search, page, pageSize });
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('Error in GET /api/exercises:', error);

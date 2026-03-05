@@ -3,19 +3,62 @@ import { Exercise, ExerciseSummary, ExerciseHistoryEntry } from '../types/exerci
 // TODO: Update all other e1RM calculations across the codebase to use this shared util
 import { calculateEstimatedOneRepMax } from '../utils/calc';
 
-export async function getAllExercises(includeDisabled: boolean = false): Promise<Exercise[]> {
+export async function getAllExercises(
+  options: {
+    showDisabled?: boolean;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}
+): Promise<{ exercises: Exercise[]; totalCount: number }> {
   let pool;
   try {
     pool = await getWestConnection();
-    const result = await pool.request().query(`
-      SELECT * FROM exercises ${includeDisabled ? '' : 'WHERE is_disabled = 0'} ORDER BY name
-    `);
+
+    const request = pool.request();
+    const conditions: string[] = [];
+
+    // Filter by disabled status
+    if (options.showDisabled) {
+      conditions.push('is_disabled = 1');
+    } else {
+      conditions.push('is_disabled = 0');
+    }
+
+    // Search filter
+    if (options.search) {
+      request.input('search', `%${options.search}%`);
+      conditions.push('name LIKE @search');
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    let paginationClause = '';
+    if (options.page && options.pageSize) {
+      const offset = (options.page - 1) * options.pageSize;
+      request.input('offset', offset).input('pageSize', options.pageSize);
+      paginationClause = 'OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY';
+    }
+
+    const query = `
+      SELECT *, COUNT(*) OVER() AS _total_count
+      FROM exercises
+      ${whereClause}
+      ORDER BY name
+      ${paginationClause}
+    `;
+
+    const result = await request.query(query);
 
     if (result.recordset.length === 0) {
       console.warn('No exercises found');
+      return { exercises: [], totalCount: 0 };
     }
 
-    return result.recordset;
+    const totalCount = result.recordset[0]._total_count;
+    const exercises = result.recordset.map(({ _total_count, ...exercise }) => exercise as Exercise);
+
+    return { exercises, totalCount };
   } catch (error) {
     console.error('Error fetching exercises:', error);
     throw error;
