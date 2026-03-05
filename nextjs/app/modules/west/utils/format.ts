@@ -95,3 +95,9 @@ export function formatDateTimeShort(date: Date): string {
   const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   return `${yyyy}-${mm}-${dd} ${time}`;
 }
+
+// "Workout - Mar 4, 2026"
+export function formatSessionName(date: Date): string {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `Workout - ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}

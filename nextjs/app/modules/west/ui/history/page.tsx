@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, History, LayoutList } from "lucide-react";
+import { ArrowLeft, History, LayoutList, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../types/workoutSession";
 import { ProgramSummary } from "../../types/program";
 import { formatDateTimeShort } from "../../utils/format";
+import ImportHistoryModal from "./ImportHistoryModal";
 
 export default function HistoryPage() {
 
@@ -20,6 +21,7 @@ export default function HistoryPage() {
   // STATE
   const [isProgramsLoading, setIsProgramsLoading] = useState(true);
   const [isSessionsLoading, setIsSessionsLoading] = useState(true);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const standaloneSessions = sessions.filter((s) => s.week_id === null);
   const filteredSessions = standaloneSessions.filter((s) =>
@@ -85,9 +87,20 @@ export default function HistoryPage() {
             <span>Back</span>
           </Button>
 
-          {/* TITLE */}
-          <div>
+          {/* TITLE ROW */}
+          <div className="flex items-center justify-between">
+
+            {/* TITLE */}
             <h1 className="text-page-title">Workout History</h1>
+
+            {/* IMPORT BUTTON */}
+            <Button
+              onClick={() => setIsImportModalOpen(true)}
+              className="btn-secondary"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Import History</span>
+            </Button>
           </div>
         </div>
 
@@ -250,6 +263,13 @@ export default function HistoryPage() {
           </div>
         </div>
       </main>
+
+      {/* IMPORT HISTORY MODAL */}
+      <ImportHistoryModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImported={() => fetchSessions()}
+      />
     </div>
   );
 }
