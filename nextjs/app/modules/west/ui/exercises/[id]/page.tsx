@@ -279,7 +279,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.back()}
+            onClick={() => router.push("/modules/west/ui/exercises")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />

@@ -221,7 +221,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }
 
       toast.success("Session deleted");
-      router.back();
+      router.push("/modules/west/ui/home");
     } catch (error) {
       toast.error("Failed to delete session");
       console.error("Error deleting session:", error);
@@ -560,7 +560,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       <main className="page-container">
 
         {/* BACK BUTTON */}
-        <Button className="btn-link mb-2" onClick={() => router.back()}>
+        <Button className="btn-link mb-2" onClick={() => router.push("/modules/west/ui/home")}>
           <ArrowLeft className="w-4 h-4" />
           <span>Back</span>
         </Button>
