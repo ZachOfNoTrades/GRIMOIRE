@@ -393,6 +393,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleSaveSegment = async (editedSegment: SegmentWithSets) => {
+    // Auto-start session on first logged set if not already started
+    if (session && !session.started_at && !session.is_completed) {
+      updateSessionStatus({ is_current: true, started_at: new Date() });
+    }
+
     // Store latest segment for optimistic update on modal close
     lastSavedSegmentRef.current = editedSegment;
 
