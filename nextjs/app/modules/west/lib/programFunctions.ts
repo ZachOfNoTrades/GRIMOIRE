@@ -1,21 +1,43 @@
 import { getWestConnection, closeWestConnection } from './db';
 import { Program, ProgramBlock, ProgramSummary, ProgramWeek, ProgramSession, CreateProgramPayload } from '../types/program';
 
-export async function getAllPrograms(): Promise<ProgramSummary[]> {
+export async function getAllPrograms(page?: number, pageSize?: number): Promise<{ programs: ProgramSummary[]; totalCount: number }> {
   let pool;
   try {
     pool = await getWestConnection();
-    const result = await pool.request().query(`
-      SELECT id, name, description, template_id, is_current, is_completed, created_at, modified_at
-      FROM programs
+
+    const request = pool.request();
+
+    let paginationClause = '';
+    if (page && pageSize) {
+      const offset = (page - 1) * pageSize;
+      request.input('offset', offset).input('pageSize', pageSize);
+      paginationClause = 'OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY';
+    }
+
+    const query = `
+      SELECT *, COUNT(*) OVER() AS _total_count
+      FROM (
+        SELECT id, name, description, template_id, is_current, is_completed, created_at, modified_at
+        FROM programs
+      ) p
       ORDER BY created_at DESC
-    `);
+      ${paginationClause}
+    `;
+
+    const result = await request.query(query);
 
     if (result.recordset.length === 0) {
       console.warn('No programs found');
+      return { programs: [], totalCount: 0 };
     }
 
-    return result.recordset;
+    const totalCount = result.recordset[0]._total_count;
+
+    // Strip the _total_count column from each row
+    const programs = result.recordset.map(({ _total_count, ...program }) => program as ProgramSummary);
+
+    return { programs, totalCount };
   } catch (error) {
     console.error('Error fetching programs:', error);
     throw error;

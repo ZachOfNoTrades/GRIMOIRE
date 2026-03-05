@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server';
 import { getAllPrograms, createProgram } from '../../lib/programFunctions';
 import { CreateProgramPayload } from '../../types/program';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const programs = await getAllPrograms();
-    return NextResponse.json(programs);
+    const { searchParams } = new URL(request.url);
+    const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : undefined;
+    const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : undefined;
+
+    const result = await getAllPrograms(page, pageSize);
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('Error in GET /api/programs:', error);

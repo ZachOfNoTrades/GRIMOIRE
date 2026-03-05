@@ -1,71 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, History, LayoutList, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../types/workoutSession";
 import { ProgramSummary } from "../../types/program";
 import { formatDateTimeShort } from "../../utils/format";
+import PaginatedTable, { PaginatedTableHandle } from "../../components/PaginatedTable";
 import ImportHistoryModal from "./ImportHistoryModal";
 
 export default function HistoryPage() {
 
-  // DATA
-  const [programs, setPrograms] = useState<ProgramSummary[]>([]);
-  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
-
-  // INPUT
-  const [searchTerm, setSearchTerm] = useState("");
-
   // STATE
-  const [isProgramsLoading, setIsProgramsLoading] = useState(true);
-  const [isSessionsLoading, setIsSessionsLoading] = useState(true);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  const standaloneSessions = sessions.filter((s) => s.week_id === null);
-  const filteredSessions = standaloneSessions.filter((s) =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
+  const sessionsTableRef = useRef<PaginatedTableHandle>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    fetchPrograms();
-    fetchSessions();
-  }, []);
-
-  const fetchPrograms = async () => {
-    setIsProgramsLoading(true);
-    try {
-      const response = await fetch("/modules/west/api/programs");
-      if (!response.ok) {
-        throw new Error("Failed to fetch programs");
-      }
-      const data = await response.json();
-      setPrograms(data);
-    } catch (error) {
-      console.error("Error fetching programs:", error);
-    } finally {
-      setIsProgramsLoading(false);
-    }
-  };
-
-  const fetchSessions = async () => {
-    setIsSessionsLoading(true);
-    try {
-      const response = await fetch("/modules/west/api/sessions");
-      if (!response.ok) {
-        throw new Error("Failed to fetch sessions");
-      }
-      const data = await response.json();
-      setSessions(data);
-    } catch (error) {
-      console.error("Error fetching sessions:", error);
-    } finally {
-      setIsSessionsLoading(false);
-    }
-  };
 
 
   return (
@@ -119,58 +70,30 @@ export default function HistoryPage() {
               </h2>
             </div>
 
-            {/* TABLE */}
-            <div className="table-container min-h-[15rem] max-h-[calc(100vh-28rem)]">
-              <table className="table">
+            {/* PAGINATED PROGRAMS TABLE */}
+            <PaginatedTable<ProgramSummary>
+              fetchUrl={(page, pageSize) => `/modules/west/api/programs?page=${page}&pageSize=${pageSize}`}
+              dataKey="programs"
+              columns={[
+                { header: "", headerClassName: "!px-0" },
+                { header: "Name" },
+                { header: "Date" },
+              ]}
+              renderRow={(program) => (
 
-                {/* TABLE HEADERS */}
-                <thead className="table-header">
-                  <tr className="table-header-row">
-                    <th className="table-header-cell !px-0"></th>
-                    <th className="table-header-cell">Name</th>
-                    <th className="table-header-cell">Date</th>
-                  </tr>
-                </thead>
-
-                {/* TABLE ROWS */}
-                <tbody className="table-body">
-
-                  {isProgramsLoading ? (
-
-                    // LOADING PLACEHOLDER
-                    <tr>
-                      <td colSpan={3} className="table-empty">
-                        <div className="loading-container">
-                          <div className="loading-spinner" />
-                        </div>
-                      </td>
-                    </tr>
-                  ) : programs.length === 0 ? (
-
-                    // EMPTY PLACEHOLDER
-                    <tr>
-                      <td colSpan={3} className="table-empty">No programs found</td>
-                    </tr>
-                  ) : (
-
-                    // RECORDS MAP
-                    programs.map((program) => (
-
-                      // TABLE ROW
-                      <tr
-                        key={program.id}
-                        className="table-row-clickable"
-                        onClick={() => router.push(`/modules/west/ui/programs/${program.id}`)}
-                      >
-                        <td className="table-cell !pl-5 !pr-0 text-center">{program.is_current && <div className="dot-blue inline-block" />}</td>
-                        <td className="table-cell w-full truncate max-w-0">{program.name}</td>
-                        <td className="table-cell">{new Date(program.created_at).toISOString().slice(0, 7)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                // TABLE ROW
+                <tr
+                  key={program.id}
+                  className="table-row-clickable"
+                  onClick={() => router.push(`/modules/west/ui/programs/${program.id}`)}
+                >
+                  <td className="table-cell !pl-5 !pr-0 text-center">{program.is_current && <div className="dot-blue inline-block" />}</td>
+                  <td className="table-cell w-full truncate max-w-0">{program.name}</td>
+                  <td className="table-cell">{new Date(program.created_at).toISOString().slice(0, 7)}</td>
+                </tr>
+              )}
+              emptyMessage="No programs found"
+            />
           </div>
 
           {/* STANDALONE SESSIONS CARD */}
@@ -184,82 +107,31 @@ export default function HistoryPage() {
                 <History className="w-5 h-5" />
                 Sessions
               </h2>
-
-              {/* SEARCH BAR */}
-              <div>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input-field"
-                />
-              </div>
             </div>
 
-            {/* TABLE */}
-            <div className="table-container min-h-[15rem] max-h-[calc(100vh-28rem)]">
-              <table className="table">
+            {/* PAGINATED SESSIONS TABLE */}
+            <PaginatedTable<WorkoutSession>
+              ref={sessionsTableRef}
+              fetchUrl={(page, pageSize) => `/modules/west/api/sessions?page=${page}&pageSize=${pageSize}`}
+              dataKey="sessions"
+              columns={[
+                { header: "Name" },
+                { header: "Created" },
+              ]}
+              renderRow={(session) => (
 
-                {/* TABLE HEADERS */}
-                <thead className="table-header">
-                  <tr className="table-header-row">
-                    <th className="table-header-cell">Name</th>
-                    <th className="table-header-cell">Created</th>
-                  </tr>
-                </thead>
-
-                {/* TABLE ROWS */}
-                <tbody className="table-body">
-
-                  {isSessionsLoading ? (
-
-                    // LOADING PLACEHOLDER
-                    <tr>
-                      <td colSpan={2} className="table-empty">
-                        <div className="loading-container">
-                          <div className="loading-spinner" />
-                        </div>
-                      </td>
-                    </tr>
-                  ) : standaloneSessions.length === 0 ? (
-
-                    // EMPTY PLACEHOLDER
-                    <tr>
-                      <td colSpan={2} className="table-empty">No standalone sessions found</td>
-                    </tr>
-                  ) : filteredSessions.length === 0 ? (
-
-                    // NO SEARCH RESULTS PLACEHOLDER
-                    <tr>
-                      <td colSpan={2} className="table-empty">No sessions match search criteria</td>
-                    </tr>
-                  ) : (
-
-                    // RECORDS MAP
-                    filteredSessions.map((session) => (
-
-                      // TABLE ROW
-                      <tr
-                        key={session.id}
-                        className="table-row-clickable"
-                        onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
-                      >
-                        <td className="table-cell">{session.name}</td>
-                        <td className="table-cell">{formatDateTimeShort(session.created_at)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* SUMMARY */}
-            {!isSessionsLoading && filteredSessions.length > 0 && (
-              <div className="text-secondary text-center mt-4">
-                Showing {filteredSessions.length} of {standaloneSessions.length} sessions
-              </div>
-            )}
+                // TABLE ROW
+                <tr
+                  key={session.id}
+                  className="table-row-clickable"
+                  onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
+                >
+                  <td className="table-cell">{session.name}</td>
+                  <td className="table-cell">{formatDateTimeShort(session.created_at)}</td>
+                </tr>
+              )}
+              emptyMessage="No standalone sessions found"
+            />
           </div>
         </div>
       </main>
@@ -268,7 +140,7 @@ export default function HistoryPage() {
       <ImportHistoryModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        onImported={() => fetchSessions()}
+        onImported={() => sessionsTableRef.current?.refresh()}
       />
     </div>
   );

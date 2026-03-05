@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getAllWorkoutSessions, createWorkoutSession } from '../../lib/workoutSessionFunctions';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : undefined;
+    const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : undefined;
 
-    const sessions = await getAllWorkoutSessions();
-    return NextResponse.json(sessions);
+    const result = await getAllWorkoutSessions(page, pageSize);
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('Error in GET /api/sessions:', error);

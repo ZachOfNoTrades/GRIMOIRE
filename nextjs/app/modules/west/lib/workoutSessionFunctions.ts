@@ -1,19 +1,41 @@
 import { getWestConnection, closeWestConnection } from './db';
 import { WorkoutSession } from '../types/workoutSession';
 
-export async function getAllWorkoutSessions(): Promise<WorkoutSession[]> {
+export async function getAllWorkoutSessions(page?: number, pageSize?: number): Promise<{ sessions: WorkoutSession[]; totalCount: number }> {
   let pool;
   try {
     pool = await getWestConnection();
-    const result = await pool.request().query(`
-      SELECT * FROM workout_sessions ORDER BY created_at DESC
-    `);
+
+    const request = pool.request();
+
+    let paginationClause = '';
+    if (page && pageSize) {
+      const offset = (page - 1) * pageSize;
+      request.input('offset', offset).input('pageSize', pageSize);
+      paginationClause = 'OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY';
+    }
+
+    const query = `
+      SELECT *, COUNT(*) OVER() AS _total_count
+      FROM workout_sessions
+      WHERE week_id IS NULL
+      ORDER BY created_at DESC
+      ${paginationClause}
+    `;
+
+    const result = await request.query(query);
 
     if (result.recordset.length === 0) {
       console.warn('No workout sessions found');
+      return { sessions: [], totalCount: 0 };
     }
 
-    return result.recordset;
+    const totalCount = result.recordset[0]._total_count;
+
+    // Strip the _total_count column from each row
+    const sessions = result.recordset.map(({ _total_count, ...session }) => session as WorkoutSession);
+
+    return { sessions, totalCount };
   } catch (error) {
     console.error('Error fetching workout sessions:', error);
     throw error;
