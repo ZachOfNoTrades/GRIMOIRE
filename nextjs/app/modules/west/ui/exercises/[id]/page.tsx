@@ -36,7 +36,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const [isEnableModalOpen, setIsEnableModalOpen] = useState(false);
   const [isEnabling, setIsEnabling] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<"stats" | "history">("stats");
+  const [selectedTab, setSelectedTab] = useState<"stats" | "history">("history");
 
   const router = useRouter();
 
@@ -523,18 +523,6 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
             {/* TAB HEADERS */}
             <nav className="flex space-x-4 px-3 mb-2 border-b border-card" role="tablist">
 
-              {/* STATS TAB */}
-              <button
-                className={`tab-button ${selectedTab === "stats" ? "tab-button-active" : ""}`}
-                onClick={() => setSelectedTab("stats")}
-                role="tab"
-                aria-selected={selectedTab === "stats"}
-                aria-controls="stats-panel"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>Stats</span>
-              </button>
-
               {/* HISTORY TAB */}
               <button
                 className={`tab-button ${selectedTab === "history" ? "tab-button-active" : ""}`}
@@ -545,6 +533,18 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
               >
                 <History className="w-4 h-4" />
                 <span>History</span>
+              </button>
+
+              {/* STATS TAB */}
+              <button
+                className={`tab-button ${selectedTab === "stats" ? "tab-button-active" : ""}`}
+                onClick={() => setSelectedTab("stats")}
+                role="tab"
+                aria-selected={selectedTab === "stats"}
+                aria-controls="stats-panel"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Stats</span>
               </button>
             </nav>
 

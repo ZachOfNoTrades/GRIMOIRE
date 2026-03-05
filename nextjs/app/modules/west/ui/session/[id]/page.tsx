@@ -69,11 +69,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     fetchExercises();
   }, [id]);
 
-  // Sync session notes state
-  useEffect(() => {
-    if (session) setEditedSessionNotes(session.notes || "");
-  }, [session]);
-
   // Initialize edit mode for new sessions
   useEffect(() => {
     if (isNewSession && session && !isLoading) {
@@ -135,6 +130,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const handleStartEditSession = () => {
     if (!session) return;
     setEditedSessionName(session.name);
+    setEditedSessionNotes(session.notes || "");
     if (session.started_at) {
       setEditedStartDate(new Date(session.started_at).toISOString().split("T")[0]);
     }
@@ -147,6 +143,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const handleCancelEditSession = () => {
     setIsEditingSession(false);
     setEditedSessionName("");
+    setEditedSessionNotes("");
     setEditedStartDate("");
     setEditedDuration("");
   };
@@ -179,7 +176,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: editedSessionName.trim(),
-          notes: session.notes,
+          notes: editedSessionNotes.trim() || null,
           started_at: updatedStartedAt,
           resumed_at: session.resumed_at,
           duration: updatedDuration,
@@ -306,6 +303,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       target_id: target.id,
       order_index: groupSegments.length + 1,
       is_warmup: target.is_warmup,
+      modifier_id: null,
+      modifier_name: null,
       notes: null,
       created_at: new Date(),
       modified_at: new Date(),
@@ -338,6 +337,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       target_id: null,
       order_index: workingLoggedSegments.length + 1,
       is_warmup: false,
+      modifier_id: null,
+      modifier_name: null,
       notes: null,
       created_at: new Date(),
       modified_at: new Date(),
@@ -370,6 +371,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       target_id: null,
       order_index: warmupLoggedSegments.length + 1,
       is_warmup: true,
+      modifier_id: null,
+      modifier_name: null,
       notes: null,
       created_at: new Date(),
       modified_at: new Date(),
@@ -740,6 +743,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       </div>
                     )}
 
+                    {/* NOTES INPUT */}
+                    <div>
+                      <label className="text-secondary">Notes</label>
+                      <textarea
+                        value={editedSessionNotes}
+                        onChange={(e) => setEditedSessionNotes(e.target.value)}
+                        className="input-field resize-none field-sizing-content"
+                        placeholder="Session notes..."
+                        rows={2}
+                      />
+                    </div>
+
                   </>
                 ) : (
                   <>
@@ -778,33 +793,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     </div>
 
                     {/* SESSION NOTES */}
-                    <div>
-                      <label className="text-secondary">Notes</label>
-                      <textarea
-                        value={editedSessionNotes}
-                        onChange={(e) => {
-                          setEditedSessionNotes(e.target.value);
-                          const el = e.target;
-                          el.style.height = "auto";
-                          el.style.height = el.scrollHeight + "px";
-                        }}
-                        onBlur={(e) => {
-                          const trimmed = e.target.value.trim() || null;
-                          if (trimmed !== (session.notes || null)) {
-                            updateSessionStatus({ notes: trimmed });
-                          }
-                        }}
-                        className="input-field resize-none overflow-hidden"
-                        placeholder="Session notes..."
-                        rows={1}
-                        ref={(el) => {
-                          if (el) {
-                            el.style.height = "auto";
-                            el.style.height = el.scrollHeight + "px";
-                          }
-                        }}
-                      />
-                    </div>
+                    {session.notes && (
+                      <div>
+                        <label className="text-secondary">Notes</label>
+                        <p className="text-primary whitespace-pre-wrap break-words">{session.notes}</p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -1225,9 +1219,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         onExerciseCreated={(exercise) => setExercises((prev) => [...prev, {
           id: exercise.id,
           name: exercise.name,
+          category: "",
           primary_muscles: [],
           secondary_muscles: [],
           estimated_one_rep_max: null,
+          last_used_at: null,
         }].sort((a, b) => a.name.localeCompare(b.name)))}
       />
     </div>
