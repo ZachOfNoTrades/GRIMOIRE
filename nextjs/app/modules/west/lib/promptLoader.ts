@@ -9,8 +9,14 @@ export function loadPromptFile(fileName: string): string {
   return readFileSync(filePath, 'utf-8');
 }
 
-// Loads a prompt file and injects the template's domain context from the database
-export function assemblePrompt(fileName: string, templateContext: string | null): string {
+// Loads a prompt file and injects the template's domain context and user profile context
+export function assemblePrompt(
+  fileName: string,
+  templateContext: string | null,
+  profileContext: string | null = null,
+): string {
   const promptFile = loadPromptFile(fileName);
-  return promptFile.replace('{{TEMPLATE_CONTEXT}}', templateContext?.trim() || '');
+  return promptFile
+    .replace('{{TEMPLATE_CONTEXT}}', templateContext?.trim() || '')
+    .replace('{{PROFILE_CONTEXT}}', profileContext?.trim() || '');
 }

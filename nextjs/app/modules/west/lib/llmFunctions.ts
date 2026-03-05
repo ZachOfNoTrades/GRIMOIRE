@@ -8,12 +8,13 @@ import { GenerateProgramResult, ValidationResult } from '../types/llm';
 import { getAllExercises } from './exerciseFunctions';
 import { createProgram, getFirstWeekId } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
+import { getUserProfile } from './userProfileFunctions';
 import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
 import { insertSessionsIntoWeek, setFirstSessionAsCurrent } from './weekGenerationFunctions';
 import { assemblePrompt, loadPromptFile } from './promptLoader';
 
-export function buildPrompt(templateContext: string | null): string {
-  return assemblePrompt('generateProgram.md', templateContext);
+export function buildPrompt(templateContext: string | null, profileContext: string | null = null): string {
+  return assemblePrompt('generateProgram.md', templateContext, profileContext);
 }
 
 export async function callLLM(taskPrompt: string): Promise<string> {
@@ -208,8 +209,9 @@ export function validateProgramPayload(payload: CreateProgramPayload): Validatio
 
 export async function generateProgram(
   templateContext: string | null,
+  profileContext: string | null = null,
 ): Promise<GenerateProgramResult> {
-  const prompt = buildPrompt(templateContext);
+  const prompt = buildPrompt(templateContext, profileContext);
   const outputFile = await callLLM(prompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
@@ -227,11 +229,11 @@ export async function generateSessionTargetsWithLlm(
   sessionContext: string | null,
   sessionName: string,
   sessionDescription: string,
+  profileContext: string | null = null,
 ): Promise<GeneratedSegment[]> {
 
-
   // Build prompt from formatting file + DB context
-  const basePrompt = assemblePrompt('generateSession.md', sessionContext);
+  const basePrompt = assemblePrompt('generateSession.md', sessionContext, profileContext);
   const prompt = basePrompt
     .replace('{{SESSION_NAME}}', sessionName)
     .replace('{{USER_DESCRIPTION}}', sessionDescription);
@@ -285,12 +287,14 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
   }, 15000); // Log every 15 seconds
 
   try {
-    // Load template (program_prompt, week_prompt, days_per_week)
+    // Load template and user profile
     const template = await getProgramTemplateById(templateId);
+    const userProfile = await getUserProfile();
+    const profileContext = userProfile.profile_prompt;
 
     // STAGE 1: Generate program structure via LLM
     console.log('[GenerateProgram] Stage 1: Generating program structure...');
-    const { programPayload } = await generateProgram(template.program_prompt);
+    const { programPayload } = await generateProgram(template.program_prompt, profileContext);
 
     // Normalize: LLM returns structure-only, ensure each week has sessions: []
     for (const block of programPayload.blocks) {
@@ -322,6 +326,7 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
       const sessionPlans = await generateNextWeekPlanWithLlm(
         template.week_prompt,
         template.days_per_week,
+        profileContext,
       );
 
       // Insert sessions into week 1

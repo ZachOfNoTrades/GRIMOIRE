@@ -1,8 +1,6 @@
 Generate exercises and sets for a single training session.
 
-## Output Schema
-
-Respond with a valid JSON object matching the following TypeScript schema.
+## Schema
 
 interface TargetSet {
 set_number: number; // Sequential within warmup/working groups (starts at 1)
@@ -41,3 +39,5 @@ target_exercises: TargetExercise[];
 6. The response must be a single JSON object with a target_exercises array — nothing else.
 
 {{TEMPLATE_CONTEXT}}
+
+{{PROFILE_CONTEXT}}

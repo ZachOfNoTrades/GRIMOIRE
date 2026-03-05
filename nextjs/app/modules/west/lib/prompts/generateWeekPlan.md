@@ -1,8 +1,6 @@
 Design the sessions for the first week of a training program.
 
-## Output Schema
-
-Respond with a valid JSON array matching the following TypeScript schema.
+## Schema
 
 interface SessionPlan {
 order_index: number; // Sequential starting at 1
@@ -25,3 +23,5 @@ description: string; // 2-4 sentences: primary focus, accessory categories, inte
 5. The response must be a JSON array of SessionPlan objects — nothing else.
 
 {{TEMPLATE_CONTEXT}}
+
+{{PROFILE_CONTEXT}}

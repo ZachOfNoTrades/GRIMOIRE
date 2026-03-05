@@ -7,7 +7,18 @@
 -- tracked .md files under nextjs/app/modules/west/lib/prompts/.
 -- ============================================================
 
--- Powerlifting Template (default)
+
+  -- =============================
+  -- User Profile
+  -- =============================
+  UPDATE user_profile
+  SET profile_prompt = 'I am an intermediate lifter with 3 years of experience. I have a minor left shoulder impingement — avoid heavy overhead pressing and behind-the-neck movements. My goals are hypertrophy-focused with a secondary emphasis on strength. I respond well to moderate volume (15-20 sets per muscle group per week).',
+      modified_at = GETDATE()
+  WHERE id = 1;
+
+  -- =============================
+  -- Powerlifting Template
+  -- =============================
 INSERT INTO program_templates (id, name, description, program_prompt, week_prompt, session_prompt, days_per_week)
 VALUES (
   'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA',

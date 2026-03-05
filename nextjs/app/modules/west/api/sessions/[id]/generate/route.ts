@@ -3,6 +3,7 @@ import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/
 import { generateSessionTargetsWithLlm } from '../../../../lib/llmFunctions';
 import { createGeneratedTargets } from '../../../../lib/segmentFunctions';
 import { getProgramTemplateById } from '../../../../lib/programTemplateFunctions';
+import { getUserProfile } from '../../../../lib/userProfileFunctions';
 
 export async function POST(
   request: Request,
@@ -22,6 +23,10 @@ export async function POST(
       sessionContext = programTemplate.session_prompt;
     }
 
+    // Load user profile for LLM context
+    const userProfile = await getUserProfile();
+    const profileContext = userProfile.profile_prompt;
+
     // Use session notes as the description for LLM generation
     const sessionDescription = session.notes?.trim() || '';
     if (sessionDescription.length === 0) {
@@ -33,6 +38,7 @@ export async function POST(
       sessionContext,
       session.name,
       sessionDescription,
+      profileContext,
     );
 
     await createGeneratedTargets(id, targetExercises);

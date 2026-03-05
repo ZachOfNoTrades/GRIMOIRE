@@ -2,6 +2,7 @@ import { getWestConnection, closeWestConnection } from './db';
 import { CreateProgramSession } from '../types/program';
 import { getTemplateIdForProgram } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
+import { getUserProfile } from './userProfileFunctions';
 import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
 
 // Sets the first session (by order_index) in a week as is_current
@@ -76,6 +77,10 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
     return;
   }
 
+  // Load user profile for LLM context
+  const userProfile = await getUserProfile();
+  const profileContext = userProfile.profile_prompt;
+
   let pool;
   try {
     pool = await getWestConnection();
@@ -145,7 +150,7 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
       await transaction.commit();
 
       // 6. Generate session plans via LLM (outside transaction)
-      const sessionPlans = await generateNextWeekPlanWithLlm(template.week_prompt, daysPerWeek);
+      const sessionPlans = await generateNextWeekPlanWithLlm(template.week_prompt, daysPerWeek, profileContext);
 
       // 7. Insert new sessions with names + descriptions (no target exercises)
       await insertSessionsIntoWeek(nextWeekId, sessionPlans);

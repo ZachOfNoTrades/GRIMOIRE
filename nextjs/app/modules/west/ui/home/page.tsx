@@ -183,6 +183,13 @@ export default function WestHomePage() {
               <h2 className="text-card-title">Program Templates</h2>
             </div>
           </Link>
+
+          {/* PROFILE CARD */}
+          <Link href="/modules/west/ui/profile">
+            <div className="module-card">
+              <h2 className="text-card-title">User Profile</h2>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

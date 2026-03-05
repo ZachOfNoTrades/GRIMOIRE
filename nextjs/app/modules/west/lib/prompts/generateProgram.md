@@ -1,8 +1,6 @@
 Generate a structured workout program as a JSON object. Create the program structure only — blocks and weeks. Sessions and exercises are generated separately.
 
-## Output Schema
-
-Respond with a valid JSON object matching the following TypeScript schema.
+## Schema
 
 interface CreateProgramWeek {
 week_number: number; // Sequential starting at 1 within the block
@@ -27,9 +25,11 @@ blocks: CreateProgramBlock[];
 
 ## Rules
 
-1. The response must be a single JSON object matching CreateProgramPayload — nothing else.
+1. The file must be a single JSON object matching CreateProgramPayload — nothing else.
 2. Each block must have at least one week.
 3. week_number starts at 1 and increments sequentially within each block.
 4. Use descriptive block names and appropriate tags.
 
 {{TEMPLATE_CONTEXT}}
+
+{{PROFILE_CONTEXT}}

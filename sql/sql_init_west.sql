@@ -86,6 +86,22 @@ BEGIN TRY
     END
 
     -- =============================
+    -- User Profile (singleton)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_profile' AND xtype='U')
+    BEGIN
+        CREATE TABLE user_profile (
+            id INT NOT NULL DEFAULT 1 CHECK (id = 1),
+            profile_prompt NVARCHAR(MAX) NULL,
+            created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+            modified_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+            CONSTRAINT PK_user_profile PRIMARY KEY (id)
+        );
+
+        INSERT INTO user_profile (id) VALUES (1);
+    END
+
+    -- =============================
     -- Programs
     -- =============================
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='programs' AND xtype='U')
