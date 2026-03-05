@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { Dumbbell, Layers, Plus, Zap } from "lucide-react";
+import { Clock, Dumbbell, Layers, Play, Plus, Zap } from "lucide-react";
 import { Program } from "../../types/program";
+import { WorkoutSession } from "../../types/workoutSession";
 import ProgramDashboard from "../../components/ProgramDashboard";
 
 export default function WestHomePage() {
@@ -14,6 +15,7 @@ export default function WestHomePage() {
   // DATA
   const [exerciseCount, setExerciseCount] = useState(0);
   const [currentProgram, setCurrentProgram] = useState<Program | null>(null);
+  const [currentSession, setCurrentSession] = useState<WorkoutSession | null>(null);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -28,9 +30,10 @@ export default function WestHomePage() {
 
   const fetchData = async () => {
     try {
-      const [exercisesResponse, programResponse] = await Promise.all([
+      const [exercisesResponse, programResponse, sessionResponse] = await Promise.all([
         fetch("/modules/west/api/exercises"),
         fetch("/modules/west/api/programs/current"),
+        fetch("/modules/west/api/sessions/current"),
       ]);
 
       if (exercisesResponse.ok) {
@@ -41,6 +44,11 @@ export default function WestHomePage() {
       if (programResponse.ok) {
         const data = await programResponse.json();
         setCurrentProgram(data);
+      }
+
+      if (sessionResponse.ok) {
+        const data = await sessionResponse.json();
+        setCurrentSession(data);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -118,6 +126,52 @@ export default function WestHomePage() {
             Generate Program
           </Button>
         </div>
+
+        {/* CURRENT SESSION CARD */}
+        {(isLoading || currentSession) && (
+          <div
+            className="card cursor-pointer mb-6"
+            onClick={() => currentSession && router.push(`/modules/west/ui/session/${currentSession.id}`)}
+          >
+
+            {/* HEADER */}
+            <div className="card-header">
+
+              {/* TITLE */}
+              <h2 className="text-card-title">
+                <Play className="w-5 h-5" />
+                Current Session
+              </h2>
+            </div>
+
+            {/* CARD CONTENT */}
+            <div className="card-content">
+              {isLoading ? (
+
+                // LOADING PLACEHOLDER
+                <div className="loading-container">
+                  <div className="loading-spinner" />
+                </div>
+              ) : currentSession && (
+
+                // SESSION DETAILS
+                <div className="flex items-center justify-between">
+
+                  {/* SESSION NAME */}
+                  <p className="text-page-subtitle">{currentSession.name}</p>
+
+                  {/* DURATION */}
+                  {currentSession.duration != null && currentSession.duration > 0 && (
+                    <div className="flex items-center gap-1 text-sm opacity-70">
+                      <Clock className="w-4 h-4" />
+                      {Math.floor(currentSession.duration / 60)}m
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* PROGRAM DASHBOARD */}
         {(isLoading || currentProgram) && (

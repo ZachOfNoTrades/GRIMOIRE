@@ -47,6 +47,30 @@ export async function createWorkoutSession(name: string): Promise<string> {
   }
 }
 
+export async function getCurrentWorkoutSession(): Promise<WorkoutSession | null> {
+  let pool;
+  try {
+    pool = await getWestConnection();
+    const result = await pool.request().query(`
+      SELECT * FROM workout_sessions WHERE is_current = 1
+    `);
+
+    if (result.recordset.length === 0) {
+      console.warn('No current workout session found');
+      return null;
+    }
+
+    return result.recordset[0];
+  } catch (error) {
+    console.error('Error fetching current workout session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeWestConnection(pool);
+    }
+  }
+}
+
 export async function getWorkoutSessionById(id: string): Promise<WorkoutSession> {
   let pool;
   try {
