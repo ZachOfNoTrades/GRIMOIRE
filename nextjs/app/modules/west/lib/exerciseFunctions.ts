@@ -275,13 +275,32 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
   }
 }
 
-export async function getExerciseHistory(exerciseId: string): Promise<ExerciseHistoryEntry[]> {
+export async function getExerciseHistory(
+  exerciseId: string,
+  options: { startDate?: string; endDate?: string } = {},
+): Promise<ExerciseHistoryEntry[]> {
   let pool;
   try {
     pool = await getWestConnection();
-    const result = await pool.request()
-      .input('exerciseId', exerciseId)
-      .query(`
+    const request = pool.request().input('exerciseId', exerciseId);
+
+    const conditions: string[] = [
+      'ss.exercise_id = @exerciseId',
+      'ws.started_at IS NOT NULL',
+    ];
+
+    if (options.startDate) {
+      request.input('startDate', options.startDate);
+      conditions.push('ws.started_at >= @startDate');
+    }
+    if (options.endDate) {
+      request.input('endDate', options.endDate);
+      conditions.push('ws.started_at < DATEADD(DAY, 1, CAST(@endDate AS DATE))');
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    const result = await request.query(`
         SELECT
           ws.id AS session_id,
           ws.name AS session_name,
@@ -298,8 +317,7 @@ export async function getExerciseHistory(exerciseId: string): Promise<ExerciseHi
         LEFT JOIN weeks w ON ws.week_id = w.id
         LEFT JOIN blocks b ON w.block_id = b.id
         LEFT JOIN programs p ON b.program_id = p.id
-        WHERE ss.exercise_id = @exerciseId
-          AND ws.started_at IS NOT NULL
+        ${whereClause}
         ORDER BY ws.started_at DESC, sss.is_warmup DESC, sss.set_number ASC
       `);
 

@@ -9,6 +9,7 @@ import { SegmentWithSets } from "../../../types/segment";
 import { ExerciseSummary, ExerciseHistoryEntry } from "../../../types/exercise";
 import { ExerciseWithMuscleGroups } from "../../../types/muscleGroup";
 import { generateUUID } from "../../../utils/id";
+import { HistoryRange, getDateRangeParams } from "../../../utils/date";
 import SetTab from "./SetTab";
 import HistoryTab from "./HistoryTab";
 import StatsTab from "./StatsTab";
@@ -45,6 +46,9 @@ export default function EditSegmentModal({
 
   // INPUT
   const [editedSegment, setEditedSegment] = useState<SegmentWithSets | null>(null);
+  const [historyRange, setHistoryRange] = useState<HistoryRange>("6m");
+  const [historyStartDate, setHistoryStartDate] = useState("");
+  const [historyEndDate, setHistoryEndDate] = useState("");
 
   // DATA
   const [exerciseHistory, setExerciseHistory] = useState<ExerciseHistoryEntry[]>([]);
@@ -56,15 +60,18 @@ export default function EditSegmentModal({
   const [detailLoading, setDetailLoading] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
 
-  // Fetch exercise history and detail data in the background
-  const fetchExerciseData = async (exerciseId: string) => {
+  // Fetch exercise history with date range params
+  const fetchHistory = async (exerciseId: string, startDate = "", endDate = "") => {
     if (!exerciseId) return;
-
     setHistoryLoading(true);
-    setDetailLoading(true);
 
-    // Fetch history
-    fetch(`/modules/west/api/exercises/${exerciseId}/history`)
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    const queryString = params.toString();
+    const url = `/modules/west/api/exercises/${exerciseId}/history${queryString ? `?${queryString}` : ""}`;
+
+    fetch(url)
       .then((response) => {
         if (!response.ok) throw new Error("Failed to fetch history");
         return response.json();
@@ -72,8 +79,13 @@ export default function EditSegmentModal({
       .then((data) => setExerciseHistory(data))
       .catch((error) => console.error("Error fetching exercise history:", error))
       .finally(() => setHistoryLoading(false));
+  };
 
-    // Fetch detail
+  // Fetch exercise detail data
+  const fetchDetail = async (exerciseId: string) => {
+    if (!exerciseId) return;
+    setDetailLoading(true);
+
     fetch(`/modules/west/api/exercises/${exerciseId}`)
       .then((response) => {
         if (!response.ok) throw new Error("Failed to fetch exercise details");
@@ -88,11 +100,16 @@ export default function EditSegmentModal({
   useEffect(() => {
     if (isOpen && segment) {
 
-      // Reset to Sets tab when modal opens
+      // Reset to Sets tab and date filter when modal opens
       setActiveTab("sets");
+      setHistoryRange("6m");
+      setHistoryStartDate("");
+      setHistoryEndDate("");
 
       // Fetch exercise data in background on modal open
-      fetchExerciseData(segment.exercise_id);
+      const { startDate, endDate } = getDateRangeParams("6m");
+      fetchHistory(segment.exercise_id, startDate, endDate);
+      fetchDetail(segment.exercise_id);
 
       // Create a mutable clone of the given segment to avoid unsaved edits
       const clonedSegment = JSON.parse(JSON.stringify(segment));
@@ -161,7 +178,13 @@ export default function EditSegmentModal({
     // Skip if this is the initial load (already handled by the modal open effect)
     if (currentExerciseId === segment?.exercise_id) return;
 
-    fetchExerciseData(currentExerciseId);
+    // Reset date filter on exercise swap
+    setHistoryRange("6m");
+    setHistoryStartDate("");
+    setHistoryEndDate("");
+    const { startDate, endDate } = getDateRangeParams("6m");
+    fetchHistory(currentExerciseId, startDate, endDate);
+    fetchDetail(currentExerciseId);
   }, [currentExerciseId]);
 
   if (!editedSegment) return null;
@@ -196,7 +219,29 @@ export default function EditSegmentModal({
           />
         );
       case "history":
-        return <HistoryTab history={exerciseHistory} loading={historyLoading} />;
+        return (
+          <HistoryTab
+            history={exerciseHistory}
+            loading={historyLoading}
+            range={historyRange}
+            customStartDate={historyStartDate}
+            customEndDate={historyEndDate}
+            onRangeChange={(range) => {
+              setHistoryRange(range);
+              if (range !== "custom") {
+                setHistoryStartDate("");
+                setHistoryEndDate("");
+                const { startDate, endDate } = getDateRangeParams(range);
+                fetchHistory(editedSegment.exercise_id, startDate, endDate);
+              }
+            }}
+            onCustomDateChange={(startDate, endDate) => {
+              setHistoryStartDate(startDate);
+              setHistoryEndDate(endDate);
+              fetchHistory(editedSegment.exercise_id, startDate, endDate);
+            }}
+          />
+        );
       case "stats":
         return <StatsTab history={exerciseHistory} loading={historyLoading} />;
       case "info":
