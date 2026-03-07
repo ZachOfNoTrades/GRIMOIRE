@@ -709,6 +709,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         type="text"
                         value={editedSessionName}
                         onChange={(e) => setEditedSessionName(e.target.value)}
+                        autoCapitalize="words"
                         className="input-field"
                       />
                     </div>

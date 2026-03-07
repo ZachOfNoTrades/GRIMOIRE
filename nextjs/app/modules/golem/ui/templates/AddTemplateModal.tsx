@@ -103,6 +103,7 @@ export default function AddTemplateModal({
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Powerlifting Template"
           className="input-field"
+          autoCapitalize="words"
           autoFocus
         />
       </div>

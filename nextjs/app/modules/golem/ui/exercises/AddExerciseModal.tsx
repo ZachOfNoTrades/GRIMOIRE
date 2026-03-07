@@ -111,6 +111,7 @@ export default function AddExerciseModal({
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Bench Press"
           className="input-field"
+          autoCapitalize="words"
           autoFocus
         />
       </div>
