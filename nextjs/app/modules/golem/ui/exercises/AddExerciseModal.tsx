@@ -45,7 +45,7 @@ export default function AddExerciseModal({
     setError(null);
 
     try {
-      const response = await fetch("/modules/west/api/exercises", {
+      const response = await fetch("/modules/golem/api/exercises", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

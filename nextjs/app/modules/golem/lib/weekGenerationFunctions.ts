@@ -1,4 +1,4 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { CreateProgramSession } from '../types/program';
 import { getTemplateIdForProgram } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
@@ -9,7 +9,7 @@ import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
 export async function setFirstSessionAsCurrent(weekId: string): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     await pool.request()
       .input('weekId', weekId)
       .query(`
@@ -26,7 +26,7 @@ export async function setFirstSessionAsCurrent(weekId: string): Promise<void> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -38,7 +38,7 @@ export async function insertSessionsIntoWeek(
 ): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     for (const session of sessions) {
       await pool.request()
         .input('weekId', weekId)
@@ -55,7 +55,7 @@ export async function insertSessionsIntoWeek(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -83,7 +83,7 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
 
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -167,7 +167,7 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }

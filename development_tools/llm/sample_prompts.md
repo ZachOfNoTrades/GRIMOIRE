@@ -1,6 +1,6 @@
 # Sample Prompts for Program Generation
 
-Sample `userPrompt` values for `POST /modules/west/api/programs/generate`.
+Sample `userPrompt` values for `POST /modules/golem/api/programs/generate`.
 
 ```
 3-day full body, 4 weeks, beginner friendly

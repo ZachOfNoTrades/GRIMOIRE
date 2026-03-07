@@ -1,9 +1,9 @@
 -- =============================
--- Workout Tracker (WEST) Database Initialization Script
+-- Workout Tracker (GOLEM) Database Initialization Script
 -- Version: 202602251933 (Initial Release v0.1.0)
 -- =============================
 
-BEGIN TRANSACTION WestDbInitialization
+BEGIN TRANSACTION GolemDbInitialization
 BEGIN TRY
 
     -- =============================
@@ -272,7 +272,7 @@ BEGIN TRY
         );
     END
 
-    COMMIT TRANSACTION WestDbInitialization;
+    COMMIT TRANSACTION GolemDbInitialization;
     PRINT '';
     PRINT 'Database initialized successfully.'
 
@@ -281,7 +281,7 @@ BEGIN CATCH
     -- Rollback the transaction
     IF @@TRANCOUNT > 0
     BEGIN
-        ROLLBACK TRANSACTION WestDbInitialization;
+        ROLLBACK TRANSACTION GolemDbInitialization;
     END
 
     -- Report the error

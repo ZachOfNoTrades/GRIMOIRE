@@ -31,7 +31,7 @@ export default function HistoryPage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/home")}
+            onClick={() => router.push("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -72,7 +72,7 @@ export default function HistoryPage() {
 
             {/* PAGINATED PROGRAMS TABLE */}
             <PaginatedTable<ProgramSummary>
-              fetchUrl={(page, pageSize) => `/modules/west/api/programs?page=${page}&pageSize=${pageSize}`}
+              fetchUrl={(page, pageSize) => `/modules/golem/api/programs?page=${page}&pageSize=${pageSize}`}
               dataKey="programs"
               columns={[
                 { header: "", headerClassName: "!px-0" },
@@ -85,7 +85,7 @@ export default function HistoryPage() {
                 <tr
                   key={program.id}
                   className="table-row-clickable"
-                  onClick={() => router.push(`/modules/west/ui/programs/${program.id}`)}
+                  onClick={() => router.push(`/modules/golem/ui/programs/${program.id}`)}
                 >
                   <td className="table-cell !pl-5 !pr-0 text-center">{program.is_current && <div className="dot-blue inline-block" />}</td>
                   <td className="table-cell w-full truncate max-w-0">{program.name}</td>
@@ -112,7 +112,7 @@ export default function HistoryPage() {
             {/* PAGINATED SESSIONS TABLE */}
             <PaginatedTable<WorkoutSession>
               ref={sessionsTableRef}
-              fetchUrl={(page, pageSize) => `/modules/west/api/sessions?page=${page}&pageSize=${pageSize}`}
+              fetchUrl={(page, pageSize) => `/modules/golem/api/sessions?page=${page}&pageSize=${pageSize}`}
               dataKey="sessions"
               columns={[
                 { header: "Name" },
@@ -124,7 +124,7 @@ export default function HistoryPage() {
                 <tr
                   key={session.id}
                   className="table-row-clickable"
-                  onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
+                  onClick={() => router.push(`/modules/golem/ui/session/${session.id}`)}
                 >
                   <td className="table-cell">{session.name}</td>
                   <td className="table-cell">{formatDateTimeShort(session.created_at)}</td>

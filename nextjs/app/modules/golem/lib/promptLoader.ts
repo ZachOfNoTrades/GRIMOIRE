@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const PROMPTS_DIR = join(process.cwd(), 'app', 'modules', 'west', 'lib', 'prompts');
+const PROMPTS_DIR = join(process.cwd(), 'app', 'modules', 'golem', 'lib', 'prompts');
 
 // Loads a prompt markdown file from the prompts directory
 export function loadPromptFile(fileName: string): string {

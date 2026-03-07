@@ -30,7 +30,7 @@ export default function ProfilePage() {
   const fetchProfile = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/modules/west/api/user-profile");
+      const response = await fetch("/modules/golem/api/user-profile");
       if (!response.ok) {
         throw new Error("Failed to fetch profile");
       }
@@ -57,7 +57,7 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const response = await fetch("/modules/west/api/user-profile", {
+      const response = await fetch("/modules/golem/api/user-profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -110,7 +110,7 @@ export default function ProfilePage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/home")}
+            onClick={() => router.push("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />

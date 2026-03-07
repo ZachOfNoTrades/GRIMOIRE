@@ -50,7 +50,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const fetchExercise = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/modules/west/api/exercises/${id}`);
+      const response = await fetch(`/modules/golem/api/exercises/${id}`);
       if (response.status === 404) {
         setNotFound(true);
         return;
@@ -69,7 +69,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
   const fetchAllMuscleGroups = async () => {
     try {
-      const response = await fetch("/modules/west/api/muscle-groups");
+      const response = await fetch("/modules/golem/api/muscle-groups");
       if (!response.ok) {
         throw new Error("Failed to fetch muscle groups");
       }
@@ -83,7 +83,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const fetchHistory = async () => {
     setIsHistoryLoading(true);
     try {
-      const response = await fetch(`/modules/west/api/exercises/${id}/history`);
+      const response = await fetch(`/modules/golem/api/exercises/${id}/history`);
       if (!response.ok) {
         throw new Error("Failed to fetch exercise history");
       }
@@ -157,7 +157,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
     setIsSaving(true);
     try {
-      const response = await fetch(`/modules/west/api/exercises/${id}`, {
+      const response = await fetch(`/modules/golem/api/exercises/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -195,7 +195,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const handleDisableExercise = async () => {
     setIsDisabling(true);
     try {
-      const response = await fetch(`/modules/west/api/exercises/${id}`, {
+      const response = await fetch(`/modules/golem/api/exercises/${id}`, {
         method: "DELETE",
       });
 
@@ -220,7 +220,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const handleEnableExercise = async () => {
     setIsEnabling(true);
     try {
-      const response = await fetch(`/modules/west/api/exercises/${id}`, {
+      const response = await fetch(`/modules/golem/api/exercises/${id}`, {
         method: "PATCH",
       });
 
@@ -279,7 +279,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/exercises")}
+            onClick={() => router.push("/modules/golem/ui/exercises")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -628,7 +628,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                       <div
                         key={entry.session_id}
                         className="card cursor-pointer"
-                        onClick={() => router.push(`/modules/west/ui/session/${entry.session_id}`)}
+                        onClick={() => router.push(`/modules/golem/ui/session/${entry.session_id}`)}
                       >
 
                         {/* SUB-CARD CONTENT */}

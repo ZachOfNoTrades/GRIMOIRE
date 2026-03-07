@@ -10,7 +10,7 @@ import { Program } from "../../types/program";
 import { WorkoutSession } from "../../types/workoutSession";
 import ProgramDashboard from "../../components/ProgramDashboard";
 
-export default function WestHomePage() {
+export default function GolemHomePage() {
 
   // DATA
   const [exerciseCount, setExerciseCount] = useState(0);
@@ -31,9 +31,9 @@ export default function WestHomePage() {
   const fetchData = async () => {
     try {
       const [exercisesResponse, programResponse, sessionResponse] = await Promise.all([
-        fetch("/modules/west/api/exercises"),
-        fetch("/modules/west/api/programs/current"),
-        fetch("/modules/west/api/sessions/current"),
+        fetch("/modules/golem/api/exercises"),
+        fetch("/modules/golem/api/programs/current"),
+        fetch("/modules/golem/api/sessions/current"),
       ]);
 
       if (exercisesResponse.ok) {
@@ -62,7 +62,7 @@ export default function WestHomePage() {
     setIsCreatingSession(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      const response = await fetch("/modules/west/api/sessions", {
+      const response = await fetch("/modules/golem/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -77,7 +77,7 @@ export default function WestHomePage() {
       }
 
       const { id } = await response.json();
-      router.push(`/modules/west/ui/session/${id}?new=true`);
+      router.push(`/modules/golem/ui/session/${id}?new=true`);
     } catch (error) {
       console.error("Error creating session:", error);
       toast.error("Failed to create session");
@@ -120,7 +120,7 @@ export default function WestHomePage() {
           {/* GENERATE PROGRAM BUTTON */}
           <Button
             className="btn-primary"
-            onClick={() => router.push("/modules/west/ui/programs/generate")}
+            onClick={() => router.push("/modules/golem/ui/programs/generate")}
           >
             <Zap className="w-4 h-4" />
             Generate Program
@@ -131,7 +131,7 @@ export default function WestHomePage() {
         {(isLoading || currentSession) && (
           <div
             className="card cursor-pointer mb-6"
-            onClick={() => currentSession && router.push(`/modules/west/ui/session/${currentSession.id}`)}
+            onClick={() => currentSession && router.push(`/modules/golem/ui/session/${currentSession.id}`)}
           >
 
             {/* HEADER */}
@@ -177,7 +177,7 @@ export default function WestHomePage() {
         {(isLoading || currentProgram) && (
           <div
             className="card cursor-pointer mb-6"
-            onClick={() => currentProgram && router.push(`/modules/west/ui/programs/${currentProgram.id}`)}
+            onClick={() => currentProgram && router.push(`/modules/golem/ui/programs/${currentProgram.id}`)}
           >
 
             {/* HEADER */}
@@ -218,28 +218,28 @@ export default function WestHomePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           {/* EXERCISES CARD */}
-          <Link href="/modules/west/ui/exercises">
+          <Link href="/modules/golem/ui/exercises">
             <div className="module-card">
               <h2 className="text-card-title">Exercise Library</h2>
             </div>
           </Link>
 
           {/* HISTORY CARD */}
-          <Link href="/modules/west/ui/history">
+          <Link href="/modules/golem/ui/history">
             <div className="module-card">
               <h2 className="text-card-title">Workout History</h2>
             </div>
           </Link>
 
           {/* TEMPLATES CARD */}
-          <Link href="/modules/west/ui/templates">
+          <Link href="/modules/golem/ui/templates">
             <div className="module-card">
               <h2 className="text-card-title">Program Templates</h2>
             </div>
           </Link>
 
           {/* PROFILE CARD */}
-          <Link href="/modules/west/ui/profile">
+          <Link href="/modules/golem/ui/profile">
             <div className="module-card">
               <h2 className="text-card-title">User Profile</h2>
             </div>

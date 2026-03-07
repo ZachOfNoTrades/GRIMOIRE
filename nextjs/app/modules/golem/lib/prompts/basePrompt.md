@@ -10,7 +10,7 @@ You may read these files for additional context when needed.
 
 | Skill     | Description                                                | Path                                       |
 | --------- | ---------------------------------------------------------- | ------------------------------------------ |
-| SQL Query | Run read-only SELECT queries against the training database | `app/modules/west/lib/prompts/sqlSkill.md` |
+| SQL Query | Run read-only SELECT queries against the training database | `app/modules/golem/lib/prompts/sqlSkill.md` |
 
 ## Output Instructions
 

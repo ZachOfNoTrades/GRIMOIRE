@@ -43,8 +43,8 @@ export default function ExerciseInfoModal({
     setDetail(null);
 
     Promise.all([
-      fetch(`/modules/west/api/exercises/${exercise.id}/history`),
-      fetch(`/modules/west/api/exercises/${exercise.id}`),
+      fetch(`/modules/golem/api/exercises/${exercise.id}/history`),
+      fetch(`/modules/golem/api/exercises/${exercise.id}`),
     ])
       .then(async ([historyRes, detailRes]) => {
         if (historyRes.ok) setHistory(await historyRes.json());

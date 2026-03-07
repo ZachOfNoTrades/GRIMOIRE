@@ -1,4 +1,4 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { Exercise, ExerciseSummary, ExerciseHistoryEntry } from '../types/exercise';
 // TODO: Update all other e1RM calculations across the codebase to use this shared util
 import { calculateEstimatedOneRepMax } from '../utils/calc';
@@ -13,7 +13,7 @@ export async function getAllExercises(
 ): Promise<{ exercises: Exercise[]; totalCount: number }> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
 
     const request = pool.request();
     const conditions: string[] = [];
@@ -64,7 +64,7 @@ export async function getAllExercises(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -72,7 +72,7 @@ export async function getAllExercises(
 export async function getExerciseById(id: string): Promise<Exercise> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('id', id)
       .query(`SELECT * FROM exercises WHERE id = @id`);
@@ -87,7 +87,7 @@ export async function getExerciseById(id: string): Promise<Exercise> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -95,7 +95,7 @@ export async function getExerciseById(id: string): Promise<Exercise> {
 export async function createExercise(name: string, description: string | null, category: string = 'Strength'): Promise<Exercise> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('name', name)
       .input('description', description)
@@ -112,7 +112,7 @@ export async function createExercise(name: string, description: string | null, c
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -120,7 +120,7 @@ export async function createExercise(name: string, description: string | null, c
 export async function updateExercise(id: string, name: string, description: string | null, category: string): Promise<Exercise> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('id', id)
       .input('name', name)
@@ -143,7 +143,7 @@ export async function updateExercise(id: string, name: string, description: stri
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -151,7 +151,7 @@ export async function updateExercise(id: string, name: string, description: stri
 export async function disableExercise(id: string): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('id', id)
       .query(`
@@ -168,7 +168,7 @@ export async function disableExercise(id: string): Promise<void> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -176,7 +176,7 @@ export async function disableExercise(id: string): Promise<void> {
 export async function enableExercise(id: string): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('id', id)
       .query(`
@@ -193,7 +193,7 @@ export async function enableExercise(id: string): Promise<void> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -201,7 +201,7 @@ export async function enableExercise(id: string): Promise<void> {
 export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary[]> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request().query(`
       SELECT e.id, e.name, e.category, mg.name AS muscle_group_name, emg.is_primary,
              best.best_set_weight, best.best_set_reps, last_use.last_used_at
@@ -270,7 +270,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -281,7 +281,7 @@ export async function getExerciseHistory(
 ): Promise<ExerciseHistoryEntry[]> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const request = pool.request().input('exerciseId', exerciseId);
 
     const conditions: string[] = [
@@ -354,7 +354,7 @@ export async function getExerciseHistory(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -362,7 +362,7 @@ export async function getExerciseHistory(
 export async function getExerciseCount(): Promise<number> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request().query(`
       SELECT COUNT(*) as count FROM exercises
     `);
@@ -373,7 +373,7 @@ export async function getExerciseCount(): Promise<number> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }

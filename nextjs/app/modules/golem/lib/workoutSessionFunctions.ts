@@ -1,10 +1,10 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { WorkoutSession } from '../types/workoutSession';
 
 export async function getAllWorkoutSessions(page?: number, pageSize?: number): Promise<{ sessions: WorkoutSession[]; totalCount: number }> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
 
     const request = pool.request();
 
@@ -41,7 +41,7 @@ export async function getAllWorkoutSessions(page?: number, pageSize?: number): P
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -49,7 +49,7 @@ export async function getAllWorkoutSessions(page?: number, pageSize?: number): P
 export async function createWorkoutSession(name: string): Promise<string> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('name', name)
       .query(`
@@ -64,7 +64,7 @@ export async function createWorkoutSession(name: string): Promise<string> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -72,7 +72,7 @@ export async function createWorkoutSession(name: string): Promise<string> {
 export async function getCurrentWorkoutSession(): Promise<WorkoutSession | null> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request().query(`
       SELECT * FROM workout_sessions WHERE is_current = 1
     `);
@@ -88,7 +88,7 @@ export async function getCurrentWorkoutSession(): Promise<WorkoutSession | null>
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -96,7 +96,7 @@ export async function getCurrentWorkoutSession(): Promise<WorkoutSession | null>
 export async function getWorkoutSessionById(id: string): Promise<WorkoutSession> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('id', id)
       .query(`SELECT * FROM workout_sessions WHERE id = @id`);
@@ -111,7 +111,7 @@ export async function getWorkoutSessionById(id: string): Promise<WorkoutSession>
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -333,7 +333,7 @@ export async function updateWorkoutSession(
 ): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -380,7 +380,7 @@ export async function updateWorkoutSession(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -388,7 +388,7 @@ export async function updateWorkoutSession(
 export async function deleteWorkoutSession(id: string): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -466,7 +466,7 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -476,7 +476,7 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
 export async function resetWorkoutSession(id: string): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -536,7 +536,7 @@ export async function resetWorkoutSession(id: string): Promise<void> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -544,7 +544,7 @@ export async function resetWorkoutSession(id: string): Promise<void> {
 export async function getWorkoutSessionCount(): Promise<number> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request().query(`
       SELECT COUNT(*) as count FROM workout_sessions
     `);
@@ -555,7 +555,7 @@ export async function getWorkoutSessionCount(): Promise<number> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -563,7 +563,7 @@ export async function getWorkoutSessionCount(): Promise<number> {
 export async function getTemplateIdForSession(sessionId: string): Promise<string | null> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('sessionId', sessionId)
       .query(`
@@ -585,7 +585,7 @@ export async function getTemplateIdForSession(sessionId: string): Promise<string
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }

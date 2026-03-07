@@ -1,10 +1,10 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { MuscleGroup, ExerciseMuscleGroup } from '../types/muscleGroup';
 
 export async function getAllMuscleGroups(): Promise<MuscleGroup[]> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request().query(`
       SELECT * FROM muscle_groups ORDER BY name
     `);
@@ -19,7 +19,7 @@ export async function getAllMuscleGroups(): Promise<MuscleGroup[]> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -27,7 +27,7 @@ export async function getAllMuscleGroups(): Promise<MuscleGroup[]> {
 export async function getExerciseMuscleGroups(exerciseId: string): Promise<ExerciseMuscleGroup[]> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('exerciseId', exerciseId)
       .query(`
@@ -53,7 +53,7 @@ export async function getExerciseMuscleGroups(exerciseId: string): Promise<Exerc
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -64,7 +64,7 @@ export async function updateExerciseMuscleGroups(
 ): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -97,7 +97,7 @@ export async function updateExerciseMuscleGroups(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }

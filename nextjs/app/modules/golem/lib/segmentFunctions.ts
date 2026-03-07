@@ -1,4 +1,4 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { SegmentWithSets, TargetSegment, GeneratedSegment } from '../types/segment';
 
 export async function getSegmentsAndTargets(sessionId: string): Promise<{
@@ -7,7 +7,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
 }> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
 
     // Load session segments and sets
     const segmentResult = await pool.request()
@@ -179,7 +179,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -187,7 +187,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
 export async function updateSegments(sessionId: string, segments: SegmentWithSets[]): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -301,7 +301,7 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -309,7 +309,7 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
 export async function deleteSegment(sessionId: string, segmentId: string | null, targetId: string | null): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -359,7 +359,7 @@ export async function deleteSegment(sessionId: string, segmentId: string | null,
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -370,7 +370,7 @@ export async function createGeneratedTargets(
 ): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -417,7 +417,7 @@ export async function createGeneratedTargets(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }

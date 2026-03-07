@@ -33,7 +33,7 @@ export default function ExercisesPage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/home")}
+            onClick={() => router.push("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -107,7 +107,7 @@ export default function ExercisesPage() {
             key={`${showDisabled}-${activeSearch}`}
             ref={tableRef}
             fetchUrl={(page, pageSize) =>
-              `/modules/west/api/exercises?showDisabled=${showDisabled}&search=${encodeURIComponent(activeSearch)}&page=${page}&pageSize=${pageSize}`
+              `/modules/golem/api/exercises?showDisabled=${showDisabled}&search=${encodeURIComponent(activeSearch)}&page=${page}&pageSize=${pageSize}`
             }
             dataKey="exercises"
             columns={[{ header: "Exercise" }]}
@@ -119,7 +119,7 @@ export default function ExercisesPage() {
               <tr
                 key={exercise.id}
                 className="table-row-clickable"
-                onClick={() => router.push(`/modules/west/ui/exercises/${exercise.id}`)}
+                onClick={() => router.push(`/modules/golem/ui/exercises/${exercise.id}`)}
               >
                 <td className="table-cell">{exercise.name}</td>
               </tr>

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function RootPage() {
-  redirect("/modules/west/ui/home");
+  redirect("/modules/golem/ui/home");
 }

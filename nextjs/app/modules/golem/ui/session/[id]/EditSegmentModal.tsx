@@ -69,7 +69,7 @@ export default function EditSegmentModal({
     if (startDate) params.set("startDate", startDate);
     if (endDate) params.set("endDate", endDate);
     const queryString = params.toString();
-    const url = `/modules/west/api/exercises/${exerciseId}/history${queryString ? `?${queryString}` : ""}`;
+    const url = `/modules/golem/api/exercises/${exerciseId}/history${queryString ? `?${queryString}` : ""}`;
 
     fetch(url)
       .then((response) => {
@@ -86,7 +86,7 @@ export default function EditSegmentModal({
     if (!exerciseId) return;
     setDetailLoading(true);
 
-    fetch(`/modules/west/api/exercises/${exerciseId}`)
+    fetch(`/modules/golem/api/exercises/${exerciseId}`)
       .then((response) => {
         if (!response.ok) throw new Error("Failed to fetch exercise details");
         return response.json();

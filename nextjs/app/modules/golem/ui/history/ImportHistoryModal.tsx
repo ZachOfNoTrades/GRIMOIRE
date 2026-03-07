@@ -99,7 +99,7 @@ export default function ImportHistoryModal({
 
   const fetchExercises = async () => {
     try {
-      const response = await fetch("/modules/west/api/exercises");
+      const response = await fetch("/modules/golem/api/exercises");
       if (!response.ok) throw new Error("Failed to fetch exercises");
       const data = await response.json();
       setExercises(data);
@@ -347,7 +347,7 @@ export default function ImportHistoryModal({
     };
 
     try {
-      const response = await fetch("/modules/west/api/sessions/import", {
+      const response = await fetch("/modules/golem/api/sessions/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

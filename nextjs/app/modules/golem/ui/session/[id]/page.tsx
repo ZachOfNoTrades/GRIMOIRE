@@ -73,7 +73,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     if (isNewSession && session && !isLoading) {
       handleStartEditSession();
-      router.replace(`/modules/west/ui/session/${id}`, { scroll: false });
+      router.replace(`/modules/golem/ui/session/${id}`, { scroll: false });
     }
   }, [isNewSession, session, isLoading]);
 
@@ -90,7 +90,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   const fetchSession = async () => {
     try {
-      const response = await fetch(`/modules/west/api/sessions/${id}`);
+      const response = await fetch(`/modules/golem/api/sessions/${id}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -103,7 +103,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   const fetchSegments = async () => {
     try {
-      const response = await fetch(`/modules/west/api/sessions/${id}/segments`);
+      const response = await fetch(`/modules/golem/api/sessions/${id}/segments`);
       if (response.ok) {
         const data = await response.json();
         setLoggedSegments(data.exercises);
@@ -116,7 +116,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   const fetchExercises = async () => {
     try {
-      const response = await fetch("/modules/west/api/exercises?include=muscles");
+      const response = await fetch("/modules/golem/api/exercises?include=muscles");
       if (response.ok) {
         const data = await response.json();
         setExercises(data);
@@ -171,7 +171,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         ? hhmmssToSeconds(editedDuration)
         : session.duration;
 
-      const response = await fetch(`/modules/west/api/sessions/${id}`, {
+      const response = await fetch(`/modules/golem/api/sessions/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -207,7 +207,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const handleDeleteSession = async () => {
     setIsDeletingSession(true);
     try {
-      const response = await fetch(`/modules/west/api/sessions/${id}`, {
+      const response = await fetch(`/modules/golem/api/sessions/${id}`, {
         method: "DELETE",
       });
 
@@ -218,7 +218,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }
 
       toast.success("Session deleted");
-      router.push("/modules/west/ui/home");
+      router.push("/modules/golem/ui/home");
     } catch (error) {
       toast.error("Failed to delete session");
       console.error("Error deleting session:", error);
@@ -230,7 +230,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     if (!session) return;
     setIsUpdatingStatus(true);
     try {
-      const response = await fetch(`/modules/west/api/sessions/${id}`, {
+      const response = await fetch(`/modules/golem/api/sessions/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -444,7 +444,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         };
       });
 
-      const response = await fetch(`/modules/west/api/sessions/${id}/segments`, {
+      const response = await fetch(`/modules/golem/api/sessions/${id}/segments`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(filteredSegments),
@@ -481,7 +481,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
     setIsDeletingSegment(true);
     try {
-      const response = await fetch(`/modules/west/api/sessions/${id}/segments`, {
+      const response = await fetch(`/modules/golem/api/sessions/${id}/segments`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -516,7 +516,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
     setIsGenerating(true);
     try {
-      const response = await fetch(`/modules/west/api/sessions/${id}/generate`, {
+      const response = await fetch(`/modules/golem/api/sessions/${id}/generate`, {
         method: "POST",
       });
 
@@ -568,7 +568,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       <main className="page-container">
 
         {/* BACK BUTTON */}
-        <Button className="btn-link mb-2" onClick={() => router.push("/modules/west/ui/home")}>
+        <Button className="btn-link mb-2" onClick={() => router.push("/modules/golem/ui/home")}>
           <ArrowLeft className="w-4 h-4" />
           <span>Back</span>
         </Button>

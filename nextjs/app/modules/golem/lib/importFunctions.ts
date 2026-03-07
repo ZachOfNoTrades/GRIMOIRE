@@ -1,10 +1,10 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { ImportPayload, ImportResult } from '../types/import';
 
 export async function importWorkoutHistory(payload: ImportPayload): Promise<ImportResult> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -104,7 +104,7 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }

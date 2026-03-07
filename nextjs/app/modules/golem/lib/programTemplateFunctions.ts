@@ -1,10 +1,10 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { ProgramTemplate, ProgramTemplateSummary } from '../types/programTemplate';
 
 export async function getAllProgramTemplates(): Promise<ProgramTemplateSummary[]> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request().query(`
       SELECT id, name, description, created_at, modified_at
       FROM program_templates
@@ -21,7 +21,7 @@ export async function getAllProgramTemplates(): Promise<ProgramTemplateSummary[]
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -29,7 +29,7 @@ export async function getAllProgramTemplates(): Promise<ProgramTemplateSummary[]
 export async function getProgramTemplateById(templateId: string): Promise<ProgramTemplate> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('templateId', templateId)
       .query(`SELECT * FROM program_templates WHERE id = @templateId`);
@@ -44,7 +44,7 @@ export async function getProgramTemplateById(templateId: string): Promise<Progra
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -59,7 +59,7 @@ export async function createProgramTemplate(
 ): Promise<ProgramTemplate> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('name', name)
       .input('description', description)
@@ -79,7 +79,7 @@ export async function createProgramTemplate(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -95,7 +95,7 @@ export async function updateProgramTemplate(
 ): Promise<ProgramTemplate> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('templateId', templateId)
       .input('name', name)
@@ -125,7 +125,7 @@ export async function updateProgramTemplate(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -133,7 +133,7 @@ export async function updateProgramTemplate(
 export async function deleteProgramTemplate(templateId: string): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('templateId', templateId)
       .query(`DELETE FROM program_templates WHERE id = @templateId`);
@@ -146,7 +146,7 @@ export async function deleteProgramTemplate(templateId: string): Promise<void> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }

@@ -77,7 +77,7 @@ const config = {
   server: process.env.SQL_SERVER_URL,
   user: process.env.SQL_SERVER_USER,
   password: process.env.SQL_SERVER_PASSWORD,
-  database: process.env.SQL_WEST_DB,
+  database: process.env.SQL_GOLEM_DB,
   options: {
     encrypt: true,
     trustServerCertificate: true,

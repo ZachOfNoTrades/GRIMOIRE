@@ -1,9 +1,9 @@
 -- =============================
--- Workout Tracker (WEST) Sample Data
+-- Workout Tracker (GOLEM) Sample Data
 -- Version: 202602251933 (Initial Release v0.1.0)
 -- =============================
 
-BEGIN TRANSACTION WestDbSampleRecords;
+BEGIN TRANSACTION GolemDbSampleRecords;
 BEGIN TRY
 
     -- =============================
@@ -354,15 +354,15 @@ BEGIN TRY
     (@tse_leg2_press, 2, 0, 10, 380.0, 7.5),
     (@tse_leg2_press, 3, 0, 8, 400.0, 8.0);
 
-    COMMIT TRANSACTION WestDbSampleRecords;
+    COMMIT TRANSACTION GolemDbSampleRecords;
     PRINT '';
-    PRINT 'WEST records created successfully.'
+    PRINT 'GOLEM records created successfully.'
 
 END TRY
 BEGIN CATCH
     IF @@TRANCOUNT > 0
     BEGIN
-        ROLLBACK TRANSACTION WestDbSampleRecords;
+        ROLLBACK TRANSACTION GolemDbSampleRecords;
     END
 
     DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();

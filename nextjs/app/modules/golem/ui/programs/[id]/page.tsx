@@ -28,7 +28,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
     setIsLoading(true);
     try {
       const { id } = await params;
-      const response = await fetch(`/modules/west/api/programs/${id}`);
+      const response = await fetch(`/modules/golem/api/programs/${id}`);
       if (response.status === 404) {
         setNotFound(true);
         return;
@@ -49,7 +49,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
     setGeneratingWeekId(weekId);
     try {
       const { id } = await params;
-      const response = await fetch(`/modules/west/api/programs/${id}/weeks/${weekId}/generate`, { method: 'POST' });
+      const response = await fetch(`/modules/golem/api/programs/${id}/weeks/${weekId}/generate`, { method: 'POST' });
       if (!response.ok) {
         throw new Error("Failed to generate next week");
       }
@@ -95,7 +95,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/home")}
+            onClick={() => router.push("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -223,7 +223,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                 <div
                                   key={session.id}
                                   className={`sub-card cursor-pointer ${session.is_current && !session.is_completed ? 'status-active' : ''} ${session.is_completed ? 'status-completed' : ''}`}
-                                  onClick={() => router.push(`/modules/west/ui/session/${session.id}`)}
+                                  onClick={() => router.push(`/modules/golem/ui/session/${session.id}`)}
                                 >
 
                                   {/* SESSION ROW */}

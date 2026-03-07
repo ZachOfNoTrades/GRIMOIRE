@@ -57,7 +57,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
   const fetchTemplate = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/modules/west/api/program-templates/${id}`);
+      const response = await fetch(`/modules/golem/api/program-templates/${id}`);
       if (response.status === 404) {
         setNotFound(true);
         return;
@@ -99,7 +99,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
 
     setIsSaving(true);
     try {
-      const response = await fetch(`/modules/west/api/program-templates/${id}`, {
+      const response = await fetch(`/modules/golem/api/program-templates/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -134,7 +134,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
   const handleDeleteTemplate = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/modules/west/api/program-templates/${id}`, {
+      const response = await fetch(`/modules/golem/api/program-templates/${id}`, {
         method: "DELETE",
       });
 
@@ -151,7 +151,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
       }
 
       toast.success("Template deleted");
-      router.push("/modules/west/ui/templates");
+      router.push("/modules/golem/ui/templates");
     } catch (error) {
       toast.error("Failed to delete template");
       console.error("Error deleting template:", error);
@@ -198,7 +198,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/templates")}
+            onClick={() => router.push("/modules/golem/ui/templates")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />

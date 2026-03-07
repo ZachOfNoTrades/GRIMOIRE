@@ -1,10 +1,10 @@
 -- ============================================================
 -- Seed Data: Program Templates
--- Run after sql_init_west.sql to populate default templates.
+-- Run after sql_init_golem.sql to populate default templates.
 --
 -- NOTE: Each prompt field stores only domain-specific context.
 -- Formatting rules (output schema, response rules) live in
--- tracked .md files under nextjs/app/modules/west/lib/prompts/.
+-- tracked .md files under nextjs/app/modules/golem/lib/prompts/.
 -- ============================================================
 
 

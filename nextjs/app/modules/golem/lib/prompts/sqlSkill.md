@@ -7,7 +7,7 @@ You have the ability to run read-only SQL queries to assist in making decisions.
 Run queries using the Bash tool:
 
 ```
-node app/modules/west/lib/sql_query_tool/executeSqlQueryScript.mjs "SELECT ..."
+node app/modules/golem/lib/sql_query_tool/executeSqlQueryScript.mjs "SELECT ..."
 ```
 
 The tool returns JSON: `{ success: true, rowCount: N, data: [...] }` or `{ success: false, error: "..." }`
@@ -24,4 +24,4 @@ The `exercise_modifiers` table contains optional modifiers (e.g., "Pause", "Temp
 
 ### Database Schema
 
-A reference guide of the full schema is located at: `app/modules/west/lib/prompts/databaseSchema.md`
+A reference guide of the full schema is located at: `app/modules/golem/lib/prompts/databaseSchema.md`

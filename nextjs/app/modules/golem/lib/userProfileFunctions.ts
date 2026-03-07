@@ -1,10 +1,10 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { UserProfile } from '../types/userProfile';
 
 export async function getUserProfile(): Promise<UserProfile> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request().query(`
       SELECT id, profile_prompt, created_at, modified_at
       FROM user_profile
@@ -21,7 +21,7 @@ export async function getUserProfile(): Promise<UserProfile> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -29,7 +29,7 @@ export async function getUserProfile(): Promise<UserProfile> {
 export async function updateUserProfile(profilePrompt: string | null): Promise<UserProfile> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('profilePrompt', profilePrompt)
       .query(`
@@ -50,7 +50,7 @@ export async function updateUserProfile(profilePrompt: string | null): Promise<U
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }

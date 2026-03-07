@@ -27,7 +27,7 @@ export default function GenerateProgramPage() {
 
   const fetchData = async () => {
     try {
-      const templatesResponse = await fetch("/modules/west/api/program-templates");
+      const templatesResponse = await fetch("/modules/golem/api/program-templates");
 
       if (templatesResponse.ok) {
         const templateData = await templatesResponse.json();
@@ -49,7 +49,7 @@ export default function GenerateProgramPage() {
     if (!isFormValid) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch("/modules/west/api/programs/generate", {
+      const response = await fetch("/modules/golem/api/programs/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -65,7 +65,7 @@ export default function GenerateProgramPage() {
 
       const { id } = await response.json();
       toast.success("Program generated");
-      router.push(`/modules/west/ui/programs/${id}`);
+      router.push(`/modules/golem/ui/programs/${id}`);
     } catch (error) {
       console.error("Error generating program:", error);
       toast.error("Failed to generate program");
@@ -98,7 +98,7 @@ export default function GenerateProgramPage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/home")}
+            onClick={() => router.push("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />

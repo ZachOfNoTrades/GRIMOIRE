@@ -33,7 +33,7 @@ export default function TemplatesPage() {
   const fetchTemplates = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/modules/west/api/program-templates");
+      const response = await fetch("/modules/golem/api/program-templates");
       if (!response.ok) {
         throw new Error("Failed to fetch templates");
       }
@@ -58,7 +58,7 @@ export default function TemplatesPage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/west/ui/home")}
+            onClick={() => router.push("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -152,7 +152,7 @@ export default function TemplatesPage() {
                     <tr
                       key={template.id}
                       className="table-row-clickable"
-                      onClick={() => router.push(`/modules/west/ui/templates/${template.id}`)}
+                      onClick={() => router.push(`/modules/golem/ui/templates/${template.id}`)}
                     >
                       <td className="table-cell">{template.name}</td>
                       <td className="table-cell text-secondary">{template.description || "—"}</td>

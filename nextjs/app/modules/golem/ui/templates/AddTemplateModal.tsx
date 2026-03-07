@@ -43,7 +43,7 @@ export default function AddTemplateModal({
     setError(null);
 
     try {
-      const response = await fetch("/modules/west/api/program-templates", {
+      const response = await fetch("/modules/golem/api/program-templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

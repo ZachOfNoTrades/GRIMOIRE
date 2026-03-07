@@ -4,7 +4,7 @@ const config: sql.config = {
   server: process.env.SQL_SERVER_URL!,
   user: process.env.SQL_SERVER_USER!,
   password: process.env.SQL_SERVER_PASSWORD!,
-  database: process.env.SQL_WEST_DB!,
+  database: process.env.SQL_GOLEM_DB!,
   options: {
     encrypt: true,
     trustServerCertificate: true,
@@ -18,7 +18,7 @@ const config: sql.config = {
 
 let pool: sql.ConnectionPool | null = null;
 
-export async function getWestConnection(): Promise<sql.ConnectionPool> {
+export async function getGolemConnection(): Promise<sql.ConnectionPool> {
   if (!pool || !pool.connected) {
     pool = new sql.ConnectionPool(config);
     await pool.connect();
@@ -26,6 +26,6 @@ export async function getWestConnection(): Promise<sql.ConnectionPool> {
   return pool;
 }
 
-export async function closeWestConnection(_pool: sql.ConnectionPool): Promise<void> {
+export async function closeGolemConnection(_pool: sql.ConnectionPool): Promise<void> {
   // No-op — singleton pool stays open for reuse
 }

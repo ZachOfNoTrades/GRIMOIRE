@@ -1,10 +1,10 @@
-import { getWestConnection, closeWestConnection } from './db';
+import { getGolemConnection, closeGolemConnection } from './db';
 import { Program, ProgramBlock, ProgramSummary, ProgramWeek, ProgramSession, CreateProgramPayload } from '../types/program';
 
 export async function getAllPrograms(page?: number, pageSize?: number): Promise<{ programs: ProgramSummary[]; totalCount: number }> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
 
     const request = pool.request();
 
@@ -43,7 +43,7 @@ export async function getAllPrograms(page?: number, pageSize?: number): Promise<
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -51,7 +51,7 @@ export async function getAllPrograms(page?: number, pageSize?: number): Promise<
 export async function getCurrentProgramId(): Promise<string | null> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request().query(`
       SELECT id FROM programs WHERE is_current = 1
     `);
@@ -66,7 +66,7 @@ export async function getCurrentProgramId(): Promise<string | null> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -74,7 +74,7 @@ export async function getCurrentProgramId(): Promise<string | null> {
 export async function getProgramById(programId: string): Promise<Program> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('programId', programId)
       .query(`
@@ -213,7 +213,7 @@ export async function getProgramById(programId: string): Promise<Program> {
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -317,7 +317,7 @@ async function setProgramAsCurrent(transaction: any, programId: string): Promise
 export async function createProgram(payload: CreateProgramPayload, templateId?: string | null): Promise<string> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -426,7 +426,7 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -434,7 +434,7 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
 export async function getTemplateIdForProgram(programId: string): Promise<string | null> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('programId', programId)
       .query(`SELECT template_id FROM programs WHERE id = @programId`);
@@ -449,7 +449,7 @@ export async function getTemplateIdForProgram(programId: string): Promise<string
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -458,7 +458,7 @@ export async function getTemplateIdForProgram(programId: string): Promise<string
 export async function getFirstWeekId(programId: string): Promise<{ weekId: string; blockTag: string | null } | null> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('programId', programId)
       .query(`
@@ -482,7 +482,7 @@ export async function getFirstWeekId(programId: string): Promise<{ weekId: strin
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
@@ -495,7 +495,7 @@ export async function updateProgram(
 ): Promise<void> {
   let pool;
   try {
-    pool = await getWestConnection();
+    pool = await getGolemConnection();
     const result = await pool.request()
       .input('programId', programId)
       .input('name', name)
@@ -515,7 +515,7 @@ export async function updateProgram(
     throw error;
   } finally {
     if (pool) {
-      await closeWestConnection(pool);
+      await closeGolemConnection(pool);
     }
   }
 }
