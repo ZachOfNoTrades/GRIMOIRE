@@ -30,6 +30,7 @@ Before designing sessions, use the SQL Query skill to gather relevant context. T
 3. Descriptions should be robust and explain session goals.
 4. order_index starts at 1 and increments sequentially.
 5. The response must be a JSON array of SessionPlan objects — nothing else.
+6. Do not recommend exercises that are disabled (`is_disabled = 1` in the exercises table). If referencing specific exercises in session names or descriptions, verify they are enabled.
 
 {{TEMPLATE_CONTEXT}}
 

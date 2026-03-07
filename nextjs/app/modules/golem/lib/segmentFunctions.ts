@@ -364,6 +364,49 @@ export async function deleteSegment(sessionId: string, segmentId: string | null,
   }
 }
 
+export async function deleteAllTargetsForSession(sessionId: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Clear target_id references from logged segments
+      await transaction.request()
+        .input('sessionId', sessionId)
+        .query(`UPDATE session_segments SET target_id = NULL WHERE session_id = @sessionId`);
+
+      // Delete all target sets for this session's target segments
+      await transaction.request()
+        .input('sessionId', sessionId)
+        .query(`
+          DELETE FROM target_session_segment_sets
+          WHERE target_session_segment_id IN (
+            SELECT id FROM target_session_segments WHERE session_id = @sessionId
+          )
+        `);
+
+      // Delete all target segments for this session
+      await transaction.request()
+        .input('sessionId', sessionId)
+        .query(`DELETE FROM target_session_segments WHERE session_id = @sessionId`);
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deleting all targets for session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
 export async function createGeneratedTargets(
   sessionId: string,
   generatedExercises: GeneratedSegment[],

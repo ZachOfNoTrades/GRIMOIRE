@@ -42,7 +42,7 @@ Before generating exercises, use the SQL Query skill to gather relevant context.
 
 ## Rules
 
-1. Every exercise_id MUST be a valid UUID from the exercises table. Use the SQL Query skill to discover available exercises (query by muscle group, name, etc.).
+1. Every exercise_id MUST be a valid UUID from the exercises table. Use the SQL Query skill to discover available exercises (query by muscle group, name, etc.). **Exclude disabled exercises** — only use exercises where `is_disabled = 0`.
 2. Include an appropriate quantity of exercises based on the session description. If unsure, use 5 as a fallback.
 3. `order_index` starts at 1 and increments independently for warmup exercises and working exercises.
 4. Warmup exercises (`is_warmup: true`) MUST have all sets with `is_warmup: true`. They should not contain working sets.

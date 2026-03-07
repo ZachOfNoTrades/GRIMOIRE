@@ -300,6 +300,35 @@ export async function generateSessionAnalysisWithLlm(
   return analysis.trim();
 }
 
+// Regenerates a single session's name and description using the regenerateSessionPlan prompt.
+// The LLM uses SQL Query skill to pull context from completed sessions, reviews, analyses, etc.
+export async function regenerateSessionPlanWithLlm(
+  weekContext: string | null,
+  profileContext: string | null,
+  sessionId: string,
+): Promise<{ name: string; description: string }> {
+
+  const basePrompt = assemblePrompt('regenerateSessionPlan.md', weekContext, profileContext);
+  const prompt = basePrompt.replace('{{SESSION_ID}}', sessionId);
+
+  console.log(`[RegenerateSessionPlan] Calling LLM for session '${sessionId}'`);
+  const outputFile = await callLLM(prompt);
+  const rawContent = readLLMOutput(outputFile);
+  try { unlinkSync(outputFile); } catch { } // Clear temp file
+
+  const parsed = parseLLMResponse(rawContent) as unknown as { name: string; description: string };
+
+  if (!parsed.name || typeof parsed.name !== 'string' || parsed.name.trim().length === 0) {
+    throw new Error('LLM returned invalid session plan — name is required');
+  }
+  if (!parsed.description || typeof parsed.description !== 'string' || parsed.description.trim().length === 0) {
+    throw new Error('LLM returned invalid session plan — description is required');
+  }
+
+  console.log(`[RegenerateSessionPlan] Generated plan for session '${sessionId}': ${parsed.name}`);
+  return { name: parsed.name.trim(), description: parsed.description.trim() };
+}
+
 // Two-stage generation:
 // Stage 1: LLM generates program structure (blocks + weeks, no sessions)
 // Stage 2: LLM generates session plans for week 1 (names + descriptions, no exercises)

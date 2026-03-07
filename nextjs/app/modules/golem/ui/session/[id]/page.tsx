@@ -40,6 +40,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isDeletingSegment, setIsDeletingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRegeneratingPlan, setIsRegeneratingPlan] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
   const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
@@ -544,6 +545,33 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  // REGENERATE PLAN HANDLER
+  const handleRegeneratePlan = async () => {
+    setIsRegeneratingPlan(true);
+    try {
+      const response = await fetch(`/modules/golem/api/sessions/${id}/regenerate-plan`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to regenerate plan");
+        return;
+      }
+
+      const updatedSession = await response.json();
+      setSession(updatedSession);
+      setEditedSessionName(updatedSession.name);
+      setEditedSessionDescription(updatedSession.description || "");
+      toast.success("Plan regenerated");
+    } catch (error) {
+      toast.error("Failed to regenerate plan");
+      console.error("Error regenerating plan:", error);
+    } finally {
+      setIsRegeneratingPlan(false);
+    }
+  };
+
   // ANALYZE HANDLER
   const handleAnalyzeSession = async () => {
     if (!session?.is_completed) return;
@@ -842,12 +870,26 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     </div>
 
                     {/* SESSION DESCRIPTION */}
-                    {session.description && (
-                      <div>
+                    <div>
+                      <div className="flex items-center justify-between">
                         <label className="text-secondary">Description</label>
-                        <p className="text-primary whitespace-pre-wrap break-words">{session.description}</p>
+
+                        {/* REGENERATE PLAN BUTTON */}
+                        {session.week_id && (
+                          <Button
+                            className="btn-link"
+                            onClick={handleRegeneratePlan}
+                            disabled={isRegeneratingPlan}
+                          >
+                            {isRegeneratingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            <span>{isRegeneratingPlan ? "Regenerating..." : session.description ? "Regenerate Plan" : "Generate Plan"}</span>
+                          </Button>
+                        )}
                       </div>
-                    )}
+                      {session.description && (
+                        <p className="text-primary whitespace-pre-wrap break-words">{session.description}</p>
+                      )}
+                    </div>
 
                     {/* SESSION REVIEW */}
                     {session.is_completed && session.review && (
@@ -892,6 +934,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
               {/* TITLE */}
               <h2 className="text-card-title">Exercises</h2>
+
+              {/* REGENERATE EXERCISES BUTTON */}
+              {(loggedSegments.length > 0 || targetSegments.length > 0) && (
+                <Button
+                  className="btn-link"
+                  onClick={handleGenerateExercises}
+                  disabled={isGenerating || !session?.description?.trim()}
+                >
+                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  <span>{isGenerating ? "Regenerating..." : "Regenerate"}</span>
+                </Button>
+              )}
             </div>
 
             {/* CARD CONTENT */}

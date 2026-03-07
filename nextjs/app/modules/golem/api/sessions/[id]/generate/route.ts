@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
 import { generateSessionTargetsWithLlm } from '../../../../lib/llmFunctions';
-import { createGeneratedTargets } from '../../../../lib/segmentFunctions';
+import { createGeneratedTargets, deleteAllTargetsForSession } from '../../../../lib/segmentFunctions';
 import { getProgramTemplateById } from '../../../../lib/programTemplateFunctions';
 import { getUserProfile } from '../../../../lib/userProfileFunctions';
 
@@ -32,6 +32,9 @@ export async function POST(
     if (sessionDescription.length === 0) {
       return NextResponse.json({ error: 'Session description is required for generation' }, { status: 400 });
     }
+
+    // Clear existing targets before generating new ones
+    await deleteAllTargetsForSession(id);
 
     // Generate targets via LLM
     const targetExercises = await generateSessionTargetsWithLlm(
