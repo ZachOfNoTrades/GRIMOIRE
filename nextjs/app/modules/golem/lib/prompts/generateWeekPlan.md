@@ -12,7 +12,16 @@ description: string; // 2-4 sentences: primary focus, accessory categories, inte
 
 ## Schedule
 
+- **Week ID**: {{WEEK_ID}}
 - **Days per week**: {{DAYS_PER_WEEK}}
+
+## Historical Context
+
+Before designing sessions, use the SQL Query skill to gather relevant context. The week ID above can be used to find the block, program, and preceding weeks. Consider querying:
+
+1. **Block and program context** — The current block's tag/description and program description to understand the training phase.
+2. **Previous week's sessions** — Session names, descriptions, and analyses from the most recent completed week in the same program. Analyses contain objective observations about performance trends, injury concerns, and warmup compliance that should inform the next week's plan.
+3. **Volume and frequency trends** — Which muscle groups and exercises have been trained recently, to maintain appropriate distribution.
 
 ## Rules
 

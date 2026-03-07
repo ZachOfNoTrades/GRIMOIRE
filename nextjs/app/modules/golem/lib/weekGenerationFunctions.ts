@@ -150,7 +150,7 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
       await transaction.commit();
 
       // 6. Generate session plans via LLM (outside transaction)
-      const sessionPlans = await generateNextWeekPlanWithLlm(template.week_prompt, daysPerWeek, profileContext);
+      const sessionPlans = await generateNextWeekPlanWithLlm(template.week_prompt, nextWeekId, daysPerWeek, profileContext);
 
       // 7. Insert new sessions with names + descriptions (no target exercises)
       await insertSessionsIntoWeek(nextWeekId, sessionPlans);

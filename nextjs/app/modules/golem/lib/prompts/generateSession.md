@@ -26,8 +26,19 @@ target_exercises: TargetExercise[];
 
 ## Session Info
 
+- **Session ID**: {{SESSION_ID}}
 - **Session Name**: {{SESSION_NAME}}
 - **Description**: {{USER_DESCRIPTION}}
+
+## Historical Context
+
+Before generating exercises, use the SQL Query skill to gather relevant context. The session ID above can be used to traverse the program hierarchy (session → week → block → program). Consider querying:
+
+1. **Program context** — The session's block tag/description and week description to understand the current training phase and goals.
+2. **Sibling sessions** — Other session names/descriptions in the same week, so exercises complement rather than duplicate across the week.
+3. **Previous analyses** — The `analysis` column on completed sessions in the same program. These analyses are specifically written as context for future session generation and may contain injury observations, recovery notes, warmup suggestions, and performance trends.
+4. **Recent performance** — The user's recent sets/reps/weight on exercises you are considering prescribing, to inform appropriate loading.
+5. **Exercise frequency** — Which exercises have been used recently and which have not, to ensure variety.
 
 ## Rules
 

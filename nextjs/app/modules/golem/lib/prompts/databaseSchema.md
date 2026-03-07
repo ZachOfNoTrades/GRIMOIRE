@@ -60,8 +60,9 @@ Reusable templates that drive LLM-based program generation.
 | description    | NVARCHAR(MAX)         |                                         |
 | program_prompt | NVARCHAR(MAX)         | Prompt context for program structure    |
 | week_prompt    | NVARCHAR(MAX)         | Prompt context for weekly session plans |
-| session_prompt | NVARCHAR(MAX)         | Prompt context for session exercises    |
-| days_per_week  | INT                   | Default 4                               |
+| session_prompt  | NVARCHAR(MAX)         | Prompt context for session exercises    |
+| analysis_prompt | NVARCHAR(MAX)         | Prompt context for session analysis     |
+| days_per_week   | INT                   | Default 4                               |
 | created_at     | DATETIME2             |                                         |
 | modified_at    | DATETIME2             |                                         |
 
@@ -118,12 +119,14 @@ A block is a training phase within a program (e.g., Hypertrophy, Peaking, Deload
 | week_id      | UNIQUEIDENTIFIER (FK → weeks) | Nullable (standalone sessions)                     |
 | order_index  | INT                           | Position within the week                           |
 | name         | NVARCHAR(255)                 |                                                    |
-| notes        | NVARCHAR(MAX)                 | User-provided session notes                        |
+| description  | NVARCHAR(MAX)                 | Session description/goals                          |
 | started_at   | DATETIME2                     | When the session was physically started            |
 | resumed_at   | DATETIME2                     | When a completed session was most recently resumed |
 | duration     | INT                           | Accumulated duration in seconds                    |
 | is_current   | BIT                           | 1 = currently active                               |
 | is_completed | BIT                           | 1 = finished                                       |
+| review       | NVARCHAR(MAX)                 | User-written post-session review (nullable)        |
+| analysis     | NVARCHAR(MAX)                 | LLM-generated session analysis (nullable)          |
 | created_at   | DATETIME2                     |                                                    |
 | modified_at  | DATETIME2                     |                                                    |
 
@@ -264,6 +267,33 @@ WHERE ss.exercise_id = '<exercise_id>'
     ORDER BY ws2.started_at DESC
   )
 ORDER BY ws.started_at DESC, sss.set_number
+```
+
+**Recent session analyses in a program (for informing future generation):**
+
+```sql
+SELECT ws.name, ws.analysis, ws.started_at
+FROM workout_sessions ws
+JOIN weeks w ON ws.week_id = w.id
+JOIN blocks b ON w.block_id = b.id
+WHERE b.program_id = '<program_id>'
+  AND ws.is_completed = 1
+  AND ws.analysis IS NOT NULL
+ORDER BY ws.started_at DESC
+```
+
+**Session's program context (block, week, sibling sessions):**
+
+```sql
+SELECT ws.id, ws.name, ws.description,
+       w.week_number, w.name AS week_name, w.description AS week_description,
+       b.name AS block_name, b.tag AS block_tag, b.description AS block_description,
+       p.name AS program_name, p.description AS program_description
+FROM workout_sessions ws
+JOIN weeks w ON ws.week_id = w.id
+JOIN blocks b ON w.block_id = b.id
+JOIN programs p ON b.program_id = p.id
+WHERE ws.id = '<session_id>'
 ```
 
 **Exercises not used in the last N days:**

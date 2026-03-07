@@ -11,12 +11,15 @@ import { ValidationResult } from '../types/llm';
 
 function buildWeekPlanPrompt(
   weekContext: string | null,
+  weekId: string,
   daysPerWeek: number,
   profileContext: string | null = null,
 ): string {
   // Load formatting file and inject DB context + profile context, then replace runtime placeholders
   const basePrompt = assemblePrompt('generateWeekPlan.md', weekContext, profileContext);
-  return basePrompt.replace(/\{\{DAYS_PER_WEEK\}\}/g, String(daysPerWeek));
+  return basePrompt
+    .replace('{{WEEK_ID}}', weekId)
+    .replace(/\{\{DAYS_PER_WEEK\}\}/g, String(daysPerWeek));
 }
 
 function parseWeekPlanResponse(rawContent: string): LLMSessionPlan[] {
@@ -78,6 +81,7 @@ function validateWeekPlans(plans: LLMSessionPlan[]): ValidationResult {
 // Returns sessions with names + descriptions only (no target exercises).
 export async function generateNextWeekPlanWithLlm(
   weekContext: string | null,
+  weekId: string,
   daysPerWeek: number,
   profileContext: string | null = null,
 ): Promise<CreateProgramSession[]> {
@@ -85,7 +89,7 @@ export async function generateNextWeekPlanWithLlm(
 
   console.log(`[WeekPlanLLM] Generating ${daysPerWeek} session plans...`);
 
-  const planPrompt = buildWeekPlanPrompt(weekContext, daysPerWeek, profileContext);
+  const planPrompt = buildWeekPlanPrompt(weekContext, weekId, daysPerWeek, profileContext);
   const outputFile = await callLLM(planPrompt);
   const planRaw = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file

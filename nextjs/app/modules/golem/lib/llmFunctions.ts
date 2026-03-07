@@ -227,6 +227,7 @@ export async function generateProgram(
 // Returns validated GeneratedSegment[] ready for insertion into target tables.
 export async function generateSessionTargetsWithLlm(
   sessionContext: string | null,
+  sessionId: string,
   sessionName: string,
   sessionDescription: string,
   profileContext: string | null = null,
@@ -235,6 +236,7 @@ export async function generateSessionTargetsWithLlm(
   // Build prompt from formatting file + DB context
   const basePrompt = assemblePrompt('generateSession.md', sessionContext, profileContext);
   const prompt = basePrompt
+    .replace('{{SESSION_ID}}', sessionId)
     .replace('{{SESSION_NAME}}', sessionName)
     .replace('{{USER_DESCRIPTION}}', sessionDescription);
 
@@ -348,6 +350,7 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
       // Generate session plans via LLM
       const sessionPlans = await generateNextWeekPlanWithLlm(
         template.week_prompt,
+        week1.weekId,
         template.days_per_week,
         profileContext,
       );

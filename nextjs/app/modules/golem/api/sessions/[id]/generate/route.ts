@@ -36,6 +36,7 @@ export async function POST(
     // Generate targets via LLM
     const targetExercises = await generateSessionTargetsWithLlm(
       sessionContext,
+      id,
       session.name,
       sessionDescription,
       profileContext,
