@@ -14,57 +14,63 @@ const rangeOptions: { value: HistoryRange; label: string }[] = [
 interface HistoryTabProps {
   history: ExerciseHistoryEntry[];
   loading: boolean;
-  range: HistoryRange;
-  customStartDate: string;
-  customEndDate: string;
-  onRangeChange: (range: HistoryRange) => void;
-  onCustomDateChange: (startDate: string, endDate: string) => void;
+  range?: HistoryRange;
+  customStartDate?: string;
+  customEndDate?: string;
+  onRangeChange?: (range: HistoryRange) => void;
+  onCustomDateChange?: (startDate: string, endDate: string) => void;
+  totalCount?: number;
 }
 
-export default function HistoryTab({ history, loading, range, customStartDate, customEndDate, onRangeChange, onCustomDateChange }: HistoryTabProps) {
+export default function HistoryTab({ history, loading, range, customStartDate, customEndDate, onRangeChange, onCustomDateChange, totalCount }: HistoryTabProps) {
+
+  // Whether the current filter is hiding older results
+  const hasOlderHistory = totalCount != null && totalCount > history.length;
 
   return (
     <div className="flex flex-col gap-3">
 
       {/* RANGE FILTER */}
-      <div className="flex flex-col gap-2 px-1">
+      {onRangeChange && (
+        <div className="flex flex-col gap-2 px-1">
 
-        {/* RANGE DROPDOWN */}
-        <select
-          value={range}
-          onChange={(e) => onRangeChange(e.target.value as HistoryRange)}
-          className="input-field !w-auto"
-        >
-          {rangeOptions.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
+          {/* RANGE DROPDOWN */}
+          <select
+            value={range}
+            onChange={(e) => onRangeChange(e.target.value as HistoryRange)}
+            className="input-field !w-auto"
+          >
+            {rangeOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
 
-        {/* CUSTOM DATE PICKERS */}
-        {range === "custom" && (
-          <div className="flex items-center gap-2">
+          {/* CUSTOM DATE PICKERS */}
+          {range === "custom" && onCustomDateChange && (
+            <div className="flex items-center gap-2">
 
-            {/* START DATE */}
-            <input
-              type="date"
-              value={customStartDate}
-              onChange={(e) => onCustomDateChange(e.target.value, customEndDate)}
-              className="input-field flex-1"
-            />
+              {/* START DATE */}
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => onCustomDateChange(e.target.value, customEndDate || "")}
+                className="input-field flex-1"
+              />
 
-            {/* SEPARATOR */}
-            <span className="text-secondary">to</span>
+              {/* SEPARATOR */}
+              <span className="text-secondary">to</span>
 
-            {/* END DATE */}
-            <input
-              type="date"
-              value={customEndDate}
-              onChange={(e) => onCustomDateChange(customStartDate, e.target.value)}
-              className="input-field flex-1"
-            />
-          </div>
-        )}
-      </div>
+              {/* END DATE */}
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => onCustomDateChange(customStartDate || "", e.target.value)}
+                className="input-field flex-1"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* LOADING PLACEHOLDER */}
       {loading ? (
@@ -74,13 +80,23 @@ export default function HistoryTab({ history, loading, range, customStartDate, c
 
         // EMPTY PLACEHOLDER
       ) : history.length === 0 ? (
-        <div className="flex justify-center items-center py-8">
-          <p className="text-secondary">No history found for this exercise.</p>
+        <div className="flex flex-col items-center gap-1 py-8">
+          <p className="text-secondary">
+            {hasOlderHistory
+              ? `Showing 0 of ${totalCount} sessions.`
+              : "No history found for this exercise."}
+          </p>
         </div>
 
         // SESSION SUB-CARDS
       ) : (
-        history.map((entry) => (
+        <>
+        {/* SESSION COUNT */}
+        {hasOlderHistory && (
+          <p className="text-secondary text-sm px-1">Showing {history.length} of {totalCount} sessions.</p>
+        )}
+
+        {history.map((entry) => (
 
           // SESSION SUB-CARD
           <div key={entry.session_id} className="card">
@@ -116,7 +132,8 @@ export default function HistoryTab({ history, loading, range, customStartDate, c
               </div>
             </div>
           </div>
-        ))
+        ))}
+        </>
       )}
     </div>
   );

@@ -278,7 +278,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
 export async function getExerciseHistory(
   exerciseId: string,
   options: { startDate?: string; endDate?: string } = {},
-): Promise<ExerciseHistoryEntry[]> {
+): Promise<{ history: ExerciseHistoryEntry[]; totalCount: number }> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -325,6 +325,17 @@ export async function getExerciseHistory(
       console.warn(`No exercise history found for exercise id: '${exerciseId}'`);
     }
 
+    // Total unfiltered session count for this exercise
+    const totalResult = await pool.request()
+      .input('exerciseId', exerciseId)
+      .query(`
+        SELECT COUNT(DISTINCT ws.id) AS total_count
+        FROM session_segments ss
+        JOIN workout_sessions ws ON ss.session_id = ws.id
+        WHERE ss.exercise_id = @exerciseId AND ws.started_at IS NOT NULL
+      `);
+    const totalCount = totalResult.recordset[0].total_count;
+
     // Group flat rows by session
     const sessionMap = new Map<string, ExerciseHistoryEntry>();
 
@@ -348,7 +359,7 @@ export async function getExerciseHistory(
       });
     }
 
-    return Array.from(sessionMap.values());
+    return { history: Array.from(sessionMap.values()), totalCount };
   } catch (error) {
     console.error('Error fetching exercise history:', error);
     throw error;

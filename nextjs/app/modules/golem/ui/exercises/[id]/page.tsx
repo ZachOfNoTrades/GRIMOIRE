@@ -88,7 +88,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
         throw new Error("Failed to fetch exercise history");
       }
       const data = await response.json();
-      setHistory(data);
+      setHistory(data.history);
     } catch (error) {
       console.error("Error fetching exercise history:", error);
     } finally {

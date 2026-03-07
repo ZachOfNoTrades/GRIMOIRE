@@ -47,7 +47,10 @@ export default function ExerciseInfoModal({
       fetch(`/modules/golem/api/exercises/${exercise.id}`),
     ])
       .then(async ([historyRes, detailRes]) => {
-        if (historyRes.ok) setHistory(await historyRes.json());
+        if (historyRes.ok) {
+          const data = await historyRes.json();
+          setHistory(data.history);
+        }
         if (detailRes.ok) setDetail(await detailRes.json());
       })
       .catch((error) => {

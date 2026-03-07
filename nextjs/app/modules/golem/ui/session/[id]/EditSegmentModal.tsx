@@ -52,6 +52,7 @@ export default function EditSegmentModal({
 
   // DATA
   const [exerciseHistory, setExerciseHistory] = useState<ExerciseHistoryEntry[]>([]);
+  const [totalHistoryCount, setTotalHistoryCount] = useState(0);
   const [exerciseDetail, setExerciseWithMuscleGroups] = useState<ExerciseWithMuscleGroups | null>(null);
 
   // STATE
@@ -76,7 +77,10 @@ export default function EditSegmentModal({
         if (!response.ok) throw new Error("Failed to fetch history");
         return response.json();
       })
-      .then((data) => setExerciseHistory(data))
+      .then((data) => {
+        setExerciseHistory(data.history);
+        setTotalHistoryCount(data.totalCount);
+      })
       .catch((error) => console.error("Error fetching exercise history:", error))
       .finally(() => setHistoryLoading(false));
   };
@@ -244,6 +248,7 @@ export default function EditSegmentModal({
             customEndDate={historyEndDate}
             onRangeChange={handleRangeChange}
             onCustomDateChange={handleCustomDateChange}
+            totalCount={totalHistoryCount}
           />
         );
       case "stats":

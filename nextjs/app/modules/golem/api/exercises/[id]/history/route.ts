@@ -10,9 +10,9 @@ export async function GET(
     const startDate = request.nextUrl.searchParams.get('startDate') || undefined;
     const endDate = request.nextUrl.searchParams.get('endDate') || undefined;
 
-    const history = await getExerciseHistory(id, { startDate, endDate });
+    const { history, totalCount } = await getExerciseHistory(id, { startDate, endDate });
 
-    return NextResponse.json(history);
+    return NextResponse.json({ history, totalCount });
 
   } catch (error) {
     console.error('Error in GET /api/exercises/[id]/history:', error);
