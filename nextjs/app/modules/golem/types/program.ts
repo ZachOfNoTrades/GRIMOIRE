@@ -26,7 +26,7 @@ export interface ProgramSummary {
 export interface ProgramSession {
   id: string;
   name: string;
-  notes: string | null;
+  description: string | null;
   order_index: number | null;
   started_at: Date | null;
   resumed_at: Date | null;
@@ -92,7 +92,7 @@ export interface CreateProgramTargetExercise {
 export interface CreateProgramSession {
   order_index: number;
   name: string;
-  notes?: string | null;
+  description?: string | null;
   target_exercises: CreateProgramTargetExercise[];
 }
 

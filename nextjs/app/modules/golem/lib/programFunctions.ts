@@ -116,7 +116,7 @@ export async function getProgramById(programId: string): Promise<Program> {
           ) THEN 1 ELSE 0 END AS BIT) AS week_has_targets,
           ws.id             AS session_id,
           ws.name           AS session_name,
-          ws.notes          AS session_notes,
+          ws.description    AS session_description,
           ws.order_index    AS session_order_index,
           ws.started_at     AS session_started_at,
           ws.resumed_at     AS session_resumed_at,
@@ -196,7 +196,7 @@ export async function getProgramById(programId: string): Promise<Program> {
       const session: ProgramSession = {
         id: row.session_id,
         name: row.session_name,
-        notes: row.session_notes,
+        description: row.session_description,
         order_index: row.session_order_index,
         started_at: row.session_started_at,
         resumed_at: row.session_resumed_at,
@@ -372,11 +372,11 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
               .input('weekId', weekId)
               .input('orderIndex', session.order_index)
               .input('name', session.name)
-              .input('notes', session.notes ?? null)
+              .input('description', session.description ?? null)
               .query(`
-                INSERT INTO workout_sessions (week_id, order_index, name, notes)
+                INSERT INTO workout_sessions (week_id, order_index, name, description)
                 OUTPUT INSERTED.id
-                VALUES (@weekId, @orderIndex, @name, @notes)
+                VALUES (@weekId, @orderIndex, @name, @description)
               `);
 
             const sessionId = sessionResult.recordset[0].id;

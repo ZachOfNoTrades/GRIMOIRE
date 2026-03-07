@@ -25,7 +25,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   // INPUT
   const [editedSessionName, setEditedSessionName] = useState("");
-  const [editedSessionNotes, setEditedSessionNotes] = useState("");
+  const [editedSessionDescription, setEditedSessionDescription] = useState("");
+  const [editedSessionReview, setEditedSessionReview] = useState("");
   const [editedStartDate, setEditedStartDate] = useState("");
   const [editedDuration, setEditedDuration] = useState("");
   // STATE
@@ -130,7 +131,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const handleStartEditSession = () => {
     if (!session) return;
     setEditedSessionName(session.name);
-    setEditedSessionNotes(session.notes || "");
+    setEditedSessionDescription(session.description || "");
+    setEditedSessionReview(session.review || "");
     if (session.started_at) {
       setEditedStartDate(new Date(session.started_at).toISOString().split("T")[0]);
     }
@@ -143,7 +145,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const handleCancelEditSession = () => {
     setIsEditingSession(false);
     setEditedSessionName("");
-    setEditedSessionNotes("");
+    setEditedSessionDescription("");
+    setEditedSessionReview("");
     setEditedStartDate("");
     setEditedDuration("");
   };
@@ -176,7 +179,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: editedSessionName.trim(),
-          notes: editedSessionNotes.trim() || null,
+          description: editedSessionDescription.trim() || null,
+          review: editedSessionReview.trim() || null,
           started_at: updatedStartedAt,
           resumed_at: session.resumed_at,
           duration: updatedDuration,
@@ -235,7 +239,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: session.name,
-          notes: session.notes,
+          description: session.description,
+          review: session.review,
           started_at: session.started_at,
           resumed_at: session.resumed_at,
           duration: session.duration,
@@ -509,8 +514,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   // GENERATE HANDLER
   const handleGenerateExercises = async () => {
-    if (!session?.notes?.trim()) {
-      toast.error("Session notes are required for generation");
+    if (!session?.description?.trim()) {
+      toast.error("Session description is required for generation");
       return;
     }
 
@@ -743,17 +748,31 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       </div>
                     )}
 
-                    {/* NOTES INPUT */}
+                    {/* DESCRIPTION INPUT */}
                     <div>
-                      <label className="text-secondary">Notes</label>
+                      <label className="text-secondary">Description</label>
                       <textarea
-                        value={editedSessionNotes}
-                        onChange={(e) => setEditedSessionNotes(e.target.value)}
+                        value={editedSessionDescription}
+                        onChange={(e) => setEditedSessionDescription(e.target.value)}
                         className="input-field resize-none field-sizing-content"
-                        placeholder="Session notes..."
+                        placeholder="Session description..."
                         rows={2}
                       />
                     </div>
+
+                    {/* REVIEW INPUT */}
+                    {session.is_completed && (
+                      <div>
+                        <label className="text-secondary">Review</label>
+                        <textarea
+                          value={editedSessionReview}
+                          onChange={(e) => setEditedSessionReview(e.target.value)}
+                          className="input-field resize-none field-sizing-content"
+                          placeholder="How did it go? Note any achievements, injuries, or areas to improve..."
+                          rows={2}
+                        />
+                      </div>
+                    )}
 
                   </>
                 ) : (
@@ -792,11 +811,19 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       <p className="text-primary">{completedSegmentCount}/{totalSegmentCount}</p>
                     </div>
 
-                    {/* SESSION NOTES */}
-                    {session.notes && (
+                    {/* SESSION DESCRIPTION */}
+                    {session.description && (
                       <div>
-                        <label className="text-secondary">Notes</label>
-                        <p className="text-primary whitespace-pre-wrap break-words">{session.notes}</p>
+                        <label className="text-secondary">Description</label>
+                        <p className="text-primary whitespace-pre-wrap break-words">{session.description}</p>
+                      </div>
+                    )}
+
+                    {/* SESSION REVIEW */}
+                    {session.is_completed && session.review && (
+                      <div>
+                        <label className="text-secondary">Review</label>
+                        <p className="text-primary whitespace-pre-wrap break-words">{session.review}</p>
                       </div>
                     )}
                   </>
@@ -827,7 +854,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   <Button
                     className="btn-primary"
                     onClick={handleGenerateExercises}
-                    disabled={isGenerating || !session?.notes?.trim()}
+                    disabled={isGenerating || !session?.description?.trim()}
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                     <span>{isGenerating ? "Generating..." : "Generate Exercises"}</span>

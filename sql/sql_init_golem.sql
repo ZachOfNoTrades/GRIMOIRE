@@ -1,6 +1,6 @@
 -- =============================
 -- Workout Tracker (GOLEM) Database Initialization Script
--- Version: 202602251933 (Initial Release v0.1.0)
+-- Version: 202603070227 (Intitial release v0.2.0)
 -- =============================
 
 BEGIN TRANSACTION GolemDbInitialization
@@ -172,7 +172,8 @@ BEGIN TRY
             week_id UNIQUEIDENTIFIER NULL,
             order_index INT NULL,
             name NVARCHAR(255) NOT NULL,
-            notes NVARCHAR(MAX),
+            description NVARCHAR(MAX),
+            review NVARCHAR(MAX),
             started_at DATETIME2 NULL, -- timestamp when session was physically started
             resumed_at DATETIME2 NULL, -- timestamp when a completed session was most recently resumed
             duration INT NULL, -- accumulated duration in seconds

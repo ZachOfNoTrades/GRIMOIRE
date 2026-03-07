@@ -324,7 +324,8 @@ async function updateStatus(
 export async function updateWorkoutSession(
   id: string,
   name: string,
-  notes: string | null,
+  description: string | null,
+  review: string | null,
   startedAt: string | null,
   resumedAt: string | null,
   duration: number | null,
@@ -356,7 +357,8 @@ export async function updateWorkoutSession(
       await transaction.request()
         .input('id', id)
         .input('name', name)
-        .input('notes', notes)
+        .input('description', description)
+        .input('review', review)
         .input('startedAt', startedAt)
         .input('resumedAt', resumedAt)
         .input('duration', duration)
@@ -364,8 +366,8 @@ export async function updateWorkoutSession(
         .input('isCompleted', isCompleted ? 1 : 0)
         .query(`
           UPDATE workout_sessions
-          SET name = @name, notes = @notes, started_at = @startedAt,
-              resumed_at = @resumedAt, duration = @duration,
+          SET name = @name, description = @description, review = @review,
+              started_at = @startedAt, resumed_at = @resumedAt, duration = @duration,
               is_current = @isCurrent, is_completed = @isCompleted, modified_at = GETDATE()
           WHERE id = @id
         `);

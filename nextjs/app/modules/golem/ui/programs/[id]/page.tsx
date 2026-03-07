@@ -265,9 +265,9 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                     )}
                                   </div>
 
-                                  {/* SESSION NOTES */}
-                                  {session.notes && (
-                                    <p className="text-secondary text-sm">{session.notes}</p>
+                                  {/* SESSION DESCRIPTION */}
+                                  {session.description && (
+                                    <p className="text-secondary text-sm">{session.description}</p>
                                   )}
                                 </div>
                               );

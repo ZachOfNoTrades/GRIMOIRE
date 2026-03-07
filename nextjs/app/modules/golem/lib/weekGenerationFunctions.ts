@@ -44,10 +44,10 @@ export async function insertSessionsIntoWeek(
         .input('weekId', weekId)
         .input('orderIndex', session.order_index)
         .input('name', session.name)
-        .input('notes', session.notes ?? null)
+        .input('description', session.description ?? null)
         .query(`
-          INSERT INTO workout_sessions (week_id, order_index, name, notes)
-          VALUES (@weekId, @orderIndex, @name, @notes)
+          INSERT INTO workout_sessions (week_id, order_index, name, description)
+          VALUES (@weekId, @orderIndex, @name, @description)
         `);
     }
   } catch (error) {

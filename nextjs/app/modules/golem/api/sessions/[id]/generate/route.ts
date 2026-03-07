@@ -27,10 +27,10 @@ export async function POST(
     const userProfile = await getUserProfile();
     const profileContext = userProfile.profile_prompt;
 
-    // Use session notes as the description for LLM generation
-    const sessionDescription = session.notes?.trim() || '';
+    // Use session description for LLM generation
+    const sessionDescription = session.description?.trim() || '';
     if (sessionDescription.length === 0) {
-      return NextResponse.json({ error: 'Session notes are required for generation' }, { status: 400 });
+      return NextResponse.json({ error: 'Session description is required for generation' }, { status: 400 });
     }
 
     // Generate targets via LLM
