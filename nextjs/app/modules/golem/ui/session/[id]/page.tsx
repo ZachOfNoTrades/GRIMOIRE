@@ -40,6 +40,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isDeletingSegment, setIsDeletingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
   const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
   const isSavingRef = useRef(false);
@@ -181,6 +182,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           name: editedSessionName.trim(),
           description: editedSessionDescription.trim() || null,
           review: editedSessionReview.trim() || null,
+          analysis: session.analysis,
           started_at: updatedStartedAt,
           resumed_at: session.resumed_at,
           duration: updatedDuration,
@@ -241,6 +243,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           name: session.name,
           description: session.description,
           review: session.review,
+          analysis: session.analysis,
           started_at: session.started_at,
           resumed_at: session.resumed_at,
           duration: session.duration,
@@ -541,6 +544,33 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  // ANALYZE HANDLER
+  const handleAnalyzeSession = async () => {
+    if (!session?.is_completed) return;
+
+    setIsAnalyzing(true);
+    try {
+      const response = await fetch(`/modules/golem/api/sessions/${id}/analyze`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to analyze session");
+        return;
+      }
+
+      const updatedSession = await response.json();
+      setSession(updatedSession);
+      toast.success("Analysis generated");
+    } catch (error) {
+      toast.error("Failed to analyze session");
+      console.error("Error analyzing session:", error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   // Helper: check if a set contains any manually entered data
   const hasSetData = (set: { weight: number; reps: number; rpe: number | null; notes: string | null }) =>
     set.weight > 0 || set.reps > 0 || set.rpe !== null || (set.notes !== null && set.notes !== '');
@@ -824,6 +854,28 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       <div>
                         <label className="text-secondary">Review</label>
                         <p className="text-primary whitespace-pre-wrap break-words">{session.review}</p>
+                      </div>
+                    )}
+
+                    {/* SESSION ANALYSIS */}
+                    {session.is_completed && (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="text-secondary">Analysis</label>
+
+                          {/* ANALYZE BUTTON */}
+                          <Button
+                            className="btn-link"
+                            onClick={handleAnalyzeSession}
+                            disabled={isAnalyzing}
+                          >
+                            {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            <span>{isAnalyzing ? "Analyzing..." : session.analysis ? "Regenerate" : "Analyze"}</span>
+                          </Button>
+                        </div>
+                        {session.analysis && (
+                          <p className="text-primary whitespace-pre-wrap break-words">{session.analysis}</p>
+                        )}
                       </div>
                     )}
                   </>

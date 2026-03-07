@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ProgramTemplate } from "../../../types/programTemplate";
 import DeleteTemplateModal from "./DeleteTemplateModal";
 
-type PromptTab = "program" | "week" | "session";
+type PromptTab = "program" | "week" | "session" | "analysis";
 
 export default function TemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -22,6 +22,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
   const [editedProgramPrompt, setEditedProgramPrompt] = useState("");
   const [editedWeekPrompt, setEditedWeekPrompt] = useState("");
   const [editedSessionPrompt, setEditedSessionPrompt] = useState("");
+  const [editedAnalysisPrompt, setEditedAnalysisPrompt] = useState("");
   const [editedDaysPerWeek, setEditedDaysPerWeek] = useState(4);
 
   // STATE
@@ -40,6 +41,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
     { key: "program", label: "Program" },
     { key: "week", label: "Week" },
     { key: "session", label: "Session" },
+    { key: "analysis", label: "Analysis" },
   ];
 
   // Map prompt tab to edited state
@@ -47,6 +49,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
     program: { value: editedProgramPrompt, setter: setEditedProgramPrompt, dbValue: template?.program_prompt ?? null },
     week: { value: editedWeekPrompt, setter: setEditedWeekPrompt, dbValue: template?.week_prompt ?? null },
     session: { value: editedSessionPrompt, setter: setEditedSessionPrompt, dbValue: template?.session_prompt ?? null },
+    analysis: { value: editedAnalysisPrompt, setter: setEditedAnalysisPrompt, dbValue: template?.analysis_prompt ?? null },
   };
 
   // LOAD DATA
@@ -82,6 +85,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
     setEditedProgramPrompt(template.program_prompt || "");
     setEditedWeekPrompt(template.week_prompt || "");
     setEditedSessionPrompt(template.session_prompt || "");
+    setEditedAnalysisPrompt(template.analysis_prompt || "");
     setEditedDaysPerWeek(template.days_per_week);
     setIsEditing(true);
   };
@@ -108,6 +112,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
           program_prompt: editedProgramPrompt.trim() || null,
           week_prompt: editedWeekPrompt.trim() || null,
           session_prompt: editedSessionPrompt.trim() || null,
+          analysis_prompt: editedAnalysisPrompt.trim() || null,
           days_per_week: editedDaysPerWeek,
         }),
       });

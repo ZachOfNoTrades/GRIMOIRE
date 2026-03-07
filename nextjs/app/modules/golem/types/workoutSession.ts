@@ -5,6 +5,7 @@ export interface WorkoutSession {
   name: string;
   description: string | null;
   review: string | null;
+  analysis: string | null;
   started_at: Date | null;
   resumed_at: Date | null;
   duration: number | null;

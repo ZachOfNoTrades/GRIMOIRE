@@ -35,7 +35,7 @@ export async function PUT(
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const { name, description, program_prompt, week_prompt, session_prompt, days_per_week } = body;
+    const { name, description, program_prompt, week_prompt, session_prompt, analysis_prompt, days_per_week } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -51,6 +51,7 @@ export async function PUT(
       program_prompt || null,
       week_prompt || null,
       session_prompt || null,
+      analysis_prompt || null,
       days_per_week ?? 4,
     );
     return NextResponse.json(template);

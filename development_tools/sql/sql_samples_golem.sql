@@ -45,31 +45,31 @@ BEGIN TRY
     -- =============================
     -- Workout Sessions
     -- =============================
-    INSERT INTO workout_sessions (name, description, review, week_id, order_index, started_at, resumed_at, duration, is_current, is_completed) VALUES
+    INSERT INTO workout_sessions (name, description, review, analysis, week_id, order_index, started_at, resumed_at, duration, is_current, is_completed) VALUES
     -- PPL Block 1 Week 1 (completed week)
-    ('Push Day', 'Felt strong today', 'Hit a PR on bench press. Slight twinge in right shoulder on last set of overhead press — will monitor.', '33333333-3333-3333-3333-333333333333', 1, '2026-02-20 06:00:00', NULL, 3720, 0, 1),
-    ('Pull Day', 'Good pump on back', 'Great mind-muscle connection on rows. Need to work on grip strength for heavier deadlift sets.', '33333333-3333-3333-3333-333333333333', 2, '2026-02-21 06:30:00', NULL, 4080, 0, 1),
-    ('Leg Day', 'Heavy squats', 'Squats felt solid. Left knee slightly achy after split squats — try warming up more next time.', '33333333-3333-3333-3333-333333333333', 3, '2026-02-22 07:00:00', NULL, 5400, 0, 1),
+    ('Push Day', 'Felt strong today', 'Hit a PR on bench press. Slight twinge in right shoulder on last set of overhead press — will monitor.', 'Strong push session. Bench press exceeded targets on all working sets. Overhead press RPE was higher than prescribed — monitor right shoulder. Tricep and lateral raise volume was solid. Consider adding a warmup set for overhead press next session.', '33333333-3333-3333-3333-333333333333', 1, '2026-02-20 06:00:00', NULL, 3720, 0, 1),
+    ('Pull Day', 'Good pump on back', 'Great mind-muscle connection on rows. Need to work on grip strength for heavier deadlift sets.', NULL, '33333333-3333-3333-3333-333333333333', 2, '2026-02-21 06:30:00', NULL, 4080, 0, 1),
+    ('Leg Day', 'Heavy squats', 'Squats felt solid. Left knee slightly achy after split squats — try warming up more next time.', NULL, '33333333-3333-3333-3333-333333333333', 3, '2026-02-22 07:00:00', NULL, 5400, 0, 1),
     -- PPL Block 1 Week 2 (current week)
-    ('Push Day', NULL, NULL, '55555555-5555-5555-5555-555555555555', 1, '2026-02-27 06:00:00', NULL, 3900, 0, 1),
-    ('Pull Day', NULL, NULL, '55555555-5555-5555-5555-555555555555', 2, '2026-02-26 06:30:00', NULL, NULL, 1, 0),
-    ('Leg Day', NULL, NULL, '55555555-5555-5555-5555-555555555555', 3, NULL, NULL, NULL, 0, 0),
+    ('Push Day', NULL, NULL, NULL, '55555555-5555-5555-5555-555555555555', 1, '2026-02-27 06:00:00', NULL, 3900, 0, 1),
+    ('Pull Day', NULL, NULL, NULL, '55555555-5555-5555-5555-555555555555', 2, '2026-02-26 06:30:00', NULL, NULL, 1, 0),
+    ('Leg Day', NULL, NULL, NULL, '55555555-5555-5555-5555-555555555555', 3, NULL, NULL, NULL, 0, 0),
     -- PPL Block 2 Week 1 (not started)
-    ('Peak Push', NULL, NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 1, NULL, NULL, NULL, 0, 0),
-    ('Peak Pull', NULL, NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 2, NULL, NULL, NULL, 0, 0),
-    ('Peak Legs', NULL, NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 3, NULL, NULL, NULL, 0, 0),
+    ('Peak Push', NULL, NULL, NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 1, NULL, NULL, NULL, 0, 0),
+    ('Peak Pull', NULL, NULL, NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 2, NULL, NULL, NULL, 0, 0),
+    ('Peak Legs', NULL, NULL, NULL, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 3, NULL, NULL, NULL, 0, 0),
     -- 5/3/1 Accumulation Week 1 (not started)
-    ('Squat Day', NULL, NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 1, NULL, NULL, NULL, 0, 0),
-    ('Press Day', NULL, NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 2, NULL, NULL, NULL, 0, 0),
-    ('Deadlift Day', NULL, NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 3, NULL, NULL, NULL, 0, 0),
+    ('Squat Day', NULL, NULL, NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 1, NULL, NULL, NULL, 0, 0),
+    ('Press Day', NULL, NULL, NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 2, NULL, NULL, NULL, 0, 0),
+    ('Deadlift Day', NULL, NULL, NULL, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', 3, NULL, NULL, NULL, 0, 0),
     -- 5/3/1 Accumulation Week 2 (not started)
-    ('Squat Day', NULL, NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 1, NULL, NULL, NULL, 0, 0),
-    ('Press Day', NULL, NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 2, NULL, NULL, NULL, 0, 0),
-    ('Deadlift Day', NULL, NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 3, NULL, NULL, NULL, 0, 0),
+    ('Squat Day', NULL, NULL, NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 1, NULL, NULL, NULL, 0, 0),
+    ('Press Day', NULL, NULL, NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 2, NULL, NULL, NULL, 0, 0),
+    ('Deadlift Day', NULL, NULL, NULL, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 3, NULL, NULL, NULL, 0, 0),
     -- Standalone sessions
-    ('Upper Body', NULL, 'Good session overall. Energy was high.', NULL, NULL, '2026-02-23 08:00:00', NULL, 2700, 0, 1),
-    ('Lower Body', 'Recovery session', 'Kept it light as planned. Hamstrings still tight from Thursday.', NULL, NULL, '2026-02-24 09:00:00', NULL, 3300, 0, 1),
-    ('Full Body', 'Quick workout', NULL, NULL, NULL, NULL, NULL, NULL, 0, 0);
+    ('Upper Body', NULL, 'Good session overall. Energy was high.', NULL, NULL, NULL, '2026-02-23 08:00:00', NULL, 2700, 0, 1),
+    ('Lower Body', 'Recovery session', 'Kept it light as planned. Hamstrings still tight from Thursday.', NULL, NULL, NULL, '2026-02-24 09:00:00', NULL, 3300, 0, 1),
+    ('Full Body', 'Quick workout', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0);
 
     -- =============================
     -- Target Session Segments and Sets (Push Day - Week 1)

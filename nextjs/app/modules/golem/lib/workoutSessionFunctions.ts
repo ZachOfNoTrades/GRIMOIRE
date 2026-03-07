@@ -326,6 +326,7 @@ export async function updateWorkoutSession(
   name: string,
   description: string | null,
   review: string | null,
+  analysis: string | null,
   startedAt: string | null,
   resumedAt: string | null,
   duration: number | null,
@@ -359,6 +360,7 @@ export async function updateWorkoutSession(
         .input('name', name)
         .input('description', description)
         .input('review', review)
+        .input('analysis', analysis)
         .input('startedAt', startedAt)
         .input('resumedAt', resumedAt)
         .input('duration', duration)
@@ -366,7 +368,7 @@ export async function updateWorkoutSession(
         .input('isCompleted', isCompleted ? 1 : 0)
         .query(`
           UPDATE workout_sessions
-          SET name = @name, description = @description, review = @review,
+          SET name = @name, description = @description, review = @review, analysis = @analysis,
               started_at = @startedAt, resumed_at = @resumedAt, duration = @duration,
               is_current = @isCurrent, is_completed = @isCompleted, modified_at = GETDATE()
           WHERE id = @id

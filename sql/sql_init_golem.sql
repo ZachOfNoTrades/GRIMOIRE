@@ -79,6 +79,7 @@ BEGIN TRY
             program_prompt NVARCHAR(MAX),
             week_prompt NVARCHAR(MAX),
             session_prompt NVARCHAR(MAX),
+            analysis_prompt NVARCHAR(MAX),
             days_per_week INT NOT NULL DEFAULT 4,
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE()
@@ -174,6 +175,7 @@ BEGIN TRY
             name NVARCHAR(255) NOT NULL,
             description NVARCHAR(MAX),
             review NVARCHAR(MAX),
+            analysis NVARCHAR(MAX),
             started_at DATETIME2 NULL, -- timestamp when session was physically started
             resumed_at DATETIME2 NULL, -- timestamp when a completed session was most recently resumed
             duration INT NULL, -- accumulated duration in seconds

@@ -5,6 +5,7 @@ export interface ProgramTemplate {
   program_prompt: string | null;
   week_prompt: string | null;
   session_prompt: string | null;
+  analysis_prompt: string | null;
   days_per_week: number;
   created_at: Date;
   modified_at: Date;

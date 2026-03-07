@@ -275,6 +275,29 @@ export async function generateSessionTargetsWithLlm(
   return parsed.target_exercises;
 }
 
+// Generates a plain-text analysis of a completed session. The LLM uses SQL Query skill
+// to retrieve performance data, targets, and history. Returns the analysis as a string.
+export async function generateSessionAnalysisWithLlm(
+  analysisContext: string | null,
+  profileContext: string | null,
+  sessionId: string,
+  sessionReview: string | null,
+): Promise<string> {
+
+  const basePrompt = assemblePrompt('analyzeSession.md', analysisContext, profileContext);
+  const prompt = basePrompt
+    .replace('{{SESSION_ID}}', sessionId)
+    .replace('{{SESSION_REVIEW}}', sessionReview || 'None provided');
+
+  console.log(`[GenerateSessionAnalysis] Calling LLM for session '${sessionId}'`);
+  const outputFile = await callLLM(prompt);
+  const analysis = readLLMOutput(outputFile);
+  try { unlinkSync(outputFile); } catch { } // Clear temp file
+
+  console.log(`[GenerateSessionAnalysis] Generated ${analysis.length} chars of analysis for session '${sessionId}'`);
+  return analysis.trim();
+}
+
 // Two-stage generation:
 // Stage 1: LLM generates program structure (blocks + weeks, no sessions)
 // Stage 2: LLM generates session plans for week 1 (names + descriptions, no exercises)

@@ -55,6 +55,7 @@ export async function createProgramTemplate(
   programPrompt: string | null,
   weekPrompt: string | null,
   sessionPrompt: string | null,
+  analysisPrompt: string | null,
   daysPerWeek: number,
 ): Promise<ProgramTemplate> {
   let pool;
@@ -66,11 +67,12 @@ export async function createProgramTemplate(
       .input('programPrompt', programPrompt)
       .input('weekPrompt', weekPrompt)
       .input('sessionPrompt', sessionPrompt)
+      .input('analysisPrompt', analysisPrompt)
       .input('daysPerWeek', daysPerWeek)
       .query(`
-        INSERT INTO program_templates (name, description, program_prompt, week_prompt, session_prompt, days_per_week)
+        INSERT INTO program_templates (name, description, program_prompt, week_prompt, session_prompt, analysis_prompt, days_per_week)
         OUTPUT INSERTED.*
-        VALUES (@name, @description, @programPrompt, @weekPrompt, @sessionPrompt, @daysPerWeek)
+        VALUES (@name, @description, @programPrompt, @weekPrompt, @sessionPrompt, @analysisPrompt, @daysPerWeek)
       `);
 
     return result.recordset[0];
@@ -91,6 +93,7 @@ export async function updateProgramTemplate(
   programPrompt: string | null,
   weekPrompt: string | null,
   sessionPrompt: string | null,
+  analysisPrompt: string | null,
   daysPerWeek: number,
 ): Promise<ProgramTemplate> {
   let pool;
@@ -103,13 +106,14 @@ export async function updateProgramTemplate(
       .input('programPrompt', programPrompt)
       .input('weekPrompt', weekPrompt)
       .input('sessionPrompt', sessionPrompt)
+      .input('analysisPrompt', analysisPrompt)
       .input('daysPerWeek', daysPerWeek)
       .query(`
         UPDATE program_templates
         SET name = @name, description = @description,
             program_prompt = @programPrompt,
             week_prompt = @weekPrompt, session_prompt = @sessionPrompt,
-            days_per_week = @daysPerWeek,
+            analysis_prompt = @analysisPrompt, days_per_week = @daysPerWeek,
             modified_at = GETDATE()
         OUTPUT INSERTED.*
         WHERE id = @templateId

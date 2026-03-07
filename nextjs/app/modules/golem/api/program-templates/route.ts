@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   try {
 
     const body = await request.json();
-    const { name, description, program_prompt, week_prompt, session_prompt, days_per_week } = body;
+    const { name, description, program_prompt, week_prompt, session_prompt, analysis_prompt, days_per_week } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       program_prompt || null,
       week_prompt || null,
       session_prompt || null,
+      analysis_prompt || null,
       days_per_week ?? 4,
     );
     return NextResponse.json(template, { status: 201 });
