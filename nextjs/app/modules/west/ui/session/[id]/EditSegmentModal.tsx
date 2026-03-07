@@ -206,6 +206,22 @@ export default function EditSegmentModal({
     onSave(updatedSegment);
   };
 
+  const handleRangeChange = (newRange: HistoryRange) => {
+    setHistoryRange(newRange);
+    if (newRange !== "custom") {
+      setHistoryStartDate("");
+      setHistoryEndDate("");
+      const { startDate, endDate } = getDateRangeParams(newRange);
+      fetchHistory(editedSegment.exercise_id, startDate, endDate);
+    }
+  };
+
+  const handleCustomDateChange = (startDate: string, endDate: string) => {
+    setHistoryStartDate(startDate);
+    setHistoryEndDate(endDate);
+    fetchHistory(editedSegment.exercise_id, startDate, endDate);
+  };
+
   // Render the active tab content
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -226,24 +242,22 @@ export default function EditSegmentModal({
             range={historyRange}
             customStartDate={historyStartDate}
             customEndDate={historyEndDate}
-            onRangeChange={(range) => {
-              setHistoryRange(range);
-              if (range !== "custom") {
-                setHistoryStartDate("");
-                setHistoryEndDate("");
-                const { startDate, endDate } = getDateRangeParams(range);
-                fetchHistory(editedSegment.exercise_id, startDate, endDate);
-              }
-            }}
-            onCustomDateChange={(startDate, endDate) => {
-              setHistoryStartDate(startDate);
-              setHistoryEndDate(endDate);
-              fetchHistory(editedSegment.exercise_id, startDate, endDate);
-            }}
+            onRangeChange={handleRangeChange}
+            onCustomDateChange={handleCustomDateChange}
           />
         );
       case "stats":
-        return <StatsTab history={exerciseHistory} loading={historyLoading} />;
+        return (
+          <StatsTab
+            history={exerciseHistory}
+            loading={historyLoading}
+            range={historyRange}
+            customStartDate={historyStartDate}
+            customEndDate={historyEndDate}
+            onRangeChange={handleRangeChange}
+            onCustomDateChange={handleCustomDateChange}
+          />
+        );
       case "info":
         return <InfoTab exercise={exerciseDetail} loading={detailLoading} />;
       default:
