@@ -20,32 +20,36 @@ export default function ExerciseListItem({
   targetExerciseId,
 }: ExerciseListItemProps) {
   return (
-    <div className="list-item">
+    <div className="list-item !flex-col !items-stretch !gap-0">
 
       {/* EXERCISE NAME */}
       <button
         onClick={() => onSelect(exercise)}
-        className="text-left flex-1 min-w-0 flex items-center justify-between"
+        className="text-left min-w-0"
       >
-        <span className="text-primary flex items-center gap-2 truncate">
+        <span className="text-primary flex items-center gap-2">
           {exercise.name}
           {showPrescribed && exercise.id === targetExerciseId && (
             <span className="badge-info text-[10px]">Prescribed</span>
           )}
         </span>
-        {exercise.last_used_at && (
-          <span className="text-muted text-xs shrink-0 ml-2">{formatLastUsed(exercise.last_used_at)}</span>
-        )}
       </button>
 
-      {/* INFO BUTTON */}
-      <button
-        onClick={() => onInfo(exercise)}
-        className="p-2 -mr-2 text-muted hover:text-secondary transition-colors shrink-0"
-        title="View history"
-      >
-        <Info className="w-4.5 h-4.5" />
-      </button>
+      {/* DETAILS ROW */}
+      <div className="flex items-center justify-between -mb-1">
+        {exercise.last_used_at && (
+          <span className="text-muted text-xs">{formatLastUsed(exercise.last_used_at)}</span>
+        )}
+
+        {/* INFO BUTTON */}
+        <button
+          onClick={() => onInfo(exercise)}
+          className="p-2 -mr-2 text-muted hover:text-secondary transition-colors shrink-0 ml-auto"
+          title="View history"
+        >
+          <Info className="w-4.5 h-4.5" />
+        </button>
+      </div>
     </div>
   );
 }
