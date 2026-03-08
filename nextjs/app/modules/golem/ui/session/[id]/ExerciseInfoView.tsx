@@ -1,27 +1,19 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import Modal from "@/components/Modal";
 import { ExerciseSummary, ExerciseHistoryEntry } from "../../../types/exercise";
 import { ExerciseWithMuscleGroups } from "../../../types/muscleGroup";
 import HistoryTab from "./HistoryTab";
 import StatsTab from "./StatsTab";
 import InfoTab from "./InfoTab";
 
-interface ExerciseInfoModalProps {
-  exercise: ExerciseSummary | null;
-  onClose: () => void;
-  onSelect: (exercise: ExerciseSummary) => void;
-  zIndex: number;
+interface ExerciseInfoViewProps {
+  exercise: ExerciseSummary;
 }
 
-export default function ExerciseInfoModal({
+export default function ExerciseInfoView({
   exercise,
-  onClose,
-  onSelect,
-  zIndex,
-}: ExerciseInfoModalProps) {
+}: ExerciseInfoViewProps) {
 
   // DATA
   const [history, setHistory] = useState<ExerciseHistoryEntry[]>([]);
@@ -34,8 +26,6 @@ export default function ExerciseInfoModal({
 
   // Fetch exercise history and detail when exercise changes
   useEffect(() => {
-    if (!exercise) return;
-
     setActiveTab("history");
     setHistoryLoading(true);
     setDetailLoading(true);
@@ -63,25 +53,7 @@ export default function ExerciseInfoModal({
   }, [exercise]);
 
   return (
-    <Modal
-      isOpen={!!exercise}
-      onClose={onClose}
-      title={
-        <span className="flex items-center justify-between w-full mr-2">
-          <span>{exercise?.name ?? "Exercise Info"}</span>
-          {/* REPLACE BUTTON */}
-          <Button
-            onClick={() => { if (exercise) onSelect(exercise); }}
-            className="btn-link !py-0"
-          >
-            Replace
-          </Button>
-        </span>
-      }
-      zIndex={zIndex}
-      fullHeight
-    >
-
+    <>
       {/* TAB NAVIGATION */}
       <nav className="flex sm:space-x-1 px-2 border-b border-card" role="tablist">
         <button
@@ -120,6 +92,6 @@ export default function ExerciseInfoModal({
           <StatsTab history={history} loading={historyLoading} />
         )}
       </div>
-    </Modal>
+    </>
   );
 }
