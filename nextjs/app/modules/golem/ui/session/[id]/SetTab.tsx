@@ -41,13 +41,14 @@ export default function SetTab({
   // DERIVED
   const warmupSets = editedSegment.sets.filter((s) => s.is_warmup);
   const workingSets = editedSegment.sets.filter((s) => !s.is_warmup);
-  const targetWarmupCount = editedSegment.target
-    ? editedSegment.target.sets.filter((s) => s.is_warmup).length
-    : 0;
 
-  const targetWorkingCount = editedSegment.target
-    ? editedSegment.target.sets.filter((s) => !s.is_warmup).length
-    : 0;
+  // Prescribed target counts are captured on mount and stay fixed so added sets remain "beyond target"
+  const [prescribedWarmupCount] = useState(() =>
+    editedSegment.target ? editedSegment.target.sets.filter((s) => s.is_warmup).length : 0
+  );
+  const [prescribedWorkingCount] = useState(() =>
+    editedSegment.target ? editedSegment.target.sets.filter((s) => !s.is_warmup).length : 0
+  );
 
   // Close action menu when clicking outside
   useEffect(() => {
@@ -94,11 +95,12 @@ export default function SetTab({
 
   const handleAddSet = (isWarmup: boolean) => {
     const setsOfType = editedSegment.sets.filter((s) => s.is_warmup === isWarmup);
+    const newSetNumber = setsOfType.length + 1;
 
     const newSet = {
       id: generateUUID(),
       session_segment_id: editedSegment.id,
-      set_number: setsOfType.length + 1,
+      set_number: newSetNumber,
       is_warmup: isWarmup,
       reps: 0,
       weight: 0,
@@ -108,8 +110,20 @@ export default function SetTab({
       created_at: new Date(),
       modified_at: new Date(),
     };
+
+    // Clone the last target set as a placeholder for the new set
+    const targetSetsOfType = editedSegment.target?.sets.filter((s) => s.is_warmup === isWarmup) ?? [];
+    const lastTargetSet = targetSetsOfType.length > 0 ? targetSetsOfType[targetSetsOfType.length - 1] : null;
+    const updatedTarget = editedSegment.target && lastTargetSet
+      ? {
+          ...editedSegment.target,
+          sets: [...editedSegment.target.sets, { ...lastTargetSet, set_number: newSetNumber }],
+        }
+      : editedSegment.target;
+
     setEditedSegment({
       ...editedSegment,
+      target: updatedTarget,
       sets: [...editedSegment.sets, newSet],
     });
   };
@@ -248,7 +262,7 @@ export default function SetTab({
     const targetSet = editedSegment.target?.sets.find(
       (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
     );
-    const segmentTargetSetCount = set.is_warmup ? targetWarmupCount : targetWorkingCount;
+    const segmentTargetSetCount = set.is_warmup ? prescribedWarmupCount : prescribedWorkingCount;
     const hasSetData = set.weight > 0 || set.reps > 0 || set.rpe !== null || set.notes !== null;
     const isBeyondTarget = set.set_number > segmentTargetSetCount; // Determines if current set index is greater than target set count
     const showRemoveSet = isLastInSection && isBeyondTarget;
