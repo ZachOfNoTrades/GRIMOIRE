@@ -14,7 +14,7 @@ interface ModalProps {
     disableClose?: boolean;
     fullHeight?: boolean;
     zIndex?: number;
-    closeIcon?: ReactNode;
+    modalActions?: ReactNode;
 }
 
 export default function Modal({
@@ -27,7 +27,7 @@ export default function Modal({
     disableClose = false,
     fullHeight = false,
     zIndex,
-    closeIcon,
+    modalActions,
 }: ModalProps) {
 
     // Lock background scroll when modal is open
@@ -58,14 +58,16 @@ export default function Modal({
                 <div className="modal-header">
                     <h2 className='text-modal-title'>{title}</h2>
 
-                    {/* CLOSE BUTTON */}
-                    <Button
-                        onClick={onClose}
-                        className="btn-link"
-                        disabled={disableClose}
-                    >
-                        {closeIcon ?? <X className="w-5 h-5" />}
-                    </Button>
+                    {/* MODAL ACTIONS */}
+                    {modalActions ?? (
+                        <Button
+                            onClick={onClose}
+                            className="btn-link"
+                            disabled={disableClose}
+                        >
+                            <X className="w-5 h-5" />
+                        </Button>
+                    )}
                 </div>
 
                 {/* SUB HEADER */}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, ArrowLeftRight, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { ExerciseSummary } from "../../../types/exercise";
@@ -127,49 +127,70 @@ export default function ExercisePickerModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={canGoBack ? popView : onClose}
+      onClose={onClose}
       title={
-        currentView.type === "info" ? (
-          <span className="flex items-center justify-between w-full mr-2">
-            <span>{title}</span>
+        <span className="flex items-center gap-2 w-full mr-2">
+          <span>{title}</span>
 
-            {/* ACTION BUTTONS */}
-            <span className="flex items-center gap-1">
+          {/* ACTION BUTTONS */}
+          <div className="flex items-center gap-1">
 
-              {/* EDIT BUTTON */}
+            {/* EDIT BUTTON */}
+            {currentView.type === "info" && (
               <Button
                 onClick={() => pushView({ type: "form", exercise: currentView.exercise })}
                 className="btn-link !py-0"
               >
-                <Pencil className="w-4.5 h-4.5" />
+                <Pencil className="w-5 h-5" />
               </Button>
+            )}
 
-              {/* REPLACE BUTTON */}
+            {/* REPLACE BUTTON */}
+            {currentView.type === "info" && (
               <Button
                 onClick={() => handleSelectExercise(currentView.exercise)}
                 className="btn-link !py-0"
               >
-                <ArrowLeftRight className="w-4.5 h-4.5" />
+                <ArrowLeftRight className="w-5 h-5" />
               </Button>
-            </span>
-          </span>
-        ) : currentView.type === "form" ? title : (
-          <span className="flex items-center justify-between w-full mr-2">
-            <span>{title}</span>
+            )}
 
             {/* ADD EXERCISE BUTTON */}
-            <Button
-              onClick={handleNavigateCreate}
-              className="btn-link !py-0"
-            >
-              <Plus className="w-4.5 h-4.5" />
-            </Button>
-          </span>
-        )
+            {currentView.type !== "info" && (
+              <Button
+                onClick={handleNavigateCreate}
+                className="btn-link !py-0"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            )}
+          </div>
+        </span>
       }
       zIndex={60}
       fullHeight
-      closeIcon={<ArrowLeft className="w-5 h-5" />}
+      modalActions={
+        <div className="flex items-center gap-1">
+
+          {/* BACK BUTTON */}
+          {canGoBack && (
+            <Button
+              onClick={popView}
+              className="btn-link"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          )}
+
+          {/* CLOSE BUTTON */}
+          <Button
+            onClick={onClose}
+            className="btn-link"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+      }
     >
       {/* ANIMATED VIEW CONTAINER */}
       <div key={viewKey} className={slideDirection === "right" ? "view-slide-right" : "view-slide-left"} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
