@@ -47,6 +47,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
   const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
+  const segmentsForSaveRef = useRef<SegmentWithSets[]>([]);
   const isSavingRef = useRef(false);
   const pendingSaveRef = useRef<SegmentWithSets | null>(null);
 
@@ -82,6 +83,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       router.replace(`/modules/golem/ui/session/${id}`, { scroll: false });
     }
   }, [isNewSession, session, isLoading]);
+
+  // Keep save ref in sync with loggedSegments (avoids stale closures without triggering re-renders during saves)
+  useEffect(() => {
+    segmentsForSaveRef.current = loggedSegments;
+  }, [loggedSegments]);
 
   const fetchSessionData = async () => {
     setIsLoading(true);
@@ -465,19 +471,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     isSavingRef.current = true;
 
     try {
-      // Check if segment already exists in the list
-      const existingIndex = loggedSegments.findIndex(ex => ex.id === editedSegment.id);
-      let updatedSegments: SegmentWithSets[];
-
-      if (existingIndex >= 0) {
-        // Replace existing segment
-        updatedSegments = loggedSegments.map(ex =>
-          ex.id === editedSegment.id ? editedSegment : ex
-        );
-      } else {
-        // Add new segment
-        updatedSegments = [...loggedSegments, editedSegment];
-      }
+      // Build updated segments list from ref (avoids stale closures without triggering re-renders)
+      const currentSegments = segmentsForSaveRef.current;
+      const exists = currentSegments.some(ex => ex.id === editedSegment.id);
+      const updatedSegments = exists
+        ? currentSegments.map(ex => ex.id === editedSegment.id ? editedSegment : ex)
+        : [...currentSegments, editedSegment];
 
       // Strip trailing empty uncompleted sets before saving (preserve empty sets before completed ones)
       const filteredSegments = updatedSegments.map(ex => {
@@ -505,6 +504,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         const errorData = await response.json();
         toast.error(errorData.error || "Failed to save");
       }
+
+      // Update ref so subsequent saves read current data (no re-render)
+      segmentsForSaveRef.current = updatedSegments;
     } catch (error) {
       toast.error("Failed to save");
       console.error("Error saving segment:", error);
@@ -1393,19 +1395,20 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         isOpen={isSegmentModalOpen}
         onClose={() => {
           setIsSegmentModalOpen(false);
+
+          // Apply optimistic update from last saved segment (avoids UI lag)
           const saved = lastSavedSegmentRef.current;
           if (saved) {
-            // Apply last auto-saved segment to local state (avoids re-fetch delay)
             setLoggedSegments((prev) => {
               const exists = prev.some((s) => s.id === saved.id);
-              if (exists) {
-                return prev.map((s) => s.id === saved.id ? saved : s);
-              }
-              return [...prev, saved];
+              return exists
+                ? prev.map((s) => s.id === saved.id ? saved : s)
+                : [...prev, saved];
             });
             lastSavedSegmentRef.current = null;
           }
-          // Silent background refresh from DB
+
+          // Refresh from DB to ensure consistency
           fetchSegments();
         }}
         onSave={handleSaveSegment}

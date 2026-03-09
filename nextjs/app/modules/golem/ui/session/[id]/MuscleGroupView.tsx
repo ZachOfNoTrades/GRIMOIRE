@@ -24,8 +24,7 @@ export default function MuscleGroupView({
 
   // DERIVED
   const muscleGroupExercises = exercises.filter((ex) =>
-    (ex.primary_muscles.includes(muscleGroup) ||
-    ex.secondary_muscles.includes(muscleGroup)) &&
+    ex.primary_muscles.includes(muscleGroup) &&
     ex.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 

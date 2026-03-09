@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, Save, Ban } from "lucide-react";
+import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import ExercisePickerModal from "./ExercisePickerModal";
+import DisableExerciseModal from "./DisableExerciseModal";
 import { SegmentWithSets } from "../../../types/segment";
 import { ExerciseSummary, ExerciseHistoryEntry } from "../../../types/exercise";
 import { ExerciseWithMuscleGroups } from "../../../types/muscleGroup";
@@ -62,6 +64,63 @@ export default function EditSegmentModal({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
+  const [isDisableModalOpen, setIsDisableModalOpen] = useState(false);
+  const [isTogglingDisable, setIsTogglingDisable] = useState(false);
+
+  // DERIVED
+  const isExerciseDisabled = exerciseDetail?.is_disabled ?? false;
+
+  // Disable exercise handler
+  const handleDisableExercise = async () => {
+    if (!editedSegment) return;
+    setIsTogglingDisable(true);
+    try {
+      const response = await fetch(`/modules/golem/api/exercises/${editedSegment.exercise_id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to disable exercise");
+        return;
+      }
+
+      setExerciseWithMuscleGroups((prev) => prev ? { ...prev, is_disabled: true } : prev);
+      setIsDisableModalOpen(false);
+      toast.success("Exercise disabled");
+    } catch (error) {
+      toast.error("Failed to disable exercise");
+      console.error("Error disabling exercise:", error);
+    } finally {
+      setIsTogglingDisable(false);
+    }
+  };
+
+  // Enable exercise handler
+  const handleEnableExercise = async () => {
+    if (!editedSegment) return;
+    setIsTogglingDisable(true);
+    try {
+      const response = await fetch(`/modules/golem/api/exercises/${editedSegment.exercise_id}`, {
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to enable exercise");
+        return;
+      }
+
+      setExerciseWithMuscleGroups((prev) => prev ? { ...prev, is_disabled: false } : prev);
+      setIsDisableModalOpen(false);
+      toast.success("Exercise enabled");
+    } catch (error) {
+      toast.error("Failed to enable exercise");
+      console.error("Error enabling exercise:", error);
+    } finally {
+      setIsTogglingDisable(false);
+    }
+  };
 
   // Fetch exercise history with date range params
   const fetchHistory = async (exerciseId: string, startDate = "", endDate = "") => {
@@ -281,6 +340,8 @@ export default function EditSegmentModal({
       title={
         <span className="flex items-center gap-2">
           {editedSegment.exercise_name || "New Exercise"}
+
+          {/* SWAP EXERCISE BUTTON */}
           <Button
             onClick={() => setIsExercisePickerOpen(true)}
             className="btn-link"
@@ -288,17 +349,34 @@ export default function EditSegmentModal({
           >
             <ArrowLeftRight className="w-4 h-4" />
           </Button>
+
+          {/* DISABLE/ENABLE EXERCISE BUTTON */}
+          <Button
+            onClick={() => setIsDisableModalOpen(true)}
+            className={isExerciseDisabled ? "btn-link btn-link-delete" : "btn-link"}
+            title={isExerciseDisabled ? "Enable exercise" : "Disable exercise"}
+          >
+            <Ban className="w-4 h-4" />
+          </Button>
         </span>
       }
       disableClose={isDeleting}
       footer={
-        <Button
-          onClick={onRemove}
-          disabled={isDeleting}
-          className="btn-delete mr-auto"
-        >
-          {isDeleting ? "Deleting..." : "Delete"}
-        </Button>
+        <>
+          <Button
+            onClick={onRemove}
+            disabled={isDeleting}
+            className="btn-delete mr-auto"
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </Button>
+
+          {/* SAVE BUTTON */}
+          <Button onClick={onClose} className="btn-primary">
+            <Save className="w-4 h-4" />
+            Save
+          </Button>
+        </>
       }
     >
 
@@ -336,6 +414,17 @@ export default function EditSegmentModal({
       onExerciseUpdated={onExerciseUpdated}
       currentExerciseId={editedSegment.exercise_id}
       targetExerciseId={editedSegment.target?.exercise_id}
+    />
+
+    {/* DISABLE/ENABLE EXERCISE MODAL */}
+    <DisableExerciseModal
+      isOpen={isDisableModalOpen}
+      onClose={() => setIsDisableModalOpen(false)}
+      onDisable={handleDisableExercise}
+      onEnable={handleEnableExercise}
+      exerciseName={editedSegment.exercise_name}
+      isDisabled={isExerciseDisabled}
+      isToggling={isTogglingDisable}
     />
     </>
   );

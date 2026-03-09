@@ -226,7 +226,6 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
         WHERE ws.started_at IS NOT NULL
         GROUP BY se.exercise_id
       ) last_use ON e.id = last_use.exercise_id
-      WHERE e.is_disabled = 0
       ORDER BY e.name, emg.is_primary DESC, mg.name
     `);
 
