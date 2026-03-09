@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { ExerciseSummary } from "../../../types/exercise";
@@ -141,7 +141,7 @@ export default function ExercisePickerModal({
                 onClick={() => pushView({ type: "form", exercise: currentView.exercise })}
                 className="btn-link !py-0"
               >
-                Edit
+                <Pencil className="w-4.5 h-4.5" />
               </Button>
 
               {/* REPLACE BUTTON */}
@@ -149,7 +149,7 @@ export default function ExercisePickerModal({
                 onClick={() => handleSelectExercise(currentView.exercise)}
                 className="btn-link !py-0"
               >
-                Replace
+                <ArrowLeftRight className="w-4.5 h-4.5" />
               </Button>
             </span>
           </span>

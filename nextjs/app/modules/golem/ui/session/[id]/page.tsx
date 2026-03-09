@@ -670,7 +670,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     // BACKGROUND
     <div className="page pb-16">
 
-      <Toaster />
+      <Toaster position="bottom-center" />
 
       <main className="page-container">
 

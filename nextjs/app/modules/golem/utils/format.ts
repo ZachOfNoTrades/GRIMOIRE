@@ -80,7 +80,7 @@ export function formatLastUsed(date: Date | null): string | null {
   else if (diffDays === 1) relative = "1d ago";
   else if (diffDays < 7) relative = `${diffDays}d ago`;
   else if (diffDays < 30) relative = `${Math.floor(diffDays / 7)}w ago`;
-  else if (diffDays < 365) relative = `${Math.floor(diffDays / 30)}m ago`;
+  else if (diffDays < 365) relative = `${Math.floor(diffDays / 30)}mo ago`;
   else relative = `${Math.floor(diffDays / 365)}y ago`;
 
   return `(${relative}) ${dateStr}`;
