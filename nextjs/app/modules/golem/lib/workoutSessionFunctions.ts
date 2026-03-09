@@ -496,11 +496,31 @@ export async function resetWorkoutSession(id: string): Promise<void> {
 
       const current = currentResult.recordset[0];
 
+      // Delete logged segment sets, then segments
+      await transaction.request()
+        .input('id', id)
+        .query(`
+          DELETE FROM session_segment_sets
+          WHERE session_segment_id IN (
+            SELECT id FROM session_segments WHERE session_id = @id
+          )
+        `);
+
+      await transaction.request()
+        .input('id', id)
+        .query(`DELETE FROM session_segments WHERE session_id = @id`);
+
       if (!current.week_id) {
-        // Standalone session — just clear started_at
+        // Standalone session — clear timing and status fields
         await transaction.request()
           .input('id', id)
-          .query(`UPDATE workout_sessions SET started_at = NULL, is_current = 0, modified_at = GETDATE() WHERE id = @id`);
+          .query(`
+            UPDATE workout_sessions
+            SET started_at = NULL, resumed_at = NULL, duration = NULL,
+                is_current = 0, is_completed = 0, review = NULL, analysis = NULL,
+                modified_at = GETDATE()
+            WHERE id = @id
+          `);
 
         await transaction.commit();
         return;
@@ -522,10 +542,16 @@ export async function resetWorkoutSession(id: string): Promise<void> {
 
       const { program_id } = hierarchyResult.recordset[0];
 
-      // Clear started_at and current flag
+      // Clear timing and status fields
       await transaction.request()
         .input('id', id)
-        .query(`UPDATE workout_sessions SET started_at = NULL, is_current = 0, modified_at = GETDATE() WHERE id = @id`);
+        .query(`
+          UPDATE workout_sessions
+          SET started_at = NULL, resumed_at = NULL, duration = NULL,
+              is_current = 0, is_completed = 0, review = NULL, analysis = NULL,
+              modified_at = GETDATE()
+          WHERE id = @id
+        `);
 
       // Recalculate the program-wide current pointer
       await advanceProgramCurrent(transaction, program_id);

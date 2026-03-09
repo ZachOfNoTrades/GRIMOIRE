@@ -9,6 +9,7 @@ import { WorkoutSession } from "../../../types/workoutSession";
 import { SegmentWithSets, TargetSegment } from "../../../types/segment";
 import { ExerciseSummary } from "../../../types/exercise";
 import DeleteSessionModal from "./DeleteSessionModal";
+import ResetSessionModal from "./ResetSessionModal";
 import EditSegmentModal from "./EditSegmentModal";
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
@@ -35,6 +36,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isResettingSession, setIsResettingSession] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
   const [segmentModalData, setSegmentModalData] = useState<SegmentWithSets | null>(null);
   const [isDeletingSegment, setIsDeletingSegment] = useState(false);
@@ -232,6 +235,32 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  const handleResetSession = async () => {
+    setIsResettingSession(true);
+    try {
+      const response = await fetch(`/modules/golem/api/sessions/${id}`, {
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to reset session");
+        return;
+      }
+
+      const updatedSession = await response.json();
+      setSession(updatedSession);
+      setLoggedSegments([]);
+      setIsResetModalOpen(false);
+      toast.success("Session reset");
+    } catch (error) {
+      toast.error("Failed to reset session");
+      console.error("Error resetting session:", error);
+    } finally {
+      setIsResettingSession(false);
+    }
+  };
+
   // STATUS HANDLERS
   const updateSessionStatus = async (overrides: Partial<WorkoutSession>) => {
     if (!session) return;
@@ -280,6 +309,19 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   const handleCompleteSession = () => {
     if (!session) return;
+
+    // Check for incomplete working sets and confirm if any exist
+    const incompleteWorkingSets = loggedSegments
+      .flatMap(seg => seg.sets)
+      .filter(s => !s.is_warmup && !s.is_completed);
+
+    if (incompleteWorkingSets.length > 0) {
+      const confirmed = window.confirm(
+        `You have ${incompleteWorkingSets.length} incomplete working set${incompleteWorkingSets.length > 1 ? "s" : ""}. Complete session anyway?`
+      );
+      if (!confirmed) return;
+    }
+
     const elapsed = session.resumed_at
       ? (session.duration ?? 0) + Math.floor((Date.now() - new Date(session.resumed_at).getTime()) / 1000)
       : Math.floor((Date.now() - new Date(session.started_at!).getTime()) / 1000);
@@ -669,6 +711,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         <span>Delete</span>
                       </Button>
 
+                      {/* RESET BUTTON */}
+                      <Button className="btn-secondary w-full sm:w-auto" onClick={() => setIsResetModalOpen(true)}>
+                        <RotateCcw className="w-4 h-4" />
+                        <span>Reset</span>
+                      </Button>
+
                       {/* EDIT BUTTON */}
                       <Button className="btn-primary w-full sm:w-auto" onClick={handleStartEditSession}>
                         <Edit2 className="w-4 h-4" />
@@ -721,6 +769,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         <div className="flex items-center gap-1">
                           {/* HOURS */}
                           <input
+                            id="duration-hours"
                             type="number"
                             min="0"
                             max="99"
@@ -739,12 +788,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                 setEditedDuration(parts.join(":"));
                               }
                             }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("duration-minutes")?.focus(); } }}
                             className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
                           />
                           <span className="text-muted font-medium">h</span>
 
                           {/* MINUTES */}
                           <input
+                            id="duration-minutes"
                             type="number"
                             min="0"
                             max="59"
@@ -763,12 +814,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                 setEditedDuration(parts.join(":"));
                               }
                             }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("duration-seconds")?.focus(); } }}
                             className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
                           />
                           <span className="text-muted font-medium">m</span>
 
                           {/* SECONDS */}
                           <input
+                            id="duration-seconds"
                             type="number"
                             min="0"
                             max="59"
@@ -787,6 +840,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                 setEditedDuration(parts.join(":"));
                               }
                             }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
                             className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
                           />
                           <span className="text-muted font-medium">s</span>
@@ -1323,6 +1377,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         onConfirm={handleDeleteSession}
         sessionName={session?.name || ""}
         isDeleting={isDeletingSession}
+      />
+
+      {/* RESET SESSION MODAL */}
+      <ResetSessionModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onConfirm={handleResetSession}
+        sessionName={session?.name || ""}
+        isResetting={isResettingSession}
       />
 
       {/* EDIT SEGMENT MODAL */}
