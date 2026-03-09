@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { ExerciseSummary } from "../../../types/exercise";
@@ -9,12 +9,14 @@ import RecommendationsView from "./RecommendationsView";
 import BrowseView from "./BrowseView";
 import MuscleGroupView from "./MuscleGroupView";
 import ExerciseInfoView from "./ExerciseInfoView";
+import ExerciseFormView from "./ExerciseFormView";
 
 type PickerView =
   | { type: "recommendations" }
   | { type: "browse" }
   | { type: "muscleGroup"; muscleGroup: string }
-  | { type: "info"; exercise: ExerciseSummary };
+  | { type: "info"; exercise: ExerciseSummary }
+  | { type: "form"; exercise?: ExerciseSummary };
 
 interface ExercisePickerModalProps {
   isOpen: boolean;
@@ -22,6 +24,7 @@ interface ExercisePickerModalProps {
   onSelect: (exercise: ExerciseSummary) => void;
   exercises: ExerciseSummary[];
   onExerciseCreated: (exercise: ExerciseSummary) => void;
+  onExerciseUpdated: (exercise: ExerciseSummary) => void;
   currentExerciseId?: string;
   targetExerciseId?: string;
 }
@@ -32,6 +35,7 @@ export default function ExercisePickerModal({
   onSelect,
   exercises,
   onExerciseCreated,
+  onExerciseUpdated,
   currentExerciseId,
   targetExerciseId,
 }: ExercisePickerModalProps) {
@@ -51,7 +55,9 @@ export default function ExercisePickerModal({
       ? "All Exercises"
       : currentView.type === "info"
         ? currentView.exercise.name
-        : currentView.muscleGroup;
+        : currentView.type === "form"
+          ? (currentView.exercise ? "Edit Exercise" : "New Exercise")
+          : currentView.muscleGroup;
 
   // Reset state when modal opens
   useEffect(() => {
@@ -84,12 +90,39 @@ export default function ExercisePickerModal({
     pushView({ type: "info", exercise });
   };
 
+  // Navigate to exercise form view (create or edit)
+  const handleNavigateCreate = () => {
+    pushView({ type: "form" });
+  };
+
+  // Handle form save (create or edit)
+  const handleFormSaved = (summary: ExerciseSummary, isNew: boolean) => {
+    if (isNew) {
+      onExerciseCreated(summary);
+      handleSelectExercise(summary);
+    } else {
+      onExerciseUpdated(summary);
+      // Pop form view and update the info view's exercise so it re-fetches
+      setSlideDirection("left");
+      setViewStack((prev) => {
+        const withoutForm = prev.slice(0, -1);
+        return withoutForm.map((view) =>
+          view.type === "info" && view.exercise.id === summary.id
+            ? { ...view, exercise: summary }
+            : view
+        );
+      });
+    }
+  };
+
   // Unique key for animation remount
   const viewKey = currentView.type === "muscleGroup"
     ? `muscleGroup-${currentView.muscleGroup}`
     : currentView.type === "info"
       ? `info-${currentView.exercise.id}`
-      : currentView.type;
+      : currentView.type === "form"
+        ? `form-${currentView.exercise?.id ?? "new"}`
+        : currentView.type;
 
   return (
     <Modal
@@ -99,15 +132,40 @@ export default function ExercisePickerModal({
         currentView.type === "info" ? (
           <span className="flex items-center justify-between w-full mr-2">
             <span>{title}</span>
-            {/* REPLACE BUTTON */}
+
+            {/* ACTION BUTTONS */}
+            <span className="flex items-center gap-1">
+
+              {/* EDIT BUTTON */}
+              <Button
+                onClick={() => pushView({ type: "form", exercise: currentView.exercise })}
+                className="btn-link !py-0"
+              >
+                Edit
+              </Button>
+
+              {/* REPLACE BUTTON */}
+              <Button
+                onClick={() => handleSelectExercise(currentView.exercise)}
+                className="btn-link !py-0"
+              >
+                Replace
+              </Button>
+            </span>
+          </span>
+        ) : currentView.type === "form" ? title : (
+          <span className="flex items-center justify-between w-full mr-2">
+            <span>{title}</span>
+
+            {/* ADD EXERCISE BUTTON */}
             <Button
-              onClick={() => handleSelectExercise(currentView.exercise)}
+              onClick={handleNavigateCreate}
               className="btn-link !py-0"
             >
-              Replace
+              <Plus className="w-4.5 h-4.5" />
             </Button>
           </span>
-        ) : title
+        )
       }
       zIndex={60}
       fullHeight
@@ -124,7 +182,6 @@ export default function ExercisePickerModal({
             onInfo={handleInfo}
             onNavigateBrowse={() => pushView({ type: "browse" })}
             onNavigateMuscleGroup={(muscle) => pushView({ type: "muscleGroup", muscleGroup: muscle })}
-            onExerciseCreated={onExerciseCreated}
             onClose={onClose}
           />
         )}
@@ -147,6 +204,12 @@ export default function ExercisePickerModal({
         {currentView.type === "info" && (
           <ExerciseInfoView
             exercise={currentView.exercise}
+          />
+        )}
+        {currentView.type === "form" && (
+          <ExerciseFormView
+            exercise={currentView.exercise}
+            onSaved={handleFormSaved}
           />
         )}
       </div>

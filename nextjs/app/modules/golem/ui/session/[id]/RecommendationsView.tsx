@@ -14,7 +14,6 @@ interface RecommendationsViewProps {
   onInfo: (exercise: ExerciseSummary) => void;
   onNavigateBrowse: () => void;
   onNavigateMuscleGroup: (muscle: string) => void;
-  onExerciseCreated: (exercise: ExerciseSummary) => void;
   onClose: () => void;
 }
 
@@ -26,18 +25,11 @@ export default function RecommendationsView({
   onInfo,
   onNavigateBrowse,
   onNavigateMuscleGroup,
-  onExerciseCreated,
   onClose,
 }: RecommendationsViewProps) {
 
   // INPUT
   const [searchQuery, setSearchQuery] = useState("");
-  const [newExerciseName, setNewExerciseName] = useState("");
-
-  // STATE
-  const [isAdding, setIsAdding] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // DERIVED
   const isSearching = searchQuery.length > 0;
@@ -71,50 +63,6 @@ export default function RecommendationsView({
   const searchResults = exercises.filter((ex) =>
     ex.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const handleCreateExercise = async () => {
-    if (!newExerciseName.trim()) return;
-
-    setIsSaving(true);
-    setError(null);
-
-    try {
-      const response = await fetch("/modules/golem/api/exercises", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newExerciseName.trim(),
-          description: null,
-        }),
-      });
-
-      if (response.status === 409) {
-        setError("An exercise with this name already exists");
-        return;
-      }
-
-      if (!response.ok) throw new Error("Failed to create exercise");
-
-      const created = await response.json();
-      const summary: ExerciseSummary = {
-        id: created.id,
-        name: created.name,
-        category: created.category ?? "",
-        primary_muscles: [],
-        secondary_muscles: [],
-        estimated_one_rep_max: null,
-        last_used_at: null,
-      };
-      onExerciseCreated(summary);
-      onSelect(summary);
-      onClose();
-    } catch (error) {
-      console.error("Error creating exercise:", error);
-      setError("Failed to create exercise");
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   return (
     <div className="flex flex-col gap-2 h-full">

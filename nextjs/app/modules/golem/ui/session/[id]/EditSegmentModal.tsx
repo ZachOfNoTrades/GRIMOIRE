@@ -31,6 +31,7 @@ interface EditSegmentModalProps {
   exercises: ExerciseSummary[];
   isDeleting: boolean;
   onExerciseCreated: (exercise: ExerciseSummary) => void;
+  onExerciseUpdated: (exercise: ExerciseSummary) => void;
 }
 
 export default function EditSegmentModal({
@@ -42,6 +43,7 @@ export default function EditSegmentModal({
   exercises,
   isDeleting,
   onExerciseCreated,
+  onExerciseUpdated,
 }: EditSegmentModalProps) {
 
   // INPUT
@@ -331,6 +333,7 @@ export default function EditSegmentModal({
       onSelect={(exercise) => handleExerciseChange(exercise.id)}
       exercises={exercises}
       onExerciseCreated={onExerciseCreated}
+      onExerciseUpdated={onExerciseUpdated}
       currentExerciseId={editedSegment.exercise_id}
       targetExerciseId={editedSegment.target?.exercise_id}
     />

@@ -1350,15 +1350,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         segment={segmentModalData}
         exercises={exercises}
         isDeleting={isDeletingSegment}
-        onExerciseCreated={(exercise) => setExercises((prev) => [...prev, {
-          id: exercise.id,
-          name: exercise.name,
-          category: "",
-          primary_muscles: [],
-          secondary_muscles: [],
-          estimated_one_rep_max: null,
-          last_used_at: null,
-        }].sort((a, b) => a.name.localeCompare(b.name)))}
+        onExerciseCreated={(exercise) => setExercises((prev) => [...prev, exercise].sort((a, b) => a.name.localeCompare(b.name)))}
+        onExerciseUpdated={(exercise) => setExercises((prev) => prev.map((e) => e.id === exercise.id ? exercise : e).sort((a, b) => a.name.localeCompare(b.name)))}
       />
     </div>
   );
