@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, ArrowLeftRight, Pencil, Plus, X } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Ban, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { ExerciseSummary } from "../../../types/exercise";
@@ -43,6 +43,7 @@ export default function ExercisePickerModal({
   // STATE
   const [viewStack, setViewStack] = useState<PickerView[]>([{ type: "recommendations" }]);
   const [slideDirection, setSlideDirection] = useState<"right" | "left">("right");
+  const [showDisabled, setShowDisabled] = useState(false);
 
   // DERIVED
   const currentView = viewStack[viewStack.length - 1];
@@ -115,6 +116,29 @@ export default function ExercisePickerModal({
     }
   };
 
+  // Toggle disable/enable for an exercise from the info view
+  const handleToggleDisable = async (exercise: ExerciseSummary) => {
+    try {
+      const method = exercise.is_disabled ? "PATCH" : "DELETE";
+      const response = await fetch(`/modules/golem/api/exercises/${exercise.id}`, { method });
+      if (!response.ok) throw new Error("Failed to toggle exercise");
+
+      const updatedExercise = { ...exercise, is_disabled: !exercise.is_disabled };
+      onExerciseUpdated(updatedExercise);
+
+      // Update the info view's exercise reference
+      setViewStack((prev) =>
+        prev.map((view) =>
+          view.type === "info" && view.exercise.id === exercise.id
+            ? { ...view, exercise: updatedExercise }
+            : view
+        )
+      );
+    } catch (error) {
+      console.error("Error toggling exercise disabled state:", error);
+    }
+  };
+
   // Unique key for animation remount
   const viewKey = currentView.type === "muscleGroup"
     ? `muscleGroup-${currentView.muscleGroup}`
@@ -142,6 +166,17 @@ export default function ExercisePickerModal({
                 className="btn-link !py-0"
               >
                 <Pencil className="w-5 h-5" />
+              </Button>
+            )}
+
+            {/* DISABLE/ENABLE BUTTON */}
+            {currentView.type === "info" && (
+              <Button
+                onClick={() => handleToggleDisable(currentView.exercise)}
+                className={currentView.exercise.is_disabled ? "btn-link btn-link-delete" : "btn-link"}
+                title={currentView.exercise.is_disabled ? "Enable exercise" : "Disable exercise"}
+              >
+                <Ban className="w-5 h-5" />
               </Button>
             )}
 
@@ -199,6 +234,8 @@ export default function ExercisePickerModal({
             exercises={exercises}
             currentExerciseId={currentExerciseId}
             targetExerciseId={targetExerciseId}
+            showDisabled={showDisabled}
+            onShowDisabledChange={setShowDisabled}
             onSelect={handleSelectExercise}
             onInfo={handleInfo}
             onNavigateBrowse={() => pushView({ type: "browse" })}
@@ -209,6 +246,8 @@ export default function ExercisePickerModal({
         {currentView.type === "browse" && (
           <BrowseView
             exercises={exercises}
+            showDisabled={showDisabled}
+            onShowDisabledChange={setShowDisabled}
             onSelect={handleSelectExercise}
             onInfo={handleInfo}
             onNavigateMuscleGroup={(groupName) => pushView({ type: "muscleGroup", muscleGroup: groupName })}
@@ -218,6 +257,8 @@ export default function ExercisePickerModal({
           <MuscleGroupView
             muscleGroup={currentView.muscleGroup}
             exercises={exercises}
+            showDisabled={showDisabled}
+            onShowDisabledChange={setShowDisabled}
             onSelect={handleSelectExercise}
             onInfo={handleInfo}
           />

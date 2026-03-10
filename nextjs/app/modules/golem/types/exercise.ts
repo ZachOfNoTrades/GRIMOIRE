@@ -12,6 +12,7 @@ export interface ExerciseSummary {
   id: string;
   name: string;
   category: string;
+  is_disabled: boolean;
   primary_muscles: string[];
   secondary_muscles: string[];
   estimated_one_rep_max: number | null;

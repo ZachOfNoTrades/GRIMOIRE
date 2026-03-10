@@ -8,6 +8,8 @@ import ExerciseListItem from "./ExerciseListItem";
 interface MuscleGroupViewProps {
   muscleGroup: string;
   exercises: ExerciseSummary[];
+  showDisabled: boolean;
+  onShowDisabledChange: (value: boolean) => void;
   onSelect: (exercise: ExerciseSummary) => void;
   onInfo: (exercise: ExerciseSummary) => void;
 }
@@ -15,6 +17,8 @@ interface MuscleGroupViewProps {
 export default function MuscleGroupView({
   muscleGroup,
   exercises,
+  showDisabled,
+  onShowDisabledChange,
   onSelect,
   onInfo,
 }: MuscleGroupViewProps) {
@@ -24,6 +28,7 @@ export default function MuscleGroupView({
 
   // DERIVED
   const muscleGroupExercises = exercises.filter((ex) =>
+    (showDisabled || !ex.is_disabled) &&
     ex.primary_muscles.includes(muscleGroup) &&
     ex.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -42,6 +47,16 @@ export default function MuscleGroupView({
           className="input-field !pl-9"
         />
       </div>
+
+      {/* SHOW DISABLED TOGGLE */}
+      <label className="flex items-center gap-1.5 ml-auto cursor-pointer text-secondary">
+        <input
+          type="checkbox"
+          checked={showDisabled}
+          onChange={(e) => onShowDisabledChange(e.target.checked)}
+        />
+        <span>Show disabled</span>
+      </label>
 
       {/* EXERCISE LIST */}
       <div className="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0 scrollbar-hide pr-2">

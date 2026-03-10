@@ -203,7 +203,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
   try {
     pool = await getGolemConnection();
     const result = await pool.request().query(`
-      SELECT e.id, e.name, e.category, mg.name AS muscle_group_name, emg.is_primary,
+      SELECT e.id, e.name, e.category, e.is_disabled, mg.name AS muscle_group_name, emg.is_primary,
              best.best_set_weight, best.best_set_reps, last_use.last_used_at
       FROM exercises e
       LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
@@ -243,6 +243,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
           id: row.id,
           name: row.name,
           category: row.category,
+          is_disabled: row.is_disabled,
           primary_muscles: [],
           secondary_muscles: [],
           estimated_one_rep_max: row.best_set_weight && row.best_set_reps

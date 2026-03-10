@@ -24,7 +24,7 @@ export default function ExerciseInfoView({
   const [detailLoading, setDetailLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"history" | "stats" | "info">("history");
 
-  // Fetch exercise history and detail when exercise changes
+  // Fetch exercise history and detail when viewing a different exercise
   useEffect(() => {
     setActiveTab("history");
     setHistoryLoading(true);
@@ -50,7 +50,7 @@ export default function ExerciseInfoView({
         setHistoryLoading(false);
         setDetailLoading(false);
       });
-  }, [exercise]);
+  }, [exercise.id]);
 
   return (
     <>

@@ -179,6 +179,7 @@ export default function ExerciseFormView({
           id: created.id,
           name: created.name,
           category: created.category ?? category,
+          is_disabled: false,
           primary_muscles: primaryMuscles,
           secondary_muscles: secondaryMuscles,
           estimated_one_rep_max: null,

@@ -1,6 +1,6 @@
 "use client"
 
-import { Info } from "lucide-react";
+import { Ban, Info } from "lucide-react";
 import { ExerciseSummary } from "../../../types/exercise";
 import { formatLastUsed } from "../../../utils/format";
 
@@ -20,20 +20,27 @@ export default function ExerciseListItem({
   targetExerciseId,
 }: ExerciseListItemProps) {
   return (
-    <div className="list-item !flex-col !items-stretch !gap-0">
+    <div
+      className={`list-item !flex-col !items-stretch ${exercise.is_disabled && "opacity-60"}`}
+      onClick={() => onSelect(exercise)}
+    >
 
-      {/* EXERCISE NAME */}
-      <button
-        onClick={() => onSelect(exercise)}
-        className="text-left min-w-0"
-      >
+      {/* EXERCISE NAME ROW */}
+      <div className="flex items-center justify-between">
+
+        {/* EXERCISE NAME */}
         <span className="text-primary flex items-center gap-2">
           {exercise.name}
           {showPrescribed && exercise.id === targetExerciseId && (
             <span className="badge-info text-[10px]">Prescribed</span>
           )}
         </span>
-      </button>
+
+        {/* DISABLED ICON */}
+        {exercise.is_disabled && (
+          <Ban className="w-4 h-4" style={{ color: "var(--alert-error-text)" }} />
+        )}
+      </div>
 
       {/* DETAILS ROW */}
       <div className="flex items-center justify-between -mb-1">
@@ -43,7 +50,7 @@ export default function ExerciseListItem({
 
         {/* INFO BUTTON */}
         <button
-          onClick={() => onInfo(exercise)}
+          onClick={(e) => { e.stopPropagation(); onInfo(exercise); }} // stopPropagation prevents info button from triggering exercise selection
           className="p-2 -mr-2 text-muted hover:text-secondary transition-colors shrink-0 ml-auto"
           title="View history"
         >

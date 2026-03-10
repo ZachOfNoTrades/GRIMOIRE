@@ -10,6 +10,8 @@ interface RecommendationsViewProps {
   exercises: ExerciseSummary[];
   currentExerciseId?: string;
   targetExerciseId?: string;
+  showDisabled: boolean;
+  onShowDisabledChange: (value: boolean) => void;
   onSelect: (exercise: ExerciseSummary) => void;
   onInfo: (exercise: ExerciseSummary) => void;
   onNavigateBrowse: () => void;
@@ -21,6 +23,8 @@ export default function RecommendationsView({
   exercises,
   currentExerciseId,
   targetExerciseId,
+  showDisabled,
+  onShowDisabledChange,
   onSelect,
   onInfo,
   onNavigateBrowse,
@@ -34,12 +38,14 @@ export default function RecommendationsView({
   // DERIVED
   const isSearching = searchQuery.length > 0;
 
-  // Current exercise muscle groups for recommendations
+  // Use target exercise for recommendations when available, fall back to current exercise
+  const targetExercise = exercises.find((e) => e.id === targetExerciseId);
   const currentExercise = exercises.find((e) => e.id === currentExerciseId);
-  const currentPrimaryMuscles = currentExercise?.primary_muscles ?? [];
-  const currentSecondaryMuscles = currentExercise?.secondary_muscles ?? [];
-  const currentAllMuscles = [...currentPrimaryMuscles, ...currentSecondaryMuscles];
-  const hasRecommendations = currentExerciseId && currentAllMuscles.length > 0;
+  const referenceExercise = targetExercise ?? currentExercise;
+  const referencePrimaryMuscles = referenceExercise?.primary_muscles ?? [];
+  const referenceSecondaryMuscles = referenceExercise?.secondary_muscles ?? [];
+  const referenceAllMuscles = [...referencePrimaryMuscles, ...referenceSecondaryMuscles];
+  const hasRecommendations = referenceExercise && referenceAllMuscles.length > 0;
 
   // Recommended exercises: exact match on primary and secondary muscles, excluding current; target exercise pinned to top
   const arraysMatch = (a: string[], b: string[]) =>
@@ -48,9 +54,10 @@ export default function RecommendationsView({
     ? exercises
         .filter(
           (ex) =>
+            (showDisabled || !ex.is_disabled) &&
             ex.id !== currentExerciseId &&
-            arraysMatch(ex.primary_muscles, currentPrimaryMuscles) &&
-            arraysMatch(ex.secondary_muscles, currentSecondaryMuscles)
+            arraysMatch(ex.primary_muscles, referencePrimaryMuscles) &&
+            arraysMatch(ex.secondary_muscles, referenceSecondaryMuscles)
         )
         .sort((a, b) => {
           const aIsTarget = a.id === targetExerciseId ? -1 : 0;
@@ -61,6 +68,7 @@ export default function RecommendationsView({
 
   // Search filtered exercises
   const searchResults = exercises.filter((ex) =>
+    (showDisabled || !ex.is_disabled) &&
     ex.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -78,6 +86,16 @@ export default function RecommendationsView({
           className="input-field !pl-9"
         />
       </div>
+
+      {/* SHOW DISABLED TOGGLE */}
+      <label className="flex items-center gap-1.5 ml-auto cursor-pointer text-secondary">
+        <input
+          type="checkbox"
+          checked={showDisabled}
+          onChange={(e) => onShowDisabledChange(e.target.checked)}
+        />
+        <span>Show disabled</span>
+      </label>
 
       {/* EXERCISE LIST */}
       <div className="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0 scrollbar-hide pr-2">
@@ -115,7 +133,7 @@ export default function RecommendationsView({
             <div className="flex flex-col gap-1 mt-3 px-3">
 
               {/* SEE ALL {GROUP} EXERCISES */}
-              {currentPrimaryMuscles.map((muscle) => (
+              {referencePrimaryMuscles.map((muscle) => (
                 <Button
                   key={muscle}
                   onClick={() => onNavigateMuscleGroup(muscle)}

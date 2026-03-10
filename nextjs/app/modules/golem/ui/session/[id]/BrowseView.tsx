@@ -7,6 +7,8 @@ import ExerciseListItem from "./ExerciseListItem";
 
 interface BrowseViewProps {
   exercises: ExerciseSummary[];
+  showDisabled: boolean;
+  onShowDisabledChange: (value: boolean) => void;
   onSelect: (exercise: ExerciseSummary) => void;
   onInfo: (exercise: ExerciseSummary) => void;
   onNavigateMuscleGroup: (groupName: string) => void;
@@ -14,6 +16,8 @@ interface BrowseViewProps {
 
 export default function BrowseView({
   exercises,
+  showDisabled,
+  onShowDisabledChange,
   onSelect,
   onInfo,
   onNavigateMuscleGroup,
@@ -29,6 +33,7 @@ export default function BrowseView({
   const isSearching = searchQuery.length > 0;
 
   const filteredExercises = exercises.filter((ex) =>
+    (showDisabled || !ex.is_disabled) &&
     ex.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -107,6 +112,16 @@ export default function BrowseView({
           >
             <span>Muscles</span>
           </button>
+
+          {/* SHOW DISABLED TOGGLE */}
+          <label className="flex items-center gap-1.5 ml-auto cursor-pointer text-secondary">
+            <input
+              type="checkbox"
+              checked={showDisabled}
+              onChange={(e) => onShowDisabledChange(e.target.checked)}
+            />
+            <span>Show disabled</span>
+          </label>
         </nav>
       )}
 
