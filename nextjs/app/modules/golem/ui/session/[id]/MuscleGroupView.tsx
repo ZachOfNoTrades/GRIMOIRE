@@ -27,10 +27,11 @@ export default function MuscleGroupView({
   const [searchQuery, setSearchQuery] = useState("");
 
   // DERIVED
+  const normalizedQuery = searchQuery.toLowerCase().replace(/-/g, "");
   const muscleGroupExercises = exercises.filter((ex) =>
     (showDisabled || !ex.is_disabled) &&
     ex.primary_muscles.includes(muscleGroup) &&
-    ex.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ex.name.toLowerCase().replace(/-/g, "").includes(normalizedQuery)
   );
 
   return (

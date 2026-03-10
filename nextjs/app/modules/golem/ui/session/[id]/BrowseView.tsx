@@ -32,9 +32,10 @@ export default function BrowseView({
   // DERIVED
   const isSearching = searchQuery.length > 0;
 
+  const normalizedQuery = searchQuery.toLowerCase().replace(/-/g, "");
   const filteredExercises = exercises.filter((ex) =>
     (showDisabled || !ex.is_disabled) &&
-    ex.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ex.name.toLowerCase().replace(/-/g, "").includes(normalizedQuery)
   );
 
   // Group exercises by first letter for alphabetical view

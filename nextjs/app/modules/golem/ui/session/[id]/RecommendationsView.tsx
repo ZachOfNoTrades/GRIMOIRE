@@ -67,9 +67,10 @@ export default function RecommendationsView({
     : [];
 
   // Search filtered exercises
+  const normalizedQuery = searchQuery.toLowerCase().replace(/-/g, "");
   const searchResults = exercises.filter((ex) =>
     (showDisabled || !ex.is_disabled) &&
-    ex.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ex.name.toLowerCase().replace(/-/g, "").includes(normalizedQuery)
   );
 
   return (
