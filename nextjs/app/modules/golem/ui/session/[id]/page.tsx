@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ChevronDown, ChevronUp, ArrowLeftRight } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -1064,15 +1064,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                             {/* EXERCISE NAME */}
                             <div className="flex items-center gap-2">
                               {isSegmentComplete(segment)
-                                ? <CircleCheck className="icon-success !w-4 !h-4" />
-                                : <Circle className="icon-muted !w-4 !h-4" />
+                                ? <CircleCheck className="icon-success !w-4 !h-4 shrink-0" />
+                                : <Circle className="icon-muted !w-4 !h-4 shrink-0" />
                               }
                               <h3 className="text-card-title">{segment.exercise_name}</h3>
                             </div>
 
-                            {/* ORIGINAL TARGET EXERCISE HINT (when selected exercise was swapped) */}
+                            {/* SWAPPED EXERCISE INDICATOR */}
                             {segment.target && segment.target.exercise_id !== segment.exercise_id && (
-                              <p className="text-secondary">Swapped from {segment.target.exercise_name}</p>
+                              <ArrowLeftRight className="icon-muted !w-4 !h-4 shrink-0" />
                             )}
                           </div>
 
@@ -1214,15 +1214,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     {/* EXERCISE NAME */}
                     <div className="flex items-center gap-2">
                       {isSegmentComplete(segment)
-                        ? <CircleCheck className="icon-success !w-4 !h-4" />
-                        : <Circle className="icon-muted !w-4 !h-4" />
+                        ? <CircleCheck className="icon-success !w-4 !h-4 shrink-0" />
+                        : <Circle className="icon-muted !w-4 !h-4 shrink-0" />
                       }
                       <h3 className="text-card-title">{segment.exercise_name}</h3>
                     </div>
 
-                    {/* ORIGINAL TARGET EXERCISE HINT (when selected exercise was swapped) */}
+                    {/* SWAPPED EXERCISE INDICATOR */}
                     {segment.target && segment.target.exercise_id !== segment.exercise_id && (
-                      <p className="text-secondary">Swapped from {segment.target.exercise_name}</p>
+                      <ArrowLeftRight className="icon-muted !w-4 !h-4 shrink-0" />
                     )}
                   </div>
 
