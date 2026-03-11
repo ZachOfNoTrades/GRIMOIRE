@@ -50,7 +50,7 @@ export async function callLLM(taskPrompt: string): Promise<string> {
 }
 
 async function callClaudeCode(prompt: string, outputFile: string): Promise<string> {
-  const timeoutMs = 300000; // 300-second timeout
+  const timeoutMs = 600000; // 600-second timeout
 
   return new Promise((resolve, reject) => {
     const proc = spawn(
