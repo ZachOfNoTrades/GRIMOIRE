@@ -1,6 +1,6 @@
 import { ExerciseHistoryEntry } from "../../../types/exercise";
 import { calculateEstimatedOneRepMax } from "../../../utils/calc";
-import { HistoryRange } from "../../../utils/date";
+import { HistoryRange } from "../../../utils/format";
 import ProgressionChart, { ChartDataPoint } from "../../../components/ProgressionChart";
 
 const rangeOptions: { value: HistoryRange; label: string }[] = [

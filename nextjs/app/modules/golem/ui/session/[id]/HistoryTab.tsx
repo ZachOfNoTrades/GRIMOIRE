@@ -1,8 +1,7 @@
 "use client"
 
 import { ExerciseHistoryEntry } from "../../../types/exercise";
-import { HistoryRange } from "../../../utils/date";
-import { formatDateShortWithYear } from "../../../utils/format";
+import { HistoryRange, formatDateShortWithYear } from "../../../utils/format";
 
 const rangeOptions: { value: HistoryRange; label: string }[] = [
   { value: "6m", label: "6 Months" },

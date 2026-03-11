@@ -11,7 +11,7 @@ import { SegmentWithSets } from "../../../types/segment";
 import { ExerciseSummary, ExerciseHistoryEntry } from "../../../types/exercise";
 import { ExerciseWithMuscleGroups } from "../../../types/muscleGroup";
 import { generateUUID } from "../../../utils/id";
-import { HistoryRange, getDateRangeParams } from "../../../utils/date";
+import { HistoryRange, getDateRangeParams } from "../../../utils/format";
 import SetTab from "./SetTab";
 import HistoryTab from "./HistoryTab";
 import StatsTab from "./StatsTab";
