@@ -345,13 +345,13 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
           <div className="card">
 
             {/* TAB HEADERS */}
-            <nav className="flex space-x-4 px-3 mb-2 border-b border-card" role="tablist">
+            <nav className="flex sm:space-x-1 px-2 mb-2 border-b border-card" role="tablist">
               {promptTabs.map((tab) => (
 
                 // PROMPT TAB
                 <button
                   key={tab.key}
-                  className={`tab-button ${selectedPromptTab === tab.key ? "tab-button-active" : ""}`}
+                  className={`tab-button max-sm:flex-1 max-sm:justify-center ${selectedPromptTab === tab.key ? "tab-button-active" : ""}`}
                   onClick={() => setSelectedPromptTab(tab.key)}
                   role="tab"
                   aria-selected={selectedPromptTab === tab.key}
