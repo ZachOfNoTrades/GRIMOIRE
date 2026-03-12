@@ -98,13 +98,27 @@ export async function getProgramById(programId: string): Promise<Program> {
           b.tag             AS block_tag,
           b.color           AS block_color,
           b.is_current      AS block_is_current,
-          b.is_completed    AS block_is_completed,
+          CAST(CASE WHEN EXISTS (
+            SELECT 1 FROM weeks w_chk
+            JOIN workout_sessions ws_chk ON ws_chk.week_id = w_chk.id
+            WHERE w_chk.block_id = b.id
+          ) AND NOT EXISTS (
+            SELECT 1 FROM weeks w_chk2
+            JOIN workout_sessions ws_chk2 ON ws_chk2.week_id = w_chk2.id
+            WHERE w_chk2.block_id = b.id AND ws_chk2.is_completed = 0
+          ) THEN 1 ELSE 0 END AS BIT) AS block_is_completed,
           w.id              AS week_id,
           w.week_number,
           w.name            AS week_name,
           w.description     AS week_description,
           w.is_current      AS week_is_current,
-          w.is_completed    AS week_is_completed,
+          CAST(CASE WHEN EXISTS (
+            SELECT 1 FROM workout_sessions ws_wchk
+            WHERE ws_wchk.week_id = w.id
+          ) AND NOT EXISTS (
+            SELECT 1 FROM workout_sessions ws_wchk2
+            WHERE ws_wchk2.week_id = w.id AND ws_wchk2.is_completed = 0
+          ) THEN 1 ELSE 0 END AS BIT) AS week_is_completed,
           COALESCE((
             SELECT SUM(ses.reps * ses.weight)
             FROM session_segment_sets ses
@@ -277,10 +291,19 @@ async function setProgramAsCurrent(transaction: any, programId: string): Promise
     .input('programId', programId)
     .query(`UPDATE programs SET is_current = 1, modified_at = GETDATE() WHERE id = @programId`);
 
-  // Find lowest incomplete block
+  // Find lowest incomplete block (has at least one incomplete session)
   const blockResult = await transaction.request()
     .input('programId', programId)
-    .query(`SELECT TOP 1 id FROM blocks WHERE program_id = @programId AND is_completed = 0 ORDER BY order_index ASC`);
+    .query(`
+      SELECT TOP 1 b.id FROM blocks b
+      WHERE b.program_id = @programId
+        AND EXISTS (
+          SELECT 1 FROM weeks w
+          JOIN workout_sessions ws ON ws.week_id = w.id
+          WHERE w.block_id = b.id AND ws.is_completed = 0
+        )
+      ORDER BY b.order_index ASC
+    `);
 
   if (blockResult.recordset.length === 0) return;
   const blockId = blockResult.recordset[0].id;
@@ -289,10 +312,18 @@ async function setProgramAsCurrent(transaction: any, programId: string): Promise
     .input('blockId', blockId)
     .query(`UPDATE blocks SET is_current = 1, modified_at = GETDATE() WHERE id = @blockId`);
 
-  // Find lowest incomplete week in that block
+  // Find lowest incomplete week in that block (has at least one incomplete session)
   const weekResult = await transaction.request()
     .input('blockId', blockId)
-    .query(`SELECT TOP 1 id FROM weeks WHERE block_id = @blockId AND is_completed = 0 ORDER BY week_number ASC`);
+    .query(`
+      SELECT TOP 1 w.id FROM weeks w
+      WHERE w.block_id = @blockId
+        AND EXISTS (
+          SELECT 1 FROM workout_sessions ws
+          WHERE ws.week_id = w.id AND ws.is_completed = 0
+        )
+      ORDER BY w.week_number ASC
+    `);
 
   if (weekResult.recordset.length === 0) return;
   const weekId = weekResult.recordset[0].id;

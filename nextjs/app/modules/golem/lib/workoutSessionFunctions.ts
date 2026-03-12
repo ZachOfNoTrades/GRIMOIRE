@@ -151,10 +151,19 @@ async function advanceProgramCurrent(
     .input('programId', programId)
     .query(`UPDATE blocks SET is_current = 0, modified_at = GETDATE() WHERE program_id = @programId AND is_current = 1`);
 
-  // Find lowest incomplete block
+  // Find lowest incomplete block (has at least one incomplete session)
   const blockResult = await transaction.request()
     .input('programId', programId)
-    .query(`SELECT TOP 1 id FROM blocks WHERE program_id = @programId AND is_completed = 0 ORDER BY order_index ASC`);
+    .query(`
+      SELECT TOP 1 b.id FROM blocks b
+      WHERE b.program_id = @programId
+        AND EXISTS (
+          SELECT 1 FROM weeks w
+          JOIN workout_sessions ws ON ws.week_id = w.id
+          WHERE w.block_id = b.id AND ws.is_completed = 0
+        )
+      ORDER BY b.order_index ASC
+    `);
 
   if (blockResult.recordset.length === 0) return;
   const blockId = blockResult.recordset[0].id;
@@ -163,10 +172,18 @@ async function advanceProgramCurrent(
     .input('blockId', blockId)
     .query(`UPDATE blocks SET is_current = 1, modified_at = GETDATE() WHERE id = @blockId`);
 
-  // Find lowest incomplete week in that block
+  // Find lowest incomplete week in that block (has at least one incomplete session)
   const weekResult = await transaction.request()
     .input('blockId', blockId)
-    .query(`SELECT TOP 1 id FROM weeks WHERE block_id = @blockId AND is_completed = 0 ORDER BY week_number ASC`);
+    .query(`
+      SELECT TOP 1 w.id FROM weeks w
+      WHERE w.block_id = @blockId
+        AND EXISTS (
+          SELECT 1 FROM workout_sessions ws
+          WHERE ws.week_id = w.id AND ws.is_completed = 0
+        )
+      ORDER BY w.week_number ASC
+    `);
 
   if (weekResult.recordset.length === 0) return;
   const weekId = weekResult.recordset[0].id;
@@ -259,65 +276,39 @@ async function updateStatus(
       `);
   }
 
-  // --- Completing: cascade completion markers, then recalculate current pointer ---
+  // --- Completing: check program completion, then recalculate current pointer ---
   if (isCompleted && !current.is_completed) {
 
-    // Check if all sessions in the week are now complete (excluding the one being completed)
-    const weekIncompleteCount = await transaction.request()
-      .input('weekId', current.week_id)
+    // Check if all sessions across the entire program are now complete (excluding the one being completed)
+    const programIncompleteCount = await transaction.request()
+      .input('programId', program_id)
       .input('excludeId', id)
-      .query(`SELECT COUNT(*) as count FROM workout_sessions WHERE week_id = @weekId AND id != @excludeId AND is_completed = 0`);
+      .query(`
+        SELECT COUNT(*) as count FROM workout_sessions ws
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId AND ws.id != @excludeId AND ws.is_completed = 0
+      `);
 
-    if (weekIncompleteCount.recordset[0].count === 0) {
+    if (programIncompleteCount.recordset[0].count === 0) {
 
-      // All sessions complete — mark week as complete
+      // All sessions complete — mark program as complete
       await transaction.request()
-        .input('weekId', current.week_id)
-        .query(`UPDATE weeks SET is_completed = 1, modified_at = GETDATE() WHERE id = @weekId`);
-
-      // Check if all weeks in the block are now complete
-      const blockIncompleteCount = await transaction.request()
-        .input('blockId', block_id)
-        .query(`SELECT COUNT(*) as count FROM weeks WHERE block_id = @blockId AND is_completed = 0`);
-
-      if (blockIncompleteCount.recordset[0].count === 0) {
-
-        // All weeks complete — mark block as complete
-        await transaction.request()
-          .input('blockId', block_id)
-          .query(`UPDATE blocks SET is_completed = 1, modified_at = GETDATE() WHERE id = @blockId`);
-
-        // Check if all blocks in the program are now complete
-        const programIncompleteCount = await transaction.request()
-          .input('programId', program_id)
-          .query(`SELECT COUNT(*) as count FROM blocks WHERE program_id = @programId AND is_completed = 0`);
-
-        if (programIncompleteCount.recordset[0].count === 0) {
-
-          // All blocks complete — mark program as complete
-          await transaction.request()
-            .input('programId', program_id)
-            .query(`UPDATE programs SET is_completed = 1, modified_at = GETDATE() WHERE id = @programId`);
-        }
-      }
+        .input('programId', program_id)
+        .query(`UPDATE programs SET is_completed = 1, modified_at = GETDATE() WHERE id = @programId`);
     }
 
     // Recalculate the program-wide current pointer (exclude the completing session)
     await advanceProgramCurrent(transaction, program_id, id);
   }
 
-  // --- Uncompleting (resuming): unmark parent completion ---
+  // --- Uncompleting (resuming): unmark program completion ---
   if (!isCompleted && current.is_completed) {
 
-    // Unmark week as completed (it now has an incomplete session)
+    // Program may no longer be complete since a session was resumed
     await transaction.request()
-      .input('weekId', current.week_id)
-      .query(`UPDATE weeks SET is_completed = 0, modified_at = GETDATE() WHERE id = @weekId AND is_completed = 1`);
-
-    // Unmark block as completed (it now has an incomplete week)
-    await transaction.request()
-      .input('blockId', block_id)
-      .query(`UPDATE blocks SET is_completed = 0, modified_at = GETDATE() WHERE id = @blockId AND is_completed = 1`);
+      .input('programId', program_id)
+      .query(`UPDATE programs SET is_completed = 0, modified_at = GETDATE() WHERE id = @programId AND is_completed = 1`);
   }
 }
 

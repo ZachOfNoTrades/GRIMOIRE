@@ -136,7 +136,6 @@ BEGIN TRY
             tag NVARCHAR(100), -- short label, e.g. "Hypertrophy", "Deload", "Peaking"
             color NVARCHAR(7), -- hex color code, e.g. "#3B82F6"
             is_current BIT CHECK (is_current IN (0,1)) DEFAULT 0, -- 1 = currently active
-            is_completed BIT CHECK (is_completed IN (0,1)) DEFAULT 0, -- 1 = finished
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
@@ -156,7 +155,6 @@ BEGIN TRY
             name NVARCHAR(255),
             description NVARCHAR(MAX),
             is_current BIT CHECK (is_current IN (0,1)) DEFAULT 0, -- 1 = currently active
-            is_completed BIT CHECK (is_completed IN (0,1)) DEFAULT 0, -- 1 = finished
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
