@@ -217,7 +217,8 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
             ROW_NUMBER() OVER (PARTITION BY se.exercise_id ORDER BY ses.weight * ses.reps DESC) AS rn
           FROM session_segment_sets ses
           JOIN session_segments se ON ses.session_segment_id = se.id
-          WHERE ses.is_warmup = 0 AND ses.weight > 0 AND ses.reps > 0
+          JOIN workout_sessions ws ON se.session_id = ws.id
+          WHERE ses.is_warmup = 0 AND ses.weight > 0 AND ses.reps > 0 AND ws.started_at IS NOT NULL
         ) ranked
         WHERE rn = 1
       ) best ON e.id = best.exercise_id
