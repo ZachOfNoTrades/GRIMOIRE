@@ -355,6 +355,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       session_id: id,
       exercise_id: target.exercise_id,
       exercise_name: target.exercise_name,
+      exercise_category: target.exercise_category,
+      exercise_is_timed: target.exercise_is_timed,
       target_id: target.id,
       order_index: groupSegments.length + 1,
       is_warmup: target.is_warmup,
@@ -368,9 +370,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         session_segment_id: newSegmentId,
         set_number: ts.set_number,
         is_warmup: ts.is_warmup,
-        reps: 0,
+        reps: target.exercise_is_timed ? null : 0,
         weight: 0,
         rpe: null,
+        time_seconds: target.exercise_is_timed ? 0 : null,
         notes: null,
         is_completed: false,
         created_at: new Date(),
@@ -389,6 +392,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       session_id: id,
       exercise_id: "",
       exercise_name: "",
+      exercise_category: "Strength",
+      exercise_is_timed: false,
       target_id: null,
       order_index: workingLoggedSegments.length + 1,
       is_warmup: false,
@@ -405,6 +410,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         reps: 0,
         weight: 0,
         rpe: null,
+        time_seconds: null,
         notes: null,
         is_completed: false,
         created_at: new Date(),
@@ -423,6 +429,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       session_id: id,
       exercise_id: "",
       exercise_name: "",
+      exercise_category: "Strength",
+      exercise_is_timed: false,
       target_id: null,
       order_index: warmupLoggedSegments.length + 1,
       is_warmup: true,
@@ -439,6 +447,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         reps: 0,
         weight: 0,
         rpe: null,
+        time_seconds: null,
         notes: null,
         is_completed: false,
         created_at: new Date(),
@@ -642,8 +651,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   // Helper: check if a set contains any manually entered data
-  const hasSetData = (set: { weight: number; reps: number; rpe: number | null; notes: string | null }) =>
-    set.weight > 0 || set.reps > 0 || set.rpe !== null || (set.notes !== null && set.notes !== '');
+  const hasSetData = (set: { weight: number; reps: number | null; rpe: number | null; time_seconds: number | null; notes: string | null }) =>
+    set.weight > 0 || (set.reps != null && set.reps > 0) || set.rpe !== null || (set.time_seconds != null && set.time_seconds > 0) || (set.notes !== null && set.notes !== '');
 
   const isSegmentComplete = (segment: SegmentWithSets): boolean => {
     return segment.sets.some((s) => s.is_completed);
@@ -1113,7 +1122,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                                     // LOGGED SET ROW
                                     <p key={row.logged.id} className={!row.logged.is_completed ? 'text-secondary' : ''}>
-                                      <span>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</span>
+                                      <span>{row.logged.time_seconds != null && row.logged.time_seconds > 0
+                                        ? <>{row.logged.weight > 0 ? `${row.logged.weight}lb x ` : ""}{row.logged.time_seconds < 60 ? `${row.logged.time_seconds}s` : `${Math.floor(row.logged.time_seconds / 60)}:${String(row.logged.time_seconds % 60).padStart(2, "0")}`}</>
+                                        : <>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</>
+                                      }</span>
                                       {row.logged.rpe !== null && <span> @ {row.logged.rpe}RPE</span>}
                                       {row.logged.notes && <span className="text-secondary"> - {row.logged.notes}</span>}
                                     </p>
@@ -1121,7 +1133,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                                     // TARGET SET ROW
                                     <p key={row.target.id} className="text-secondary">
-                                      <span>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</span>
+                                      <span>{row.target.time_seconds != null && row.target.time_seconds > 0
+                                        ? <>{row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
+                                        : <>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</>
+                                      }</span>
                                       {row.target.rpe !== null && <span> @ {row.target.rpe}RPE</span>}
                                     </p>
                                   ) : null)}
@@ -1166,7 +1181,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                               <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
                                 {target.sets.map((set) => (
                                   <p key={set.id} className="text-secondary">
-                                    <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                                    <span>{set.time_seconds != null && set.time_seconds > 0
+                              ? <>{set.weight > 0 ? `${set.weight}lb x ` : ""}{set.time_seconds < 60 ? `${set.time_seconds}s` : `${Math.floor(set.time_seconds / 60)}:${String(set.time_seconds % 60).padStart(2, "0")}`}</>
+                              : <>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</>
+                            }</span>
                                     {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
                                   </p>
                                 ))}
@@ -1264,7 +1282,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                             // WORKING SET ROW
                             <p key={row.logged.id} className={!row.logged.is_completed ? 'text-secondary' : ''}>
-                              <span>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</span>
+                              <span>{row.logged.time_seconds != null && row.logged.time_seconds > 0
+                                ? <>{row.logged.weight > 0 ? `${row.logged.weight}lb x ` : ""}{row.logged.time_seconds < 60 ? `${row.logged.time_seconds}s` : `${Math.floor(row.logged.time_seconds / 60)}:${String(row.logged.time_seconds % 60).padStart(2, "0")}`}</>
+                                : <>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</>
+                              }</span>
                               {row.logged.rpe !== null && <span> @ {row.logged.rpe}RPE</span>}
                               {row.logged.notes && <span className="text-secondary"> - {row.logged.notes}</span>}
                             </p>
@@ -1272,7 +1293,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                             // TARGET SET ROW
                             <p key={row.target.id} className="text-secondary">
-                              <span>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</span>
+                              <span>{row.target.time_seconds != null && row.target.time_seconds > 0
+                                ? <>{row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
+                                : <>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</>
+                              }</span>
                               {row.target.rpe !== null && <span> @ {row.target.rpe}RPE</span>}
                             </p>
                           ) : null)}
@@ -1319,7 +1343,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         {/* WORKING SET ROWS */}
                         {target.sets.filter((s) => !s.is_warmup).map((set) => (
                           <p key={set.id} className="text-secondary">
-                            <span>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</span>
+                            <span>{set.time_seconds != null && set.time_seconds > 0
+                              ? <>{set.weight > 0 ? `${set.weight}lb x ` : ""}{set.time_seconds < 60 ? `${set.time_seconds}s` : `${Math.floor(set.time_seconds / 60)}:${String(set.time_seconds % 60).padStart(2, "0")}`}</>
+                              : <>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</>
+                            }</span>
                             {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
                           </p>
                         ))}

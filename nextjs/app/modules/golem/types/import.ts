@@ -1,9 +1,10 @@
 export interface ImportSet {
   set_number: number;
   is_warmup: boolean;
-  reps: number;
+  reps: number | null;
   weight: number;
   rpe: number | null;
+  time_seconds: number | null;
 }
 
 export interface ImportSegment {

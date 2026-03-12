@@ -94,7 +94,7 @@ export async function getExerciseById(id: string): Promise<Exercise> {
   }
 }
 
-export async function createExercise(name: string, description: string | null, category: string = 'Strength'): Promise<Exercise> {
+export async function createExercise(name: string, description: string | null, category: string = 'Strength', isTimed: boolean = false): Promise<Exercise> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -102,10 +102,11 @@ export async function createExercise(name: string, description: string | null, c
       .input('name', name)
       .input('description', description)
       .input('category', category)
+      .input('isTimed', isTimed ? 1 : 0)
       .query(`
-        INSERT INTO exercises (name, description, category)
+        INSERT INTO exercises (name, description, category, is_timed)
         OUTPUT INSERTED.*
-        VALUES (@name, @description, @category)
+        VALUES (@name, @description, @category, @isTimed)
       `);
 
     return result.recordset[0];
@@ -119,7 +120,7 @@ export async function createExercise(name: string, description: string | null, c
   }
 }
 
-export async function updateExercise(id: string, name: string, description: string | null, category: string): Promise<Exercise> {
+export async function updateExercise(id: string, name: string, description: string | null, category: string, isTimed: boolean = false): Promise<Exercise> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -128,9 +129,10 @@ export async function updateExercise(id: string, name: string, description: stri
       .input('name', name)
       .input('description', description)
       .input('category', category)
+      .input('isTimed', isTimed ? 1 : 0)
       .query(`
         UPDATE exercises
-        SET name = @name, description = @description, category = @category, modified_at = GETDATE()
+        SET name = @name, description = @description, category = @category, is_timed = @isTimed, modified_at = GETDATE()
         OUTPUT INSERTED.*
         WHERE id = @id
       `);
@@ -205,7 +207,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
   try {
     pool = await getGolemConnection();
     const result = await pool.request().query(`
-      SELECT e.id, e.name, e.category, e.is_disabled, mg.name AS muscle_group_name, emg.is_primary,
+      SELECT e.id, e.name, e.category, e.is_timed, e.is_disabled, mg.name AS muscle_group_name, emg.is_primary,
              best.best_set_weight, best.best_set_reps, last_use.last_used_at
       FROM exercises e
       LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
@@ -246,6 +248,7 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
           id: row.id,
           name: row.name,
           category: row.category,
+          is_timed: row.is_timed,
           is_disabled: row.is_disabled,
           primary_muscles: [],
           secondary_muscles: [],
@@ -313,7 +316,8 @@ export async function getExerciseHistory(
           sss.is_warmup,
           sss.reps,
           sss.weight,
-          sss.rpe
+          sss.rpe,
+          sss.time_seconds
         FROM session_segments ss
         JOIN workout_sessions ws ON ss.session_id = ws.id
         JOIN session_segment_sets sss ON sss.session_segment_id = ss.id
@@ -359,6 +363,7 @@ export async function getExerciseHistory(
         reps: row.reps,
         weight: row.weight,
         rpe: row.rpe,
+        time_seconds: row.time_seconds,
       });
     }
 

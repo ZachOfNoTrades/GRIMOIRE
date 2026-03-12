@@ -243,6 +243,7 @@ export function buildPreview(
           reps: row.reps,
           weight: row.weight,
           rpe: row.rpe,
+          time_seconds: null,
         });
       } else {
         // Start a new segment
@@ -261,6 +262,7 @@ export function buildPreview(
               reps: row.reps,
               weight: row.weight,
               rpe: row.rpe,
+              time_seconds: null,
             },
           ],
         };

@@ -3,6 +3,7 @@ export interface Exercise {
   name: string;
   description: string | null;
   category: string;
+  is_timed: boolean;
   is_disabled: boolean;
   created_at: Date;
   modified_at: Date;
@@ -12,6 +13,7 @@ export interface ExerciseSummary {
   id: string;
   name: string;
   category: string;
+  is_timed: boolean;
   is_disabled: boolean;
   primary_muscles: string[];
   secondary_muscles: string[];
@@ -29,9 +31,10 @@ export interface ExerciseModifier {
 export interface ExerciseHistorySet {
   set_number: number;
   is_warmup: boolean;
-  reps: number;
+  reps: number | null;
   weight: number;
   rpe: number | null;
+  time_seconds: number | null;
 }
 
 export interface ExerciseHistoryEntry {

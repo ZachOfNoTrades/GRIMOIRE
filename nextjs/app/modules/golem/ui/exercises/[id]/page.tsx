@@ -7,7 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
 import { ExerciseHistoryEntry } from "../../../types/exercise";
-import { formatDateLong, formatDateShortWithYear } from "../../../utils/format";
+import { formatDateLong, formatDateShortWithYear, formatDuration } from "../../../utils/format";
 import { calculateEstimatedOneRepMax } from "../../../utils/calc";
 import DisableExerciseModal from "./DisableExerciseModal";
 import EnableExerciseModal from "./EnableExerciseModal";
@@ -24,6 +24,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const [editedName, setEditedName] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
   const [editedCategory, setEditedCategory] = useState("Strength");
+  const [editedIsTimed, setEditedIsTimed] = useState(false);
   const [editedMuscleGroups, setEditedMuscleGroups] = useState<Array<{ muscleGroupId: string; isPrimary: boolean }>>([]);
 
   // STATE
@@ -131,6 +132,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     setEditedName(exercise.name);
     setEditedDescription(exercise.description || "");
     setEditedCategory(exercise.category);
+    setEditedIsTimed(exercise.is_timed);
     setEditedMuscleGroups(
       exercise.muscleGroups.map((mg) => ({
         muscleGroupId: mg.muscle_group_id,
@@ -145,6 +147,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     setEditedName("");
     setEditedDescription("");
     setEditedCategory("Strength");
+    setEditedIsTimed(false);
     setEditedMuscleGroups([]);
   };
 
@@ -164,6 +167,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
           name: editedName.trim(),
           description: editedDescription.trim() || null,
           category: editedCategory,
+          isTimed: editedIsTimed,
           muscleGroups: editedMuscleGroups,
         }),
       });
@@ -403,6 +407,20 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     </select>
                   </div>
 
+                  {/* TIMED EXERCISE TOGGLE */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="is-timed"
+                      checked={editedIsTimed}
+                      onChange={(e) => setEditedIsTimed(e.target.checked)}
+                      className="checkbox"
+                    />
+                    <label htmlFor="is-timed" className="text-secondary cursor-pointer">
+                      Timed Exercise
+                    </label>
+                  </div>
+
                   {/* MUSCLE GROUPS TABLE */}
                   <div>
                     <label className="text-secondary">Muscle Groups</label>
@@ -559,9 +577,36 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     return <div className="loading-container py-4"><div className="loading-spinner" /></div>;
                   }
 
-                  // Compute stats from history
+                  if (exercise.is_timed) {
+                    // Timed exercise stats
+                    const timedSets = history.flatMap((entry) =>
+                      entry.sets.filter((set) => !set.is_warmup && set.time_seconds != null && set.time_seconds > 0)
+                    );
+
+                    if (timedSets.length === 0) {
+                      return <p className="text-page-subtitle text-center py-4">No stats available</p>;
+                    }
+
+                    // Longest Duration
+                    const longestDuration = timedSets.reduce((best, set) =>
+                      (set.time_seconds ?? 0) > (best.time_seconds ?? 0) ? set : best
+                    );
+
+                    return (
+                      <div className="stat-section">
+
+                        {/* LONGEST DURATION */}
+                        <div className="stat-card">
+                          <p className="stat-label">Longest Duration</p>
+                          <p className="stat-value">{formatDuration(longestDuration.time_seconds!)}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Rep-based exercise stats
                   const workingSets = history.flatMap((entry) =>
-                    entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps > 0)
+                    entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps != null && set.reps > 0)
                   );
 
                   if (workingSets.length === 0) {
@@ -570,12 +615,12 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
                   // Estimated 1RM from best working set by Epley
                   const bestOneRepMax = Math.max(
-                    ...workingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps))
+                    ...workingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps!))
                   );
 
                   // Best volume set (highest weight × reps)
                   const bestVolumeSet = workingSets.reduce((best, set) =>
-                    set.weight * set.reps > best.weight * best.reps ? set : best
+                    set.weight * (set.reps ?? 0) > best.weight * (best.reps ?? 0) ? set : best
                   );
 
                   // Best weight set (heaviest weight lifted)
@@ -656,7 +701,15 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
                               // SET LINE
                               <p key={index} className={`text-sm ${set.is_warmup ? "text-secondary" : "text-primary"}`}>
-                                {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
+                                {set.time_seconds != null && set.time_seconds > 0
+                                  ? <>
+                                    {set.weight > 0 ? `${set.weight} x ` : ""}
+                                    {formatDuration(set.time_seconds)}
+                                  </>
+                                  : <>
+                                    {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
+                                  </>
+                                }
                                 {set.rpe != null && <span className="text-secondary"> @{set.rpe}</span>}
                               </p>
                             ))}

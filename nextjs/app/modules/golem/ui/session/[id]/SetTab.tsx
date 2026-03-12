@@ -12,6 +12,9 @@ enum SetField {
   Reps = "reps",
   Rpe = "rpe",
   Notes = "notes",
+  TimeSeconds = "time_seconds",
+  TimeHours = "time_hours",
+  TimeMinutes = "time_minutes",
 }
 
 interface SetTabProps {
@@ -19,6 +22,8 @@ interface SetTabProps {
   setEditedSegment: (segment: SegmentWithSets) => void;
   isWarmupSegment: boolean;
   onAutoSave: (segment: SegmentWithSets) => void;
+  exerciseCategory: string;
+  isTimed: boolean;
 }
 
 export default function SetTab({
@@ -26,6 +31,8 @@ export default function SetTab({
   setEditedSegment,
   isWarmupSegment,
   onAutoSave,
+  exerciseCategory,
+  isTimed,
 }: SetTabProps) {
 
   // INPUT
@@ -42,6 +49,8 @@ export default function SetTab({
   const warmupSets = editedSegment.sets.filter((s) => s.is_warmup);
   const workingSets = editedSegment.sets.filter((s) => !s.is_warmup);
   const isExerciseSwapped = editedSegment.target !== null && editedSegment.exercise_id !== editedSegment.target.exercise_id; // Target weights don't translate between exercises
+  const isCardio = isTimed && exerciseCategory === "Cardio";
+  const isTimedNonCardio = isTimed && exerciseCategory !== "Cardio";
 
   // Prescribed target counts are captured on mount and stay fixed so added sets remain "beyond target"
   const [prescribedWarmupCount] = useState(() =>
@@ -62,6 +71,21 @@ export default function SetTab({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Helper: decompose time_seconds into { hours, minutes, seconds }
+  const decomposeTime = (totalSeconds: number | null) => {
+    if (!totalSeconds || totalSeconds <= 0) return { hours: 0, minutes: 0, seconds: 0 };
+    return {
+      hours: Math.floor(totalSeconds / 3600),
+      minutes: Math.floor((totalSeconds % 3600) / 60),
+      seconds: totalSeconds % 60,
+    };
+  };
+
+  // Helper: compose h/m/s into total seconds
+  const composeTime = (hours: number, minutes: number, seconds: number) => {
+    return hours * 3600 + minutes * 60 + seconds;
+  };
+
   const handleNotesChange = (notes: string) => {
     setEditedSegment({
       ...editedSegment,
@@ -81,6 +105,17 @@ export default function SetTab({
         updatedSet.rpe = value === "" ? null : parseFloat(value) || null;
       } else if (field === SetField.Notes) {
         updatedSet.notes = value || null;
+      } else if (field === SetField.TimeSeconds) {
+        // Direct seconds input (for timed non-cardio)
+        updatedSet.time_seconds = parseInt(value) || 0;
+      } else if (field === SetField.TimeHours) {
+        // Cardio h/m/s: update hours component
+        const current = decomposeTime(set.time_seconds);
+        updatedSet.time_seconds = composeTime(parseInt(value) || 0, current.minutes, current.seconds);
+      } else if (field === SetField.TimeMinutes) {
+        // Cardio h/m/s: update minutes component
+        const current = decomposeTime(set.time_seconds);
+        updatedSet.time_seconds = composeTime(current.hours, parseInt(value) || 0, current.seconds);
       }
       return updatedSet;
     });
@@ -103,9 +138,10 @@ export default function SetTab({
       session_segment_id: editedSegment.id,
       set_number: newSetNumber,
       is_warmup: isWarmup,
-      reps: 0,
+      reps: isTimed ? null : 0,
       weight: 0,
       rpe: null,
+      time_seconds: isTimed ? 0 : null,
       notes: null,
       is_completed: false,
       created_at: new Date(),
@@ -141,7 +177,7 @@ export default function SetTab({
     else {
       const updatedSets = editedSegment.sets.map((s) => {
         if (s.id !== setId) return s;
-        return { ...s, weight: 0, reps: 0, rpe: null, notes: null, is_completed: false };
+        return { ...s, weight: 0, reps: isTimed ? null : 0, rpe: null, time_seconds: isTimed ? 0 : null, notes: null, is_completed: false };
       });
       setEditedSegment({ ...editedSegment, sets: updatedSets });
     }
@@ -158,7 +194,7 @@ export default function SetTab({
       (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
     );
 
-    const hasLoggedSetData = set.weight > 0 || set.reps > 0 || set.rpe !== null || set.notes !== null;
+    const hasLoggedSetData = set.weight > 0 || (set.reps != null && set.reps > 0) || set.rpe !== null || set.notes !== null || (set.time_seconds != null && set.time_seconds > 0);
 
     // If handling toggling from OFF to ON
     if (!set.is_completed) {
@@ -178,7 +214,8 @@ export default function SetTab({
           return {
             ...set,
             weight: set.weight > 0 ? set.weight : (isExerciseSwapped ? 0 : targetSetData.weight),
-            reps: set.reps > 0 ? set.reps : targetSetData.reps,
+            reps: isTimed ? set.reps : ((set.reps != null && set.reps > 0) ? set.reps : targetSetData.reps),
+            time_seconds: !isTimed ? set.time_seconds : ((set.time_seconds != null && set.time_seconds > 0) ? set.time_seconds : targetSetData.time_seconds),
             rpe: set.rpe !== null ? set.rpe : targetSetData.rpe,
             is_completed: true,
           };
@@ -225,8 +262,10 @@ export default function SetTab({
     setEditedSetNotes("");
   };
 
-  // Advance focus on Enter: weight → reps → rpe → mark complete & close keyboard
-  // If the next field already has data, close keyboard instead of advancing
+  // Advance focus on Enter based on exercise layout
+  // Rep-based: Weight → Reps → RPE → complete
+  // Timed Strength/Mobility: Weight → Seconds → RPE → complete
+  // Cardio: Hours → Minutes → Seconds → RPE → complete
   const handleEnterAdvance = (e: React.KeyboardEvent<HTMLInputElement>, setId: string, field: SetField) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
@@ -234,26 +273,75 @@ export default function SetTab({
     const set = editedSegment.sets.find((s) => s.id === setId);
     if (!set) return;
 
-    if (field === SetField.Weight) {
-      if (set.reps > 0) {
+    if (isCardio) {
+      // Cardio: Hours → Minutes → Seconds → RPE → complete
+      if (field === SetField.TimeHours) {
+        document.getElementById(`${setId}-time-minutes`)?.focus();
+      } else if (field === SetField.TimeMinutes) {
+        document.getElementById(`${setId}-time-seconds`)?.focus();
+      } else if (field === SetField.TimeSeconds) {
+        if (set.rpe !== null) {
+          (e.target as HTMLInputElement).blur();
+        } else {
+          document.getElementById(`${setId}-rpe`)?.focus();
+        }
+      } else if (field === SetField.Rpe) {
         (e.target as HTMLInputElement).blur();
-      } else {
-        document.getElementById(`${setId}-reps`)?.focus();
+        if (!set.is_completed) {
+          const targetSet = editedSegment.target?.sets.find(
+            (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
+          );
+          const hasData = set.time_seconds != null && set.time_seconds > 0;
+          if (hasData || targetSet) handleToggleSetCompleted(setId);
+        }
       }
-    } else if (field === SetField.Reps) {
-      if (set.rpe !== null) {
+    } else if (isTimedNonCardio) {
+      // Timed Strength/Mobility: Weight → Seconds → RPE → complete
+      if (field === SetField.Weight) {
+        if (set.time_seconds != null && set.time_seconds > 0) {
+          (e.target as HTMLInputElement).blur();
+        } else {
+          document.getElementById(`${setId}-time-seconds`)?.focus();
+        }
+      } else if (field === SetField.TimeSeconds) {
+        if (set.rpe !== null) {
+          (e.target as HTMLInputElement).blur();
+        } else {
+          document.getElementById(`${setId}-rpe`)?.focus();
+        }
+      } else if (field === SetField.Rpe) {
         (e.target as HTMLInputElement).blur();
-      } else {
-        document.getElementById(`${setId}-rpe`)?.focus();
+        if (!set.is_completed) {
+          const targetSet = editedSegment.target?.sets.find(
+            (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
+          );
+          const hasData = set.time_seconds != null && set.time_seconds > 0;
+          if (hasData || targetSet) handleToggleSetCompleted(setId);
+        }
       }
-    } else if (field === SetField.Rpe) {
-      (e.target as HTMLInputElement).blur();
-      if (!set.is_completed) {
-        const targetSet = editedSegment.target?.sets.find(
-          (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
-        );
-        const hasData = set.weight > 0 || set.reps > 0 || set.rpe !== null;
-        if (hasData || targetSet) handleToggleSetCompleted(setId);
+    } else {
+      // Rep-based: Weight → Reps → RPE → complete
+      if (field === SetField.Weight) {
+        if (set.reps != null && set.reps > 0) {
+          (e.target as HTMLInputElement).blur();
+        } else {
+          document.getElementById(`${setId}-reps`)?.focus();
+        }
+      } else if (field === SetField.Reps) {
+        if (set.rpe !== null) {
+          (e.target as HTMLInputElement).blur();
+        } else {
+          document.getElementById(`${setId}-rpe`)?.focus();
+        }
+      } else if (field === SetField.Rpe) {
+        (e.target as HTMLInputElement).blur();
+        if (!set.is_completed) {
+          const targetSet = editedSegment.target?.sets.find(
+            (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
+          );
+          const hasData = set.reps != null && set.reps > 0;
+          if (hasData || targetSet) handleToggleSetCompleted(setId);
+        }
       }
     }
   };
@@ -264,11 +352,17 @@ export default function SetTab({
       (ts) => ts.is_warmup === set.is_warmup && ts.set_number === set.set_number
     );
     const segmentTargetSetCount = set.is_warmup ? prescribedWarmupCount : prescribedWorkingCount;
-    const hasSetData = set.weight > 0 || set.reps > 0 || set.rpe !== null || set.notes !== null;
     const isBeyondTarget = set.set_number > segmentTargetSetCount; // Determines if current set index is greater than target set count
     const showRemoveSet = isLastInSection && isBeyondTarget;
-    const canComplete = set.reps > 0 || (targetSet && targetSet.reps > 0); // Can complete if there are reps or target reps to autofill from
     const hasNotes = !!set.notes;
+
+    const canComplete = isTimed
+      ? (set.time_seconds != null && set.time_seconds > 0) || (targetSet && targetSet.time_seconds != null && targetSet.time_seconds > 0)
+      : (set.reps != null && set.reps > 0) || (targetSet && targetSet.reps != null && targetSet.reps > 0);
+
+    // Decompose time for cardio display
+    const timeComponents = decomposeTime(set.time_seconds);
+    const targetTimeComponents = decomposeTime(targetSet?.time_seconds ?? null);
 
     return (
       <div key={set.id} className="relative flex items-center gap-2">
@@ -291,40 +385,121 @@ export default function SetTab({
           }
         </Button>
 
-        {/* WEIGHT INPUT */}
-        <div className="flex flex-col flex-1 min-w-15">
-          <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Weight</label>
-          <input
-            id={`${set.id}-weight`}
-            type="number"
-            value={set.weight || ""}
-            onChange={(e) => handleSetFieldChange(set.id, SetField.Weight, e.target.value)}
-            className="input-field input-field-compact text-center"
-            placeholder={targetSet && targetSet.weight > 0 && !isExerciseSwapped ? String(targetSet.weight) : "-"}
-            onFocus={(e) => e.target.select()}
-            onBlur={() => handleSetFieldBlur(set.id)}
-            onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
-            step="0.5"
-            min="0"
-          />
-        </div>
+        {/* WEIGHT INPUT (hidden for cardio) */}
+        {!isCardio && (
+          <div className="flex flex-col flex-1 min-w-15">
+            <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Weight</label>
+            <input
+              id={`${set.id}-weight`}
+              type="number"
+              value={set.weight || ""}
+              onChange={(e) => handleSetFieldChange(set.id, SetField.Weight, e.target.value)}
+              className="input-field input-field-compact text-center"
+              placeholder={targetSet && targetSet.weight > 0 && !isExerciseSwapped ? String(targetSet.weight) : "-"}
+              onFocus={(e) => e.target.select()}
+              onBlur={() => handleSetFieldBlur(set.id)}
+              onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
+              step="0.5"
+              min="0"
+            />
+          </div>
+        )}
 
-        {/* REPS INPUT */}
-        <div className="flex flex-col flex-1 min-w-15">
-          <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Reps</label>
-          <input
-            id={`${set.id}-reps`}
-            type="number"
-            value={set.reps || ""}
-            onChange={(e) => handleSetFieldChange(set.id, SetField.Reps, e.target.value)}
-            className="input-field input-field-compact text-center"
-            placeholder={targetSet ? String(targetSet.reps) : "-"}
-            onFocus={(e) => e.target.select()}
-            onBlur={() => handleSetFieldBlur(set.id)}
-            onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Reps)}
-            min="0"
-          />
-        </div>
+        {/* REPS INPUT (shown only for non-timed exercises) */}
+        {!isTimed && (
+          <div className="flex flex-col flex-1 min-w-15">
+            <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Reps</label>
+            <input
+              id={`${set.id}-reps`}
+              type="number"
+              value={set.reps || ""}
+              onChange={(e) => handleSetFieldChange(set.id, SetField.Reps, e.target.value)}
+              className="input-field input-field-compact text-center"
+              placeholder={targetSet?.reps != null ? String(targetSet.reps) : "-"}
+              onFocus={(e) => e.target.select()}
+              onBlur={() => handleSetFieldBlur(set.id)}
+              onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Reps)}
+              min="0"
+            />
+          </div>
+        )}
+
+        {/* SECONDS INPUT (shown for timed non-cardio exercises) */}
+        {isTimedNonCardio && (
+          <div className="flex flex-col flex-1 min-w-15">
+            <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Seconds</label>
+            <input
+              id={`${set.id}-time-seconds`}
+              type="number"
+              value={set.time_seconds || ""}
+              onChange={(e) => handleSetFieldChange(set.id, SetField.TimeSeconds, e.target.value)}
+              className="input-field input-field-compact text-center"
+              placeholder={targetSet?.time_seconds != null ? String(targetSet.time_seconds) : "-"}
+              onFocus={(e) => e.target.select()}
+              onBlur={() => handleSetFieldBlur(set.id)}
+              onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.TimeSeconds)}
+              min="0"
+            />
+          </div>
+        )}
+
+        {/* H/M/S INPUTS (shown for cardio exercises) */}
+        {isCardio && (
+          <>
+            {/* HOURS */}
+            <div className="flex flex-col flex-1 min-w-12">
+              <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Hours</label>
+              <input
+                id={`${set.id}-time-hours`}
+                type="number"
+                value={timeComponents.hours || ""}
+                onChange={(e) => handleSetFieldChange(set.id, SetField.TimeHours, e.target.value)}
+                className="input-field input-field-compact text-center"
+                placeholder={targetTimeComponents.hours > 0 ? String(targetTimeComponents.hours) : "-"}
+                onFocus={(e) => e.target.select()}
+                onBlur={() => handleSetFieldBlur(set.id)}
+                onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.TimeHours)}
+                min="0"
+              />
+            </div>
+
+            {/* MINUTES */}
+            <div className="flex flex-col flex-1 min-w-12">
+              <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Min</label>
+              <input
+                id={`${set.id}-time-minutes`}
+                type="number"
+                value={timeComponents.minutes || ""}
+                onChange={(e) => handleSetFieldChange(set.id, SetField.TimeMinutes, e.target.value)}
+                className="input-field input-field-compact text-center"
+                placeholder={targetTimeComponents.minutes > 0 ? String(targetTimeComponents.minutes) : "-"}
+                onFocus={(e) => e.target.select()}
+                onBlur={() => handleSetFieldBlur(set.id)}
+                onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.TimeMinutes)}
+                min="0"
+                max="59"
+              />
+            </div>
+
+            {/* SECONDS */}
+            <div className="flex flex-col flex-1 min-w-12">
+              <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Sec</label>
+              <input
+                id={`${set.id}-time-seconds`}
+                type="number"
+                value={timeComponents.seconds || ""}
+                onChange={(e) => handleSetFieldChange(set.id, SetField.TimeSeconds, e.target.value)}
+                className="input-field input-field-compact text-center"
+                placeholder={targetTimeComponents.seconds > 0 ? String(targetTimeComponents.seconds) : "-"}
+                onFocus={(e) => e.target.select()}
+                onBlur={() => handleSetFieldBlur(set.id)}
+                onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.TimeSeconds)}
+                min="0"
+                max="59"
+              />
+            </div>
+          </>
+        )}
 
         {/* RPE INPUT */}
         <div className="flex flex-col flex-1 min-w-15">

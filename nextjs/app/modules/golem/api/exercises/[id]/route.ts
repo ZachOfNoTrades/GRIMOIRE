@@ -37,7 +37,7 @@ export async function PUT(
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const { name, description, category, muscleGroups } = body;
+    const { name, description, category, isTimed, muscleGroups } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -53,7 +53,7 @@ export async function PUT(
       );
     }
 
-    await updateExercise(id, name.trim(), description?.trim() || null, category);
+    await updateExercise(id, name.trim(), description?.trim() || null, category, !!isTimed);
 
     // Update muscle groups if provided
     if (muscleGroups !== undefined) {

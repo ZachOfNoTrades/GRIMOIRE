@@ -24,6 +24,7 @@ export default function ExerciseFormView({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Strength");
+  const [isTimed, setIsTimed] = useState(false);
   const [assignments, setAssignments] = useState<Map<string, "primary" | "secondary">>(new Map());
 
   // STATE
@@ -49,6 +50,7 @@ export default function ExerciseFormView({
             setName(detail.name);
             setDescription(detail.description ?? "");
             setCategory(detail.category);
+            setIsTimed(detail.is_timed ?? false);
 
             const muscleGroupMap = new Map<string, "primary" | "secondary">();
             for (const muscleGroup of detail.muscleGroups) {
@@ -119,6 +121,7 @@ export default function ExerciseFormView({
             name: name.trim(),
             description: description.trim() || null,
             category,
+            isTimed,
             muscleGroups: muscleGroupPayload,
           }),
         });
@@ -137,6 +140,7 @@ export default function ExerciseFormView({
           ...exercise,
           name: name.trim(),
           category,
+          is_timed: isTimed,
           primary_muscles: primaryMuscles,
           secondary_muscles: secondaryMuscles,
         };
@@ -150,6 +154,7 @@ export default function ExerciseFormView({
             name: name.trim(),
             description: description.trim() || null,
             category,
+            isTimed,
           }),
         });
 
@@ -170,6 +175,7 @@ export default function ExerciseFormView({
               name: name.trim(),
               description: description.trim() || null,
               category,
+              isTimed,
               muscleGroups: muscleGroupPayload,
             }),
           });
@@ -179,6 +185,7 @@ export default function ExerciseFormView({
           id: created.id,
           name: created.name,
           category: created.category ?? category,
+          is_timed: created.is_timed ?? isTimed,
           is_disabled: false,
           primary_muscles: primaryMuscles,
           secondary_muscles: secondaryMuscles,
@@ -248,6 +255,20 @@ export default function ExerciseFormView({
             <option value="Cardio">Cardio</option>
             <option value="Mobility">Mobility</option>
           </select>
+        </div>
+
+        {/* TIMED EXERCISE TOGGLE */}
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="is-timed-form"
+            checked={isTimed}
+            onChange={(e) => setIsTimed(e.target.checked)}
+            className="checkbox"
+          />
+          <label htmlFor="is-timed-form" className="text-label cursor-pointer">
+            Timed Exercise
+          </label>
         </div>
 
         {/* MUSCLE GROUPS */}

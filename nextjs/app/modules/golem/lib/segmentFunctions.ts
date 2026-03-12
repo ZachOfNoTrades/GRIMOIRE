@@ -23,6 +23,8 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           em.name AS modifier_name,
           se.order_index,
           se.is_warmup AS segment_is_warmup,
+          e.category AS exercise_category,
+          e.is_timed AS exercise_is_timed,
           se.notes AS segment_notes,
           se.created_at AS segment_created_at,
           se.modified_at AS segment_modified_at,
@@ -31,6 +33,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           ses.reps,
           ses.weight,
           ses.rpe,
+          ses.time_seconds,
           ses.is_warmup,
           ses.is_completed,
           ses.notes AS set_notes,
@@ -58,6 +61,8 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           session_id: row.session_id,
           exercise_id: row.exercise_id,
           exercise_name: row.exercise_name,
+          exercise_category: row.exercise_category,
+          exercise_is_timed: row.exercise_is_timed,
           target_id: row.target_id,
           modifier_id: row.modifier_id,
           modifier_name: row.modifier_name,
@@ -82,6 +87,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           reps: row.reps,
           weight: row.weight,
           rpe: row.rpe,
+          time_seconds: row.time_seconds,
           notes: row.set_notes,
           is_completed: row.is_completed,
           created_at: row.set_created_at,
@@ -99,6 +105,8 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           tse.session_id,
           tse.exercise_id,
           e.name AS exercise_name,
+          e.category AS exercise_category,
+          e.is_timed AS exercise_is_timed,
           tse.modifier_id AS target_modifier_id,
           em.name AS target_modifier_name,
           tse.order_index,
@@ -112,6 +120,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           tss.reps,
           tss.weight,
           tss.rpe,
+          tss.time_seconds,
           tss.created_at AS target_set_created_at,
           tss.modified_at AS target_set_modified_at
         FROM target_session_segments tse
@@ -136,6 +145,8 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           session_id: row.session_id,
           exercise_id: row.exercise_id,
           exercise_name: row.exercise_name,
+          exercise_category: row.exercise_category,
+          exercise_is_timed: row.exercise_is_timed,
           modifier_id: row.target_modifier_id,
           modifier_name: row.target_modifier_name,
           order_index: row.order_index,
@@ -157,6 +168,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
           reps: row.reps,
           weight: row.weight,
           rpe: row.rpe,
+          time_seconds: row.time_seconds,
           created_at: row.target_set_created_at,
           modified_at: row.target_set_modified_at,
         });
@@ -268,6 +280,7 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
             .input('reps', set.reps)
             .input('weight', set.weight)
             .input('rpe', set.rpe)
+            .input('timeSeconds', set.time_seconds)
             .input('setNotes', set.notes)
             .input('isCompleted', set.is_completed)
             .query(`
@@ -281,12 +294,13 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
                   weight = @weight,
                   reps = @reps,
                   rpe = @rpe,
+                  time_seconds = @timeSeconds,
                   notes = @setNotes,
                   is_completed = @isCompleted,
                   modified_at = GETDATE()
               WHEN NOT MATCHED THEN
-                INSERT (id, session_segment_id, set_number, is_warmup, reps, weight, rpe, notes, is_completed)
-                VALUES (@setId, @sessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @setNotes, @isCompleted);
+                INSERT (id, session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, notes, is_completed)
+                VALUES (@setId, @sessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, @setNotes, @isCompleted);
             `);
         }
       }
@@ -443,9 +457,10 @@ export async function createGeneratedTargets(
             .input('reps', set.reps)
             .input('weight', set.weight)
             .input('rpe', set.rpe)
+            .input('timeSeconds', set.time_seconds)
             .query(`
-              INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe)
-              VALUES (@targetSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe)
+              INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds)
+              VALUES (@targetSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds)
             `);
         }
       }

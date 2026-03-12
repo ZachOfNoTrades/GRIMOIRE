@@ -20,6 +20,7 @@ export default function AddExerciseModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Strength");
+  const [isTimed, setIsTimed] = useState(false);
 
   // STATE
   const [isSaving, setIsSaving] = useState(false);
@@ -31,6 +32,7 @@ export default function AddExerciseModal({
       setName("");
       setDescription("");
       setCategory("Strength");
+      setIsTimed(false);
       setError(null);
     }
   }, [isOpen]);
@@ -52,6 +54,7 @@ export default function AddExerciseModal({
           name: name.trim(),
           description: description.trim() || null,
           category,
+          isTimed,
         }),
       });
 
@@ -140,6 +143,20 @@ export default function AddExerciseModal({
           <option value="Cardio">Cardio</option>
           <option value="Mobility">Mobility</option>
         </select>
+      </div>
+
+      {/* TIMED EXERCISE TOGGLE */}
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="is-timed-add"
+          checked={isTimed}
+          onChange={(e) => setIsTimed(e.target.checked)}
+          className="checkbox"
+        />
+        <label htmlFor="is-timed-add" className="text-label cursor-pointer">
+          Timed Exercise
+        </label>
       </div>
 
       {/* ERROR MESSAGE */}

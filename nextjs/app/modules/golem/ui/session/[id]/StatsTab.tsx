@@ -98,13 +98,13 @@ export default function StatsTab({
   const dataPoints: ChartDataPoint[] = history
     .filter((entry) => entry.started_at)
     .map((entry) => {
-      const workingSets = entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps > 0);
+      const workingSets = entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps != null && set.reps > 0);
       if (workingSets.length === 0) return null;
       const date = new Date(entry.started_at!);
       return {
         date,
         dateLabel: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        estimatedOneRepMax: Math.max(...workingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps))),
+        estimatedOneRepMax: Math.max(...workingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps!))),
       } as ChartDataPoint;
     })
     .filter(Boolean)
@@ -116,15 +116,15 @@ export default function StatsTab({
 
   // Aggregate all working sets across sessions for stat cards
   const allWorkingSets = history.flatMap((entry) =>
-    entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps > 0)
+    entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps != null && set.reps > 0)
   );
 
   const bestEstimatedOneRepMax = allWorkingSets.length > 0
-    ? Math.max(...allWorkingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps)))
+    ? Math.max(...allWorkingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps!)))
     : null;
 
   const bestVolumeSet = allWorkingSets.length > 0
-    ? allWorkingSets.reduce((best, set) => (set.weight * set.reps > best.weight * best.reps ? set : best))
+    ? allWorkingSets.reduce((best, set) => (set.weight * (set.reps ?? 0) > best.weight * (best.reps ?? 0) ? set : best))
     : null;
 
   const bestWeightSet = allWorkingSets.length > 0

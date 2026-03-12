@@ -203,9 +203,10 @@ export default function EditSegmentModal({
             session_segment_id: clonedSegment.id,
             set_number: i,
             is_warmup: true,
-            reps: 0,
+            reps: clonedSegment.exercise_is_timed ? null : 0,
             weight: 0,
             rpe: null,
+            time_seconds: clonedSegment.exercise_is_timed ? 0 : null,
             notes: null,
             is_completed: false,
             created_at: new Date(),
@@ -220,9 +221,10 @@ export default function EditSegmentModal({
             session_segment_id: clonedSegment.id,
             set_number: i,
             is_warmup: false,
-            reps: 0,
+            reps: clonedSegment.exercise_is_timed ? null : 0,
             weight: 0,
             rpe: null,
+            time_seconds: clonedSegment.exercise_is_timed ? 0 : null,
             notes: null,
             is_completed: false,
             created_at: new Date(),
@@ -261,6 +263,8 @@ export default function EditSegmentModal({
       ...editedSegment,
       exercise_id: exerciseId,
       exercise_name: selectedExercise.name,
+      exercise_category: selectedExercise.category,
+      exercise_is_timed: selectedExercise.is_timed,
     };
     setEditedSegment(updatedSegment);
     onSave(updatedSegment);
@@ -298,6 +302,8 @@ export default function EditSegmentModal({
             setEditedSegment={setEditedSegment}
             isWarmupSegment={editedSegment.is_warmup}
             onAutoSave={handleAutoSave}
+            exerciseCategory={editedSegment.exercise_category}
+            isTimed={editedSegment.exercise_is_timed}
           />
         );
       case "history":

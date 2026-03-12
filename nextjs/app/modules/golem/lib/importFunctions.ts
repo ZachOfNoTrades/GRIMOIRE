@@ -78,9 +78,10 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
               .input('reps', set.reps)
               .input('weight', set.weight)
               .input('rpe', set.rpe)
+              .input('timeSeconds', set.time_seconds ?? null)
               .query(`
-                INSERT INTO session_segment_sets (session_segment_id, set_number, is_warmup, reps, weight, rpe, is_completed)
-                VALUES (@segmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, 1)
+                INSERT INTO session_segment_sets (session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, is_completed)
+                VALUES (@segmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, 1)
               `);
             setsCreated++;
           }

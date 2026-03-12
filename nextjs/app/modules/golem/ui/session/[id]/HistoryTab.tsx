@@ -1,7 +1,7 @@
 "use client"
 
 import { ExerciseHistoryEntry } from "../../../types/exercise";
-import { HistoryRange, formatDateShortWithYear } from "../../../utils/format";
+import { HistoryRange, formatDateShortWithYear, formatDuration } from "../../../utils/format";
 
 const rangeOptions: { value: HistoryRange; label: string }[] = [
   { value: "6m", label: "6 Months" },
@@ -124,7 +124,15 @@ export default function HistoryTab({ history, loading, range, customStartDate, c
 
                   // SET LINE
                   <p key={index} className={`text-sm ${set.is_warmup ? "text-secondary" : "text-primary"}`}>
-                    {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
+                    {set.time_seconds != null && set.time_seconds > 0
+                      ? <>
+                          {set.weight > 0 ? `${set.weight} x ` : ""}
+                          {formatDuration(set.time_seconds)}
+                        </>
+                      : <>
+                          {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
+                        </>
+                    }
                     {set.rpe != null && <span className="text-secondary"> @{set.rpe}</span>}
                   </p>
                 ))}

@@ -5,9 +5,10 @@ Generate exercises and sets for a single training session.
 interface TargetSet {
 set_number: number; // Sequential within warmup/working groups (starts at 1)
 is_warmup: boolean; // true for warmup sets, false for working sets
-reps: number; // Positive integer
+reps: number | null; // Positive integer for rep-based exercises, null for timed exercises
 weight: number; // Weight in pounds (use 0 for bodyweight exercises or when weight varies by person)
 rpe: number | null; // Rate of perceived exertion 1-10, or null
+time_seconds: number | null; // Duration in seconds for timed exercises, null for rep-based exercises
 }
 
 interface TargetExercise {
@@ -48,6 +49,7 @@ Before generating exercises, use the SQL Query skill to gather relevant context.
 4. Warmup exercises (`is_warmup: true`) MUST have all sets with `is_warmup: true`. They should not contain working sets.
 5. set_number starts at 1 and increments independently for warmup sets and working sets within each exercise.
 6. The response must be a single JSON object with a target_exercises array — nothing else.
+7. For timed exercises (`is_timed = 1` in the exercises table), set `reps` to null and use `time_seconds` for the duration. For rep-based exercises (`is_timed = 0`), set `time_seconds` to null and use `reps`. Check the `is_timed` column when querying exercises.
 
 {{TEMPLATE_CONTEXT}}
 
