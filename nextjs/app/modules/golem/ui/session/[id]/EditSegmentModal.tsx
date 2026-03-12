@@ -293,6 +293,7 @@ export default function EditSegmentModal({
       case "sets":
         return (
           <SetTab
+            key={editedSegment.id}
             editedSegment={editedSegment}
             setEditedSegment={setEditedSegment}
             isWarmupSegment={editedSegment.is_warmup}
@@ -333,99 +334,99 @@ export default function EditSegmentModal({
 
   return (
     <>
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      fullHeight
-      title={
-        <span className="flex items-center gap-2">
-          {editedSegment.exercise_name || "New Exercise"}
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        fullHeight
+        title={
+          <span className="flex items-center gap-2">
+            {editedSegment.exercise_name || "New Exercise"}
 
-          {/* SWAP EXERCISE BUTTON */}
-          <Button
-            onClick={() => setIsExercisePickerOpen(true)}
-            className="btn-link"
-            title="Swap exercise"
-          >
-            <ArrowLeftRight className="w-4 h-4" />
-          </Button>
+            {/* SWAP EXERCISE BUTTON */}
+            <Button
+              onClick={() => setIsExercisePickerOpen(true)}
+              className="btn-link"
+              title="Swap exercise"
+            >
+              <ArrowLeftRight className="w-4 h-4" />
+            </Button>
 
-          {/* DISABLE/ENABLE EXERCISE BUTTON */}
-          <Button
-            onClick={() => setIsDisableModalOpen(true)}
-            className={isExerciseDisabled ? "btn-link btn-link-delete" : "btn-link"}
-            title={isExerciseDisabled ? "Enable exercise" : "Disable exercise"}
-          >
-            <Ban className="w-4 h-4" />
-          </Button>
-        </span>
-      }
-      disableClose={isDeleting}
-      footer={
-        <>
-          <Button
-            onClick={onRemove}
-            disabled={isDeleting}
-            className="btn-delete mr-auto"
-          >
-            {isDeleting ? "Deleting..." : "Delete"}
-          </Button>
+            {/* DISABLE/ENABLE EXERCISE BUTTON */}
+            <Button
+              onClick={() => setIsDisableModalOpen(true)}
+              className={isExerciseDisabled ? "btn-link btn-link-delete" : "btn-link"}
+              title={isExerciseDisabled ? "Enable exercise" : "Disable exercise"}
+            >
+              <Ban className="w-4 h-4" />
+            </Button>
+          </span>
+        }
+        disableClose={isDeleting}
+        footer={
+          <>
+            <Button
+              onClick={onRemove}
+              disabled={isDeleting}
+              className="btn-delete mr-auto"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
 
-          {/* SAVE BUTTON */}
-          <Button onClick={onClose} className="btn-primary">
-            <Save className="w-4 h-4" />
-            Save
-          </Button>
-        </>
-      }
-    >
+            {/* SAVE BUTTON */}
+            <Button onClick={onClose} className="btn-primary">
+              <Save className="w-4 h-4" />
+              Save
+            </Button>
+          </>
+        }
+      >
 
-      {/* TAB NAVIGATION */}
-      <nav className="flex sm:space-x-1 px-2 border-b border-card" role="tablist">
-        {tabs.map((tab) => (
+        {/* TAB NAVIGATION */}
+        <nav className="flex sm:space-x-1 px-2 border-b border-card" role="tablist">
+          {tabs.map((tab) => (
 
-          // TAB BUTTON
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`tab-button max-sm:flex-1 max-sm:justify-center ${activeTab === tab.id ? "tab-button-active" : ""}`}
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            aria-controls={`${tab.id}-panel`}
-          >
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </nav>
+            // TAB BUTTON
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`tab-button max-sm:flex-1 max-sm:justify-center ${activeTab === tab.id ? "tab-button-active" : ""}`}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={`${tab.id}-panel`}
+            >
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </nav>
 
-      {/* TAB CONTENT */}
-      <div className="min-h-[60vh]" role="tabpanel" id={`${activeTab}-panel`} aria-labelledby={`${activeTab}-tab`}>
-        {renderActiveTab()}
-      </div>
-    </Modal>
+        {/* TAB CONTENT */}
+        <div className="min-h-[60vh]" role="tabpanel" id={`${activeTab}-panel`} aria-labelledby={`${activeTab}-tab`}>
+          {renderActiveTab()}
+        </div>
+      </Modal>
 
-    {/* EXERCISE PICKER MODAL */}
-    <ExercisePickerModal
-      isOpen={isExercisePickerOpen}
-      onClose={() => setIsExercisePickerOpen(false)}
-      onSelect={(exercise) => handleExerciseChange(exercise.id)}
-      exercises={exercises}
-      onExerciseCreated={onExerciseCreated}
-      onExerciseUpdated={onExerciseUpdated}
-      currentExerciseId={editedSegment.exercise_id}
-      targetExerciseId={editedSegment.target?.exercise_id}
-    />
+      {/* EXERCISE PICKER MODAL */}
+      <ExercisePickerModal
+        isOpen={isExercisePickerOpen}
+        onClose={() => setIsExercisePickerOpen(false)}
+        onSelect={(exercise) => handleExerciseChange(exercise.id)}
+        exercises={exercises}
+        onExerciseCreated={onExerciseCreated}
+        onExerciseUpdated={onExerciseUpdated}
+        currentExerciseId={editedSegment.exercise_id}
+        targetExerciseId={editedSegment.target?.exercise_id}
+      />
 
-    {/* DISABLE/ENABLE EXERCISE MODAL */}
-    <DisableExerciseModal
-      isOpen={isDisableModalOpen}
-      onClose={() => setIsDisableModalOpen(false)}
-      onDisable={handleDisableExercise}
-      onEnable={handleEnableExercise}
-      exerciseName={editedSegment.exercise_name}
-      isDisabled={isExerciseDisabled}
-      isToggling={isTogglingDisable}
-    />
+      {/* DISABLE/ENABLE EXERCISE MODAL */}
+      <DisableExerciseModal
+        isOpen={isDisableModalOpen}
+        onClose={() => setIsDisableModalOpen(false)}
+        onDisable={handleDisableExercise}
+        onEnable={handleEnableExercise}
+        exerciseName={editedSegment.exercise_name}
+        isDisabled={isExerciseDisabled}
+        isToggling={isTogglingDisable}
+      />
     </>
   );
 }
