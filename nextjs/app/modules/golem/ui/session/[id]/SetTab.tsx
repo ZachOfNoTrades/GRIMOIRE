@@ -303,7 +303,7 @@ export default function SetTab({
             onFocus={(e) => e.target.select()}
             onBlur={() => handleSetFieldBlur(set.id)}
             onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
-            step="0.5" // TODO add steps to schema for exercises
+            step="0.5"
             min="0"
           />
         </div>

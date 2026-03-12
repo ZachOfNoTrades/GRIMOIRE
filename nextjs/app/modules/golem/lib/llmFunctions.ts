@@ -109,7 +109,6 @@ async function callClaudeCode(prompt: string, outputFile: string): Promise<strin
   });
 }
 
-// TODO: Add tool-calling loop for local provider to support SQL skill queries
 async function callLocalLLM(prompt: string, outputFile: string): Promise<string> {
   const serverUrl = process.env.LLM_SERVER_URL;
   const model = process.env.LLM_MODEL;

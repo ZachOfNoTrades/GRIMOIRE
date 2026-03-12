@@ -225,10 +225,6 @@ export async function getProgramById(programId: string): Promise<Program> {
 
 // Clears is_current on a program and all of its blocks, weeks, and sessions.
 async function clearProgramCurrentFlags(transaction: any, programId: string): Promise<void> {
-
-  // TODO: Handle in-progress sessions (started_at/resumed_at set) — they
-  // should be paused or completed before switching, otherwise they retain an active timer state.
-
   // Clear current flags on sessions within the program
   await transaction.request()
     .input('programId', programId)

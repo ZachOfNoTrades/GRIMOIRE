@@ -1,6 +1,5 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { Exercise, ExerciseSummary, ExerciseHistoryEntry } from '../types/exercise';
-// TODO: Update all other e1RM calculations across the codebase to use this shared util
 import { calculateEstimatedOneRepMax } from '../utils/calc';
 
 export async function getAllExercises(

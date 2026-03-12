@@ -346,8 +346,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setIsSegmentModalOpen(true);
   };
 
-  // TODO - Block editing if session not started
-
   // Initialize a new EditSegmentModal and pass target set data (modal will handle filling out sets[])
   const handleOpenTargetSegment = (target: TargetSegment) => {
     const newSegmentId = generateUUID();
