@@ -28,11 +28,13 @@ export default function MuscleGroupView({
 
   // DERIVED
   const normalizedQuery = searchQuery.toLowerCase().replace(/-/g, "");
-  const muscleGroupExercises = exercises.filter((ex) =>
-    (showDisabled || !ex.is_disabled) &&
-    ex.primary_muscles.includes(muscleGroup) &&
-    ex.name.toLowerCase().replace(/-/g, "").includes(normalizedQuery)
-  );
+  const queryWords = normalizedQuery.split(/\s+/).filter(Boolean);
+  const muscleGroupExercises = exercises.filter((ex) => {
+    if (!showDisabled && ex.is_disabled) return false;
+    if (!ex.primary_muscles.includes(muscleGroup)) return false;
+    const normalizedName = ex.name.toLowerCase().replace(/-/g, "");
+    return queryWords.every((word) => normalizedName.includes(word));
+  });
 
   return (
     <div className="flex flex-col gap-2 h-full">

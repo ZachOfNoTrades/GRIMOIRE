@@ -25,10 +25,13 @@ export async function getAllExercises(
       conditions.push('is_disabled = 0');
     }
 
-    // Search filter
+    // Search filter — match each word independently so searches like "sumo deadlift" finds "sumo deficit deadlift"
     if (options.search) {
-      request.input('search', `%${options.search}%`);
-      conditions.push('name LIKE @search');
+      const searchWords = options.search.trim().split(/\s+/).filter(Boolean);
+      searchWords.forEach((word, index) => {
+        request.input(`search${index}`, `%${word}%`);
+        conditions.push(`name LIKE @search${index}`);
+      });
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

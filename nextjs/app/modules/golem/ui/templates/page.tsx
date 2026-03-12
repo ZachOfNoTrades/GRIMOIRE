@@ -19,9 +19,12 @@ export default function TemplatesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const filteredTemplates = templates.filter((template) =>
-    !searchTerm || template.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+  const filteredTemplates = templates.filter((template) => {
+    if (searchWords.length === 0) return true;
+    const normalizedName = template.name.toLowerCase();
+    return searchWords.every((word) => normalizedName.includes(word));
+  });
 
   const router = useRouter();
 

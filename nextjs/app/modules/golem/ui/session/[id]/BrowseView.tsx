@@ -33,10 +33,12 @@ export default function BrowseView({
   const isSearching = searchQuery.length > 0;
 
   const normalizedQuery = searchQuery.toLowerCase().replace(/-/g, "");
-  const filteredExercises = exercises.filter((ex) =>
-    (showDisabled || !ex.is_disabled) &&
-    ex.name.toLowerCase().replace(/-/g, "").includes(normalizedQuery)
-  );
+  const queryWords = normalizedQuery.split(/\s+/).filter(Boolean);
+  const filteredExercises = exercises.filter((ex) => {
+    if (!showDisabled && ex.is_disabled) return false;
+    const normalizedName = ex.name.toLowerCase().replace(/-/g, "");
+    return queryWords.every((word) => normalizedName.includes(word));
+  });
 
   // Group exercises by first letter for alphabetical view
   const alphabeticalGroups = (() => {

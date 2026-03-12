@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Dumbbell, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,16 @@ export default function ExercisesPage() {
 
   // STATE
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [activeSearch, setActiveSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const tableRef = useRef<PaginatedTableHandle>(null);
   const router = useRouter();
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   return (
 
@@ -67,7 +73,6 @@ export default function ExercisesPage() {
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") setActiveSearch(searchTerm); }}
                 className="input-field"
               />
 
@@ -104,15 +109,15 @@ export default function ExercisesPage() {
 
           {/* EXERCISES TABLE */}
           <PaginatedTable<Exercise>
-            key={`${showDisabled}-${activeSearch}`}
+            key={`${showDisabled}-${debouncedSearch}`}
             ref={tableRef}
             fetchUrl={(page, pageSize) =>
-              `/modules/golem/api/exercises?showDisabled=${showDisabled}&search=${encodeURIComponent(activeSearch)}&page=${page}&pageSize=${pageSize}`
+              `/modules/golem/api/exercises?showDisabled=${showDisabled}&search=${encodeURIComponent(debouncedSearch)}&page=${page}&pageSize=${pageSize}`
             }
             dataKey="exercises"
             columns={[{ header: "Exercise" }]}
             defaultPageSize={0}
-            emptyMessage={activeSearch ? "No exercises match search criteria" : "No exercises found"}
+            emptyMessage={debouncedSearch ? "No exercises match search criteria" : "No exercises found"}
             renderRow={(exercise) => (
 
               // TABLE ROW
