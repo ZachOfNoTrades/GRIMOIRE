@@ -102,7 +102,7 @@ export const EXERCISE_NAME_ALIASES: Record<string, string> = {
   "dumbbell preacher curls": "Dumbbell Preacher Curl",
   "dumbbell pull over": "Dumbbell Pullover",
   "dumbbell rear delt raise": "Reverse Dumbbell Flyes",
-  "dumbbell seated single arm shoulder press": "Seated Dumbbell Shoulder Press",
+  "dumbbell seated single arm shoulder press": "Dumbbell Shoulder Press",
   "dumbbell skullcrusher": "Dumbbell Lying Triceps Extension",
   "dumbbell squat to shoulder press": "Dumbbell Squat",
   "dumbbell step up": "Step Up",

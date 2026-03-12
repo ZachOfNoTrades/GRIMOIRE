@@ -64,7 +64,6 @@ SELECT name, category FROM (VALUES
     ('Overhead Press', 'Strength'),
     ('Seated Barbell Overhead Press', 'Strength'),
     ('Dumbbell Shoulder Press', 'Strength'),
-    ('Seated Dumbbell Shoulder Press', 'Strength'),
     ('Arnold Press', 'Strength'),
     ('Machine Shoulder Press', 'Strength'),
     ('Seated Smith Machine Shoulder Press', 'Strength'),
@@ -697,7 +696,7 @@ SELECT e.id, mg_id, is_primary FROM exercises e
 CROSS APPLY (VALUES
     (@mg_shoulders, 1), (@mg_triceps, 0)
 ) AS v(mg_id, is_primary)
-WHERE e.name IN ('Overhead Press', 'Seated Barbell Overhead Press', 'Dumbbell Shoulder Press', 'Seated Dumbbell Shoulder Press', 'Arnold Press', 'Machine Shoulder Press', 'Seated Smith Machine Shoulder Press', 'Z Press', 'Behind the Neck Press', 'Snatch Grip Behind the Neck Press', 'Landmine Press', 'One-Arm Landmine Press', 'Smith Machine Landmine Press', 'Kettlebell Press', 'Seated Kettlebell Press', 'Kettlebell Push Press', 'Push Press', 'Handstand Push-Up', 'Jerk', 'Power Jerk', 'Split Jerk', 'Squat Jerk')
+WHERE e.name IN ('Overhead Press', 'Seated Barbell Overhead Press', 'Dumbbell Shoulder Press', 'Arnold Press', 'Machine Shoulder Press', 'Seated Smith Machine Shoulder Press', 'Z Press', 'Behind the Neck Press', 'Snatch Grip Behind the Neck Press', 'Landmine Press', 'One-Arm Landmine Press', 'Smith Machine Landmine Press', 'Kettlebell Press', 'Seated Kettlebell Press', 'Kettlebell Push Press', 'Push Press', 'Handstand Push-Up', 'Jerk', 'Power Jerk', 'Split Jerk', 'Squat Jerk')
 AND NOT EXISTS (SELECT 1 FROM exercise_muscle_groups emg WHERE emg.exercise_id = e.id AND emg.muscle_group_id = v.mg_id);
 
 INSERT INTO exercise_muscle_groups (exercise_id, muscle_group_id, is_primary)
