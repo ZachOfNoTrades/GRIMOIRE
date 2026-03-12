@@ -420,7 +420,7 @@ export default function ImportHistoryModal({
 
             {/* UPLOAD STEP */}
             <div className={`flex items-center ${step === "upload" ? "text-primary" : "text-muted"}`}>
-              <div className={step === "upload" ? "badge-default" : "badge-muted"}>
+              <div className={step === "upload" ? "badge-blue" : "badge-gray"}>
                 1
               </div>
               <span className="ml-2 font-medium">Upload</span>
@@ -431,7 +431,7 @@ export default function ImportHistoryModal({
 
             {/* MAPPING STEP */}
             <div className={`flex items-center ${step === "mapping" ? "text-primary" : "text-muted"}`}>
-              <div className={step === "mapping" ? "badge-default" : "badge-muted"}>
+              <div className={step === "mapping" ? "badge-blue" : "badge-gray"}>
                 2
               </div>
               <span className="ml-2 font-medium">Mapping</span>
@@ -442,7 +442,7 @@ export default function ImportHistoryModal({
 
             {/* PREVIEW STEP */}
             <div className={`flex items-center ${step === "preview" ? "text-primary" : "text-muted"}`}>
-              <div className={step === "preview" ? "badge-default" : "badge-muted"}>
+              <div className={step === "preview" ? "badge-blue" : "badge-gray"}>
                 3
               </div>
               <span className="ml-2 font-medium">Preview</span>
@@ -453,7 +453,7 @@ export default function ImportHistoryModal({
 
             {/* EXERCISES STEP */}
             <div className={`flex items-center ${step === "exercise-details" ? "text-primary" : "text-muted"}`}>
-              <div className={step === "exercise-details" ? "badge-default" : "badge-muted"}>
+              <div className={step === "exercise-details" ? "badge-blue" : "badge-gray"}>
                 4
               </div>
               <span className="ml-2 font-medium">Exercises</span>
@@ -464,7 +464,7 @@ export default function ImportHistoryModal({
 
             {/* IMPORT STEP */}
             <div className={`flex items-center ${step === "processing" || step === "results" ? "text-primary" : "text-muted"}`}>
-              <div className={step === "processing" || step === "results" ? "badge-default" : "badge-muted"}>
+              <div className={step === "processing" || step === "results" ? "badge-blue" : "badge-gray"}>
                 5
               </div>
               <span className="ml-2 font-medium">Import</span>
@@ -494,7 +494,7 @@ export default function ImportHistoryModal({
                 {/* BROWSE FILES BUTTON */}
                 <Button
                   onClick={handleUploadButtonClick}
-                  className="btn-primary"
+                  className="btn-blue"
                 >
                   <File className="h-4 w-4" />
                   Browse Files
@@ -600,7 +600,7 @@ export default function ImportHistoryModal({
                 {/* NEXT BUTTON */}
                 <Button
                   onClick={analyzeFileForPreview}
-                  className="btn-primary"
+                  className="btn-blue"
                 >
                   Next
                 </Button>
@@ -617,7 +617,7 @@ export default function ImportHistoryModal({
               {/* NO DATA PLACEHOLDER */}
               {preview.sessions.length === 0 && (
                 <div className="text-center py-8">
-                  <AlertCircle className="icon-error !w-16 !h-16 mx-auto mb-4" />
+                  <AlertCircle className="icon-red !w-16 !h-16 mx-auto mb-4" />
                   <h3 className="text-h1 mb-4">
                     No Valid Data
                   </h3>
@@ -627,7 +627,7 @@ export default function ImportHistoryModal({
 
                   {/* VALIDATION ERRORS */}
                   {preview.errors.length > 0 && (
-                    <div className="alert-error mb-4 text-left">
+                    <div className="alert-red mb-4 text-left">
                       <p className="font-medium">{preview.errors.length} row{preview.errors.length > 1 ? "s" : ""} skipped:</p>
                       <ul className="mt-1 text-sm list-disc list-inside max-h-32 overflow-y-auto">
                         {preview.errors.map((validationError, index) => (
@@ -686,7 +686,7 @@ export default function ImportHistoryModal({
                       <div>
 
                         {/* SECTION TITLE */}
-                        <h4 className="text-alert-success">
+                        <h4 className="text-alert-green">
                           New Exercises ({preview.new_exercise_names.length})
                         </h4>
 
@@ -791,7 +791,7 @@ export default function ImportHistoryModal({
                       <div>
 
                         {/* SECTION TITLE */}
-                        <h4 className="text-alert-default">
+                        <h4 className="text-alert-blue">
                           Matched Exercises ({preview.matched_exercise_names.length})
                         </h4>
 
@@ -889,7 +889,7 @@ export default function ImportHistoryModal({
 
                   {/* VALIDATION ERRORS */}
                   {preview.errors.length > 0 && (
-                    <div className="alert-error mb-4">
+                    <div className="alert-red mb-4">
                       <p className="font-medium">{preview.errors.length} row{preview.errors.length > 1 ? "s" : ""} skipped:</p>
                       <ul className="mt-1 text-sm list-disc list-inside max-h-32 overflow-y-auto">
                         {preview.errors.map((validationError, index) => (
@@ -918,7 +918,7 @@ export default function ImportHistoryModal({
                     {/* NEXT BUTTON */}
                     <Button
                       onClick={handlePreviewNext}
-                      className="btn-primary"
+                      className="btn-blue"
                       disabled={
                         selectedNewExerciseNames.size === 0 &&
                         selectedMatchedExerciseNames.size === 0
@@ -1028,7 +1028,7 @@ export default function ImportHistoryModal({
                   {/* IMPORT BUTTON */}
                   <Button
                     onClick={handleImport}
-                    className="btn-success"
+                    className="btn-green"
                   >
                     Import
                   </Button>
@@ -1052,7 +1052,7 @@ export default function ImportHistoryModal({
 
                   {/* SUCCESS HEADER */}
                   <div className="text-center py-8">
-                    <CheckCircle className="icon-success !w-16 !h-16 mx-auto mb-4" />
+                    <CheckCircle className="icon-green !w-16 !h-16 mx-auto mb-4" />
                     <h3 className="text-h1 mb-4">
                       Import Complete!
                     </h3>
@@ -1089,11 +1089,11 @@ export default function ImportHistoryModal({
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <AlertCircle className="icon-error !w-16 !h-16 mx-auto mb-4" />
+                  <AlertCircle className="icon-red !w-16 !h-16 mx-auto mb-4" />
                   <h3 className="text-h1 mb-4">
                     Import Failed
                   </h3>
-                  <p className="text-alert-error mb-4">{error}</p>
+                  <p className="text-alert-red mb-4">{error}</p>
                 </div>
               )}
 
@@ -1101,7 +1101,7 @@ export default function ImportHistoryModal({
               <div className="mt-6 flex justify-center">
                 <Button
                   onClick={handleClose}
-                  className="btn-success"
+                  className="btn-green"
                 >
                   Close
                 </Button>

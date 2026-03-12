@@ -152,7 +152,7 @@ export default function ProfilePage() {
                   <Button
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="btn-primary"
+                    className="btn-blue"
                   >
                     {isSaving ? "Saving..." : "Save"}
                   </Button>

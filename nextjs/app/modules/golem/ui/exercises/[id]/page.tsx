@@ -323,7 +323,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     <Button
                       onClick={handleSave}
                       disabled={isSaving || !editedName.trim()}
-                      className="btn-primary"
+                      className="btn-blue"
                     >
                       {isSaving ? "Saving..." : "Save"}
                     </Button>
@@ -334,14 +334,14 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     {exercise.is_disabled ? (
                       <Button
                         onClick={() => setIsEnableModalOpen(true)}
-                        className="btn-link btn-link-success"
+                        className="btn-link btn-link-green"
                       >
                         Enable
                       </Button>
                     ) : (
                       <Button
                         onClick={() => setIsDisableModalOpen(true)}
-                        className="btn-link btn-link-delete"
+                        className="btn-link btn-link-red"
                       >
                         Disable
                       </Button>
@@ -497,7 +497,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                           // MUSCLE GROUP BADGE
                           <span
                             key={mg.id}
-                            className={`badge ${mg.is_primary ? "badge-default" : "badge-muted"}`}
+                            className={`badge ${mg.is_primary ? "badge-blue" : "badge-gray"}`}
                           >
                             {mg.muscle_group_name}
                           </span>

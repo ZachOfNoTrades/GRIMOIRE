@@ -140,7 +140,7 @@ export default function GenerateProgramPage() {
         {/* SUBMIT BUTTON */}
         <div className="flex justify-end">
           <Button
-            className="btn-primary"
+            className="btn-blue"
             onClick={handleSubmit}
             disabled={!isFormValid || isSubmitting}
           >

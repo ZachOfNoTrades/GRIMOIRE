@@ -47,7 +47,7 @@ export default function HistoryPage() {
             {/* IMPORT BUTTON */}
             <Button
               onClick={() => setIsImportModalOpen(true)}
-              className="btn-secondary"
+              className="btn-off"
             >
               <Upload className="w-4 h-4" />
               <span>Import History</span>

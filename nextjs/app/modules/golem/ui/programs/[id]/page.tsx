@@ -149,7 +149,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
 
               {/* ARCHIVED BADGE */}
               {program.is_archived && (
-                <span className="badge-muted">Archived</span>
+                <span className="badge-gray">Archived</span>
               )}
             </div>
 
@@ -206,7 +206,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                     {/* BLOCK TAG BADGE */}
                     {block.tag && (
                       <span
-                        className="badge-muted"
+                        className="badge-gray"
                         style={block.color ? {
                           backgroundColor: block.color + '22',
                           borderColor: block.color + '55',
@@ -329,7 +329,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                           {/* GENERATE NEXT WEEK BUTTON (appears for a week that is completed, and the following week has no targets or other data) */}
                           {week.is_completed && !isGenerated && (
                             <Button
-                              className="btn-primary"
+                              className="btn-blue"
                               disabled={generatingWeekId === week.id}
                               onClick={() => generateNextWeek(week.id)}
                             >

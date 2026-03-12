@@ -6,10 +6,10 @@ export function getStatusLabel(isCurrent: boolean, isCompleted: boolean, started
 }
 
 export function getStatusBadge(isCurrent: boolean, isCompleted: boolean, startedAt?: Date | null): string {
-  if (isCompleted) return "badge-success";
-  if (startedAt) return "badge-warning";
-  if (isCurrent) return "badge-default";
-  return "badge-muted";
+  if (isCompleted) return "badge-green";
+  if (startedAt) return "badge-yellow";
+  if (isCurrent) return "badge-blue";
+  return "badge-gray";
 }
 
 export interface ProgramSummary {

@@ -244,7 +244,7 @@ function ChartTooltip({ point, dataPoint, plotTop, plotLeft, plotRight }: {
         x={tooltipX + tooltipWidth / 2}
         y={tooltipY + 25}
         textAnchor="middle"
-        style={{ fill: "var(--color-muted)", fontSize: 8 }}
+        style={{ fill: "var(--color-gray)", fontSize: 8 }}
       >
         {dateText}
       </text>
@@ -352,8 +352,8 @@ export default function ProgressionChart({ dataPoints }: ProgressionChartProps) 
         <defs>
           {/* AREA FILL GRADIENT */}
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" style={{ stopColor: "var(--btn-primary-bg)", stopOpacity: 0.25 }} />
-            <stop offset="100%" style={{ stopColor: "var(--btn-primary-bg)", stopOpacity: 0.05 }} />
+            <stop offset="0%" style={{ stopColor: "var(--btn-blue-bg)", stopOpacity: 0.25 }} />
+            <stop offset="100%" style={{ stopColor: "var(--btn-blue-bg)", stopOpacity: 0.05 }} />
           </linearGradient>
         </defs>
 
@@ -361,16 +361,16 @@ export default function ProgressionChart({ dataPoints }: ProgressionChartProps) 
         {gridLines.map((gridLine, index) => (
           <g key={index}>
             <line x1={plotLeft} y1={gridLine.y} x2={plotRight} y2={gridLine.y} style={{ stroke: "var(--card-border)" }} strokeWidth="0.3" strokeOpacity={0.6} />
-            <text x={plotLeft - 6} y={gridLine.y + 3} textAnchor="end" style={{ fill: "var(--color-muted)", fontSize: 9 }}>{gridLine.label}</text>
+            <text x={plotLeft - 6} y={gridLine.y + 3} textAnchor="end" style={{ fill: "var(--color-gray)", fontSize: 9 }}>{gridLine.label}</text>
           </g>
         ))}
 
         {/* Y-AXIS UNIT LABEL */}
-        <text x={plotLeft - 6} y={plotTop - 8} textAnchor="end" style={{ fill: "var(--color-muted)", fontSize: 8, fontStyle: "italic" }}>lbs</text>
+        <text x={plotLeft - 6} y={plotTop - 8} textAnchor="end" style={{ fill: "var(--color-gray)", fontSize: 8, fontStyle: "italic" }}>lbs</text>
 
         {/* X-AXIS DATE LABELS */}
         {labelIndices.map((dataIndex) => (
-          <text key={dataIndex} x={chartPoints[dataIndex].x} y={plotBottom + 16} textAnchor="middle" style={{ fill: "var(--color-muted)", fontSize: 9 }}>
+          <text key={dataIndex} x={chartPoints[dataIndex].x} y={plotBottom + 16} textAnchor="middle" style={{ fill: "var(--color-gray)", fontSize: 9 }}>
             {dataPoints[dataIndex].dateLabel}
           </text>
         ))}
@@ -388,7 +388,7 @@ export default function ProgressionChart({ dataPoints }: ProgressionChartProps) 
                 y1={start.y}
                 x2={end.x}
                 y2={end.y}
-                style={{ stroke: "var(--color-muted)" }}
+                style={{ stroke: "var(--color-gray)" }}
                 strokeWidth="1.75"
                 strokeDasharray="4,4"
                 strokeOpacity={0.4}
@@ -417,7 +417,7 @@ export default function ProgressionChart({ dataPoints }: ProgressionChartProps) 
               <path d={areaPath} fill={`url(#${gradientId})`} />
 
               {/* LINE */}
-              <path d={linePath} fill="none" style={{ stroke: "var(--btn-primary-bg)" }} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={linePath} fill="none" style={{ stroke: "var(--btn-blue-bg)" }} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </g>
           );
         })}
@@ -429,7 +429,7 @@ export default function ProgressionChart({ dataPoints }: ProgressionChartProps) 
             y1={plotTop}
             x2={chartPoints[hoveredIndex].x}
             y2={plotBottom}
-            style={{ stroke: "var(--color-muted)" }}
+            style={{ stroke: "var(--color-gray)" }}
             strokeWidth="0.5"
             strokeDasharray="3,3"
           />
@@ -450,7 +450,7 @@ export default function ProgressionChart({ dataPoints }: ProgressionChartProps) 
                 cx={point.x}
                 cy={point.y}
                 r={isHovered ? 4 : 2.5}
-                style={{ fill: "var(--btn-primary-bg)" }}
+                style={{ fill: "var(--btn-blue-bg)" }}
               />
             </g>
           );

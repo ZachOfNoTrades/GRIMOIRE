@@ -39,7 +39,7 @@ export default function EnableExerciseModal({
           <Button
             onClick={onConfirm}
             disabled={isEnabling}
-            className="btn-success"
+            className="btn-green"
           >
             {isEnabling ? "Enabling..." : "Enable"}
           </Button>

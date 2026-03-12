@@ -706,19 +706,19 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     <>
 
                       {/* DELETE BUTTON */}
-                      <Button className="btn-delete w-full sm:w-auto" onClick={() => setIsDeleteModalOpen(true)}>
+                      <Button className="btn-red w-full sm:w-auto" onClick={() => setIsDeleteModalOpen(true)}>
                         <Trash2 className="w-4 h-4" />
                         <span>Delete</span>
                       </Button>
 
                       {/* RESET BUTTON */}
-                      <Button className="btn-secondary w-full sm:w-auto" onClick={() => setIsResetModalOpen(true)}>
+                      <Button className="btn-off w-full sm:w-auto" onClick={() => setIsResetModalOpen(true)}>
                         <RotateCcw className="w-4 h-4" />
                         <span>Reset</span>
                       </Button>
 
                       {/* EDIT BUTTON */}
-                      <Button className="btn-primary w-full sm:w-auto" onClick={handleStartEditSession}>
+                      <Button className="btn-blue w-full sm:w-auto" onClick={handleStartEditSession}>
                         <Edit2 className="w-4 h-4" />
                         <span>Edit</span>
                       </Button>
@@ -735,7 +735,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       </Button>
 
                       {/* SAVE BUTTON */}
-                      <Button className="btn-success w-full sm:w-auto" onClick={handleSaveSession} disabled={isSavingSession}>
+                      <Button className="btn-green w-full sm:w-auto" onClick={handleSaveSession} disabled={isSavingSession}>
                         <Save className="w-4 h-4" />
                         <span>{isSavingSession ? "Saving..." : "Save"}</span>
                       </Button>
@@ -1013,7 +1013,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                   {/* GENERATE BUTTON */}
                   <Button
-                    className="btn-primary"
+                    className="btn-blue"
                     onClick={handleGenerateExercises}
                     disabled={isGenerating || !session?.description?.trim()}
                   >
@@ -1062,15 +1062,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                             {/* EXERCISE NAME */}
                             <div className="flex items-center gap-2">
                               {isSegmentComplete(segment)
-                                ? <CircleCheck className="icon-success !w-4 !h-4 shrink-0" />
-                                : <Circle className="icon-muted !w-4 !h-4 shrink-0" />
+                                ? <CircleCheck className="icon-green !w-4 !h-4 shrink-0" />
+                                : <Circle className="icon-gray !w-4 !h-4 shrink-0" />
                               }
                               <h3 className="text-card-title">{segment.exercise_name}</h3>
                             </div>
 
                             {/* SWAPPED EXERCISE INDICATOR */}
                             {segment.target && segment.target.exercise_id !== segment.exercise_id && (
-                              <ArrowLeftRight className="icon-muted !w-4 !h-4 shrink-0" />
+                              <ArrowLeftRight className="icon-gray !w-4 !h-4 shrink-0" />
                             )}
                           </div>
 
@@ -1147,7 +1147,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                             {/* EXERCISE NAME */}
                             <div className="flex items-center gap-2">
-                              <Circle className="icon-muted !w-4 !h-4" />
+                              <Circle className="icon-gray !w-4 !h-4" />
                               <h3 className="text-card-title">{target.exercise_name}</h3>
                             </div>
                           </div>
@@ -1212,15 +1212,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     {/* EXERCISE NAME */}
                     <div className="flex items-center gap-2">
                       {isSegmentComplete(segment)
-                        ? <CircleCheck className="icon-success !w-4 !h-4 shrink-0" />
-                        : <Circle className="icon-muted !w-4 !h-4 shrink-0" />
+                        ? <CircleCheck className="icon-green !w-4 !h-4 shrink-0" />
+                        : <Circle className="icon-gray !w-4 !h-4 shrink-0" />
                       }
                       <h3 className="text-card-title">{segment.exercise_name}</h3>
                     </div>
 
                     {/* SWAPPED EXERCISE INDICATOR */}
                     {segment.target && segment.target.exercise_id !== segment.exercise_id && (
-                      <ArrowLeftRight className="icon-muted !w-4 !h-4 shrink-0" />
+                      <ArrowLeftRight className="icon-gray !w-4 !h-4 shrink-0" />
                     )}
                   </div>
 
@@ -1298,7 +1298,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                     {/* EXERCISE NAME */}
                     <div className="flex items-center gap-2">
-                      <Circle className="icon-muted !w-4 !h-4" />
+                      <Circle className="icon-gray !w-4 !h-4" />
                       <h3 className="text-card-title">{target.exercise_name}</h3>
                     </div>
                   </div>
@@ -1355,14 +1355,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           ) : session.is_current && (session.started_at || session.resumed_at) ? (
 
             // COMPLETE BUTTON
-            <Button className="btn-primary w-full sm:w-auto" onClick={handleCompleteSession} disabled={isUpdatingStatus}>
+            <Button className="btn-blue w-full sm:w-auto" onClick={handleCompleteSession} disabled={isUpdatingStatus}>
               {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
               {isUpdatingStatus ? "Saving..." : "Complete"}
             </Button>
           ) : (
 
             // START BUTTON
-            <Button className="btn-primary w-full sm:w-auto" onClick={handleStartSession} disabled={isUpdatingStatus}>
+            <Button className="btn-blue w-full sm:w-auto" onClick={handleStartSession} disabled={isUpdatingStatus}>
               {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               {isUpdatingStatus ? "Starting..." : "Start Workout"}
             </Button>

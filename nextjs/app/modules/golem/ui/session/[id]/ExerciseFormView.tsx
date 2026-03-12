@@ -258,10 +258,10 @@ export default function ExerciseFormView({
             {muscleGroups.map((muscleGroup) => {
               const role = assignments.get(muscleGroup.id);
               const badgeClass = role === "primary"
-                ? "badge-success"
+                ? "badge-green"
                 : role === "secondary"
-                  ? "badge-default"
-                  : "badge-muted";
+                  ? "badge-blue"
+                  : "badge-gray";
               return (
                 <button
                   key={muscleGroup.id}
@@ -279,7 +279,7 @@ export default function ExerciseFormView({
 
       {/* ERROR MESSAGE */}
       {error && (
-        <p className="text-sm text-alert-error mt-2">{error}</p>
+        <p className="text-sm text-alert-red mt-2">{error}</p>
       )}
 
       {/* SAVE BUTTON */}
@@ -287,7 +287,7 @@ export default function ExerciseFormView({
         <Button
           onClick={handleSave}
           disabled={isSaving || !name.trim()}
-          className="btn-primary w-full"
+          className="btn-blue w-full"
         >
           {isSaving ? "Saving..." : isEditing ? "Save Changes" : "Create Exercise"}
         </Button>

@@ -45,7 +45,7 @@ export default function DisableExerciseModal({
             <Button
               onClick={onEnable}
               disabled={isToggling}
-              className="btn-primary"
+              className="btn-blue"
             >
               {isToggling ? "Enabling..." : "Enable"}
             </Button>
@@ -53,7 +53,7 @@ export default function DisableExerciseModal({
             <Button
               onClick={onDisable}
               disabled={isToggling}
-              className="btn-delete"
+              className="btn-red"
             >
               {isToggling ? "Disabling..." : "Disable"}
             </Button>

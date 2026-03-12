@@ -95,7 +95,7 @@ export default function AddExerciseModal({
           <Button
             onClick={handleSave}
             disabled={isSaving || !name.trim()}
-            className="btn-primary"
+            className="btn-blue"
           >
             {isSaving ? "Saving..." : "Add Exercise"}
           </Button>
@@ -144,7 +144,7 @@ export default function AddExerciseModal({
 
       {/* ERROR MESSAGE */}
       {error && (
-        <p className="text-sm text-alert-error">{error}</p>
+        <p className="text-sm text-alert-red">{error}</p>
       )}
     </Modal>
   );

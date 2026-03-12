@@ -173,7 +173,7 @@ export default function ExercisePickerModal({
             {currentView.type === "info" && (
               <Button
                 onClick={() => handleToggleDisable(currentView.exercise)}
-                className={currentView.exercise.is_disabled ? "btn-link btn-link-delete" : "btn-link"}
+                className={currentView.exercise.is_disabled ? "btn-link btn-link-red" : "btn-link"}
                 title={currentView.exercise.is_disabled ? "Enable exercise" : "Disable exercise"}
               >
                 <Ban className="w-5 h-5" />

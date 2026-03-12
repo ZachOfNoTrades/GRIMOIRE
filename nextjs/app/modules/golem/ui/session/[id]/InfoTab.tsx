@@ -58,7 +58,7 @@ export default function InfoTab({ exercise, loading }: InfoTabProps) {
           <label className="text-secondary">Primary Muscles</label>
           <div className="flex flex-wrap gap-2 mt-1">
             {primaryMuscles.map((mg) => (
-              <span key={mg.muscle_group_id} className="badge-default">
+              <span key={mg.muscle_group_id} className="badge-blue">
                 {mg.muscle_group_name}
               </span>
             ))}
@@ -72,7 +72,7 @@ export default function InfoTab({ exercise, loading }: InfoTabProps) {
           <label className="text-secondary">Secondary Muscles</label>
           <div className="flex flex-wrap gap-2 mt-1">
             {secondaryMuscles.map((mg) => (
-              <span key={mg.muscle_group_id} className="badge-default">
+              <span key={mg.muscle_group_id} className="badge-blue">
                 {mg.muscle_group_name}
               </span>
             ))}

@@ -39,7 +39,7 @@ export default function DeleteTemplateModal({
           <Button
             onClick={onConfirm}
             disabled={isDeleting}
-            className="btn-delete"
+            className="btn-red"
           >
             {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>

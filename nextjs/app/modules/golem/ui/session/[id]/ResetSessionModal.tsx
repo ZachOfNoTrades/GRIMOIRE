@@ -39,7 +39,7 @@ export default function ResetSessionModal({
                     <Button
                         onClick={onConfirm}
                         disabled={isResetting}
-                        className="btn-delete"
+                        className="btn-red"
                     >
                         {isResetting ? 'Resetting...' : 'Reset'}
                     </Button>

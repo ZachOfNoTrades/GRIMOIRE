@@ -32,13 +32,13 @@ export default function ExerciseListItem({
         <span className="text-primary flex items-center gap-2">
           {exercise.name}
           {showPrescribed && exercise.id === targetExerciseId && (
-            <span className="badge-info text-[10px]">Prescribed</span>
+            <span className="badge-blue text-[10px]">Prescribed</span>
           )}
         </span>
 
         {/* DISABLED ICON */}
         {exercise.is_disabled && (
-          <Ban className="w-4 h-4" style={{ color: "var(--alert-error-text)" }} />
+          <Ban className="w-4 h-4" style={{ color: "var(--alert-red-text)" }} />
         )}
       </div>
 

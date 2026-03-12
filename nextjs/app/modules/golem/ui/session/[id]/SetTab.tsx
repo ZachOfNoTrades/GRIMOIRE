@@ -285,8 +285,8 @@ export default function SetTab({
           title={set.is_completed ? "Mark incomplete" : "Mark complete"}
         >
           {set.is_completed
-            ? <CircleCheck className="icon-success !w-4 !h-4" />
-            : <Circle className="icon-muted !w-4 !h-4" />
+            ? <CircleCheck className="icon-green !w-4 !h-4" />
+            : <Circle className="icon-gray !w-4 !h-4" />
           }
         </Button>
 
@@ -530,7 +530,7 @@ export default function SetTab({
             {/* SAVE BUTTON */}
             <Button
               onClick={handleSaveSetNotes}
-              className="btn-success"
+              className="btn-green"
             >
               Save
             </Button>

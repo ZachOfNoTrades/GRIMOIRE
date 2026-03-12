@@ -212,7 +212,7 @@ export default function StatsTab({
                 {trendPercent !== null && trendPercent !== 0 && (
                   <span
                     className="text-xs font-medium"
-                    style={{ color: trendPercent > 0 ? "var(--alert-success-text)" : "var(--alert-error-text)" }}
+                    style={{ color: trendPercent > 0 ? "var(--alert-green-text)" : "var(--alert-red-text)" }}
                   >
                     {trendPercent > 0 ? "+" : ""}{trendPercent}%
                   </span>

@@ -247,7 +247,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
                     <Button
                       onClick={handleSave}
                       disabled={isSaving || !editedName.trim()}
-                      className="btn-primary"
+                      className="btn-blue"
                     >
                       {isSaving ? "Saving..." : "Save"}
                     </Button>
@@ -257,7 +257,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
                     {/* DELETE BUTTON */}
                     <Button
                       onClick={() => setIsDeleteModalOpen(true)}
-                      className="btn-link btn-link-delete"
+                      className="btn-link btn-link-red"
                     >
                       Delete
                     </Button>

@@ -109,7 +109,7 @@ export default function GolemHomePage() {
 
           {/* ADD SESSION BUTTON */}
           <Button
-            className="btn-primary"
+            className="btn-blue"
             onClick={handleAddSession}
             disabled={isCreatingSession}
           >
@@ -119,7 +119,7 @@ export default function GolemHomePage() {
 
           {/* GENERATE PROGRAM BUTTON */}
           <Button
-            className="btn-primary"
+            className="btn-blue"
             onClick={() => router.push("/modules/golem/ui/programs/generate")}
           >
             <Zap className="w-4 h-4" />

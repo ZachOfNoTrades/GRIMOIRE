@@ -87,7 +87,7 @@ export default function AddTemplateModal({
           <Button
             onClick={handleSave}
             disabled={isSaving || !name.trim()}
-            className="btn-primary"
+            className="btn-blue"
           >
             {isSaving ? "Saving..." : "Add Template"}
           </Button>
@@ -122,7 +122,7 @@ export default function AddTemplateModal({
 
       {/* ERROR MESSAGE */}
       {error && (
-        <p className="text-sm text-alert-error">{error}</p>
+        <p className="text-sm text-alert-red">{error}</p>
       )}
     </Modal>
   );

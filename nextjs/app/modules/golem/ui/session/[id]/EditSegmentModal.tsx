@@ -354,7 +354,7 @@ export default function EditSegmentModal({
             {/* DISABLE/ENABLE EXERCISE BUTTON */}
             <Button
               onClick={() => setIsDisableModalOpen(true)}
-              className={isExerciseDisabled ? "btn-link btn-link-delete" : "btn-link"}
+              className={isExerciseDisabled ? "btn-link btn-link-red" : "btn-link"}
               title={isExerciseDisabled ? "Enable exercise" : "Disable exercise"}
             >
               <Ban className="w-4 h-4" />
@@ -367,13 +367,13 @@ export default function EditSegmentModal({
             <Button
               onClick={onRemove}
               disabled={isDeleting}
-              className="btn-delete mr-auto"
+              className="btn-red mr-auto"
             >
               {isDeleting ? "Deleting..." : "Delete"}
             </Button>
 
             {/* SAVE BUTTON */}
-            <Button onClick={onClose} className="btn-primary">
+            <Button onClick={onClose} className="btn-blue">
               <Save className="w-4 h-4" />
               Save
             </Button>

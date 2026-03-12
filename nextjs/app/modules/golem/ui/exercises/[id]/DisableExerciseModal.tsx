@@ -39,7 +39,7 @@ export default function DisableExerciseModal({
           <Button
             onClick={onConfirm}
             disabled={isDisabling}
-            className="btn-delete"
+            className="btn-red"
           >
             {isDisabling ? "Disabling..." : "Disable"}
           </Button>

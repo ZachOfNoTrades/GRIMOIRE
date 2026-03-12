@@ -79,7 +79,7 @@ export default function ExercisesPage() {
               {/* ADD BUTTON */}
               <Button
                 onClick={() => setIsAddModalOpen(true)}
-                className="btn-primary"
+                className="btn-blue"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add</span>
