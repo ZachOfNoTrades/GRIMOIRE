@@ -41,6 +41,7 @@ export default function SetTab({
   // DERIVED
   const warmupSets = editedSegment.sets.filter((s) => s.is_warmup);
   const workingSets = editedSegment.sets.filter((s) => !s.is_warmup);
+  const isExerciseSwapped = editedSegment.target !== null && editedSegment.exercise_id !== editedSegment.target.exercise_id; // Target weights don't translate between exercises
 
   // Prescribed target counts are captured on mount and stay fixed so added sets remain "beyond target"
   const [prescribedWarmupCount] = useState(() =>
@@ -116,9 +117,9 @@ export default function SetTab({
     const lastTargetSet = targetSetsOfType.length > 0 ? targetSetsOfType[targetSetsOfType.length - 1] : null;
     const updatedTarget = editedSegment.target && lastTargetSet
       ? {
-          ...editedSegment.target,
-          sets: [...editedSegment.target.sets, { ...lastTargetSet, set_number: newSetNumber }],
-        }
+        ...editedSegment.target,
+        sets: [...editedSegment.target.sets, { ...lastTargetSet, set_number: newSetNumber }],
+      }
       : editedSegment.target;
 
     setEditedSegment({
@@ -172,11 +173,11 @@ export default function SetTab({
       const updatedSets = editedSegment.sets.map((set) => {
         if (set.id !== setId) return set; // If not the desired set, exit
 
-        // Autofill empty fields from target when available
+        // Autofill empty fields from target when available (skip weight if exercise was swapped)
         if (targetSetData) {
           return {
             ...set,
-            weight: set.weight > 0 ? set.weight : targetSetData.weight,
+            weight: set.weight > 0 ? set.weight : (isExerciseSwapped ? 0 : targetSetData.weight),
             reps: set.reps > 0 ? set.reps : targetSetData.reps,
             rpe: set.rpe !== null ? set.rpe : targetSetData.rpe,
             is_completed: true,
@@ -299,7 +300,7 @@ export default function SetTab({
             value={set.weight || ""}
             onChange={(e) => handleSetFieldChange(set.id, SetField.Weight, e.target.value)}
             className="input-field input-field-compact text-center"
-            placeholder={targetSet ? String(targetSet.weight) : "-"}
+            placeholder={targetSet && targetSet.weight > 0 && !isExerciseSwapped ? String(targetSet.weight) : "-"}
             onFocus={(e) => e.target.select()}
             onBlur={() => handleSetFieldBlur(set.id)}
             onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
