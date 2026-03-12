@@ -9,9 +9,9 @@ BEGIN TRY
     -- =============================
     -- Programs
     -- =============================
-    INSERT INTO programs (id, name, description, template_id, is_current, is_completed) VALUES
-    ('11111111-1111-1111-1111-111111111111', 'Push/Pull/Legs Program', NULL, NULL, 1, 0),
-    ('66666666-6666-6666-6666-666666666666', '5/3/1 Strength Program', 'Jim Wendler strength base-building', NULL, 0, 0);
+    INSERT INTO programs (id, name, description, template_id, is_current, is_completed, is_archived) VALUES
+    ('11111111-1111-1111-1111-111111111111', 'Push/Pull/Legs Program', NULL, NULL, 1, 0, 0),
+    ('66666666-6666-6666-6666-666666666666', '5/3/1 Strength Program', 'Jim Wendler strength base-building', NULL, 0, 0, 0);
 
     -- =============================
     -- Blocks

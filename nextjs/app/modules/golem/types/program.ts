@@ -19,6 +19,7 @@ export interface ProgramSummary {
   template_id: string | null;
   is_current: boolean;
   is_completed: boolean;
+  is_archived: boolean;
   created_at: Date;
   modified_at: Date;
 }
@@ -66,6 +67,7 @@ export interface Program {
   template_id: string | null;
   is_current: boolean;
   is_completed: boolean;
+  is_archived: boolean;
   created_at: Date;
   modified_at: Date;
   blocks: ProgramBlock[];

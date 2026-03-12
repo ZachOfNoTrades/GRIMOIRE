@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Layers, Sparkles } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Layers, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import toast from "react-hot-toast";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDateShort } from "../../../utils/format";
@@ -17,6 +18,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [generatingWeekId, setGeneratingWeekId] = useState<string | null>(null);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const router = useRouter();
 
@@ -42,6 +44,35 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
       console.error("Error fetching program:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!program) return;
+    setIsArchiving(true);
+    try {
+      const { id } = await params;
+      const newArchived = !program.is_archived;
+      const response = await fetch(`/modules/golem/api/programs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_archived: newArchived }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to archive program");
+      }
+      if (newArchived) {
+        // Navigate back since the program is now hidden
+        router.push("/modules/golem/ui/home");
+      } else {
+        const data = await response.json();
+        setProgram(data);
+      }
+    } catch (error) {
+      console.error("Error archiving program:", error);
+      toast.error("Failed to archive program");
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -102,8 +133,10 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
             <span>Back</span>
           </Button>
 
-          {/* TITLE */}
-          <div>
+          {/* TITLE ROW */}
+          <div className="flex items-center justify-between">
+
+            {/* TITLE AND BADGES */}
             <div className="flex items-center gap-3">
 
               {/* PROGRAM NAME */}
@@ -113,13 +146,32 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
               <span className={getStatusBadge(program.is_current, program.is_completed)}>
                 {getStatusLabel(program.is_current, program.is_completed)}
               </span>
+
+              {/* ARCHIVED BADGE */}
+              {program.is_archived && (
+                <span className="badge-muted">Archived</span>
+              )}
             </div>
 
-            {/* DESCRIPTION */}
-            {program.description && (
-              <p className="text-page-subtitle">{program.description}</p>
-            )}
+            {/* ARCHIVE BUTTON */}
+            <Button
+              className="btn-off"
+              onClick={handleArchive}
+              disabled={isArchiving}
+            >
+              {program.is_archived ? (
+                <ArchiveRestore className="w-4 h-4" />
+              ) : (
+                <Archive className="w-4 h-4" />
+              )}
+              {isArchiving ? "Saving..." : program.is_archived ? "Unarchive" : "Archive"}
+            </Button>
           </div>
+
+          {/* DESCRIPTION */}
+          {program.description && (
+            <p className="text-page-subtitle">{program.description}</p>
+          )}
         </div>
 
         {/* BLOCKS */}

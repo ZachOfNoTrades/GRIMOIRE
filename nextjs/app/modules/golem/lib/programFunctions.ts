@@ -1,7 +1,7 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { Program, ProgramBlock, ProgramSummary, ProgramWeek, ProgramSession, CreateProgramPayload } from '../types/program';
 
-export async function getAllPrograms(page?: number, pageSize?: number): Promise<{ programs: ProgramSummary[]; totalCount: number }> {
+export async function getAllPrograms(page?: number, pageSize?: number, includeArchived: boolean = false): Promise<{ programs: ProgramSummary[]; totalCount: number }> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -15,11 +15,14 @@ export async function getAllPrograms(page?: number, pageSize?: number): Promise<
       paginationClause = 'OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY';
     }
 
+    const archiveFilter = includeArchived ? '' : 'WHERE is_archived = 0';
+
     const query = `
       SELECT *, COUNT(*) OVER() AS _total_count
       FROM (
-        SELECT id, name, description, template_id, is_current, is_completed, created_at, modified_at
+        SELECT id, name, description, template_id, is_current, is_completed, is_archived, created_at, modified_at
         FROM programs
+        ${archiveFilter}
       ) p
       ORDER BY created_at DESC
       ${paginationClause}
@@ -53,7 +56,7 @@ export async function getCurrentProgramId(): Promise<string | null> {
   try {
     pool = await getGolemConnection();
     const result = await pool.request().query(`
-      SELECT id FROM programs WHERE is_current = 1
+      SELECT id FROM programs WHERE is_current = 1 AND is_archived = 0
     `);
 
     if (result.recordset.length === 0) {
@@ -85,6 +88,7 @@ export async function getProgramById(programId: string): Promise<Program> {
           p.template_id     AS program_template_id,
           p.is_current      AS program_is_current,
           p.is_completed    AS program_is_completed,
+          p.is_archived     AS program_is_archived,
           p.created_at      AS program_created_at,
           p.modified_at     AS program_modified_at,
           b.id              AS block_id,
@@ -144,6 +148,7 @@ export async function getProgramById(programId: string): Promise<Program> {
       template_id: firstRow.program_template_id,
       is_current: firstRow.program_is_current,
       is_completed: firstRow.program_is_completed,
+      is_archived: firstRow.program_is_archived,
       created_at: firstRow.program_created_at,
       modified_at: firstRow.program_modified_at,
       blocks: [],
@@ -479,6 +484,47 @@ export async function getFirstWeekId(programId: string): Promise<{ weekId: strin
     };
   } catch (error) {
     console.error('Error fetching first week id for program:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
+export async function archiveProgram(programId: string, isArchived: boolean): Promise<void> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // If archiving, clear is_current flags on the program and all descendants
+      if (isArchived) {
+        await clearProgramCurrentFlags(transaction, programId);
+      }
+
+      const result = await transaction.request()
+        .input('programId', programId)
+        .input('isArchived', isArchived ? 1 : 0)
+        .query(`
+          UPDATE programs
+          SET is_archived = @isArchived, modified_at = GETDATE()
+          WHERE id = @programId
+        `);
+
+      if (result.rowsAffected[0] === 0) {
+        throw new Error(`No program found for id: '${programId}'`);
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error archiving program:', error);
     throw error;
   } finally {
     if (pool) {

@@ -114,6 +114,7 @@ BEGIN TRY
             template_id UNIQUEIDENTIFIER NULL,
             is_current BIT CHECK (is_current IN (0,1)) DEFAULT 0, -- 1 = currently active
             is_completed BIT CHECK (is_completed IN (0,1)) DEFAULT 0, -- 1 = finished
+            is_archived BIT DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 

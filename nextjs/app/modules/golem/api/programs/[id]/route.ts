@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getProgramById, updateProgram } from '../../../lib/programFunctions';
+import { getProgramById, updateProgram, archiveProgram } from '../../../lib/programFunctions';
 
 export async function GET(
   request: Request,
@@ -54,6 +54,37 @@ export async function PUT(
 
     return NextResponse.json(
       { error: 'Failed to update program' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const { is_archived } = await request.json();
+
+    await archiveProgram(id, is_archived);
+
+    // Return the updated program
+    const updatedProgram = await getProgramById(id);
+    return NextResponse.json(updatedProgram);
+
+  } catch (error) {
+    console.error('Error in PATCH /api/programs/[id]:', error);
+
+    if (error instanceof Error && error.message.includes('No program found')) {
+      return NextResponse.json(
+        { error: 'Program not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to archive program' },
       { status: 500 }
     );
   }
