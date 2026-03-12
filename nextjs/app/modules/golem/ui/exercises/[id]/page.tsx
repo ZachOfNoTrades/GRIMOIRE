@@ -499,7 +499,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                             key={mg.id}
                             className={`badge ${mg.is_primary ? "badge-default" : "badge-muted"}`}
                           >
-                            {mg.muscle_group_name}{mg.is_primary && " (Primary)"}
+                            {mg.muscle_group_name}
                           </span>
                         ))}
                       </div>
