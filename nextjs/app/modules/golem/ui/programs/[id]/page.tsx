@@ -189,10 +189,10 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
             program.blocks.map((block, blockIndex) => (
 
               // BLOCK CARD
-              <div key={block.id} className={`card ${block.is_current ? 'status-active' : ''} ${block.is_completed ? 'status-completed' : ''}`}>
+              <div key={block.id} className={`card ${block.is_current ? 'status-active' : ''}`}>
 
                 {/* BLOCK HEADER */}
-                <div className="card-header">
+                <div className={`card-header ${block.is_completed ? 'status-completed' : ''}`}>
 
                   {/* BLOCK TITLE AND TAG */}
                   <div className="flex items-center gap-3">
@@ -236,13 +236,13 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                     // WEEKS LIST
                     block.weeks.map((week, weekIndex) => {
 
-                      // Check if the next week already has generated targets
-                      const nextWeek = weekIndex < block.weeks.length - 1
-                        ? block.weeks[weekIndex + 1]
-                        : blockIndex < program.blocks.length - 1
-                          ? program.blocks[blockIndex + 1].weeks[0]
+                      // Check if the previous week is completed (for showing generate button in empty weeks)
+                      const previousWeek = weekIndex > 0
+                        ? block.weeks[weekIndex - 1]
+                        : blockIndex > 0
+                          ? program.blocks[blockIndex - 1].weeks[program.blocks[blockIndex - 1].weeks.length - 1]
                           : null;
-                      const isGenerated = !!nextWeek?.has_targets;
+                      const canGenerate = week.sessions.length === 0 && !week.has_targets && !!previousWeek?.is_completed;
 
                       return (
 
@@ -259,8 +259,22 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
 
                           {week.sessions.length === 0 ? (
 
-                            // EMPTY SESSIONS PLACEHOLDER
-                            <p className="text-secondary">No sessions this week</p>
+                            canGenerate ? (
+
+                              // GENERATE WEEK BUTTON
+                              <Button
+                                className="btn-blue"
+                                disabled={generatingWeekId === previousWeek!.id}
+                                onClick={() => generateNextWeek(previousWeek!.id)}
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                {generatingWeekId === previousWeek!.id ? "Generating..." : "Generate Week"}
+                              </Button>
+                            ) : (
+
+                              // EMPTY SESSIONS PLACEHOLDER
+                              <p className="text-secondary">No sessions this week</p>
+                            )
                           ) : (
 
                             // SESSIONS LIST
@@ -326,17 +340,6 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                             })
                           )}
 
-                          {/* GENERATE NEXT WEEK BUTTON (appears for a week that is completed, and the following week has no targets or other data) */}
-                          {week.is_completed && !isGenerated && (
-                            <Button
-                              className="btn-blue"
-                              disabled={generatingWeekId === week.id}
-                              onClick={() => generateNextWeek(week.id)}
-                            >
-                              <Sparkles className="w-4 h-4" />
-                              {generatingWeekId === week.id ? "Generating..." : "Generate Next Week"}
-                            </Button>
-                          )}
                         </div>
                       );
                     })
