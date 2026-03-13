@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Layers, Sparkles } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Layers, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
@@ -243,6 +243,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                           ? program.blocks[blockIndex - 1].weeks[program.blocks[blockIndex - 1].weeks.length - 1]
                           : null;
                       const canGenerate = week.sessions.length === 0 && !week.has_targets && !!previousWeek?.is_completed;
+                      const canRegenerate = week.sessions.length > 0 && !week.sessions.some(s => s.started_at) && !!previousWeek?.is_completed;
 
                       return (
 
@@ -338,6 +339,18 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                 </div>
                               );
                             })
+                          )}
+
+                          {/* REGENERATE WEEK BUTTON (appears when sessions exist but none have been started) */}
+                          {canRegenerate && (
+                            <Button
+                              className="btn-link"
+                              disabled={generatingWeekId === previousWeek!.id}
+                              onClick={() => generateNextWeek(previousWeek!.id)}
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                              {generatingWeekId === previousWeek!.id ? "Regenerating..." : "Regenerate Week"}
+                            </Button>
                           )}
 
                         </div>

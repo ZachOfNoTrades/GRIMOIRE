@@ -72,10 +72,6 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
   }
 
   const template = await getProgramTemplateById(templateId);
-  if (!template.week_prompt) {
-    console.warn(`[GenerateNextWeek] Template '${templateId}' has no week_prompt — skipping generation`);
-    return;
-  }
 
   // Load user profile for LLM context
   const userProfile = await getUserProfile();
@@ -125,13 +121,7 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
         return; // Program ending — nothing to generate
       }
 
-      // 4. Count sessions in the completed week to determine days per week
-      const sessionCountResult = await transaction.request()
-        .input('weekId', weekId)
-        .query(`SELECT COUNT(*) AS count FROM workout_sessions WHERE week_id = @weekId`);
-      const daysPerWeek = sessionCountResult.recordset[0].count;
-
-      // 5. Delete existing sessions in the next week (they'll be replaced with LLM-generated plans)
+      // 4. Delete existing sessions in the next week (they'll be replaced with LLM-generated plans)
       const existingSessionsResult = await transaction.request()
         .input('nextWeekId', nextWeekId)
         .query(`SELECT id FROM workout_sessions WHERE week_id = @nextWeekId`);
@@ -149,10 +139,10 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
       // Commit structural changes before the LLM call (avoids holding a DB connection open)
       await transaction.commit();
 
-      // 6. Generate session plans via LLM (outside transaction)
-      const sessionPlans = await generateNextWeekPlanWithLlm(template.week_prompt, nextWeekId, daysPerWeek, profileContext);
+      // 5. Generate session plans via LLM (outside transaction)
+      const sessionPlans = await generateNextWeekPlanWithLlm(template.week_prompt, nextWeekId, template.days_per_week, profileContext);
 
-      // 7. Insert new sessions with names + descriptions (no target exercises)
+      // 6. Insert new sessions with names + descriptions (no target exercises)
       await insertSessionsIntoWeek(nextWeekId, sessionPlans);
 
       console.log(`[GenerateNextWeek] Generated ${sessionPlans.length} session plans`);

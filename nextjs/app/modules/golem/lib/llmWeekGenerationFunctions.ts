@@ -111,7 +111,7 @@ export async function generateNextWeekPlanWithLlm(
   const sessions: CreateProgramSession[] = sessionPlans.map(plan => ({
     order_index: plan.order_index,
     name: plan.name,
-    notes: plan.description,
+    description: plan.description,
     target_exercises: [],
   }));
 
