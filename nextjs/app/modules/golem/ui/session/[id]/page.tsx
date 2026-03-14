@@ -1107,6 +1107,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                 {/* SETS */}
                                 {(() => {
                                   // Build a unified list ordered by set_number: show logged if it has data, otherwise show target
+                                  const isSwapped = segment.target && segment.target.exercise_id !== segment.exercise_id;
                                   const targetSets = segment.target?.sets ?? [];
                                   const allSetNumbers = [...new Set([
                                     ...segment.sets.map(s => s.set_number),
@@ -1144,8 +1145,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                         // TARGET SET ROW
                                         <p key={row.target.id} className="text-secondary">
                                           <span>{row.target.time_seconds != null && row.target.time_seconds > 0
-                                            ? <>{row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
-                                            : <>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</>
+                                            ? <>{!isSwapped && row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
+                                            : isSwapped
+                                              ? <>{row.target.reps} reps</>
+                                              : <>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</>
                                           }</span>
                                           {row.target.rpe !== null && <span> @ {row.target.rpe}RPE</span>}
                                         </p>
@@ -1271,6 +1274,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         {/* SETS */}
                         {(() => {
                           // Build a unified list ordered by set_number: show logged if it has data, otherwise show target
+                          const isSwapped = segment.target && segment.target.exercise_id !== segment.exercise_id;
                           const workingSets = segment.sets.filter((s) => !s.is_warmup);
                           const workingTargets = segment.target?.sets.filter((ts) => !ts.is_warmup) ?? [];
                           const allSetNumbers = [...new Set([
@@ -1309,8 +1313,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                 // TARGET SET ROW
                                 <p key={row.target.id} className="text-secondary">
                                   <span>{row.target.time_seconds != null && row.target.time_seconds > 0
-                                    ? <>{row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
-                                    : <>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</>
+                                    ? <>{!isSwapped && row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
+                                    : isSwapped
+                                      ? <>{row.target.reps} reps</>
+                                      : <>{row.target.weight > 0 ? `${row.target.weight}lb` : "BW"} x {row.target.reps}</>
                                   }</span>
                                   {row.target.rpe !== null && <span> @ {row.target.rpe}RPE</span>}
                                 </p>
