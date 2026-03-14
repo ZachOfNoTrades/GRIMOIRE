@@ -256,6 +256,12 @@ export default function EditSegmentModal({
 
   if (!editedSegment) return null;
 
+  // Flush latest segment state before closing so notes and other edits are captured
+  const handleClose = () => {
+    onSave(editedSegment);
+    onClose();
+  };
+
   const handleExerciseChange = (exerciseId: string) => {
     const selectedExercise = exercises.find((e) => e.id === exerciseId);
     if (!selectedExercise) return;
@@ -342,7 +348,7 @@ export default function EditSegmentModal({
     <>
       <Modal
         isOpen={isOpen}
-        onClose={onClose}
+        onClose={handleClose}
         fullHeight
         title={
           <span className="flex items-center gap-2">
@@ -379,7 +385,7 @@ export default function EditSegmentModal({
             </Button>
 
             {/* SAVE BUTTON */}
-            <Button onClick={onClose} className="btn-blue">
+            <Button onClick={handleClose} className="btn-blue">
               <Save className="w-4 h-4" />
               Save
             </Button>

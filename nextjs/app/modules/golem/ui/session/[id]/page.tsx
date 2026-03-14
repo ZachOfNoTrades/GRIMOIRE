@@ -1450,8 +1450,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             lastSavedSegmentRef.current = null;
           }
 
-          // Refresh from DB to ensure consistency
-          fetchSegments();
+          // Refresh from DB if no save is in flight (skip if in progress to avoid overwriting optimistic update)
+          if (!isSavingRef.current && !pendingSaveRef.current) {
+            fetchSegments();
+          }
         }}
         onSave={handleSaveSegment}
         onRemove={handleDeleteSegment}
