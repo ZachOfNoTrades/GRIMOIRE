@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ExerciseSummary, ExerciseHistoryEntry } from "../../../types/exercise";
 import { ExerciseWithMuscleGroups } from "../../../types/muscleGroup";
+import { HistoryRange } from "../../../utils/format";
 import HistoryTab from "./HistoryTab";
 import StatsTab from "./StatsTab";
 import InfoTab from "./InfoTab";
@@ -18,6 +19,11 @@ export default function ExerciseInfoView({
   // DATA
   const [history, setHistory] = useState<ExerciseHistoryEntry[]>([]);
   const [detail, setDetail] = useState<ExerciseWithMuscleGroups | null>(null);
+
+  // INPUT
+  const [range, setRange] = useState<HistoryRange>("6m");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
 
   // STATE
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -89,7 +95,15 @@ export default function ExerciseInfoView({
         ) : activeTab === "history" ? (
           <HistoryTab history={history} loading={historyLoading} />
         ) : (
-          <StatsTab history={history} loading={historyLoading} />
+          <StatsTab
+            history={history}
+            loading={historyLoading}
+            range={range}
+            customStartDate={customStartDate}
+            customEndDate={customEndDate}
+            onRangeChange={setRange}
+            onCustomDateChange={(start, end) => { setCustomStartDate(start); setCustomEndDate(end); }}
+          />
         )}
       </div>
     </>
