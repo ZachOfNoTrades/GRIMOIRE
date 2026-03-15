@@ -11,6 +11,7 @@ import { ExerciseSummary } from "../../../types/exercise";
 import DeleteSessionModal from "./DeleteSessionModal";
 import ResetSessionModal from "./ResetSessionModal";
 import EditSegmentModal from "./EditSegmentModal";
+import ExercisePickerModal from "./ExercisePickerModal";
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
 import { generateUUID } from "../../../utils/id";
@@ -40,6 +41,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
   const [segmentModalData, setSegmentModalData] = useState<SegmentWithSets | null>(null);
+  const [isAddPickerOpen, setIsAddPickerOpen] = useState(false);
+  const [addPickerIsWarmup, setAddPickerIsWarmup] = useState(false);
   const [isDeletingSegment, setIsDeletingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -393,54 +396,31 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   const handleAddSegment = () => {
-    const segmentId = generateUUID();
-    const newSegment: SegmentWithSets = {
-      id: segmentId,
-      session_id: id,
-      exercise_id: "",
-      exercise_name: "",
-      exercise_category: "Strength",
-      exercise_is_timed: false,
-      target_id: null,
-      order_index: Math.max(0, ...workingLoggedSegments.map(s => s.order_index), ...workingUnlinkedTargets.map(t => t.order_index)) + 1,
-      is_warmup: false,
-      modifier_id: null,
-      modifier_name: null,
-      notes: null,
-      created_at: new Date(),
-      modified_at: new Date(),
-      sets: [{
-        id: generateUUID(),
-        session_segment_id: segmentId,
-        set_number: 1,
-        is_warmup: false,
-        reps: 0,
-        weight: 0,
-        rpe: null,
-        time_seconds: null,
-        notes: null,
-        is_completed: false,
-        created_at: new Date(),
-        modified_at: new Date(),
-      }],
-      target: null,
-    };
-    setSegmentModalData(newSegment);
-    setIsSegmentModalOpen(true);
+    setAddPickerIsWarmup(false);
+    setIsAddPickerOpen(true);
   };
 
   const handleAddWarmupSegment = () => {
+    setAddPickerIsWarmup(true);
+    setIsAddPickerOpen(true);
+  };
+
+  // Create a new segment from the exercise selected in the add picker, then open EditSegmentModal
+  const handleAddPickerSelect = (exercise: ExerciseSummary) => {
+    const isWarmup = addPickerIsWarmup;
+    const sourceSegments = isWarmup ? warmupLoggedSegments : workingLoggedSegments;
+    const sourceTargets = isWarmup ? warmupUnlinkedTargets : workingUnlinkedTargets;
     const segmentId = generateUUID();
     const newSegment: SegmentWithSets = {
       id: segmentId,
       session_id: id,
-      exercise_id: "",
-      exercise_name: "",
-      exercise_category: "Strength",
-      exercise_is_timed: false,
+      exercise_id: exercise.id,
+      exercise_name: exercise.name,
+      exercise_category: exercise.category,
+      exercise_is_timed: exercise.is_timed,
       target_id: null,
-      order_index: Math.max(0, ...warmupLoggedSegments.map(s => s.order_index), ...warmupUnlinkedTargets.map(t => t.order_index)) + 1,
-      is_warmup: true,
+      order_index: Math.max(0, ...sourceSegments.map(s => s.order_index), ...sourceTargets.map(t => t.order_index)) + 1,
+      is_warmup: isWarmup,
       modifier_id: null,
       modifier_name: null,
       notes: null,
@@ -450,11 +430,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         id: generateUUID(),
         session_segment_id: segmentId,
         set_number: 1,
-        is_warmup: true, // warmup segment sets default to warmup
-        reps: 0,
+        is_warmup: isWarmup,
+        reps: exercise.is_timed ? null : 0,
         weight: 0,
         rpe: null,
-        time_seconds: null,
+        time_seconds: exercise.is_timed ? 0 : null,
         notes: null,
         is_completed: false,
         created_at: new Date(),
@@ -462,6 +442,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }],
       target: null,
     };
+    setIsAddPickerOpen(false);
+    handleSaveSegment(newSegment);
     setSegmentModalData(newSegment);
     setIsSegmentModalOpen(true);
   };
@@ -1468,6 +1450,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         isDeleting={isDeletingSegment}
         onExerciseCreated={(exercise) => setExercises((prev) => [...prev, exercise].sort((a, b) => a.name.localeCompare(b.name)))}
         onExerciseUpdated={(exercise) => setExercises((prev) => prev.map((e) => e.id === exercise.id ? exercise : e).sort((a, b) => a.name.localeCompare(b.name)))}
+      />
+
+      {/* ADD SEGMENT EXERCISE PICKER */}
+      <ExercisePickerModal
+        isOpen={isAddPickerOpen}
+        onClose={() => setIsAddPickerOpen(false)}
+        onSelect={handleAddPickerSelect}
+        exercises={exercises}
+        onExerciseCreated={(exercise) => setExercises((prev) => [...prev, exercise].sort((a, b) => a.name.localeCompare(b.name)))}
+        onExerciseUpdated={(exercise) => setExercises((prev) => prev.map((e) => e.id === exercise.id ? exercise : e).sort((a, b) => a.name.localeCompare(b.name)))}
+        startOnBrowse
       />
     </div>
   );

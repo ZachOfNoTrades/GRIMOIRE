@@ -28,6 +28,7 @@ interface ExercisePickerModalProps {
   currentExerciseId?: string;
   targetExerciseId?: string;
   editMode?: boolean;
+  startOnBrowse?: boolean;
 }
 
 export default function ExercisePickerModal({
@@ -40,10 +41,11 @@ export default function ExercisePickerModal({
   currentExerciseId,
   targetExerciseId,
   editMode,
+  startOnBrowse,
 }: ExercisePickerModalProps) {
 
   // STATE
-  const [viewStack, setViewStack] = useState<PickerView[]>([{ type: "recommendations" }]);
+  const [viewStack, setViewStack] = useState<PickerView[]>([startOnBrowse ? { type: "browse" } : { type: "recommendations" }]);
   const [slideDirection, setSlideDirection] = useState<"right" | "left">("right");
   const [showDisabled, setShowDisabled] = useState(false);
 
@@ -66,9 +68,10 @@ export default function ExercisePickerModal({
   useEffect(() => {
     if (isOpen) {
       const exerciseToEdit = editMode && currentExerciseId ? exercises.find((e) => e.id === currentExerciseId) : undefined;
+      const defaultView: PickerView = startOnBrowse ? { type: "browse" } : { type: "recommendations" };
       setViewStack(exerciseToEdit
         ? [{ type: "form", exercise: exerciseToEdit }]
-        : [{ type: "recommendations" }]
+        : [defaultView]
       );
       setSlideDirection("right");
     }
