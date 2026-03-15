@@ -301,13 +301,13 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
 
                                       {/* STATUS ICON */}
                                       {session.is_completed ? (
-                                        <CircleCheck className="w-4 h-4 text-secondary" />
+                                        <CircleCheck className="w-4 h-4 text-secondary shrink-0" />
                                       ) : session.started_at ? (
-                                        <CircleDot className="w-4 h-4 status-active-text" />
+                                        <CircleDot className="w-4 h-4 status-active-text shrink-0" />
                                       ) : session.is_current ? (
-                                        <Circle className="w-4 h-4 status-active-text" />
+                                        <Circle className="w-4 h-4 status-active-text shrink-0" />
                                       ) : (
-                                        <Circle className="w-4 h-4 text-secondary" />
+                                        <Circle className="w-4 h-4 text-secondary shrink-0" />
                                       )}
 
                                       {/* NAME */}
