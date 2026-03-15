@@ -259,7 +259,6 @@ export default function EditSegmentModal({
 
   // Flush latest segment state before closing so notes and other edits are captured
   const handleClose = () => {
-    onSave(editedSegment);
     onClose();
   };
 

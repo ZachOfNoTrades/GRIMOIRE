@@ -1084,7 +1084,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                     ? <CircleCheck className="icon-green !w-4 !h-4 shrink-0" />
                                     : <Circle className="icon-gray !w-4 !h-4 shrink-0" />
                                   }
-                                  <h3 className="text-card-title"><span className="text-secondary">[{item.effectiveOrder}]</span> {segment.exercise_name}</h3>
+                                  <h3 className="text-card-title">{segment.exercise_name}</h3>
                                 </div>
 
                                 {/* SWAPPED EXERCISE INDICATOR */}
@@ -1177,7 +1177,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                               {/* EXERCISE NAME */}
                               <div className="flex items-center gap-2">
                                 <Circle className="icon-gray !w-4 !h-4" />
-                                <h3 className="text-card-title"><span className="text-secondary">[{item.effectiveOrder}]</span> {target.exercise_name}</h3>
+                                <h3 className="text-card-title">{target.exercise_name}</h3>
                               </div>
                             </div>
 
@@ -1251,7 +1251,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                             ? <CircleCheck className="icon-green !w-4 !h-4 shrink-0" />
                             : <Circle className="icon-gray !w-4 !h-4 shrink-0" />
                           }
-                          <h3 className="text-card-title"><span className="text-secondary">[{item.effectiveOrder}]</span> {segment.exercise_name}</h3>
+                          <h3 className="text-card-title">{segment.exercise_name}</h3>
                         </div>
 
                         {/* SWAPPED EXERCISE INDICATOR */}
@@ -1345,7 +1345,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       {/* EXERCISE NAME */}
                       <div className="flex items-center gap-2">
                         <Circle className="icon-gray !w-4 !h-4" />
-                        <h3 className="text-card-title"><span className="text-secondary">[{item.effectiveOrder}]</span> {target.exercise_name}</h3>
+                        <h3 className="text-card-title">{target.exercise_name}</h3>
                       </div>
                     </div>
 
