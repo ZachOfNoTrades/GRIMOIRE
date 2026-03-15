@@ -106,6 +106,10 @@ export async function getProgramById(programId: string): Promise<Program> {
             SELECT 1 FROM weeks w_chk2
             JOIN workout_sessions ws_chk2 ON ws_chk2.week_id = w_chk2.id
             WHERE w_chk2.block_id = b.id AND ws_chk2.is_completed = 0
+          ) AND NOT EXISTS (
+            SELECT 1 FROM weeks w_chk3
+            WHERE w_chk3.block_id = b.id
+              AND NOT EXISTS (SELECT 1 FROM workout_sessions ws_chk3 WHERE ws_chk3.week_id = w_chk3.id)
           ) THEN 1 ELSE 0 END AS BIT) AS block_is_completed,
           w.id              AS week_id,
           w.week_number,
@@ -291,7 +295,7 @@ async function setProgramAsCurrent(transaction: any, programId: string): Promise
     .input('programId', programId)
     .query(`UPDATE programs SET is_current = 1, modified_at = GETDATE() WHERE id = @programId`);
 
-  // Find lowest incomplete block (has at least one incomplete session)
+  // Find lowest incomplete block (has a week with no sessions or at least one incomplete session)
   const blockResult = await transaction.request()
     .input('programId', programId)
     .query(`
@@ -299,8 +303,11 @@ async function setProgramAsCurrent(transaction: any, programId: string): Promise
       WHERE b.program_id = @programId
         AND EXISTS (
           SELECT 1 FROM weeks w
-          JOIN workout_sessions ws ON ws.week_id = w.id
-          WHERE w.block_id = b.id AND ws.is_completed = 0
+          WHERE w.block_id = b.id
+            AND (
+              NOT EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id)
+              OR EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id AND ws.is_completed = 0)
+            )
         )
       ORDER BY b.order_index ASC
     `);
@@ -312,15 +319,15 @@ async function setProgramAsCurrent(transaction: any, programId: string): Promise
     .input('blockId', blockId)
     .query(`UPDATE blocks SET is_current = 1, modified_at = GETDATE() WHERE id = @blockId`);
 
-  // Find lowest incomplete week in that block (has at least one incomplete session)
+  // Find lowest incomplete week in that block (no sessions or at least one incomplete session)
   const weekResult = await transaction.request()
     .input('blockId', blockId)
     .query(`
       SELECT TOP 1 w.id FROM weeks w
       WHERE w.block_id = @blockId
-        AND EXISTS (
-          SELECT 1 FROM workout_sessions ws
-          WHERE ws.week_id = w.id AND ws.is_completed = 0
+        AND (
+          NOT EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id)
+          OR EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id AND ws.is_completed = 0)
         )
       ORDER BY w.week_number ASC
     `);

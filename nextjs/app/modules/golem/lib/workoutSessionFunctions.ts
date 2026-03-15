@@ -151,7 +151,7 @@ async function advanceProgramCurrent(
     .input('programId', programId)
     .query(`UPDATE blocks SET is_current = 0, modified_at = GETDATE() WHERE program_id = @programId AND is_current = 1`);
 
-  // Find lowest incomplete block (has at least one incomplete session)
+  // Find lowest incomplete block (has a week with no sessions or at least one incomplete session)
   const blockResult = await transaction.request()
     .input('programId', programId)
     .query(`
@@ -159,8 +159,11 @@ async function advanceProgramCurrent(
       WHERE b.program_id = @programId
         AND EXISTS (
           SELECT 1 FROM weeks w
-          JOIN workout_sessions ws ON ws.week_id = w.id
-          WHERE w.block_id = b.id AND ws.is_completed = 0
+          WHERE w.block_id = b.id
+            AND (
+              NOT EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id)
+              OR EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id AND ws.is_completed = 0)
+            )
         )
       ORDER BY b.order_index ASC
     `);
@@ -172,15 +175,15 @@ async function advanceProgramCurrent(
     .input('blockId', blockId)
     .query(`UPDATE blocks SET is_current = 1, modified_at = GETDATE() WHERE id = @blockId`);
 
-  // Find lowest incomplete week in that block (has at least one incomplete session)
+  // Find lowest incomplete week in that block (no sessions or at least one incomplete session)
   const weekResult = await transaction.request()
     .input('blockId', blockId)
     .query(`
       SELECT TOP 1 w.id FROM weeks w
       WHERE w.block_id = @blockId
-        AND EXISTS (
-          SELECT 1 FROM workout_sessions ws
-          WHERE ws.week_id = w.id AND ws.is_completed = 0
+        AND (
+          NOT EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id)
+          OR EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id AND ws.is_completed = 0)
         )
       ORDER BY w.week_number ASC
     `);
@@ -280,6 +283,7 @@ async function updateStatus(
   if (isCompleted && !current.is_completed) {
 
     // Check if all sessions across the entire program are now complete (excluding the one being completed)
+    // and no weeks exist without sessions (ungenerated weeks mean the program is not finished)
     const programIncompleteCount = await transaction.request()
       .input('programId', program_id)
       .input('excludeId', id)
@@ -290,9 +294,18 @@ async function updateStatus(
         WHERE b.program_id = @programId AND ws.id != @excludeId AND ws.is_completed = 0
       `);
 
-    if (programIncompleteCount.recordset[0].count === 0) {
+    const emptyWeekCount = await transaction.request()
+      .input('programId', program_id)
+      .query(`
+        SELECT COUNT(*) as count FROM weeks w
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId
+          AND NOT EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.week_id = w.id)
+      `);
 
-      // All sessions complete — mark program as complete
+    if (programIncompleteCount.recordset[0].count === 0 && emptyWeekCount.recordset[0].count === 0) {
+
+      // All sessions complete and no empty weeks — mark program as complete
       await transaction.request()
         .input('programId', program_id)
         .query(`UPDATE programs SET is_completed = 1, modified_at = GETDATE() WHERE id = @programId`);
