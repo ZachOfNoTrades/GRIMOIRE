@@ -1517,3 +1517,14 @@ body {
   justify-content: center;
   padding: 2rem 0;
 }
+
+/* Highlight flash — used when scrolling to a specific card (e.g. clicking a stat to find its session) */
+@keyframes highlight-flash {
+  0% { box-shadow: 0 0 0 2px var(--btn-blue-bg); }
+  70% { box-shadow: 0 0 0 2px var(--btn-blue-bg); }
+  100% { box-shadow: 0 0 0 0px transparent; }
+}
+
+.highlight-flash {
+  animation: highlight-flash 1.5s ease-out;
+}

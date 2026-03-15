@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react";
 import { ExerciseHistoryEntry } from "../../../types/exercise";
 import { HistoryRange, formatDateShortWithYear, formatDuration } from "../../../utils/format";
 
@@ -19,12 +20,29 @@ interface HistoryTabProps {
   onRangeChange?: (range: HistoryRange) => void;
   onCustomDateChange?: (startDate: string, endDate: string) => void;
   totalCount?: number;
+  highlightSessionId?: string;
+  onSessionClick?: (sessionId: string) => void;
 }
 
-export default function HistoryTab({ history, loading, range, customStartDate, customEndDate, onRangeChange, onCustomDateChange, totalCount }: HistoryTabProps) {
+export default function HistoryTab({ history, loading, range, customStartDate, customEndDate, onRangeChange, onCustomDateChange, totalCount, highlightSessionId, onSessionClick }: HistoryTabProps) {
 
   // Whether the current filter is hiding older results
   const hasOlderHistory = totalCount != null && totalCount > history.length;
+
+  // Scroll to and highlight a specific session card when requested
+  useEffect(() => {
+    if (!highlightSessionId || loading) return;
+
+    const timer = setTimeout(() => {
+      const element = document.getElementById(`history-session-${highlightSessionId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.classList.add("highlight-flash");
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [highlightSessionId, loading]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -98,7 +116,12 @@ export default function HistoryTab({ history, loading, range, customStartDate, c
         {history.map((entry) => (
 
           // SESSION SUB-CARD
-          <div key={entry.session_id} className="card">
+          <div
+            key={entry.session_id}
+            id={`history-session-${entry.session_id}`}
+            className={`card ${onSessionClick ? "cursor-pointer" : ""}`}
+            onClick={onSessionClick ? () => onSessionClick(entry.session_id) : undefined}
+          >
 
             {/* SUB-CARD CONTENT */}
             <div className="card-content !gap-1">

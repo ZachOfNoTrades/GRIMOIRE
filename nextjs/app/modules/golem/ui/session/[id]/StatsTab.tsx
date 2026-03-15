@@ -18,6 +18,7 @@ interface StatsTabProps {
   customEndDate: string;
   onRangeChange: (range: HistoryRange) => void;
   onCustomDateChange: (startDate: string, endDate: string) => void;
+  onNavigateToSession?: (sessionId: string) => void;
 }
 
 // ─── Chart Grouping ─────────────────────────────────────────
@@ -92,6 +93,7 @@ export default function StatsTab({
   customEndDate,
   onRangeChange,
   onCustomDateChange,
+  onNavigateToSession,
 }: StatsTabProps) {
 
   // Build per-session chart data points in chronological order
@@ -114,13 +116,20 @@ export default function StatsTab({
   const groupingStrategy = getGroupingStrategy(range, dataPoints);
   const groupedDataPoints = groupDataPoints(dataPoints, groupingStrategy);
 
-  // Aggregate all working sets across sessions for stat cards
+  // Aggregate all working sets across sessions for stat cards (with session_id for navigation)
   const allWorkingSets = history.flatMap((entry) =>
-    entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps != null && set.reps > 0)
+    entry.sets
+      .filter((set) => !set.is_warmup && set.weight > 0 && set.reps != null && set.reps > 0)
+      .map((set) => ({ ...set, session_id: entry.session_id }))
   );
 
-  const bestEstimatedOneRepMax = allWorkingSets.length > 0
-    ? Math.max(...allWorkingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps!)))
+  const bestOneRepMaxSet = allWorkingSets.length > 0
+    ? allWorkingSets.reduce((best, set) =>
+        calculateEstimatedOneRepMax(set.weight, set.reps!) > calculateEstimatedOneRepMax(best.weight, best.reps!) ? set : best)
+    : null;
+
+  const bestEstimatedOneRepMax = bestOneRepMaxSet
+    ? calculateEstimatedOneRepMax(bestOneRepMaxSet.weight, bestOneRepMaxSet.reps!)
     : null;
 
   const bestVolumeSet = allWorkingSets.length > 0
@@ -201,7 +210,10 @@ export default function StatsTab({
           <div className="stat-section">
 
             {/* ESTIMATED 1RM */}
-            <div className="stat-card">
+            <div
+              className={`stat-card ${onNavigateToSession ? "cursor-pointer" : ""}`}
+              onClick={() => onNavigateToSession?.(bestOneRepMaxSet!.session_id)}
+            >
               <p className="stat-label">e1RM</p>
 
               {/* VALUE + TREND */}
@@ -221,13 +233,19 @@ export default function StatsTab({
             </div>
 
             {/* BEST VOLUME SET */}
-            <div className="stat-card">
+            <div
+              className={`stat-card ${onNavigateToSession ? "cursor-pointer" : ""}`}
+              onClick={() => onNavigateToSession?.(bestVolumeSet!.session_id)}
+            >
               <p className="stat-label">Best Volume</p>
               <p className="stat-value">{bestVolumeSet!.weight} x {bestVolumeSet!.reps}</p>
             </div>
 
             {/* BEST WEIGHT SET */}
-            <div className="stat-card">
+            <div
+              className={`stat-card ${onNavigateToSession ? "cursor-pointer" : ""}`}
+              onClick={() => onNavigateToSession?.(bestWeightSet!.session_id)}
+            >
               <p className="stat-label">Best Weight</p>
               <p className="stat-value">{bestWeightSet!.weight} x {bestWeightSet!.reps}</p>
             </div>

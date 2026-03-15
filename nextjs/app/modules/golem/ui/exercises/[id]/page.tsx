@@ -7,8 +7,9 @@ import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
 import { ExerciseHistoryEntry } from "../../../types/exercise";
-import { formatDateLong, formatDateShortWithYear, formatDuration } from "../../../utils/format";
+import { formatDateLong, formatDuration } from "../../../utils/format";
 import { calculateEstimatedOneRepMax } from "../../../utils/calc";
+import HistoryTab from "../../session/[id]/HistoryTab";
 import DisableExerciseModal from "./DisableExerciseModal";
 import EnableExerciseModal from "./EnableExerciseModal";
 
@@ -38,6 +39,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const [isEnabling, setIsEnabling] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<"stats" | "history">("history");
+  const [scrollToSessionId, setScrollToSessionId] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -578,9 +580,11 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                   }
 
                   if (exercise.is_timed) {
-                    // Timed exercise stats
+                    // Timed exercise stats (with session_id for navigation)
                     const timedSets = history.flatMap((entry) =>
-                      entry.sets.filter((set) => !set.is_warmup && set.time_seconds != null && set.time_seconds > 0)
+                      entry.sets
+                        .filter((set) => !set.is_warmup && set.time_seconds != null && set.time_seconds > 0)
+                        .map((set) => ({ ...set, session_id: entry.session_id }))
                     );
 
                     if (timedSets.length === 0) {
@@ -596,7 +600,10 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                       <div className="stat-section">
 
                         {/* LONGEST DURATION */}
-                        <div className="stat-card">
+                        <div
+                          className="stat-card cursor-pointer"
+                          onClick={() => { setScrollToSessionId(longestDuration.session_id); setSelectedTab("history"); }}
+                        >
                           <p className="stat-label">Longest Duration</p>
                           <p className="stat-value">{formatDuration(longestDuration.time_seconds!)}</p>
                         </div>
@@ -604,9 +611,11 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     );
                   }
 
-                  // Rep-based exercise stats
+                  // Rep-based exercise stats (with session_id for navigation)
                   const workingSets = history.flatMap((entry) =>
-                    entry.sets.filter((set) => !set.is_warmup && set.weight > 0 && set.reps != null && set.reps > 0)
+                    entry.sets
+                      .filter((set) => !set.is_warmup && set.weight > 0 && set.reps != null && set.reps > 0)
+                      .map((set) => ({ ...set, session_id: entry.session_id }))
                   );
 
                   if (workingSets.length === 0) {
@@ -614,9 +623,10 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                   }
 
                   // Estimated 1RM from best working set by Epley
-                  const bestOneRepMax = Math.max(
-                    ...workingSets.map((set) => calculateEstimatedOneRepMax(set.weight, set.reps!))
+                  const bestOneRepMaxSet = workingSets.reduce((best, set) =>
+                    calculateEstimatedOneRepMax(set.weight, set.reps!) > calculateEstimatedOneRepMax(best.weight, best.reps!) ? set : best
                   );
+                  const bestOneRepMax = calculateEstimatedOneRepMax(bestOneRepMaxSet.weight, bestOneRepMaxSet.reps!);
 
                   // Best volume set (highest weight × reps)
                   const bestVolumeSet = workingSets.reduce((best, set) =>
@@ -632,19 +642,28 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     <div className="stat-section">
 
                       {/* ESTIMATED 1RM */}
-                      <div className="stat-card">
+                      <div
+                        className="stat-card cursor-pointer"
+                        onClick={() => { setScrollToSessionId(bestOneRepMaxSet.session_id); setSelectedTab("history"); }}
+                      >
                         <p className="stat-label">e1RM</p>
                         <p className="stat-value">{bestOneRepMax} lbs</p>
                       </div>
 
                       {/* BEST VOLUME SET */}
-                      <div className="stat-card">
+                      <div
+                        className="stat-card cursor-pointer"
+                        onClick={() => { setScrollToSessionId(bestVolumeSet.session_id); setSelectedTab("history"); }}
+                      >
                         <p className="stat-label">Best Volume Set</p>
                         <p className="stat-value">{bestVolumeSet.weight} x {bestVolumeSet.reps}</p>
                       </div>
 
                       {/* BEST WEIGHT SET */}
-                      <div className="stat-card">
+                      <div
+                        className="stat-card cursor-pointer"
+                        onClick={() => { setScrollToSessionId(bestWeightSet.session_id); setSelectedTab("history"); }}
+                      >
                         <p className="stat-label">Best Weight Set</p>
                         <p className="stat-value">{bestWeightSet.weight} x {bestWeightSet.reps}</p>
                       </div>
@@ -654,71 +673,12 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
               ) : (
 
                 // HISTORY TAB CONTENT
-                isHistoryLoading ? (
-
-                  // LOADING PLACEHOLDER
-                  <div className="loading-container py-4">
-                    <div className="loading-spinner" />
-                  </div>
-                ) : history.length === 0 ? (
-
-                  // EMPTY PLACEHOLDER
-                  <p className="text-page-subtitle text-center py-4">No session history found</p>
-                ) : (
-
-                  // SESSION SUB-CARDS
-                  <div className="flex flex-col gap-3">
-                    {history.map((entry) => (
-
-                      // SESSION SUB-CARD
-                      <div
-                        key={entry.session_id}
-                        className="card cursor-pointer"
-                        onClick={() => router.push(`/modules/golem/ui/session/${entry.session_id}`)}
-                      >
-
-                        {/* SUB-CARD CONTENT */}
-                        <div className="card-content !gap-1">
-
-                          {/* SESSION NAME AND DATE */}
-                          <div className="flex items-baseline justify-between gap-4">
-                            <h3 className="text-h2">{entry.session_name}</h3>
-
-                            {/* DATE */}
-                            <span className="text-secondary text-sm whitespace-nowrap">
-                              {formatDateShortWithYear(entry.started_at!)}
-                            </span>
-                          </div>
-
-                          {/* PROGRAM NAME */}
-                          {entry.program_name && (
-                            <p className="text-secondary text-sm">{entry.program_name}</p>
-                          )}
-
-                          {/* SETS LIST */}
-                          <div className="flex flex-col gap-0.5 mt-1">
-                            {entry.sets.map((set, index) => (
-
-                              // SET LINE
-                              <p key={index} className={`text-sm ${set.is_warmup ? "text-secondary" : "text-primary"}`}>
-                                {set.time_seconds != null && set.time_seconds > 0
-                                  ? <>
-                                    {set.weight > 0 ? `${set.weight} x ` : ""}
-                                    {formatDuration(set.time_seconds)}
-                                  </>
-                                  : <>
-                                    {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
-                                  </>
-                                }
-                                {set.rpe != null && <span className="text-secondary"> @{set.rpe}</span>}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
+                <HistoryTab
+                  history={history}
+                  loading={isHistoryLoading}
+                  highlightSessionId={scrollToSessionId ?? undefined}
+                  onSessionClick={(sessionId) => router.push(`/modules/golem/ui/session/${sessionId}`)}
+                />
               )}
             </div>
           </div>

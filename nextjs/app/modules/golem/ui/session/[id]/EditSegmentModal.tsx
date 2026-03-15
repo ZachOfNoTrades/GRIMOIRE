@@ -61,6 +61,7 @@ export default function EditSegmentModal({
 
   // STATE
   const [activeTab, setActiveTab] = useState("sets");
+  const [highlightSessionId, setHighlightSessionId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
@@ -168,6 +169,7 @@ export default function EditSegmentModal({
 
       // Reset to Sets tab and date filter when modal opens
       setActiveTab("sets");
+      setHighlightSessionId(null);
       setHistoryRange("6m");
       setHistoryStartDate("");
       setHistoryEndDate("");
@@ -339,6 +341,7 @@ export default function EditSegmentModal({
             onRangeChange={handleRangeChange}
             onCustomDateChange={handleCustomDateChange}
             totalCount={totalHistoryCount}
+            highlightSessionId={highlightSessionId ?? undefined}
           />
         );
       case "stats":
@@ -351,6 +354,10 @@ export default function EditSegmentModal({
             customEndDate={historyEndDate}
             onRangeChange={handleRangeChange}
             onCustomDateChange={handleCustomDateChange}
+            onNavigateToSession={(targetSessionId) => {
+              setHighlightSessionId(targetSessionId);
+              setActiveTab("history");
+            }}
           />
         );
       case "info":
