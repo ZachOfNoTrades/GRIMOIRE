@@ -264,15 +264,13 @@ export default function EditSegmentModal({
     onClose();
   };
 
-  const handleExerciseChange = (exerciseId: string) => {
-    const selectedExercise = exercises.find((e) => e.id === exerciseId);
-    if (!selectedExercise) return;
+  const handleExerciseChange = (exercise: ExerciseSummary) => {
     const updatedSegment = {
       ...editedSegment,
-      exercise_id: exerciseId,
-      exercise_name: selectedExercise.name,
-      exercise_category: selectedExercise.category,
-      exercise_is_timed: selectedExercise.is_timed,
+      exercise_id: exercise.id,
+      exercise_name: exercise.name,
+      exercise_category: exercise.category,
+      exercise_is_timed: exercise.is_timed,
     };
     setEditedSegment(updatedSegment);
     onSave(updatedSegment);
@@ -459,7 +457,7 @@ export default function EditSegmentModal({
       <ExercisePickerModal
         isOpen={isExercisePickerOpen}
         onClose={() => setIsExercisePickerOpen(false)}
-        onSelect={(exercise) => handleExerciseChange(exercise.id)}
+        onSelect={(exercise) => handleExerciseChange(exercise)}
         exercises={exercises}
         onExerciseCreated={onExerciseCreated}
         onExerciseUpdated={handleExerciseUpdated}

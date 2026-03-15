@@ -204,7 +204,7 @@ export default function ExercisePickerModal({
             )}
 
             {/* ADD EXERCISE BUTTON */}
-            {currentView.type !== "info" && (
+            {currentView.type !== "info" && currentView.type !== "form" && (
               <Button
                 onClick={handleNavigateCreate}
                 className="btn-link !py-0"

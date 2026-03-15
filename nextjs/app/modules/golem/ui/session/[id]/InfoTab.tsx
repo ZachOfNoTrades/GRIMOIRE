@@ -27,9 +27,6 @@ export default function InfoTab({ exercise, loading }: InfoTabProps) {
     );
   }
 
-  const primaryMuscles = exercise.muscleGroups.filter((mg) => mg.is_primary);
-  const secondaryMuscles = exercise.muscleGroups.filter((mg) => !mg.is_primary);
-
   return (
     <div className="space-y-4">
 
@@ -52,41 +49,26 @@ export default function InfoTab({ exercise, loading }: InfoTabProps) {
         </div>
       )}
 
-      {/* PRIMARY MUSCLES */}
-      {primaryMuscles.length > 0 && (
-        <div>
-          <label className="text-secondary">Primary Muscles</label>
+      {/* MUSCLE GROUPS */}
+      <div>
+        <label className="text-secondary">Muscle Groups</label>
+        {exercise.muscleGroups.length > 0 ? (
           <div className="flex flex-wrap gap-2 mt-1">
-            {primaryMuscles.map((mg) => (
-              <span key={mg.muscle_group_id} className="badge-blue">
+            {exercise.muscleGroups.map((mg) => (
+
+              // MUSCLE GROUP BADGE
+              <span
+                key={mg.muscle_group_id}
+                className={`badge ${mg.is_primary ? "badge-blue" : "badge-gray"}`}
+              >
                 {mg.muscle_group_name}
               </span>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* SECONDARY MUSCLES */}
-      {secondaryMuscles.length > 0 && (
-        <div>
-          <label className="text-secondary">Secondary Muscles</label>
-          <div className="flex flex-wrap gap-2 mt-1">
-            {secondaryMuscles.map((mg) => (
-              <span key={mg.muscle_group_id} className="badge-blue">
-                {mg.muscle_group_name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* NO MUSCLE GROUPS */}
-      {exercise.muscleGroups.length === 0 && (
-        <div>
-          <label className="text-secondary">Muscle Groups</label>
+        ) : (
           <p className="text-secondary">No muscle groups assigned.</p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

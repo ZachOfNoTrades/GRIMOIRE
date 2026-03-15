@@ -292,7 +292,7 @@ export async function getExerciseHistory(
 
     const conditions: string[] = [
       'ss.exercise_id = @exerciseId',
-      'ws.started_at IS NOT NULL',
+      'ws.is_completed = 1',
     ];
 
     if (options.startDate) {
@@ -332,14 +332,14 @@ export async function getExerciseHistory(
       console.warn(`No exercise history found for exercise id: '${exerciseId}'`);
     }
 
-    // Total unfiltered session count for this exercise
+    // Total completed session count for this exercise
     const totalResult = await pool.request()
       .input('exerciseId', exerciseId)
       .query(`
         SELECT COUNT(DISTINCT ws.id) AS total_count
         FROM session_segments ss
         JOIN workout_sessions ws ON ss.session_id = ws.id
-        WHERE ss.exercise_id = @exerciseId AND ws.started_at IS NOT NULL
+        WHERE ss.exercise_id = @exerciseId AND ws.is_completed = 1
       `);
     const totalCount = totalResult.recordset[0].total_count;
 
