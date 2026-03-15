@@ -347,11 +347,6 @@ body {
 }
 
 .bottom-action-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 40;
   background: var(--solid-background);
   border-top: 1px solid var(--card-border);
   padding: 0.75rem 1rem;
@@ -361,8 +356,21 @@ body {
 }
 
 .page {
-  min-height: 100vh;
+  height: 100dvh;
   background: var(--gradient-background);
+}
+
+/* An extension class of .page, modifying view to accommodate action bar */
+.page-with-bottom-bar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Modifies page container to accommodate modified page */
+.page-with-bottom-bar > .page-container {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .page-container {

@@ -682,7 +682,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   return (
 
     // BACKGROUND
-    <div className="page pb-16">
+    <div className="page page-with-bottom-bar">
 
       <Toaster position="bottom-center" />
 
