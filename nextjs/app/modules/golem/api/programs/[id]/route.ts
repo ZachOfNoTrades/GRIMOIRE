@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getProgramById, updateProgram, archiveProgram } from '../../../lib/programFunctions';
+import { getProgramById, updateProgram, archiveProgram, activateProgram, deleteProgram } from '../../../lib/programFunctions';
 
 export async function GET(
   request: Request,
@@ -65,9 +65,15 @@ export async function PATCH(
 ) {
   try {
     const { id } = await context.params;
-    const { is_archived } = await request.json();
+    const body = await request.json();
 
-    await archiveProgram(id, is_archived);
+    if (body.is_archived !== undefined) {
+      await archiveProgram(id, body.is_archived);
+    }
+
+    if (body.is_current === true) {
+      await activateProgram(id);
+    }
 
     // Return the updated program
     const updatedProgram = await getProgramById(id);
@@ -84,7 +90,41 @@ export async function PATCH(
     }
 
     return NextResponse.json(
-      { error: 'Failed to archive program' },
+      { error: 'Failed to update program' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+
+    await deleteProgram(id);
+    return NextResponse.json({ success: true });
+
+  } catch (error) {
+    console.error('Error in DELETE /api/programs/[id]:', error);
+
+    if (error instanceof Error && error.message.includes('No program found')) {
+      return NextResponse.json(
+        { error: 'Program not found' },
+        { status: 404 }
+      );
+    }
+
+    if (error instanceof Error && error.message.includes('Cannot delete')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to delete program' },
       { status: 500 }
     );
   }

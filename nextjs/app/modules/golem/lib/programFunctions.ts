@@ -567,6 +567,124 @@ export async function archiveProgram(programId: string, isArchived: boolean): Pr
   }
 }
 
+export async function activateProgram(programId: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      await setProgramAsCurrent(transaction, programId);
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error activating program:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
+export async function deleteProgram(programId: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+
+    // Guard: prevent deletion if any session has been completed
+    const completedCheck = await pool.request()
+      .input('programId', programId)
+      .query(`
+        SELECT COUNT(*) as count FROM workout_sessions ws
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId AND ws.is_completed = 1
+      `);
+
+    if (completedCheck.recordset[0].count > 0) {
+      throw new Error('Cannot delete a program with completed sessions');
+    }
+
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Clear current flags before deleting
+      await clearProgramCurrentFlags(transaction, programId);
+
+      // Delete in dependency order: sets → segments → targets → sessions → weeks → blocks → program
+      await transaction.request().input('programId', programId).query(`
+        DELETE tss FROM target_session_segment_sets tss
+        JOIN target_session_segments ts ON tss.target_session_segment_id = ts.id
+        JOIN workout_sessions ws ON ts.session_id = ws.id
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId
+      `);
+      await transaction.request().input('programId', programId).query(`
+        DELETE ts FROM target_session_segments ts
+        JOIN workout_sessions ws ON ts.session_id = ws.id
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId
+      `);
+      await transaction.request().input('programId', programId).query(`
+        DELETE ss FROM session_segment_sets ss
+        JOIN session_segments se ON ss.session_segment_id = se.id
+        JOIN workout_sessions ws ON se.session_id = ws.id
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId
+      `);
+      await transaction.request().input('programId', programId).query(`
+        DELETE se FROM session_segments se
+        JOIN workout_sessions ws ON se.session_id = ws.id
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId
+      `);
+      await transaction.request().input('programId', programId).query(`
+        DELETE ws FROM workout_sessions ws
+        JOIN weeks w ON ws.week_id = w.id
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId
+      `);
+      await transaction.request().input('programId', programId).query(`
+        DELETE w FROM weeks w
+        JOIN blocks b ON w.block_id = b.id
+        WHERE b.program_id = @programId
+      `);
+      await transaction.request().input('programId', programId).query(`
+        DELETE FROM blocks WHERE program_id = @programId
+      `);
+      const result = await transaction.request().input('programId', programId).query(`
+        DELETE FROM programs WHERE id = @programId
+      `);
+
+      if (result.rowsAffected[0] === 0) {
+        throw new Error(`No program found for id: '${programId}'`);
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deleting program:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
 export async function updateProgram(
   programId: string,
   name: string,

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, Layers, RefreshCw, Sparkles } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
@@ -19,11 +19,26 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
   const [notFound, setNotFound] = useState(false);
   const [generatingWeekId, setGeneratingWeekId] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
 
   useEffect(() => {
     fetchProgram();
+  }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const fetchProgram = async () => {
@@ -76,6 +91,50 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
     }
   };
 
+  const handleSetCurrent = async () => {
+    if (!program) return;
+    setIsActivating(true);
+    try {
+      const { id } = await params;
+      const response = await fetch(`/modules/golem/api/programs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_current: true }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to set program as current");
+      }
+      const data = await response.json();
+      setProgram(data);
+    } catch (error) {
+      console.error("Error setting program as current:", error);
+      toast.error("Failed to set program as current");
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!program) return;
+    setIsDeleting(true);
+    try {
+      const { id } = await params;
+      const response = await fetch(`/modules/golem/api/programs/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete program");
+      }
+      router.push("/modules/golem/ui/home");
+    } catch (error) {
+      console.error("Error deleting program:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to delete program");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const generateNextWeek = async (weekId: string) => {
     setGeneratingWeekId(weekId);
     try {
@@ -112,6 +171,12 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
         <p className="text-page-subtitle text-center py-8">Program not found</p>
       </main>
     </div>
+  );
+
+  const hasCompletedSessions = program.blocks.some(block =>
+    block.weeks.some(week =>
+      week.sessions.some(session => session.is_completed)
+    )
   );
 
   return (
@@ -153,19 +218,61 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
               )}
             </div>
 
-            {/* ARCHIVE BUTTON */}
-            <Button
-              className="btn-off"
-              onClick={handleArchive}
-              disabled={isArchiving}
-            >
-              {program.is_archived ? (
-                <ArchiveRestore className="w-4 h-4" />
-              ) : (
-                <Archive className="w-4 h-4" />
+            {/* ACTIONS MENU */}
+            <div className="relative" ref={menuRef}>
+
+              {/* MENU TRIGGER */}
+              <Button
+                className="btn-link"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+              >
+                <EllipsisVertical className="w-4 h-4" />
+              </Button>
+
+              {/* MENU POPOVER */}
+              {isMenuOpen && (
+                <div className="popover-menu">
+
+                  {/* SET AS CURRENT ITEM */}
+                  {!program.is_current && (
+                    <button
+                      onClick={() => { setIsMenuOpen(false); handleSetCurrent(); }}
+                      className="popover-item"
+                      disabled={isActivating}
+                    >
+                      <Play className="w-4 h-4 mr-3" />
+                      {isActivating ? "Saving..." : "Set as Current"}
+                    </button>
+                  )}
+
+                  {/* ARCHIVE ITEM */}
+                  <button
+                    onClick={() => { setIsMenuOpen(false); handleArchive(); }}
+                    className="popover-item"
+                    disabled={isArchiving}
+                  >
+                    {program.is_archived ? (
+                      <ArchiveRestore className="w-4 h-4 mr-3" />
+                    ) : (
+                      <Archive className="w-4 h-4 mr-3" />
+                    )}
+                    {isArchiving ? "Saving..." : program.is_archived ? "Unarchive" : "Archive"}
+                  </button>
+
+                  {/* DELETE ITEM */}
+                  {!hasCompletedSessions && (
+                    <button
+                      onClick={() => { setIsMenuOpen(false); handleDelete(); }}
+                      className="popover-item"
+                      disabled={isDeleting}
+                    >
+                      <Trash2 className="w-4 h-4 mr-3" />
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </button>
+                  )}
+                </div>
               )}
-              {isArchiving ? "Saving..." : program.is_archived ? "Unarchive" : "Archive"}
-            </Button>
+            </div>
           </div>
 
           {/* DESCRIPTION */}
