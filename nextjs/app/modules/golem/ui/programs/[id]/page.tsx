@@ -294,7 +294,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                 >
 
                                   {/* SESSION ROW */}
-                                  <div className="sub-card-header">
+                                  <div className={`sub-card-header ${session.is_completed || !session.description ? '!mb-0' : ''}`}>
 
                                     {/* SESSION NAME */}
                                     <div className="flex items-center gap-2 min-w-0">
@@ -333,7 +333,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                   </div>
 
                                   {/* SESSION DESCRIPTION */}
-                                  {session.description && (
+                                  {session.description && !session.is_completed && (
                                     <p className="text-secondary text-sm">{session.description}</p>
                                   )}
                                 </div>
