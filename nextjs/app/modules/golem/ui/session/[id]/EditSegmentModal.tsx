@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { ArrowLeftRight, Save, Ban } from "lucide-react";
+import { ArrowLeftRight, Pencil, Save, Ban } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
@@ -64,6 +64,7 @@ export default function EditSegmentModal({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
+  const [isExercisePickerEditMode, setIsExercisePickerEditMode] = useState(false);
   const [isDisableModalOpen, setIsDisableModalOpen] = useState(false);
   const [isTogglingDisable, setIsTogglingDisable] = useState(false);
 
@@ -276,6 +277,22 @@ export default function EditSegmentModal({
     onSave(updatedSegment);
   };
 
+  // Wrap onExerciseUpdated to also sync the segment's exercise properties
+  const handleExerciseUpdated = (summary: ExerciseSummary) => {
+    if (editedSegment && summary.id === editedSegment.exercise_id) {
+      const updatedSegment = {
+        ...editedSegment,
+        exercise_name: summary.name,
+        exercise_category: summary.category,
+        exercise_is_timed: summary.is_timed,
+      };
+      setEditedSegment(updatedSegment);
+      onSave(updatedSegment);
+      fetchDetail(editedSegment.exercise_id);
+    }
+    onExerciseUpdated(summary);
+  };
+
   const handleAutoSave = (updatedSegment: SegmentWithSets) => {
     if (!updatedSegment.exercise_id) return;
     onSave(updatedSegment);
@@ -354,9 +371,24 @@ export default function EditSegmentModal({
           <span className="flex items-center gap-2">
             {editedSegment.exercise_name || "New Exercise"}
 
+            {/* EDIT EXERCISE BUTTON */}
+            <Button
+              onClick={() => {
+                setIsExercisePickerEditMode(true);
+                setIsExercisePickerOpen(true);
+              }}
+              className="btn-link"
+              title="Edit exercise"
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+
             {/* SWAP EXERCISE BUTTON */}
             <Button
-              onClick={() => setIsExercisePickerOpen(true)}
+              onClick={() => {
+                setIsExercisePickerEditMode(false);
+                setIsExercisePickerOpen(true);
+              }}
               className="btn-link"
               title="Swap exercise"
             >
@@ -424,9 +456,10 @@ export default function EditSegmentModal({
         onSelect={(exercise) => handleExerciseChange(exercise.id)}
         exercises={exercises}
         onExerciseCreated={onExerciseCreated}
-        onExerciseUpdated={onExerciseUpdated}
+        onExerciseUpdated={handleExerciseUpdated}
         currentExerciseId={editedSegment.exercise_id}
         targetExerciseId={editedSegment.target?.exercise_id}
+        editMode={isExercisePickerEditMode}
       />
 
       {/* DISABLE/ENABLE EXERCISE MODAL */}

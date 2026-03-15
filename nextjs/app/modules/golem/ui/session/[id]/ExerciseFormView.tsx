@@ -227,7 +227,6 @@ export default function ExerciseFormView({
             placeholder="e.g. Bench Press"
             className="input-field"
             autoCapitalize="words"
-            autoFocus
           />
         </div>
 
@@ -274,7 +273,6 @@ export default function ExerciseFormView({
         {/* MUSCLE GROUPS */}
         <div className="flex flex-col gap-2">
           <label className="text-label">Muscle Groups</label>
-          <p className="text-xs text-secondary">First selected is primary, others are secondary</p>
           <div className="flex flex-wrap gap-2">
             {muscleGroups.map((muscleGroup) => {
               const role = assignments.get(muscleGroup.id);
@@ -290,7 +288,6 @@ export default function ExerciseFormView({
                   className={`${badgeClass} cursor-pointer`}
                 >
                   {muscleGroup.name}
-                  {role === "primary" && <span className="text-[10px] uppercase ml-1">(P)</span>}
                 </button>
               );
             })}

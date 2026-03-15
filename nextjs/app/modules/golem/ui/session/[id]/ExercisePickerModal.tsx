@@ -27,6 +27,7 @@ interface ExercisePickerModalProps {
   onExerciseUpdated: (exercise: ExerciseSummary) => void;
   currentExerciseId?: string;
   targetExerciseId?: string;
+  editMode?: boolean;
 }
 
 export default function ExercisePickerModal({
@@ -38,6 +39,7 @@ export default function ExercisePickerModal({
   onExerciseUpdated,
   currentExerciseId,
   targetExerciseId,
+  editMode,
 }: ExercisePickerModalProps) {
 
   // STATE
@@ -63,7 +65,11 @@ export default function ExercisePickerModal({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setViewStack([{ type: "recommendations" }]);
+      const exerciseToEdit = editMode && currentExerciseId ? exercises.find((e) => e.id === currentExerciseId) : undefined;
+      setViewStack(exerciseToEdit
+        ? [{ type: "form", exercise: exerciseToEdit }]
+        : [{ type: "recommendations" }]
+      );
       setSlideDirection("right");
     }
   }, [isOpen]);
@@ -103,6 +109,13 @@ export default function ExercisePickerModal({
       handleSelectExercise(summary);
     } else {
       onExerciseUpdated(summary);
+
+      // If form is the only view (opened via exerciseToEdit), close the modal
+      if (viewStack.length <= 1) {
+        onClose();
+        return;
+      }
+
       // Pop form view and update the info view's exercise so it re-fetches
       setSlideDirection("left");
       setViewStack((prev) => {
