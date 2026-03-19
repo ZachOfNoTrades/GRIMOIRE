@@ -10,6 +10,7 @@ import { SegmentWithSets, TargetSegment } from "../../../types/segment";
 import { ExerciseSummary } from "../../../types/exercise";
 import DeleteSessionModal from "./DeleteSessionModal";
 import ResetSessionModal from "./ResetSessionModal";
+import ReviewSessionModal from "./ReviewSessionModal";
 import EditSegmentModal from "./EditSegmentModal";
 import ExercisePickerModal from "./ExercisePickerModal";
 import SessionTimer from "../../../components/SessionTimer";
@@ -49,7 +50,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isRegeneratingPlan, setIsRegeneratingPlan] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
+  const pendingCompletionDurationRef = useRef<number>(0);
   const segmentsForSaveRef = useRef<SegmentWithSets[]>([]);
   const isSavingRef = useRef(false);
   const pendingSaveRef = useRef<SegmentWithSets | null>(null);
@@ -339,16 +342,32 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       if (!confirmed) return;
     }
 
+    // Calculate elapsed time and store for use after review modal
     const elapsed = session.resumed_at
       ? (session.duration ?? 0) + Math.floor((Date.now() - new Date(session.resumed_at).getTime()) / 1000)
       : Math.floor((Date.now() - new Date(session.started_at!).getTime()) / 1000);
+    pendingCompletionDurationRef.current = elapsed;
 
+    setIsReviewModalOpen(true);
+  };
+
+  const handleReviewSubmit = (review: string) => {
     updateSessionStatus({
       is_completed: true,
       is_current: false,
       resumed_at: null,
-      duration: elapsed,
-    });
+      duration: pendingCompletionDurationRef.current,
+      review: review.trim() || null,
+    }).then(() => setIsReviewModalOpen(false));
+  };
+
+  const handleReviewSkip = () => {
+    updateSessionStatus({
+      is_completed: true,
+      is_current: false,
+      resumed_at: null,
+      duration: pendingCompletionDurationRef.current,
+    }).then(() => setIsReviewModalOpen(false));
   };
 
   // SEGMENT HANDLERS
@@ -1401,6 +1420,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           )}
         </div>
       )}
+
+      {/* REVIEW SESSION MODAL */}
+      <ReviewSessionModal
+        isOpen={isReviewModalOpen}
+        onClose={handleReviewSkip}
+        onSubmit={handleReviewSubmit}
+        isSaving={isUpdatingStatus}
+      />
 
       {/* DELETE SESSION MODAL */}
       <DeleteSessionModal
