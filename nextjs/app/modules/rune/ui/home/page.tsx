@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Layers } from "lucide-react";
+import { BookOpen, Layers, Zap } from "lucide-react";
 
 export default function RuneHomePage() {
 
@@ -32,6 +32,16 @@ export default function RuneHomePage() {
               <h2 className="text-card-title">
                 <Layers className="w-5 h-5" />
                 Decks
+              </h2>
+            </div>
+          </Link>
+
+          {/* GENERATE CARD */}
+          <Link href="/modules/rune/ui/decks/generate">
+            <div className="module-card">
+              <h2 className="text-card-title">
+                <Zap className="w-5 h-5" />
+                Generate Cards
               </h2>
             </div>
           </Link>

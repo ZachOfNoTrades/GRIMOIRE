@@ -1,5 +1,6 @@
 import { getRuneConnection, closeRuneConnection } from './db';
 import { CardWithProgress } from '../types/card';
+import { GeneratedCard } from '../types/generation';
 
 export async function getCardsByDeckId(deckId: string): Promise<CardWithProgress[]> {
   let pool;
@@ -50,6 +51,45 @@ export async function getCardById(id: string): Promise<CardWithProgress> {
     return result.recordset[0] as CardWithProgress;
   } catch (error) {
     console.error('Error fetching card:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Inserts multiple cards into a deck in a single transaction. Returns the number of cards inserted.
+export async function insertCards(deckId: string, cards: GeneratedCard[], source: string = 'notion'): Promise<number> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      for (const card of cards) {
+        await transaction.request()
+          .input('deckId', deckId)
+          .input('front', card.front.trim())
+          .input('back', card.back.trim())
+          .input('notes', card.notes?.trim() || null)
+          .input('source', source)
+          .input('orderIndex', card.order_index)
+          .query(`
+            INSERT INTO cards (deck_id, front, back, notes, source, order_index)
+            VALUES (@deckId, @front, @back, @notes, @source, @orderIndex)
+          `);
+      }
+
+      await transaction.commit();
+      return cards.length;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error inserting cards:', error);
     throw error;
   } finally {
     if (pool) {

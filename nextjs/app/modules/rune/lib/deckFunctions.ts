@@ -1,5 +1,5 @@
 import { getRuneConnection, closeRuneConnection } from './db';
-import { DeckSummary } from '../types/deck';
+import { Deck, DeckSummary } from '../types/deck';
 
 export async function getAllDecks(): Promise<{ decks: DeckSummary[] }> {
   let pool;
@@ -28,6 +28,30 @@ export async function getAllDecks(): Promise<{ decks: DeckSummary[] }> {
     return { decks: result.recordset as DeckSummary[] };
   } catch (error) {
     console.error('Error fetching decks:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+export async function createDeck(name: string, description: string | null): Promise<Deck> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('name', name)
+      .input('description', description)
+      .query(`
+        INSERT INTO decks (name, description)
+        OUTPUT INSERTED.*
+        VALUES (@name, @description)
+      `);
+
+    return result.recordset[0] as Deck;
+  } catch (error) {
+    console.error('Error creating deck:', error);
     throw error;
   } finally {
     if (pool) {
