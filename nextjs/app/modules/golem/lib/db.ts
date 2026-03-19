@@ -5,6 +5,8 @@ const config: sql.config = {
   user: process.env.SQL_SERVER_USER!,
   password: process.env.SQL_SERVER_PASSWORD!,
   database: process.env.SQL_GOLEM_DB!,
+  connectionTimeout: 30000, // 30s to establish connection
+  requestTimeout: 60000, // 60s per query (Express runs serially, needs more headroom)
   options: {
     encrypt: true,
     trustServerCertificate: true,
