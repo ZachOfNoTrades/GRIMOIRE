@@ -93,6 +93,7 @@ export default function DecksPage() {
                     <tr
                       key={deck.id}
                       className="table-row-clickable"
+                      onClick={() => router.push(`/modules/rune/ui/decks/${deck.id}`)}
                     >
                       <td className="table-cell">
                         <div>

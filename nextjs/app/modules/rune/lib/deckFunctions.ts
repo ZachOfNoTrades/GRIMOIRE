@@ -36,6 +36,29 @@ export async function getAllDecks(): Promise<{ decks: DeckSummary[] }> {
   }
 }
 
+export async function getDeckById(id: string): Promise<Deck> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('id', id)
+      .query(`SELECT * FROM decks WHERE id = @id`);
+
+    if (result.recordset.length === 0) {
+      throw new Error(`No deck found for id: '${id}'`);
+    }
+
+    return result.recordset[0] as Deck;
+  } catch (error) {
+    console.error('Error fetching deck:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
 export async function createDeck(name: string, description: string | null): Promise<Deck> {
   let pool;
   try {

@@ -1528,3 +1528,63 @@ body {
 .highlight-flash {
   animation: highlight-flash 1.5s ease-out;
 }
+
+/* ========================================
+   FLASHCARD STUDY
+   ======================================== */
+
+/* Container for the flash card face */
+.flashcard-container {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 2rem 1.75rem;
+  cursor: pointer;
+  user-select: none;
+  min-height: 16rem;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 200ms ease;
+}
+
+@media (hover: hover) {
+  .flashcard-container:hover {
+    border-color: var(--input-border);
+  }
+}
+
+/* Segmented progress bar */
+.flashcard-progress-bar {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--progress-bar-bg);
+  gap: 1px;
+}
+
+/* Individual progress segments */
+.flashcard-progress-segment {
+  flex: 1;
+  transition: background 300ms ease;
+}
+
+.flashcard-progress-segment-active {
+  background: var(--input-border);
+}
+
+.flashcard-progress-segment-again {
+  background: var(--alert-red-text);
+}
+
+.flashcard-progress-segment-hard {
+  background: var(--alert-yellow-text);
+}
+
+.flashcard-progress-segment-good {
+  background: var(--alert-green-text);
+}
+
+.flashcard-progress-segment-easy {
+  background: var(--alert-blue-text);
+}
