@@ -1,6 +1,9 @@
 // Fetches a Notion page's content as plain text via the Notion REST API.
 // Requires NOTION_API_KEY environment variable (Notion integration token).
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse/lib/pdf-parse');
+
 const NOTION_API_BASE = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 
@@ -110,8 +113,41 @@ function extractRichText(richText: any[]): string {
   return richText.map((rt: any) => rt.plain_text || '').join('');
 }
 
+// Downloads a PDF from a signed URL and extracts its text content
+async function extractPdfText(pdfUrl: string): Promise<string> {
+  const response = await fetch(pdfUrl);
+
+  if (!response.ok) {
+    throw new Error(`Failed to download PDF (${response.status})`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const parsed = await pdfParse(buffer);
+
+  return parsed.text.trim();
+}
+
+// Returns the downloadable URL from a PDF block, or null if unavailable
+function getPdfUrl(block: any): string | null {
+  const pdf = block.pdf;
+  if (!pdf) return null;
+
+  // Notion-hosted file
+  if (pdf.type === 'file' && pdf.file?.url) {
+    return pdf.file.url;
+  }
+
+  // Externally-hosted file
+  if (pdf.type === 'external' && pdf.external?.url) {
+    return pdf.external.url;
+  }
+
+  return null;
+}
+
 // Converts a block tree to readable text
-function blocksToText(blocks: any[], depth: number = 0): string {
+async function blocksToText(blocks: any[], depth: number = 0): Promise<string> {
   const lines: string[] = [];
   const indent = '  '.repeat(depth);
 
@@ -162,6 +198,24 @@ function blocksToText(blocks: any[], depth: number = 0): string {
         const cells = block.table_row.cells.map((cell: any[]) => extractRichText(cell));
         lines.push(`${indent}| ${cells.join(' | ')} |`);
         break;
+      case 'pdf': {
+        const pdfUrl = getPdfUrl(block);
+        if (pdfUrl) {
+          try {
+            console.log(`[Notion] Extracting text from embedded PDF...`);
+            const pdfText = await extractPdfText(pdfUrl);
+            if (pdfText.length > 0) {
+              lines.push(`\n${indent}[Embedded PDF Content]`);
+              lines.push(pdfText);
+              lines.push(`${indent}[End of PDF Content]\n`);
+              console.log(`[Notion] Extracted ${pdfText.length} chars from PDF`);
+            }
+          } catch (error) {
+            console.warn(`[Notion] Failed to extract PDF text:`, error);
+          }
+        }
+        break;
+      }
       default:
         // Skip unsupported block types (images, embeds, etc.)
         break;
@@ -169,7 +223,7 @@ function blocksToText(blocks: any[], depth: number = 0): string {
 
     // Process children
     if (block.children && block.children.length > 0) {
-      lines.push(blocksToText(block.children, depth + 1));
+      lines.push(await blocksToText(block.children, depth + 1));
     }
   }
 
@@ -187,7 +241,7 @@ export async function fetchNotionPageContent(notionUrl: string): Promise<{ title
     fetchBlocks(pageId),
   ]);
 
-  const content = blocksToText(blocks);
+  const content = await blocksToText(blocks);
 
   console.log(`[Notion] Fetched '${title}' — ${content.length} chars, ${blocks.length} top-level blocks`);
 
