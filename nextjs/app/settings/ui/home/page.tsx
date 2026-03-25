@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { User } from "@/types/user";
+import { Button } from "@/components/ui/button";
+import AddUserModal from "./AddUserModal";
 
 export default function SettingsConsolePage() {
   // DATA
@@ -9,23 +13,26 @@ export default function SettingsConsolePage() {
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  const router = useRouter();
 
   // Fetch users
-  useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const response = await fetch("/api/users");
-        if (response.ok) {
-          const data = await response.json();
-          setUsers(data);
-        }
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      } finally {
-        setIsLoading(false);
+  async function fetchUsers() {
+    try {
+      const response = await fetch("/api/users");
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
       }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setIsLoading(false);
     }
+  }
 
+  useEffect(() => {
     fetchUsers();
   }, []);
 
@@ -47,14 +54,25 @@ export default function SettingsConsolePage() {
       <div className="page-container">
 
         {/* PAGE HEADER */}
-        <h1 className="text-page-title">Settings</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-page-title">Settings</h1>
+        </div>
 
         {/* USERS CARD */}
         <div className="card mt-6">
 
           {/* HEADER */}
-          <div className="card-header">
+          <div className="card-header flex items-center justify-between">
             <h3 className="text-card-title">Users</h3>
+
+            {/* ADD USER BUTTON */}
+            <Button
+              className="btn-blue"
+              onClick={() => setIsAddModalOpen(true)}
+            >
+              <Plus className="w-4 h-4" />
+              Add User
+            </Button>
           </div>
 
           {/* USERS TABLE */}
@@ -90,7 +108,11 @@ export default function SettingsConsolePage() {
 
                 {/* USER ROWS */}
                 {!isLoading && users.map((user) => (
-                  <tr key={user.id} className="table-row">
+                  <tr
+                    key={user.id}
+                    className="table-row table-row-clickable"
+                    onClick={() => router.push(`/settings/ui/user/${user.id}`)}
+                  >
                     <td className="table-cell">{user.name}</td>
                     <td className="table-cell">{user.email}</td>
                     <td className="table-cell">
@@ -114,6 +136,13 @@ export default function SettingsConsolePage() {
           </div>
         </div>
       </div>
+
+      {/* ADD USER MODAL */}
+      <AddUserModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onUserAdded={fetchUsers}
+      />
     </div>
   );
 }
