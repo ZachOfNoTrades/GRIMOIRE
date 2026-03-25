@@ -19,13 +19,21 @@ const config: sql.config = {
 };
 
 let pool: sql.ConnectionPool | null = null;
+let connectingPromise: Promise<sql.ConnectionPool> | null = null;
 
 export async function getGolemConnection(): Promise<sql.ConnectionPool> {
-  if (!pool || !pool.connected) {
-    pool = new sql.ConnectionPool(config);
-    await pool.connect();
+  if (pool?.connected) {
+    return pool;
   }
-  return pool;
+  if (!connectingPromise) {
+    connectingPromise = (async () => {
+      pool = new sql.ConnectionPool(config);
+      await pool.connect();
+      connectingPromise = null;
+      return pool;
+    })();
+  }
+  return connectingPromise;
 }
 
 export async function closeGolemConnection(_pool: sql.ConnectionPool): Promise<void> {
