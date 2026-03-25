@@ -2,6 +2,8 @@
 -- Seed Exercises
 -- Inserts a comprehensive exercise library, muscle groups, modifiers,
 -- and exercise-muscle group assignments.
+--
+-- System exercises (user_id = NULL) are shared across all users.
 -- =============================
 
 -- =============================

@@ -13,7 +13,8 @@ BEGIN TRY
     BEGIN
         CREATE TABLE exercises (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-            name NVARCHAR(255) UNIQUE NOT NULL,
+            user_id UNIQUEIDENTIFIER NULL, -- NULL = system exercise, non-null = user's custom exercise
+            name NVARCHAR(255) NOT NULL,
             description NVARCHAR(MAX),
             category NVARCHAR(50) NOT NULL DEFAULT 'Strength',
             is_timed BIT NOT NULL DEFAULT 0,
@@ -21,6 +22,12 @@ BEGIN TRY
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE()
         );
+
+        -- System exercises: unique name when user_id is NULL
+        CREATE UNIQUE INDEX UX_exercises_system_name ON exercises (name) WHERE user_id IS NULL;
+
+        -- User exercises: unique name per user
+        CREATE UNIQUE INDEX UX_exercises_user_name ON exercises (user_id, name) WHERE user_id IS NOT NULL;
     END
 
     -- =============================
@@ -56,6 +63,26 @@ BEGIN TRY
     END
 
     -- =============================
+    -- User Exercise Overrides
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_exercise_overrides' AND xtype='U')
+    BEGIN
+        CREATE TABLE user_exercise_overrides (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            exercise_id UNIQUEIDENTIFIER NOT NULL,
+            custom_name NVARCHAR(255) NULL,
+            custom_description NVARCHAR(MAX) NULL,
+            is_disabled BIT DEFAULT 0,
+            created_at DATETIME2 DEFAULT GETDATE(),
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT FK_user_exercise_overrides_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id),
+            CONSTRAINT UQ_user_exercise_override UNIQUE (user_id, exercise_id)
+        );
+    END
+
+    -- =============================
     -- Exercise Modifiers
     -- =============================
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='exercise_modifiers' AND xtype='U')
@@ -75,6 +102,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE program_templates (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             name NVARCHAR(255) NOT NULL,
             description NVARCHAR(MAX),
             program_prompt NVARCHAR(MAX),
@@ -88,19 +116,17 @@ BEGIN TRY
     END
 
     -- =============================
-    -- User Profile (singleton)
+    -- User Profile
     -- =============================
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_profile' AND xtype='U')
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_profiles' AND xtype='U')
     BEGIN
-        CREATE TABLE user_profile (
-            id INT NOT NULL DEFAULT 1 CHECK (id = 1),
+        CREATE TABLE user_profiles (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER UNIQUE NOT NULL,
             profile_prompt NVARCHAR(MAX) NULL,
             created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
-            modified_at DATETIME2 NOT NULL DEFAULT GETDATE(),
-            CONSTRAINT PK_user_profile PRIMARY KEY (id)
+            modified_at DATETIME2 NOT NULL DEFAULT GETDATE()
         );
-
-        INSERT INTO user_profile (id) VALUES (1);
     END
 
     -- =============================
@@ -110,6 +136,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE programs (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             name NVARCHAR(255) NOT NULL,
             description NVARCHAR(MAX),
             template_id UNIQUEIDENTIFIER NULL,
@@ -130,6 +157,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE blocks (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             program_id UNIQUEIDENTIFIER NOT NULL,
             name NVARCHAR(255) NOT NULL,
             order_index INT NOT NULL,
@@ -151,6 +179,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE weeks (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             block_id UNIQUEIDENTIFIER NOT NULL,
             week_number INT NOT NULL,
             name NVARCHAR(255),
@@ -170,6 +199,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE workout_sessions (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             week_id UNIQUEIDENTIFIER NULL,
             order_index INT NULL,
             name NVARCHAR(255) NOT NULL,
@@ -195,6 +225,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE target_session_segments (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             session_id UNIQUEIDENTIFIER NOT NULL,
             exercise_id UNIQUEIDENTIFIER NOT NULL,
             modifier_id UNIQUEIDENTIFIER NULL,
@@ -216,6 +247,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE target_session_segment_sets (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             target_session_segment_id UNIQUEIDENTIFIER NOT NULL,
             set_number INT NOT NULL,
             is_warmup BIT NOT NULL DEFAULT 0,
@@ -237,6 +269,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE session_segments (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             session_id UNIQUEIDENTIFIER NOT NULL,
             exercise_id UNIQUEIDENTIFIER NOT NULL,
             target_id UNIQUEIDENTIFIER NULL,
@@ -261,6 +294,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE session_segment_sets (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             session_segment_id UNIQUEIDENTIFIER NOT NULL,
             set_number INT NOT NULL,
             is_warmup BIT NOT NULL DEFAULT 0,
