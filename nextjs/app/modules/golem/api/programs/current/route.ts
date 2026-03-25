@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getCurrentProgramId, getProgramById } from '../../../lib/programFunctions';
 
 export async function GET() {
   try {
-    const currentProgramId = await getCurrentProgramId();
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
+    const currentProgramId = await getCurrentProgramId(userId!);
 
     if (!currentProgramId) {
       return NextResponse.json(
@@ -12,7 +19,7 @@ export async function GET() {
       );
     }
 
-    const program = await getProgramById(currentProgramId);
+    const program = await getProgramById(userId!, currentProgramId);
     return NextResponse.json(program);
 
   } catch (error) {

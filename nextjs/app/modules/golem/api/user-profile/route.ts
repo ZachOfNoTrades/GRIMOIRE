@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getUserProfile, updateUserProfile } from '../../lib/userProfileFunctions';
 
 export async function GET() {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
 
-    const profile = await getUserProfile();
+    const profile = await getUserProfile(userId!);
     return NextResponse.json(profile);
 
   } catch (error: any) {
@@ -22,11 +28,16 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
 
     const body = await request.json();
     const { profile_prompt } = body;
 
-    const profile = await updateUserProfile(profile_prompt?.trim() || null);
+    const profile = await updateUserProfile(userId!, profile_prompt?.trim() || null);
     return NextResponse.json(profile);
 
   } catch (error: any) {

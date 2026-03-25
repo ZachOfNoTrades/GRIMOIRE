@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
 import { generateSessionAnalysisWithLlm } from '../../../../lib/llmFunctions';
 import { getProgramTemplateById } from '../../../../lib/programTemplateFunctions';
@@ -10,10 +11,16 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authSession = await getAuthorizedSession();
+    if (!authSession) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = authSession.user.id;
+
     const { id } = await context.params;
 
     // Verify session exists
-    const session = await getWorkoutSessionById(id);
+    const session = await getWorkoutSessionById(userId!, id);
 
     // Validate session is completed
     if (!session.is_completed) {
@@ -21,19 +28,20 @@ export async function POST(
     }
 
     // If program session, fetch analysis prompt from template
-    const templateId = await getTemplateIdForSession(id);
+    const templateId = await getTemplateIdForSession(userId!, id);
     let analysisContext: string | null = null;
     if (templateId) {
-      const programTemplate = await getProgramTemplateById(templateId);
+      const programTemplate = await getProgramTemplateById(userId!, templateId);
       analysisContext = programTemplate.analysis_prompt;
     }
 
     // Load user profile for LLM context
-    const userProfile = await getUserProfile();
+    const userProfile = await getUserProfile(userId!);
     const profileContext = userProfile.profile_prompt;
 
     // Generate analysis via LLM (LLM queries session data itself via SQL skill)
     const analysis = await generateSessionAnalysisWithLlm(
+      userId!,
       analysisContext,
       profileContext,
       id,
@@ -55,7 +63,7 @@ export async function POST(
     }
 
     // Return the updated session
-    const updatedSession = await getWorkoutSessionById(id);
+    const updatedSession = await getWorkoutSessionById(userId!, id);
     return NextResponse.json(updatedSession);
 
   } catch (error: any) {

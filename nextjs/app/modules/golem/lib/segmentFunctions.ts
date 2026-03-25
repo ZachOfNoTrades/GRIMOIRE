@@ -1,7 +1,7 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { SegmentWithSets, TargetSegment, GeneratedSegment } from '../types/segment';
 
-export async function getSegmentsAndTargets(sessionId: string): Promise<{
+export async function getSegmentsAndTargets(userId: string, sessionId: string): Promise<{
   exercises: SegmentWithSets[];
   targets: TargetSegment[];
 }> {
@@ -11,6 +11,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
 
     // Load session segments and sets
     const segmentResult = await pool.request()
+      .input('userId', userId)
       .input('sessionId', sessionId)
       .query(`
         SELECT
@@ -44,6 +45,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
         LEFT JOIN exercise_modifiers em ON se.modifier_id = em.id
         LEFT JOIN session_segment_sets ses ON se.id = ses.session_segment_id
         WHERE se.session_id = @sessionId
+          AND EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.id = se.session_id AND ws.user_id = @userId)
         ORDER BY se.is_warmup DESC, se.order_index, ses.is_warmup DESC, ses.set_number
       `);
 
@@ -98,6 +100,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
 
     // Load targets for the session
     const targetResult = await pool.request()
+      .input('userId', userId)
       .input('sessionId', sessionId)
       .query(`
         SELECT
@@ -128,6 +131,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
         LEFT JOIN exercise_modifiers em ON tse.modifier_id = em.id
         LEFT JOIN target_session_segment_sets tss ON tse.id = tss.target_session_segment_id
         WHERE tse.session_id = @sessionId
+          AND EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.id = tse.session_id AND ws.user_id = @userId)
         ORDER BY tse.is_warmup DESC, tse.order_index, tss.is_warmup DESC, tss.set_number
       `);
 
@@ -196,7 +200,7 @@ export async function getSegmentsAndTargets(sessionId: string): Promise<{
   }
 }
 
-export async function updateSegments(sessionId: string, segments: SegmentWithSets[]): Promise<void> {
+export async function updateSegments(userId: string, sessionId: string, segments: SegmentWithSets[]): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -204,6 +208,15 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
     await transaction.begin();
 
     try {
+      // Verify session ownership
+      const ownershipCheck = await transaction.request()
+        .input('userId', userId)
+        .input('sessionId', sessionId)
+        .query(`SELECT id FROM workout_sessions WHERE id = @sessionId AND user_id = @userId`);
+      if (ownershipCheck.recordset.length === 0) {
+        throw new Error(`No workout session found for id: '${sessionId}'`);
+      }
+
       const submittedSegmentIds = new Set(segments.map(e => e.id));
       const submittedSetIds = new Set(segments.flatMap(e => e.sets.map(s => s.id)));
 
@@ -320,7 +333,7 @@ export async function updateSegments(sessionId: string, segments: SegmentWithSet
   }
 }
 
-export async function deleteSegment(sessionId: string, segmentId: string | null, targetId: string | null): Promise<void> {
+export async function deleteSegment(userId: string, sessionId: string, segmentId: string | null, targetId: string | null): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -328,6 +341,15 @@ export async function deleteSegment(sessionId: string, segmentId: string | null,
     await transaction.begin();
 
     try {
+      // Verify session ownership
+      const ownershipCheck = await transaction.request()
+        .input('userId', userId)
+        .input('sessionId', sessionId)
+        .query(`SELECT id FROM workout_sessions WHERE id = @sessionId AND user_id = @userId`);
+      if (ownershipCheck.recordset.length === 0) {
+        throw new Error(`No workout session found for id: '${sessionId}'`);
+      }
+
       // Delete logged segment and its sets (if it exists in DB)
       if (segmentId) {
         await transaction.request()
@@ -378,7 +400,7 @@ export async function deleteSegment(sessionId: string, segmentId: string | null,
   }
 }
 
-export async function deleteAllTargetsForSession(sessionId: string): Promise<void> {
+export async function deleteAllTargetsForSession(userId: string, sessionId: string): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -386,6 +408,15 @@ export async function deleteAllTargetsForSession(sessionId: string): Promise<voi
     await transaction.begin();
 
     try {
+      // Verify session ownership
+      const ownershipCheck = await transaction.request()
+        .input('userId', userId)
+        .input('sessionId', sessionId)
+        .query(`SELECT id FROM workout_sessions WHERE id = @sessionId AND user_id = @userId`);
+      if (ownershipCheck.recordset.length === 0) {
+        throw new Error(`No workout session found for id: '${sessionId}'`);
+      }
+
       // Clear target_id references from logged segments
       await transaction.request()
         .input('sessionId', sessionId)
@@ -422,6 +453,7 @@ export async function deleteAllTargetsForSession(sessionId: string): Promise<voi
 }
 
 export async function createGeneratedTargets(
+  userId: string,
   sessionId: string,
   generatedExercises: GeneratedSegment[],
 ): Promise<void> {
@@ -432,6 +464,15 @@ export async function createGeneratedTargets(
     await transaction.begin();
 
     try {
+      // Verify session ownership
+      const ownershipCheck = await transaction.request()
+        .input('userId', userId)
+        .input('sessionId', sessionId)
+        .query(`SELECT id FROM workout_sessions WHERE id = @sessionId AND user_id = @userId`);
+      if (ownershipCheck.recordset.length === 0) {
+        throw new Error(`No workout session found for id: '${sessionId}'`);
+      }
+
       for (const exercise of generatedExercises) {
 
         // Insert target segment

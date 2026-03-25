@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { generateNextWeek } from '../../../../../../lib/weekGenerationFunctions';
 
 export async function POST(
@@ -6,9 +7,15 @@ export async function POST(
   context: { params: Promise<{ id: string; weekId: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id, weekId } = await context.params;
 
-    await generateNextWeek(id, weekId);
+    await generateNextWeek(userId!, id, weekId);
 
     return NextResponse.json({ success: true });
 

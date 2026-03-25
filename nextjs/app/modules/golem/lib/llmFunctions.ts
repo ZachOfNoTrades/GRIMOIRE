@@ -225,6 +225,7 @@ export async function generateProgram(
 // Generates target exercises and sets for a single session using the session formatting file + context.
 // Returns validated GeneratedSegment[] ready for insertion into target tables.
 export async function generateSessionTargetsWithLlm(
+  userId: string,
   sessionContext: string | null,
   sessionId: string,
   sessionName: string,
@@ -252,7 +253,7 @@ export async function generateSessionTargetsWithLlm(
   }
 
   // Validate exercise IDs
-  const { exercises } = await getAllExercises();
+  const { exercises } = await getAllExercises(userId);
   const validExerciseIds = new Set(exercises.map(e => e.id));
 
   const invalidIds = parsed.target_exercises
@@ -332,7 +333,7 @@ export async function regenerateSessionPlanWithLlm(
 // Stage 1: LLM generates program structure (blocks + weeks, no sessions)
 // Stage 2: LLM generates session plans for week 1 (names + descriptions, no exercises)
 // Returns the created program ID.
-export async function generateProgramFromTemplate(templateId: string): Promise<string> {
+export async function generateProgramFromTemplate(userId: string, templateId: string): Promise<string> {
   const startTime = Date.now();
   const heartbeat = setInterval(() => {
     const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -341,8 +342,8 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
 
   try {
     // Load template and user profile
-    const template = await getProgramTemplateById(templateId);
-    const userProfile = await getUserProfile();
+    const template = await getProgramTemplateById(userId, templateId);
+    const userProfile = await getUserProfile(userId);
     const profileContext = userProfile.profile_prompt;
 
     // STAGE 1: Generate program structure via LLM
@@ -365,7 +366,7 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
     }
 
     // Save program structure to database
-    const programId = await createProgram(programPayload, templateId);
+    const programId = await createProgram(userId, programPayload, templateId);
     const stage1Seconds = Math.round((Date.now() - startTime) / 1000);
     console.log(`[GenerateProgram] Stage 1 complete in ${stage1Seconds}s. Program id: '${programId}'`);
 
@@ -373,7 +374,7 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
     console.log('[GenerateProgram] Stage 2: Generating week 1 sessions...');
 
     // Find week 1 (first week of first block)
-    const week1 = await getFirstWeekId(programId);
+    const week1 = await getFirstWeekId(userId, programId);
     if (week1) {
       // Generate session plans via LLM
       const sessionPlans = await generateNextWeekPlanWithLlm(
@@ -384,7 +385,7 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
       );
 
       // Insert sessions into week 1
-      await insertSessionsIntoWeek(week1.weekId, sessionPlans);
+      await insertSessionsIntoWeek(userId, week1.weekId, sessionPlans);
 
       await setFirstSessionAsCurrent(week1.weekId);
 

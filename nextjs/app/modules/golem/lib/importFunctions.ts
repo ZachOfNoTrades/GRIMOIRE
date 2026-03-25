@@ -1,7 +1,7 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { ImportPayload, ImportResult } from '../types/import';
 
-export async function importWorkoutHistory(payload: ImportPayload): Promise<ImportResult> {
+export async function importWorkoutHistory(userId: string, payload: ImportPayload): Promise<ImportResult> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -13,10 +13,12 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
       let segmentsCreated = 0;
       let setsCreated = 0;
 
-      // Build exercise name → id map from existing exercises
-      const existingResult = await transaction.request().query(`
-        SELECT id, name FROM exercises
-      `);
+      // Build exercise name → id map from existing exercises (system + user's custom)
+      const existingResult = await transaction.request()
+        .input('userId', userId)
+        .query(`
+          SELECT id, name FROM exercises WHERE (user_id IS NULL OR user_id = @userId)
+        `);
       const exerciseNameToId = new Map<string, string>();
       for (const row of existingResult.recordset) {
         exerciseNameToId.set(row.name.toLowerCase(), row.id);
@@ -26,13 +28,14 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
       for (const exercise of payload.new_exercises) {
         if (!exerciseNameToId.has(exercise.name.toLowerCase())) {
           const result = await transaction.request()
+            .input('userId', userId)
             .input('name', exercise.name)
             .input('description', exercise.description)
             .input('category', exercise.category)
             .query(`
-              INSERT INTO exercises (name, description, category)
+              INSERT INTO exercises (user_id, name, description, category)
               OUTPUT INSERTED.id
-              VALUES (@name, @description, @category)
+              VALUES (@userId, @name, @description, @category)
             `);
           exerciseNameToId.set(exercise.name.toLowerCase(), result.recordset[0].id);
           exercisesCreated++;
@@ -42,12 +45,13 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
       // Create sessions, segments, and sets
       for (const session of payload.sessions) {
         const sessionResult = await transaction.request()
+          .input('userId', userId)
           .input('name', session.name)
           .input('startedAt', session.started_at)
           .query(`
-            INSERT INTO workout_sessions (name, started_at, is_completed)
+            INSERT INTO workout_sessions (user_id, name, started_at, is_completed)
             OUTPUT INSERTED.id
-            VALUES (@name, @startedAt, 1)
+            VALUES (@userId, @name, @startedAt, 1)
           `);
         const sessionId = sessionResult.recordset[0].id;
 

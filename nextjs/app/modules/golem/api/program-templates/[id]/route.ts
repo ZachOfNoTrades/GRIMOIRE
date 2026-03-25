@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getProgramTemplateById, updateProgramTemplate, deleteProgramTemplate } from '../../../lib/programTemplateFunctions';
 
 export async function GET(
@@ -6,9 +7,15 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
 
-    const template = await getProgramTemplateById(id);
+    const template = await getProgramTemplateById(userId!, id);
     return NextResponse.json(template);
 
   } catch (error) {
@@ -33,6 +40,12 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
     const body = await request.json();
     const { name, description, program_prompt, week_prompt, session_prompt, analysis_prompt, days_per_week } = body;
@@ -45,6 +58,7 @@ export async function PUT(
     }
 
     const template = await updateProgramTemplate(
+      userId!,
       id,
       name.trim(),
       description?.trim() || null,
@@ -78,9 +92,15 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
 
-    await deleteProgramTemplate(id);
+    await deleteProgramTemplate(userId!, id);
     return NextResponse.json({ success: true });
 
   } catch (error: any) {

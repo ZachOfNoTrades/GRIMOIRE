@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getSegmentsAndTargets, updateSegments, deleteSegment } from '../../../../lib/segmentFunctions';
 
 export async function GET(
@@ -6,9 +7,15 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
 
-    const { exercises, targets } = await getSegmentsAndTargets(id);
+    const { exercises, targets } = await getSegmentsAndTargets(userId!, id);
 
     return NextResponse.json({ exercises, targets });
 
@@ -26,6 +33,12 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
     const segments = await request.json();
 
@@ -41,10 +54,10 @@ export async function PUT(
       );
     }
 
-    await updateSegments(id, segments);
+    await updateSegments(userId!, id, segments);
 
     // Return the updated segments with targets
-    const { exercises: updatedSegments, targets } = await getSegmentsAndTargets(id);
+    const { exercises: updatedSegments, targets } = await getSegmentsAndTargets(userId!, id);
 
     return NextResponse.json({ exercises: updatedSegments, targets });
 
@@ -62,10 +75,16 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
     const { segmentId, targetId } = await request.json();
 
-    await deleteSegment(id, segmentId, targetId);
+    await deleteSegment(userId!, id, segmentId, targetId);
 
     return NextResponse.json({ success: true });
 

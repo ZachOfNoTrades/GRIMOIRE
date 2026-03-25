@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
 import { generateSessionTargetsWithLlm } from '../../../../lib/llmFunctions';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '../../../../lib/segmentFunctions';
@@ -10,21 +11,27 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authSession = await getAuthorizedSession();
+    if (!authSession) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = authSession.user.id;
+
     const { id } = await context.params;
 
     // Verify session exists
-    const session = await getWorkoutSessionById(id);
+    const session = await getWorkoutSessionById(userId!, id);
 
     // If program session, fetch session prompt from template
-    const templateId = await getTemplateIdForSession(id);
+    const templateId = await getTemplateIdForSession(userId!, id);
     let sessionContext: string | null = null;
     if (templateId) {
-      const programTemplate = await getProgramTemplateById(templateId);
+      const programTemplate = await getProgramTemplateById(userId!, templateId);
       sessionContext = programTemplate.session_prompt;
     }
 
     // Load user profile for LLM context
-    const userProfile = await getUserProfile();
+    const userProfile = await getUserProfile(userId!);
     const profileContext = userProfile.profile_prompt;
 
     // Use session description for LLM generation
@@ -34,10 +41,11 @@ export async function POST(
     }
 
     // Clear existing targets before generating new ones
-    await deleteAllTargetsForSession(id);
+    await deleteAllTargetsForSession(userId!, id);
 
     // Generate targets via LLM
     const targetExercises = await generateSessionTargetsWithLlm(
+      userId!,
       sessionContext,
       id,
       session.name,
@@ -45,7 +53,7 @@ export async function POST(
       profileContext,
     );
 
-    await createGeneratedTargets(id, targetExercises);
+    await createGeneratedTargets(userId!, id, targetExercises);
 
     return NextResponse.json({ success: true }, { status: 201 });
 

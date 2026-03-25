@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getExerciseById, updateExercise, disableExercise, enableExercise } from '../../../lib/exerciseFunctions';
 import { getExerciseMuscleGroups, updateExerciseMuscleGroups } from '../../../lib/muscleGroupFunctions';
 
@@ -7,10 +8,16 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
 
-    const exercise = await getExerciseById(id);
-    const muscleGroups = await getExerciseMuscleGroups(id);
+    const exercise = await getExerciseById(userId!, id);
+    const muscleGroups = await getExerciseMuscleGroups(userId!, id);
     return NextResponse.json({ ...exercise, muscleGroups });
 
   } catch (error) {
@@ -35,6 +42,12 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
     const body = await request.json();
     const { name, description, category, isTimed, muscleGroups } = body;
@@ -53,16 +66,16 @@ export async function PUT(
       );
     }
 
-    await updateExercise(id, name.trim(), description?.trim() || null, category, !!isTimed);
+    await updateExercise(userId!, id, name.trim(), description?.trim() || null, category, !!isTimed);
 
     // Update muscle groups if provided
     if (muscleGroups !== undefined) {
-      await updateExerciseMuscleGroups(id, muscleGroups);
+      await updateExerciseMuscleGroups(userId!, id, muscleGroups);
     }
 
     // Re-fetch exercise with muscle groups
-    const updatedExercise = await getExerciseById(id);
-    const updatedMuscleGroups = await getExerciseMuscleGroups(id);
+    const updatedExercise = await getExerciseById(userId!, id);
+    const updatedMuscleGroups = await getExerciseMuscleGroups(userId!, id);
     return NextResponse.json({ ...updatedExercise, muscleGroups: updatedMuscleGroups });
 
   } catch (error: any) {
@@ -95,9 +108,15 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
 
-    await disableExercise(id);
+    await disableExercise(userId!, id);
     return NextResponse.json({ success: true });
 
   } catch (error) {
@@ -122,9 +141,15 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
 
-    await enableExercise(id);
+    await enableExercise(userId!, id);
     return NextResponse.json({ success: true });
 
   } catch (error) {

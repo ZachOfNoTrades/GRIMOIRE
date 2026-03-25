@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { generateProgramFromTemplate } from '../../../lib/llmFunctions';
 
 export async function POST(request: Request) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { templateId } = await request.json();
 
     // Validate inputs
@@ -13,7 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const id = await generateProgramFromTemplate(templateId);
+    const id = await generateProgramFromTemplate(userId!, templateId);
 
     return NextResponse.json({ id });
 
