@@ -142,7 +142,7 @@ export async function generateNextWeek(userId: string, programId: string, weekId
       await transaction.commit();
 
       // 5. Generate session plans via LLM (outside transaction)
-      const sessionPlans = await generateNextWeekPlanWithLlm(template.week_prompt, nextWeekId, template.days_per_week, profileContext);
+      const sessionPlans = await generateNextWeekPlanWithLlm(userId, template.week_prompt, nextWeekId, template.days_per_week, profileContext);
 
       // 6. Insert new sessions with names + descriptions (no target exercises)
       await insertSessionsIntoWeek(userId, nextWeekId, sessionPlans);

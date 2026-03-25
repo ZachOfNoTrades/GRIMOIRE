@@ -17,7 +17,7 @@ export function buildPrompt(templateContext: string | null, profileContext: stri
   return assemblePrompt('generateProgram.md', templateContext, profileContext);
 }
 
-export async function callLLM(taskPrompt: string): Promise<string> {
+export async function callLLM(userId: string, taskPrompt: string): Promise<string> {
   const provider = process.env.LLM_PROVIDER;
 
   if (!provider) {
@@ -37,6 +37,7 @@ export async function callLLM(taskPrompt: string): Promise<string> {
   const basePrompt = loadPromptFile('basePrompt.md');
   const prompt = basePrompt
     .replace('{{TASK_PROMPT}}', taskPrompt)
+    .replace(/\{\{USER_ID\}\}/g, userId)
     .replace('{{OUTPUT_FILE}}', outputFilePosix);
 
   switch (provider) {
@@ -207,11 +208,12 @@ export function validateProgramPayload(payload: CreateProgramPayload): Validatio
 }
 
 export async function generateProgram(
+  userId: string,
   templateContext: string | null,
   profileContext: string | null = null,
 ): Promise<GenerateProgramResult> {
   const prompt = buildPrompt(templateContext, profileContext);
-  const outputFile = await callLLM(prompt);
+  const outputFile = await callLLM(userId, prompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
   const programPayload = parseLLMResponse(rawContent);
@@ -241,7 +243,7 @@ export async function generateSessionTargetsWithLlm(
     .replace('{{USER_DESCRIPTION}}', sessionDescription);
 
   console.log(`[GenerateSessionTargets] Calling LLM for session '${sessionName}'`);
-  const outputFile = await callLLM(prompt);
+  const outputFile = await callLLM(userId, prompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -280,6 +282,7 @@ export async function generateSessionTargetsWithLlm(
 // Generates a plain-text analysis of a completed session. The LLM uses SQL Query skill
 // to retrieve performance data, targets, and history. Returns the analysis as a string.
 export async function generateSessionAnalysisWithLlm(
+  userId: string,
   analysisContext: string | null,
   profileContext: string | null,
   sessionId: string,
@@ -292,7 +295,7 @@ export async function generateSessionAnalysisWithLlm(
     .replace('{{SESSION_REVIEW}}', sessionReview || 'None provided');
 
   console.log(`[GenerateSessionAnalysis] Calling LLM for session '${sessionId}'`);
-  const outputFile = await callLLM(prompt);
+  const outputFile = await callLLM(userId, prompt);
   const analysis = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -303,6 +306,7 @@ export async function generateSessionAnalysisWithLlm(
 // Regenerates a single session's name and description using the regenerateSessionPlan prompt.
 // The LLM uses SQL Query skill to pull context from completed sessions, reviews, analyses, etc.
 export async function regenerateSessionPlanWithLlm(
+  userId: string,
   weekContext: string | null,
   profileContext: string | null,
   sessionId: string,
@@ -312,7 +316,7 @@ export async function regenerateSessionPlanWithLlm(
   const prompt = basePrompt.replace('{{SESSION_ID}}', sessionId);
 
   console.log(`[RegenerateSessionPlan] Calling LLM for session '${sessionId}'`);
-  const outputFile = await callLLM(prompt);
+  const outputFile = await callLLM(userId, prompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -348,7 +352,7 @@ export async function generateProgramFromTemplate(userId: string, templateId: st
 
     // STAGE 1: Generate program structure via LLM
     console.log('[GenerateProgram] Stage 1: Generating program structure...');
-    const { programPayload } = await generateProgram(template.program_prompt, profileContext);
+    const { programPayload } = await generateProgram(userId, template.program_prompt, profileContext);
 
     // Normalize: LLM returns structure-only, ensure each week has sessions: []
     for (const block of programPayload.blocks) {
@@ -378,6 +382,7 @@ export async function generateProgramFromTemplate(userId: string, templateId: st
     if (week1) {
       // Generate session plans via LLM
       const sessionPlans = await generateNextWeekPlanWithLlm(
+        userId,
         template.week_prompt,
         week1.weekId,
         template.days_per_week,

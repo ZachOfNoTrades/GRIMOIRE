@@ -1,7 +1,14 @@
 /**
- * This script takes a 'query' argument and executes it against the database.
+ * Executes a read-only SQL query scoped to a specific user.
  *
- * Usage: `node executeSqlQueryScript.mjs "SELECT TOP 10 name FROM exercises"`
+ * Usage: node executeSqlQueryScript.mjs "<userId>" "SELECT ..."
+ *
+ * The query MUST reference @userId for any user-owned table.
+ * The actual userId value is injected server-side via sp_executesql —
+ * the LLM never controls the UUID directly.
+ *
+ * Shared tables (exercises with user_id IS NULL, muscle_groups, exercise_modifiers)
+ * can be queried without @userId.
  */
 
 import sql from 'mssql';
@@ -28,9 +35,17 @@ export const FORBIDDEN_PATTERNS = [
   /;/,
 ];
 
+// Tables that contain user-owned data and require @userId filtering
+const USER_OWNED_TABLES = [
+  'programs', 'blocks', 'weeks', 'workout_sessions',
+  'session_segments', 'session_segment_sets',
+  'target_session_segments', 'target_session_segment_sets',
+  'program_templates', 'user_profiles', 'user_exercise_overrides',
+];
+
 // Validates a query is only a basic SELECT statement
-export function validateSqlQuery(sql) {
-  const trimmed = sql.trim();
+export function validateSqlQuery(query) {
+  const trimmed = query.trim();
 
   if (trimmed.length === 0) {
     return { valid: false, error: 'Query is empty' };
@@ -47,6 +62,16 @@ export function validateSqlQuery(sql) {
     }
   }
 
+  // Check if query references user-owned tables without @userId
+  const upperQuery = trimmed.toUpperCase();
+  const hasUserIdParam = trimmed.includes('@userId');
+
+  for (const table of USER_OWNED_TABLES) {
+    if (upperQuery.includes(table.toUpperCase()) && !hasUserIdParam) {
+      return { valid: false, error: `Query references user-owned table '${table}' but does not include @userId filter. Add WHERE user_id = @userId to your query.` };
+    }
+  }
+
   return { valid: true };
 }
 
@@ -54,12 +79,18 @@ export function validateSqlQuery(sql) {
  * MAIN FUNCTION
  */
 
-// EXTRACT AND VALIDATE QUERY
+// EXTRACT AND VALIDATE ARGUMENTS
 
-const query = process.argv[2]; // Extract query from script execution
+const userId = process.argv[2];
+const query = process.argv[3];
+
+if (!userId || userId.trim().length === 0) {
+  console.error(JSON.stringify({ success: false, error: 'No userId provided. Usage: node executeSqlQueryScript.mjs "<userId>" "SELECT ..."' }));
+  process.exit(1);
+}
 
 if (!query || query.trim().length === 0) {
-  console.error(JSON.stringify({ success: false, error: 'No SQL query provided. Usage: node executeSqlQueryScript.mjs "SELECT ..."' }));
+  console.error(JSON.stringify({ success: false, error: 'No SQL query provided. Usage: node executeSqlQueryScript.mjs "<userId>" "SELECT ..."' }));
   process.exit(1);
 }
 
@@ -71,7 +102,7 @@ if (!validation.valid) {
   process.exit(1);
 }
 
-// CONNECT TO DATABASE AND EXECUTE
+// CONNECT TO DATABASE AND EXECUTE WITH BOUND @userId
 
 const config = {
   server: process.env.SQL_SERVER_URL,
@@ -91,6 +122,9 @@ try {
 
   const request = pool.request();
   request.timeout = QUERY_TIMEOUT_MS;
+
+  // Bind @userId server-side — the LLM references it but never controls the value
+  request.input('userId', sql.UniqueIdentifier, userId);
 
   const result = await request.query(trimmedQuery);
 

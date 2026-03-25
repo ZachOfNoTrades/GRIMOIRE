@@ -66,10 +66,11 @@ export async function importWorkoutHistory(userId: string, payload: ImportPayloa
             .input('exerciseId', exerciseId)
             .input('orderIndex', segment.order_index)
             .input('isWarmup', segment.is_warmup ? 1 : 0)
+            .input('userId', userId)
             .query(`
-              INSERT INTO session_segments (session_id, exercise_id, order_index, is_warmup)
+              INSERT INTO session_segments (user_id, session_id, exercise_id, order_index, is_warmup)
               OUTPUT INSERTED.id
-              VALUES (@sessionId, @exerciseId, @orderIndex, @isWarmup)
+              VALUES (@userId, @sessionId, @exerciseId, @orderIndex, @isWarmup)
             `);
           const segmentId = segmentResult.recordset[0].id;
           segmentsCreated++;
@@ -83,9 +84,10 @@ export async function importWorkoutHistory(userId: string, payload: ImportPayloa
               .input('weight', set.weight)
               .input('rpe', set.rpe)
               .input('timeSeconds', set.time_seconds ?? null)
+              .input('userId', userId)
               .query(`
-                INSERT INTO session_segment_sets (session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, is_completed)
-                VALUES (@segmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, 1)
+                INSERT INTO session_segment_sets (user_id, session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, is_completed)
+                VALUES (@userId, @segmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, 1)
               `);
             setsCreated++;
           }

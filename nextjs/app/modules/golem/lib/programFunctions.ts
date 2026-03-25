@@ -390,10 +390,11 @@ export async function createProgram(userId: string, payload: CreateProgramPayloa
           .input('description', block.description)
           .input('tag', block.tag)
           .input('color', block.color)
+          .input('userId', userId)
           .query(`
-            INSERT INTO blocks (program_id, name, order_index, description, tag, color)
+            INSERT INTO blocks (user_id, program_id, name, order_index, description, tag, color)
             OUTPUT INSERTED.id
-            VALUES (@programId, @name, @orderIndex, @description, @tag, @color)
+            VALUES (@userId, @programId, @name, @orderIndex, @description, @tag, @color)
           `);
 
         const blockId = blockResult.recordset[0].id;
@@ -404,10 +405,11 @@ export async function createProgram(userId: string, payload: CreateProgramPayloa
             .input('weekNumber', week.week_number)
             .input('name', week.name)
             .input('description', week.description)
+            .input('userId', userId)
             .query(`
-              INSERT INTO weeks (block_id, week_number, name, description)
+              INSERT INTO weeks (user_id, block_id, week_number, name, description)
               OUTPUT INSERTED.id
-              VALUES (@blockId, @weekNumber, @name, @description)
+              VALUES (@userId, @blockId, @weekNumber, @name, @description)
             `);
 
           const weekId = weekResult.recordset[0].id;
@@ -432,10 +434,11 @@ export async function createProgram(userId: string, payload: CreateProgramPayloa
                 .input('sessionId', sessionId)
                 .input('exerciseId', targetExercise.exercise_id)
                 .input('orderIndex', targetExercise.order_index)
+                .input('userId', userId)
                 .query(`
-                  INSERT INTO target_session_segments (session_id, exercise_id, order_index)
+                  INSERT INTO target_session_segments (user_id, session_id, exercise_id, order_index)
                   OUTPUT INSERTED.id
-                  VALUES (@sessionId, @exerciseId, @orderIndex)
+                  VALUES (@userId, @sessionId, @exerciseId, @orderIndex)
                 `);
 
               const targetExerciseId = targetExerciseResult.recordset[0].id;
@@ -448,9 +451,10 @@ export async function createProgram(userId: string, payload: CreateProgramPayloa
                   .input('reps', targetSet.reps)
                   .input('weight', targetSet.weight)
                   .input('rpe', targetSet.rpe)
+                  .input('userId', userId)
                   .query(`
-                    INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe)
-                    VALUES (@targetSessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe)
+                    INSERT INTO target_session_segment_sets (user_id, target_session_segment_id, set_number, is_warmup, reps, weight, rpe)
+                    VALUES (@userId, @targetSessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe)
                   `);
               }
             }

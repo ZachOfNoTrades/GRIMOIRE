@@ -257,6 +257,7 @@ export async function updateSegments(userId: string, sessionId: string, segments
 
         // Upsert session segment
         await transaction.request()
+          .input('userId', userId)
           .input('sessionSegmentId', segment.id)
           .input('sessionId', segment.session_id)
           .input('exerciseId', segment.exercise_id)
@@ -279,13 +280,14 @@ export async function updateSegments(userId: string, sessionId: string, segments
                 notes = @segmentNotes,
                 modified_at = GETDATE()
             WHEN NOT MATCHED THEN
-              INSERT (id, session_id, exercise_id, target_id, modifier_id, order_index, is_warmup, notes)
-              VALUES (@sessionSegmentId, @sessionId, @exerciseId, @targetId, @modifierId, @orderIndex, @isWarmup, @segmentNotes);
+              INSERT (id, user_id, session_id, exercise_id, target_id, modifier_id, order_index, is_warmup, notes)
+              VALUES (@sessionSegmentId, @userId, @sessionId, @exerciseId, @targetId, @modifierId, @orderIndex, @isWarmup, @segmentNotes);
           `);
 
         // Upsert each set
         for (const set of segment.sets) {
           await transaction.request()
+            .input('userId', userId)
             .input('setId', set.id)
             .input('sessionSegmentId', segment.id)
             .input('setNumber', set.set_number)
@@ -312,8 +314,8 @@ export async function updateSegments(userId: string, sessionId: string, segments
                   is_completed = @isCompleted,
                   modified_at = GETDATE()
               WHEN NOT MATCHED THEN
-                INSERT (id, session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, notes, is_completed)
-                VALUES (@setId, @sessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, @setNotes, @isCompleted);
+                INSERT (id, user_id, session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, notes, is_completed)
+                VALUES (@setId, @userId, @sessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, @setNotes, @isCompleted);
             `);
         }
       }
@@ -482,10 +484,11 @@ export async function createGeneratedTargets(
           .input('modifierId', exercise.modifier_id)
           .input('orderIndex', exercise.order_index)
           .input('isWarmup', exercise.is_warmup ? 1 : 0)
+          .input('userId', userId)
           .query(`
-            INSERT INTO target_session_segments (session_id, exercise_id, modifier_id, order_index, is_warmup)
+            INSERT INTO target_session_segments (user_id, session_id, exercise_id, modifier_id, order_index, is_warmup)
             OUTPUT INSERTED.id
-            VALUES (@sessionId, @exerciseId, @modifierId, @orderIndex, @isWarmup)
+            VALUES (@userId, @sessionId, @exerciseId, @modifierId, @orderIndex, @isWarmup)
           `);
         const targetSegmentId = targetSegmentResult.recordset[0].id;
 
@@ -499,9 +502,10 @@ export async function createGeneratedTargets(
             .input('weight', set.weight)
             .input('rpe', set.rpe)
             .input('timeSeconds', set.time_seconds)
+            .input('userId', userId)
             .query(`
-              INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds)
-              VALUES (@targetSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds)
+              INSERT INTO target_session_segment_sets (user_id, target_session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds)
+              VALUES (@userId, @targetSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds)
             `);
         }
       }
