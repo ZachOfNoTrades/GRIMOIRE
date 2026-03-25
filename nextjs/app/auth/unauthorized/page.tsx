@@ -35,7 +35,7 @@ export default function UnauthorizedPage() {
         {/* SIGN OUT BUTTON */}
         <div className="mt-8">
           <Button
-            className="btn-off w-full"
+            className="btn-link w-full"
             onClick={() => signOut({ callbackUrl: "/auth/signin" })}
           >
             Sign Out
