@@ -1405,10 +1405,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             </Button>
           ) : session.is_current && (session.started_at || session.resumed_at) ? (
 
-            // COMPLETE BUTTON
+            // FINISH WORKOUT BUTTON
             <Button className="btn-blue w-full sm:w-auto" onClick={handleCompleteSession} disabled={isUpdatingStatus}>
               {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
-              {isUpdatingStatus ? "Saving..." : "Complete"}
+              {isUpdatingStatus ? "Saving..." : "Finish Workout"}
             </Button>
           ) : (
 
