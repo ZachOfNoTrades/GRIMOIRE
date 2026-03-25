@@ -43,16 +43,17 @@ export function calculateNextReview(
 }
 
 // Creates a study session and returns its ID
-export async function createStudySession(deckId: string): Promise<string> {
+export async function createStudySession(userId: string, deckId: string): Promise<string> {
   let pool;
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('deckId', deckId)
       .query(`
-        INSERT INTO study_sessions (deck_id)
+        INSERT INTO study_sessions (user_id, deck_id)
         OUTPUT INSERTED.id
-        VALUES (@deckId)
+        VALUES (@userId, @deckId)
       `);
 
     return result.recordset[0].id;
@@ -68,6 +69,7 @@ export async function createStudySession(deckId: string): Promise<string> {
 
 // Records a card review and updates card_progress using SM-2
 export async function submitCardReview(
+  userId: string,
   cardId: string,
   studySessionId: string,
   rating: number,
@@ -79,8 +81,9 @@ export async function submitCardReview(
 
     // Get current progress (or defaults for new cards)
     const progressResult = await pool.request()
+      .input('userId', userId)
       .input('cardId', cardId)
-      .query(`SELECT ease_factor, interval_days, repetitions FROM card_progress WHERE card_id = @cardId`);
+      .query(`SELECT ease_factor, interval_days, repetitions FROM card_progress WHERE card_id = @cardId AND user_id = @userId`);
 
     const currentEaseFactor = progressResult.recordset.length > 0 ? parseFloat(progressResult.recordset[0].ease_factor) : 2.50;
     const currentInterval = progressResult.recordset.length > 0 ? progressResult.recordset[0].interval_days : 0;
@@ -96,18 +99,20 @@ export async function submitCardReview(
 
     // Insert card review record
     await pool.request()
+      .input('userId', userId)
       .input('cardId', cardId)
       .input('studySessionId', studySessionId)
       .input('rating', rating)
       .input('responseTimeMs', responseTimeMs)
       .query(`
-        INSERT INTO card_reviews (card_id, study_session_id, rating, response_time_ms)
-        VALUES (@cardId, @studySessionId, @rating, @responseTimeMs)
+        INSERT INTO card_reviews (user_id, card_id, study_session_id, rating, response_time_ms)
+        VALUES (@userId, @cardId, @studySessionId, @rating, @responseTimeMs)
       `);
 
     // Upsert card_progress
     if (progressResult.recordset.length > 0) {
       await pool.request()
+        .input('userId', userId)
         .input('cardId', cardId)
         .input('easeFactor', next.easeFactor)
         .input('intervalDays', next.intervalDays)
@@ -117,24 +122,26 @@ export async function submitCardReview(
           UPDATE card_progress
           SET ease_factor = @easeFactor, interval_days = @intervalDays, repetitions = @repetitions,
               next_review_at = @nextReviewAt, last_reviewed_at = GETDATE(), modified_at = GETDATE()
-          WHERE card_id = @cardId
+          WHERE card_id = @cardId AND user_id = @userId
         `);
     } else {
       await pool.request()
+        .input('userId', userId)
         .input('cardId', cardId)
         .input('easeFactor', next.easeFactor)
         .input('intervalDays', next.intervalDays)
         .input('repetitions', next.repetitions)
         .input('nextReviewAt', nextReviewAt)
         .query(`
-          INSERT INTO card_progress (card_id, ease_factor, interval_days, repetitions, next_review_at, last_reviewed_at)
-          VALUES (@cardId, @easeFactor, @intervalDays, @repetitions, @nextReviewAt, GETDATE())
+          INSERT INTO card_progress (user_id, card_id, ease_factor, interval_days, repetitions, next_review_at, last_reviewed_at)
+          VALUES (@userId, @cardId, @easeFactor, @intervalDays, @repetitions, @nextReviewAt, GETDATE())
         `);
     }
 
     // Update study session counters
     const isCorrect = rating >= 3 ? 1 : 0;
     await pool.request()
+      .input('userId', userId)
       .input('studySessionId', studySessionId)
       .input('isCorrect', isCorrect)
       .query(`
@@ -142,7 +149,7 @@ export async function submitCardReview(
         SET cards_studied = cards_studied + 1,
             cards_correct = cards_correct + @isCorrect,
             modified_at = GETDATE()
-        WHERE id = @studySessionId
+        WHERE id = @studySessionId AND user_id = @userId
       `);
 
   } catch (error) {
@@ -156,17 +163,18 @@ export async function submitCardReview(
 }
 
 // Completes a study session with duration
-export async function completeStudySession(studySessionId: string, durationSeconds: number): Promise<void> {
+export async function completeStudySession(userId: string, studySessionId: string, durationSeconds: number): Promise<void> {
   let pool;
   try {
     pool = await getRuneConnection();
     await pool.request()
+      .input('userId', userId)
       .input('id', studySessionId)
       .input('duration', durationSeconds)
       .query(`
         UPDATE study_sessions
         SET completed_at = GETDATE(), duration = @duration, modified_at = GETDATE()
-        WHERE id = @id
+        WHERE id = @id AND user_id = @userId
       `);
   } catch (error) {
     console.error('Error completing study session:', error);

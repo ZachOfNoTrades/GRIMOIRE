@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { generateDeckFromNotion } from '../../../lib/generationFunctions';
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const body = await request.json();
     const { deckName, deckDescription, notionUrl, customPrompt } = body;
 
@@ -21,6 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await generateDeckFromNotion(
+      userId!,
       deckName.trim(),
       deckDescription?.trim() || null,
       notionUrl.trim(),

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { submitCardReview, completeStudySession } from '../../../../../lib/studyFunctions';
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const body = await request.json();
     const { cardId, studySessionId, rating, responseTimeMs } = body;
 
@@ -20,7 +27,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await submitCardReview(cardId, studySessionId, rating, responseTimeMs || null);
+    await submitCardReview(userId!, cardId, studySessionId, rating, responseTimeMs || null);
     return NextResponse.json({ success: true });
 
   } catch (error) {
@@ -34,6 +41,12 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const body = await request.json();
     const { studySessionId, durationSeconds } = body;
 
@@ -44,7 +57,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    await completeStudySession(studySessionId, durationSeconds || 0);
+    await completeStudySession(userId!, studySessionId, durationSeconds || 0);
     return NextResponse.json({ success: true });
 
   } catch (error) {

@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getAllDecks } from '../../lib/deckFunctions';
 
 export async function GET() {
   try {
-    const result = await getAllDecks();
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
+    const result = await getAllDecks(userId!);
     return NextResponse.json(result);
 
   } catch (error) {

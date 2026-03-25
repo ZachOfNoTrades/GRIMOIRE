@@ -14,6 +14,7 @@ export interface GenerateDeckResult {
 
 // Creates a new deck, fetches Notion page content, generates flash cards via LLM, and inserts them.
 export async function generateDeckFromNotion(
+  userId: string,
   deckName: string,
   deckDescription: string | null,
   notionUrl: string,
@@ -27,7 +28,7 @@ export async function generateDeckFromNotion(
 
   try {
     // Create the deck
-    const deck = await createDeck(deckName, deckDescription);
+    const deck = await createDeck(userId, deckName, deckDescription);
     const deckId = deck.id;
 
     // Fetch Notion page content
@@ -39,6 +40,7 @@ export async function generateDeckFromNotion(
 
     // Generate and insert cards
     const cardsGenerated = await generateAndInsertCards(
+      userId,
       deckId,
       deckName,
       notionPage.content,
@@ -60,6 +62,7 @@ export async function generateDeckFromNotion(
 
 // Generates cards via LLM from Notion content and inserts them into the deck.
 async function generateAndInsertCards(
+  userId: string,
   deckId: string,
   deckName: string,
   notionContent: string,
@@ -71,8 +74,9 @@ async function generateAndInsertCards(
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('deckId', deckId)
-      .query(`SELECT ISNULL(MAX(order_index), 0) + 1 AS next_index FROM cards WHERE deck_id = @deckId`);
+      .query(`SELECT ISNULL(MAX(order_index), 0) + 1 AS next_index FROM cards WHERE deck_id = @deckId AND user_id = @userId`);
     startIndex = result.recordset[0].next_index;
   } catch (error) {
     console.error('Error fetching start index:', error);
@@ -105,5 +109,5 @@ async function generateAndInsertCards(
   }
 
   // Insert cards into database
-  return await insertCards(deckId, payload.cards, 'notion');
+  return await insertCards(userId, deckId, payload.cards, 'notion');
 }
