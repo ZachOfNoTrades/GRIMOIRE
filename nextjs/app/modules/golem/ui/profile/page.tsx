@@ -181,7 +181,6 @@ export default function ProfilePage() {
                 onChange={(e) => setEditedProfilePrompt(e.target.value)}
                 className="input-field font-mono text-sm min-h-[400px] resize-y"
                 placeholder="Enter personal context for LLM generation (anatomy, injuries, experience level, goals, etc.)..."
-                autoFocus
               />
             ) : (
 

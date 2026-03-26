@@ -104,7 +104,6 @@ export default function AddTemplateModal({
           placeholder="e.g. Powerlifting Template"
           className="input-field"
           autoCapitalize="words"
-          autoFocus
         />
       </div>
 

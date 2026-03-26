@@ -288,7 +288,6 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
                       onChange={(e) => setEditedName(e.target.value)}
                       className="input-field"
                       autoCapitalize="words"
-                      autoFocus
                     />
                   </div>
 

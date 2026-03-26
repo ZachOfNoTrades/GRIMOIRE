@@ -115,7 +115,6 @@ export default function AddExerciseModal({
           placeholder="e.g. Bench Press"
           className="input-field"
           autoCapitalize="words"
-          autoFocus
         />
       </div>
 

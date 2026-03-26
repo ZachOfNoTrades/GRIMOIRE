@@ -721,7 +721,6 @@ export default function SetTab({
           className="input-field"
           rows={4}
           placeholder="Add notes for this set..."
-          autoFocus
         />
       </Modal>
 

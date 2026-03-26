@@ -379,7 +379,6 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                       onChange={(e) => setEditedName(e.target.value)}
                       className="input-field"
                       autoCapitalize="words"
-                      autoFocus
                     />
                   </div>
 
