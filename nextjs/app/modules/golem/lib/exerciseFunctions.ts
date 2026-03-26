@@ -3,6 +3,7 @@ import { Exercise, ExerciseSummary, ExerciseHistoryEntry } from '../types/exerci
 import { calculateEstimatedOneRepMax } from '../utils/calc';
 
 export async function getAllExercises(
+  userId: string,
   options: {
     showDisabled?: boolean;
     search?: string;
@@ -15,13 +16,16 @@ export async function getAllExercises(
     pool = await getGolemConnection();
 
     const request = pool.request();
-    const conditions: string[] = [];
+    request.input('userId', userId);
+    const conditions: string[] = [
+      '(e.user_id IS NULL OR e.user_id = @userId)',
+    ];
 
     // Filter by disabled status
     if (options.showDisabled) {
-      conditions.push('is_disabled = 1');
+      conditions.push('COALESCE(o.is_disabled, e.is_disabled) = 1');
     } else {
-      conditions.push('is_disabled = 0');
+      conditions.push('COALESCE(o.is_disabled, e.is_disabled) = 0');
     }
 
     // Search filter — match each word independently so searches like "sumo deadlift" finds "sumo deficit deadlift"
@@ -29,7 +33,7 @@ export async function getAllExercises(
       const searchWords = options.search.trim().split(/\s+/).filter(Boolean);
       searchWords.forEach((word, index) => {
         request.input(`search${index}`, `%${word}%`);
-        conditions.push(`name LIKE @search${index}`);
+        conditions.push(`COALESCE(o.custom_name, e.name) LIKE @search${index}`);
       });
     }
 
@@ -43,10 +47,16 @@ export async function getAllExercises(
     }
 
     const query = `
-      SELECT *, COUNT(*) OVER() AS _total_count
-      FROM exercises
+      SELECT e.id, COALESCE(o.custom_name, e.name) AS name,
+             COALESCE(o.custom_description, e.description) AS description,
+             e.category, e.is_timed,
+             COALESCE(o.is_disabled, e.is_disabled) AS is_disabled,
+             e.created_at, e.modified_at,
+             COUNT(*) OVER() AS _total_count
+      FROM exercises e
+      LEFT JOIN user_exercise_overrides o ON o.exercise_id = e.id AND o.user_id = @userId
       ${whereClause}
-      ORDER BY name
+      ORDER BY COALESCE(o.custom_name, e.name)
       ${paginationClause}
     `;
 
@@ -71,13 +81,23 @@ export async function getAllExercises(
   }
 }
 
-export async function getExerciseById(id: string): Promise<Exercise> {
+export async function getExerciseById(userId: string, id: string): Promise<Exercise> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('id', id)
-      .query(`SELECT * FROM exercises WHERE id = @id`);
+      .query(`
+        SELECT e.id, COALESCE(o.custom_name, e.name) AS name,
+               COALESCE(o.custom_description, e.description) AS description,
+               e.category, e.is_timed,
+               COALESCE(o.is_disabled, e.is_disabled) AS is_disabled,
+               e.created_at, e.modified_at
+        FROM exercises e
+        LEFT JOIN user_exercise_overrides o ON o.exercise_id = e.id AND o.user_id = @userId
+        WHERE e.id = @id AND (e.user_id IS NULL OR e.user_id = @userId)
+      `);
 
     if (result.recordset.length === 0) {
       throw new Error(`No exercise found for id: '${id}'`);
@@ -94,19 +114,20 @@ export async function getExerciseById(id: string): Promise<Exercise> {
   }
 }
 
-export async function createExercise(name: string, description: string | null, category: string = 'Strength', isTimed: boolean = false): Promise<Exercise> {
+export async function createExercise(userId: string, name: string, description: string | null, category: string = 'Strength', isTimed: boolean = false): Promise<Exercise> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('name', name)
       .input('description', description)
       .input('category', category)
       .input('isTimed', isTimed ? 1 : 0)
       .query(`
-        INSERT INTO exercises (name, description, category, is_timed)
+        INSERT INTO exercises (user_id, name, description, category, is_timed)
         OUTPUT INSERTED.*
-        VALUES (@name, @description, @category, @isTimed)
+        VALUES (@userId, @name, @description, @category, @isTimed)
       `);
 
     return result.recordset[0];
@@ -120,11 +141,12 @@ export async function createExercise(name: string, description: string | null, c
   }
 }
 
-export async function updateExercise(id: string, name: string, description: string | null, category: string, isTimed: boolean = false): Promise<Exercise> {
+export async function updateExercise(userId: string, id: string, name: string, description: string | null, category: string, isTimed: boolean = false): Promise<Exercise> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('id', id)
       .input('name', name)
       .input('description', description)
@@ -134,7 +156,7 @@ export async function updateExercise(id: string, name: string, description: stri
         UPDATE exercises
         SET name = @name, description = @description, category = @category, is_timed = @isTimed, modified_at = GETDATE()
         OUTPUT INSERTED.*
-        WHERE id = @id
+        WHERE id = @id AND user_id = @userId
       `);
 
     if (result.recordset.length === 0) {
@@ -152,16 +174,17 @@ export async function updateExercise(id: string, name: string, description: stri
   }
 }
 
-export async function disableExercise(id: string): Promise<void> {
+export async function disableExercise(userId: string, id: string): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('id', id)
       .query(`
         UPDATE exercises
         SET is_disabled = 1, modified_at = GETDATE()
-        WHERE id = @id AND is_disabled = 0
+        WHERE id = @id AND is_disabled = 0 AND user_id = @userId
       `);
 
     if (result.rowsAffected[0] === 0) {
@@ -177,16 +200,17 @@ export async function disableExercise(id: string): Promise<void> {
   }
 }
 
-export async function enableExercise(id: string): Promise<void> {
+export async function enableExercise(userId: string, id: string): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('id', id)
       .query(`
         UPDATE exercises
         SET is_disabled = 0, modified_at = GETDATE()
-        WHERE id = @id AND is_disabled = 1
+        WHERE id = @id AND is_disabled = 1 AND user_id = @userId
       `);
 
     if (result.rowsAffected[0] === 0) {
@@ -202,37 +226,44 @@ export async function enableExercise(id: string): Promise<void> {
   }
 }
 
-export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary[]> {
+export async function getAllExercisesWithMuscleGroups(userId: string): Promise<ExerciseSummary[]> {
   let pool;
   try {
     pool = await getGolemConnection();
-    const result = await pool.request().query(`
-      SELECT e.id, e.name, e.category, e.is_timed, e.is_disabled, mg.name AS muscle_group_name, emg.is_primary,
-             best.best_set_weight, best.best_set_reps, last_use.last_used_at
-      FROM exercises e
-      LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
-      LEFT JOIN muscle_groups mg ON emg.muscle_group_id = mg.id
-      LEFT JOIN (
-        SELECT exercise_id, weight AS best_set_weight, reps AS best_set_reps
-        FROM (
-          SELECT se.exercise_id, ses.weight, ses.reps,
-            ROW_NUMBER() OVER (PARTITION BY se.exercise_id ORDER BY ses.weight * ses.reps DESC) AS rn
-          FROM session_segment_sets ses
-          JOIN session_segments se ON ses.session_segment_id = se.id
+    const result = await pool.request()
+      .input('userId', userId)
+      .query(`
+        SELECT e.id, COALESCE(o.custom_name, e.name) AS name, e.category, e.is_timed,
+               COALESCE(o.is_disabled, e.is_disabled) AS is_disabled,
+               mg.name AS muscle_group_name, emg.is_primary,
+               best.best_set_weight, best.best_set_reps, last_use.last_used_at
+        FROM exercises e
+        LEFT JOIN user_exercise_overrides o ON o.exercise_id = e.id AND o.user_id = @userId
+        LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
+        LEFT JOIN muscle_groups mg ON emg.muscle_group_id = mg.id
+        LEFT JOIN (
+          SELECT exercise_id, weight AS best_set_weight, reps AS best_set_reps
+          FROM (
+            SELECT se.exercise_id, ses.weight, ses.reps,
+              ROW_NUMBER() OVER (PARTITION BY se.exercise_id ORDER BY ses.weight * ses.reps DESC) AS rn
+            FROM session_segment_sets ses
+            JOIN session_segments se ON ses.session_segment_id = se.id
+            JOIN workout_sessions ws ON se.session_id = ws.id
+            WHERE ses.is_warmup = 0 AND ses.weight > 0 AND ses.reps > 0 AND ws.started_at IS NOT NULL
+              AND ws.user_id = @userId
+          ) ranked
+          WHERE rn = 1
+        ) best ON e.id = best.exercise_id
+        LEFT JOIN (
+          SELECT se.exercise_id, MAX(ws.started_at) AS last_used_at
+          FROM session_segments se
           JOIN workout_sessions ws ON se.session_id = ws.id
-          WHERE ses.is_warmup = 0 AND ses.weight > 0 AND ses.reps > 0 AND ws.started_at IS NOT NULL
-        ) ranked
-        WHERE rn = 1
-      ) best ON e.id = best.exercise_id
-      LEFT JOIN (
-        SELECT se.exercise_id, MAX(ws.started_at) AS last_used_at
-        FROM session_segments se
-        JOIN workout_sessions ws ON se.session_id = ws.id
-        WHERE ws.started_at IS NOT NULL
-        GROUP BY se.exercise_id
-      ) last_use ON e.id = last_use.exercise_id
-      ORDER BY e.name, emg.is_primary DESC, mg.name
-    `);
+          WHERE ws.started_at IS NOT NULL AND ws.user_id = @userId
+          GROUP BY se.exercise_id
+        ) last_use ON e.id = last_use.exercise_id
+        WHERE (e.user_id IS NULL OR e.user_id = @userId)
+        ORDER BY COALESCE(o.custom_name, e.name), emg.is_primary DESC, mg.name
+      `);
 
     if (result.recordset.length === 0) {
       console.warn('No exercises found');
@@ -282,17 +313,19 @@ export async function getAllExercisesWithMuscleGroups(): Promise<ExerciseSummary
 }
 
 export async function getExerciseHistory(
+  userId: string,
   exerciseId: string,
   options: { startDate?: string; endDate?: string } = {},
 ): Promise<{ history: ExerciseHistoryEntry[]; totalCount: number }> {
   let pool;
   try {
     pool = await getGolemConnection();
-    const request = pool.request().input('exerciseId', exerciseId);
+    const request = pool.request().input('userId', userId).input('exerciseId', exerciseId);
 
     const conditions: string[] = [
       'ss.exercise_id = @exerciseId',
       'ws.is_completed = 1',
+      'ws.user_id = @userId',
     ];
 
     if (options.startDate) {
@@ -334,12 +367,13 @@ export async function getExerciseHistory(
 
     // Total completed session count for this exercise
     const totalResult = await pool.request()
+      .input('userId', userId)
       .input('exerciseId', exerciseId)
       .query(`
         SELECT COUNT(DISTINCT ws.id) AS total_count
         FROM session_segments ss
         JOIN workout_sessions ws ON ss.session_id = ws.id
-        WHERE ss.exercise_id = @exerciseId AND ws.is_completed = 1
+        WHERE ss.exercise_id = @exerciseId AND ws.is_completed = 1 AND ws.user_id = @userId
       `);
     const totalCount = totalResult.recordset[0].total_count;
 
@@ -378,13 +412,16 @@ export async function getExerciseHistory(
   }
 }
 
-export async function getExerciseCount(): Promise<number> {
+export async function getExerciseCount(userId: string): Promise<number> {
   let pool;
   try {
     pool = await getGolemConnection();
-    const result = await pool.request().query(`
-      SELECT COUNT(*) as count FROM exercises
-    `);
+    const result = await pool.request()
+      .input('userId', userId)
+      .query(`
+        SELECT COUNT(*) as count FROM exercises
+        WHERE (user_id IS NULL OR user_id = @userId)
+      `);
 
     return result.recordset[0].count;
   } catch (error) {

@@ -1,15 +1,18 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { ProgramTemplate, ProgramTemplateSummary } from '../types/programTemplate';
 
-export async function getAllProgramTemplates(): Promise<ProgramTemplateSummary[]> {
+export async function getAllProgramTemplates(userId: string): Promise<ProgramTemplateSummary[]> {
   let pool;
   try {
     pool = await getGolemConnection();
-    const result = await pool.request().query(`
-      SELECT id, name, description, created_at, modified_at
-      FROM program_templates
-      ORDER BY name
-    `);
+    const result = await pool.request()
+      .input('userId', userId)
+      .query(`
+        SELECT id, name, description, created_at, modified_at
+        FROM program_templates
+        WHERE user_id = @userId
+        ORDER BY name
+      `);
 
     if (result.recordset.length === 0) {
       console.warn('No program templates found');
@@ -26,13 +29,14 @@ export async function getAllProgramTemplates(): Promise<ProgramTemplateSummary[]
   }
 }
 
-export async function getProgramTemplateById(templateId: string): Promise<ProgramTemplate> {
+export async function getProgramTemplateById(userId: string, templateId: string): Promise<ProgramTemplate> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('templateId', templateId)
-      .query(`SELECT * FROM program_templates WHERE id = @templateId`);
+      .query(`SELECT * FROM program_templates WHERE id = @templateId AND user_id = @userId`);
 
     if (result.recordset.length === 0) {
       throw new Error(`No program template found for id: '${templateId}'`);
@@ -50,6 +54,7 @@ export async function getProgramTemplateById(templateId: string): Promise<Progra
 }
 
 export async function createProgramTemplate(
+  userId: string,
   name: string,
   description: string | null,
   programPrompt: string | null,
@@ -62,6 +67,7 @@ export async function createProgramTemplate(
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('name', name)
       .input('description', description)
       .input('programPrompt', programPrompt)
@@ -70,9 +76,9 @@ export async function createProgramTemplate(
       .input('analysisPrompt', analysisPrompt)
       .input('daysPerWeek', daysPerWeek)
       .query(`
-        INSERT INTO program_templates (name, description, program_prompt, week_prompt, session_prompt, analysis_prompt, days_per_week)
+        INSERT INTO program_templates (user_id, name, description, program_prompt, week_prompt, session_prompt, analysis_prompt, days_per_week)
         OUTPUT INSERTED.*
-        VALUES (@name, @description, @programPrompt, @weekPrompt, @sessionPrompt, @analysisPrompt, @daysPerWeek)
+        VALUES (@userId, @name, @description, @programPrompt, @weekPrompt, @sessionPrompt, @analysisPrompt, @daysPerWeek)
       `);
 
     return result.recordset[0];
@@ -87,6 +93,7 @@ export async function createProgramTemplate(
 }
 
 export async function updateProgramTemplate(
+  userId: string,
   templateId: string,
   name: string,
   description: string | null,
@@ -100,6 +107,7 @@ export async function updateProgramTemplate(
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('templateId', templateId)
       .input('name', name)
       .input('description', description)
@@ -116,7 +124,7 @@ export async function updateProgramTemplate(
             analysis_prompt = @analysisPrompt, days_per_week = @daysPerWeek,
             modified_at = GETDATE()
         OUTPUT INSERTED.*
-        WHERE id = @templateId
+        WHERE id = @templateId AND user_id = @userId
       `);
 
     if (result.recordset.length === 0) {
@@ -134,13 +142,14 @@ export async function updateProgramTemplate(
   }
 }
 
-export async function deleteProgramTemplate(templateId: string): Promise<void> {
+export async function deleteProgramTemplate(userId: string, templateId: string): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('templateId', templateId)
-      .query(`DELETE FROM program_templates WHERE id = @templateId`);
+      .query(`DELETE FROM program_templates WHERE id = @templateId AND user_id = @userId`);
 
     if (result.rowsAffected[0] === 0) {
       throw new Error(`No program template found for id: '${templateId}'`);

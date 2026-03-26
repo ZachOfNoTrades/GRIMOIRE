@@ -17,7 +17,7 @@ export function buildPrompt(templateContext: string | null, profileContext: stri
   return assemblePrompt('generateProgram.md', templateContext, profileContext);
 }
 
-export async function callLLM(taskPrompt: string): Promise<string> {
+export async function callLLM(userId: string, taskPrompt: string): Promise<string> {
   const provider = process.env.LLM_PROVIDER;
 
   if (!provider) {
@@ -37,6 +37,7 @@ export async function callLLM(taskPrompt: string): Promise<string> {
   const basePrompt = loadPromptFile('basePrompt.md');
   const prompt = basePrompt
     .replace('{{TASK_PROMPT}}', taskPrompt)
+    .replace(/\{\{USER_ID\}\}/g, userId)
     .replace('{{OUTPUT_FILE}}', outputFilePosix);
 
   switch (provider) {
@@ -207,11 +208,12 @@ export function validateProgramPayload(payload: CreateProgramPayload): Validatio
 }
 
 export async function generateProgram(
+  userId: string,
   templateContext: string | null,
   profileContext: string | null = null,
 ): Promise<GenerateProgramResult> {
   const prompt = buildPrompt(templateContext, profileContext);
-  const outputFile = await callLLM(prompt);
+  const outputFile = await callLLM(userId, prompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
   const programPayload = parseLLMResponse(rawContent);
@@ -225,6 +227,7 @@ export async function generateProgram(
 // Generates target exercises and sets for a single session using the session formatting file + context.
 // Returns validated GeneratedSegment[] ready for insertion into target tables.
 export async function generateSessionTargetsWithLlm(
+  userId: string,
   sessionContext: string | null,
   sessionId: string,
   sessionName: string,
@@ -240,7 +243,7 @@ export async function generateSessionTargetsWithLlm(
     .replace('{{USER_DESCRIPTION}}', sessionDescription);
 
   console.log(`[GenerateSessionTargets] Calling LLM for session '${sessionName}'`);
-  const outputFile = await callLLM(prompt);
+  const outputFile = await callLLM(userId, prompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -252,7 +255,7 @@ export async function generateSessionTargetsWithLlm(
   }
 
   // Validate exercise IDs
-  const { exercises } = await getAllExercises();
+  const { exercises } = await getAllExercises(userId);
   const validExerciseIds = new Set(exercises.map(e => e.id));
 
   const invalidIds = parsed.target_exercises
@@ -279,6 +282,7 @@ export async function generateSessionTargetsWithLlm(
 // Generates a plain-text analysis of a completed session. The LLM uses SQL Query skill
 // to retrieve performance data, targets, and history. Returns the analysis as a string.
 export async function generateSessionAnalysisWithLlm(
+  userId: string,
   analysisContext: string | null,
   profileContext: string | null,
   sessionId: string,
@@ -291,7 +295,7 @@ export async function generateSessionAnalysisWithLlm(
     .replace('{{SESSION_REVIEW}}', sessionReview || 'None provided');
 
   console.log(`[GenerateSessionAnalysis] Calling LLM for session '${sessionId}'`);
-  const outputFile = await callLLM(prompt);
+  const outputFile = await callLLM(userId, prompt);
   const analysis = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -302,6 +306,7 @@ export async function generateSessionAnalysisWithLlm(
 // Regenerates a single session's name and description using the regenerateSessionPlan prompt.
 // The LLM uses SQL Query skill to pull context from completed sessions, reviews, analyses, etc.
 export async function regenerateSessionPlanWithLlm(
+  userId: string,
   weekContext: string | null,
   profileContext: string | null,
   sessionId: string,
@@ -311,7 +316,7 @@ export async function regenerateSessionPlanWithLlm(
   const prompt = basePrompt.replace('{{SESSION_ID}}', sessionId);
 
   console.log(`[RegenerateSessionPlan] Calling LLM for session '${sessionId}'`);
-  const outputFile = await callLLM(prompt);
+  const outputFile = await callLLM(userId, prompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -332,7 +337,7 @@ export async function regenerateSessionPlanWithLlm(
 // Stage 1: LLM generates program structure (blocks + weeks, no sessions)
 // Stage 2: LLM generates session plans for week 1 (names + descriptions, no exercises)
 // Returns the created program ID.
-export async function generateProgramFromTemplate(templateId: string): Promise<string> {
+export async function generateProgramFromTemplate(userId: string, templateId: string): Promise<string> {
   const startTime = Date.now();
   const heartbeat = setInterval(() => {
     const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -341,13 +346,13 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
 
   try {
     // Load template and user profile
-    const template = await getProgramTemplateById(templateId);
-    const userProfile = await getUserProfile();
+    const template = await getProgramTemplateById(userId, templateId);
+    const userProfile = await getUserProfile(userId);
     const profileContext = userProfile.profile_prompt;
 
     // STAGE 1: Generate program structure via LLM
     console.log('[GenerateProgram] Stage 1: Generating program structure...');
-    const { programPayload } = await generateProgram(template.program_prompt, profileContext);
+    const { programPayload } = await generateProgram(userId, template.program_prompt, profileContext);
 
     // Normalize: LLM returns structure-only, ensure each week has sessions: []
     for (const block of programPayload.blocks) {
@@ -365,7 +370,7 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
     }
 
     // Save program structure to database
-    const programId = await createProgram(programPayload, templateId);
+    const programId = await createProgram(userId, programPayload, templateId);
     const stage1Seconds = Math.round((Date.now() - startTime) / 1000);
     console.log(`[GenerateProgram] Stage 1 complete in ${stage1Seconds}s. Program id: '${programId}'`);
 
@@ -373,10 +378,11 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
     console.log('[GenerateProgram] Stage 2: Generating week 1 sessions...');
 
     // Find week 1 (first week of first block)
-    const week1 = await getFirstWeekId(programId);
+    const week1 = await getFirstWeekId(userId, programId);
     if (week1) {
       // Generate session plans via LLM
       const sessionPlans = await generateNextWeekPlanWithLlm(
+        userId,
         template.week_prompt,
         week1.weekId,
         template.days_per_week,
@@ -384,7 +390,7 @@ export async function generateProgramFromTemplate(templateId: string): Promise<s
       );
 
       // Insert sessions into week 1
-      await insertSessionsIntoWeek(week1.weekId, sessionPlans);
+      await insertSessionsIntoWeek(userId, week1.weekId, sessionPlans);
 
       await setFirstSessionAsCurrent(week1.weekId);
 

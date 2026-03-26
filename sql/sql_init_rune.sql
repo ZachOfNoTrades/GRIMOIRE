@@ -13,11 +13,14 @@ BEGIN TRY
     BEGIN
         CREATE TABLE decks (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-            name NVARCHAR(255) UNIQUE NOT NULL,
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            name NVARCHAR(255) NOT NULL,
             description NVARCHAR(MAX),
             is_archived BIT DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
-            modified_at DATETIME2 DEFAULT GETDATE()
+            modified_at DATETIME2 DEFAULT GETDATE(),
+
+            CONSTRAINT UQ_decks_user_name UNIQUE (user_id, name)
         );
     END
 
@@ -28,6 +31,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE cards (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             deck_id UNIQUEIDENTIFIER NOT NULL,
             front NVARCHAR(MAX) NOT NULL,
             back NVARCHAR(MAX) NOT NULL,
@@ -50,6 +54,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE study_sessions (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             deck_id UNIQUEIDENTIFIER NOT NULL,
             started_at DATETIME2 DEFAULT GETDATE(),
             completed_at DATETIME2 NULL,
@@ -70,6 +75,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE card_reviews (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             card_id UNIQUEIDENTIFIER NOT NULL,
             study_session_id UNIQUEIDENTIFIER NOT NULL,
             rating INT NOT NULL,
@@ -88,6 +94,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE card_progress (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
             card_id UNIQUEIDENTIFIER UNIQUE NOT NULL,
             ease_factor DECIMAL(4,2) DEFAULT 2.50,
             interval_days INT DEFAULT 0,

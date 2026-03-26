@@ -1,12 +1,13 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { Program, ProgramBlock, ProgramSummary, ProgramWeek, ProgramSession, CreateProgramPayload } from '../types/program';
 
-export async function getAllPrograms(page?: number, pageSize?: number, includeArchived: boolean = false): Promise<{ programs: ProgramSummary[]; totalCount: number }> {
+export async function getAllPrograms(userId: string, page?: number, pageSize?: number, includeArchived: boolean = false): Promise<{ programs: ProgramSummary[]; totalCount: number }> {
   let pool;
   try {
     pool = await getGolemConnection();
 
     const request = pool.request();
+    request.input('userId', userId);
 
     let paginationClause = '';
     if (page && pageSize) {
@@ -15,7 +16,7 @@ export async function getAllPrograms(page?: number, pageSize?: number, includeAr
       paginationClause = 'OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY';
     }
 
-    const archiveFilter = includeArchived ? '' : 'WHERE is_archived = 0';
+    const archiveFilter = includeArchived ? 'WHERE user_id = @userId' : 'WHERE user_id = @userId AND is_archived = 0';
 
     const query = `
       SELECT *, COUNT(*) OVER() AS _total_count
@@ -51,13 +52,15 @@ export async function getAllPrograms(page?: number, pageSize?: number, includeAr
   }
 }
 
-export async function getCurrentProgramId(): Promise<string | null> {
+export async function getCurrentProgramId(userId: string): Promise<string | null> {
   let pool;
   try {
     pool = await getGolemConnection();
-    const result = await pool.request().query(`
-      SELECT id FROM programs WHERE is_current = 1 AND is_archived = 0
-    `);
+    const result = await pool.request()
+      .input('userId', userId)
+      .query(`
+        SELECT id FROM programs WHERE is_current = 1 AND is_archived = 0 AND user_id = @userId
+      `);
 
     if (result.recordset.length === 0) {
       return null;
@@ -74,11 +77,12 @@ export async function getCurrentProgramId(): Promise<string | null> {
   }
 }
 
-export async function getProgramById(programId: string): Promise<Program> {
+export async function getProgramById(userId: string, programId: string): Promise<Program> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('programId', programId)
       .query(`
         SELECT
@@ -149,7 +153,7 @@ export async function getProgramById(programId: string): Promise<Program> {
         LEFT JOIN blocks b ON b.program_id = p.id
         LEFT JOIN weeks w ON w.block_id = b.id
         LEFT JOIN workout_sessions ws ON ws.week_id = w.id
-        WHERE p.id = @programId
+        WHERE p.id = @programId AND p.user_id = @userId
         ORDER BY b.order_index, w.week_number, ws.order_index
       `);
 
@@ -242,7 +246,7 @@ export async function getProgramById(programId: string): Promise<Program> {
 }
 
 // Clears is_current on a program and all of its blocks, weeks, and sessions.
-async function clearProgramCurrentFlags(transaction: any, programId: string): Promise<void> {
+async function clearProgramCurrentFlags(transaction: any, userId: string, programId: string): Promise<void> {
   // Clear current flags on sessions within the program
   await transaction.request()
     .input('programId', programId)
@@ -278,16 +282,17 @@ async function clearProgramCurrentFlags(transaction: any, programId: string): Pr
 }
 
 // Set is_current as true for given program and its lowest incomplete session
-async function setProgramAsCurrent(transaction: any, programId: string): Promise<void> {
+async function setProgramAsCurrent(transaction: any, userId: string, programId: string): Promise<void> {
 
   // DEACTIVATE CURRENT PROGRAM
 
   const currentResult = await transaction.request()
+    .input('userId', userId)
     .input('programId', programId)
-    .query(`SELECT id FROM programs WHERE is_current = 1 AND id != @programId`);
+    .query(`SELECT id FROM programs WHERE is_current = 1 AND id != @programId AND user_id = @userId`);
 
   if (currentResult.recordset.length > 0) {
-    await clearProgramCurrentFlags(transaction, currentResult.recordset[0].id);
+    await clearProgramCurrentFlags(transaction, userId, currentResult.recordset[0].id);
   }
 
   // Set the new program as current
@@ -353,7 +358,7 @@ async function setProgramAsCurrent(transaction: any, programId: string): Promise
 }
 
 // Create full program with all children records, returns GUID assigned from database
-export async function createProgram(payload: CreateProgramPayload, templateId?: string | null): Promise<string> {
+export async function createProgram(userId: string, payload: CreateProgramPayload, templateId?: string | null): Promise<string> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -363,13 +368,14 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
     try {
       // Create program (is_current flag is handled later by setProgramAsCurrent())
       const programResult = await transaction.request()
+        .input('userId', userId)
         .input('name', payload.name)
         .input('description', payload.description)
         .input('templateId', templateId ?? null)
         .query(`
-          INSERT INTO programs (name, description, template_id)
+          INSERT INTO programs (user_id, name, description, template_id)
           OUTPUT INSERTED.id
-          VALUES (@name, @description, @templateId)
+          VALUES (@userId, @name, @description, @templateId)
         `);
 
       const programId = programResult.recordset[0].id;
@@ -384,10 +390,11 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
           .input('description', block.description)
           .input('tag', block.tag)
           .input('color', block.color)
+          .input('userId', userId)
           .query(`
-            INSERT INTO blocks (program_id, name, order_index, description, tag, color)
+            INSERT INTO blocks (user_id, program_id, name, order_index, description, tag, color)
             OUTPUT INSERTED.id
-            VALUES (@programId, @name, @orderIndex, @description, @tag, @color)
+            VALUES (@userId, @programId, @name, @orderIndex, @description, @tag, @color)
           `);
 
         const blockId = blockResult.recordset[0].id;
@@ -398,24 +405,26 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
             .input('weekNumber', week.week_number)
             .input('name', week.name)
             .input('description', week.description)
+            .input('userId', userId)
             .query(`
-              INSERT INTO weeks (block_id, week_number, name, description)
+              INSERT INTO weeks (user_id, block_id, week_number, name, description)
               OUTPUT INSERTED.id
-              VALUES (@blockId, @weekNumber, @name, @description)
+              VALUES (@userId, @blockId, @weekNumber, @name, @description)
             `);
 
           const weekId = weekResult.recordset[0].id;
 
           for (const session of week.sessions) {
             const sessionResult = await transaction.request()
+              .input('userId', userId)
               .input('weekId', weekId)
               .input('orderIndex', session.order_index)
               .input('name', session.name)
               .input('description', session.description ?? null)
               .query(`
-                INSERT INTO workout_sessions (week_id, order_index, name, description)
+                INSERT INTO workout_sessions (user_id, week_id, order_index, name, description)
                 OUTPUT INSERTED.id
-                VALUES (@weekId, @orderIndex, @name, @description)
+                VALUES (@userId, @weekId, @orderIndex, @name, @description)
               `);
 
             const sessionId = sessionResult.recordset[0].id;
@@ -425,10 +434,11 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
                 .input('sessionId', sessionId)
                 .input('exerciseId', targetExercise.exercise_id)
                 .input('orderIndex', targetExercise.order_index)
+                .input('userId', userId)
                 .query(`
-                  INSERT INTO target_session_segments (session_id, exercise_id, order_index)
+                  INSERT INTO target_session_segments (user_id, session_id, exercise_id, order_index)
                   OUTPUT INSERTED.id
-                  VALUES (@sessionId, @exerciseId, @orderIndex)
+                  VALUES (@userId, @sessionId, @exerciseId, @orderIndex)
                 `);
 
               const targetExerciseId = targetExerciseResult.recordset[0].id;
@@ -441,9 +451,10 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
                   .input('reps', targetSet.reps)
                   .input('weight', targetSet.weight)
                   .input('rpe', targetSet.rpe)
+                  .input('userId', userId)
                   .query(`
-                    INSERT INTO target_session_segment_sets (target_session_segment_id, set_number, is_warmup, reps, weight, rpe)
-                    VALUES (@targetSessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe)
+                    INSERT INTO target_session_segment_sets (user_id, target_session_segment_id, set_number, is_warmup, reps, weight, rpe)
+                    VALUES (@userId, @targetSessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe)
                   `);
               }
             }
@@ -452,7 +463,7 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
       }
 
       // Activate the new program
-      await setProgramAsCurrent(transaction, programId);
+      await setProgramAsCurrent(transaction, userId, programId);
 
       await transaction.commit();
       return programId;
@@ -470,13 +481,14 @@ export async function createProgram(payload: CreateProgramPayload, templateId?: 
   }
 }
 
-export async function getTemplateIdForProgram(programId: string): Promise<string | null> {
+export async function getTemplateIdForProgram(userId: string, programId: string): Promise<string | null> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('programId', programId)
-      .query(`SELECT template_id FROM programs WHERE id = @programId`);
+      .query(`SELECT template_id FROM programs WHERE id = @programId AND user_id = @userId`);
 
     if (result.recordset.length === 0) {
       throw new Error(`No program found for id: '${programId}'`);
@@ -494,17 +506,19 @@ export async function getTemplateIdForProgram(programId: string): Promise<string
 }
 
 // Returns the first week's ID and block tag for a program (first block, first week by order)
-export async function getFirstWeekId(programId: string): Promise<{ weekId: string; blockTag: string | null } | null> {
+export async function getFirstWeekId(userId: string, programId: string): Promise<{ weekId: string; blockTag: string | null } | null> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('programId', programId)
       .query(`
         SELECT TOP 1 w.id AS week_id, b.tag AS block_tag
         FROM weeks w
         JOIN blocks b ON w.block_id = b.id
-        WHERE b.program_id = @programId
+        JOIN programs p ON b.program_id = p.id
+        WHERE b.program_id = @programId AND p.user_id = @userId
         ORDER BY b.order_index ASC, w.week_number ASC
       `);
 
@@ -526,7 +540,7 @@ export async function getFirstWeekId(programId: string): Promise<{ weekId: strin
   }
 }
 
-export async function archiveProgram(programId: string, isArchived: boolean): Promise<void> {
+export async function archiveProgram(userId: string, programId: string, isArchived: boolean): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -536,16 +550,17 @@ export async function archiveProgram(programId: string, isArchived: boolean): Pr
     try {
       // If archiving, clear is_current flags on the program and all descendants
       if (isArchived) {
-        await clearProgramCurrentFlags(transaction, programId);
+        await clearProgramCurrentFlags(transaction, userId, programId);
       }
 
       const result = await transaction.request()
+        .input('userId', userId)
         .input('programId', programId)
         .input('isArchived', isArchived ? 1 : 0)
         .query(`
           UPDATE programs
           SET is_archived = @isArchived, modified_at = GETDATE()
-          WHERE id = @programId
+          WHERE id = @programId AND user_id = @userId
         `);
 
       if (result.rowsAffected[0] === 0) {
@@ -567,7 +582,7 @@ export async function archiveProgram(programId: string, isArchived: boolean): Pr
   }
 }
 
-export async function activateProgram(programId: string): Promise<void> {
+export async function activateProgram(userId: string, programId: string): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -575,7 +590,7 @@ export async function activateProgram(programId: string): Promise<void> {
     await transaction.begin();
 
     try {
-      await setProgramAsCurrent(transaction, programId);
+      await setProgramAsCurrent(transaction, userId, programId);
       await transaction.commit();
     } catch (error) {
       await transaction.rollback();
@@ -591,19 +606,21 @@ export async function activateProgram(programId: string): Promise<void> {
   }
 }
 
-export async function deleteProgram(programId: string): Promise<void> {
+export async function deleteProgram(userId: string, programId: string): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
 
     // Guard: prevent deletion if any session has been completed
     const completedCheck = await pool.request()
+      .input('userId', userId)
       .input('programId', programId)
       .query(`
         SELECT COUNT(*) as count FROM workout_sessions ws
         JOIN weeks w ON ws.week_id = w.id
         JOIN blocks b ON w.block_id = b.id
-        WHERE b.program_id = @programId AND ws.is_completed = 1
+        JOIN programs p ON b.program_id = p.id
+        WHERE b.program_id = @programId AND p.user_id = @userId AND ws.is_completed = 1
       `);
 
     if (completedCheck.recordset[0].count > 0) {
@@ -615,7 +632,7 @@ export async function deleteProgram(programId: string): Promise<void> {
 
     try {
       // Clear current flags before deleting
-      await clearProgramCurrentFlags(transaction, programId);
+      await clearProgramCurrentFlags(transaction, userId, programId);
 
       // Delete in dependency order: sets → segments → targets → sessions → weeks → blocks → program
       await transaction.request().input('programId', programId).query(`
@@ -662,8 +679,8 @@ export async function deleteProgram(programId: string): Promise<void> {
       await transaction.request().input('programId', programId).query(`
         DELETE FROM blocks WHERE program_id = @programId
       `);
-      const result = await transaction.request().input('programId', programId).query(`
-        DELETE FROM programs WHERE id = @programId
+      const result = await transaction.request().input('userId', userId).input('programId', programId).query(`
+        DELETE FROM programs WHERE id = @programId AND user_id = @userId
       `);
 
       if (result.rowsAffected[0] === 0) {
@@ -686,6 +703,7 @@ export async function deleteProgram(programId: string): Promise<void> {
 }
 
 export async function updateProgram(
+  userId: string,
   programId: string,
   name: string,
   description: string | null,
@@ -695,6 +713,7 @@ export async function updateProgram(
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('programId', programId)
       .input('name', name)
       .input('description', description)
@@ -702,7 +721,7 @@ export async function updateProgram(
       .query(`
         UPDATE programs
         SET name = @name, description = @description, template_id = @templateId, modified_at = GETDATE()
-        WHERE id = @programId
+        WHERE id = @programId AND user_id = @userId
       `);
 
     if (result.rowsAffected[0] === 0) {

@@ -1,12 +1,13 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { WorkoutSession } from '../types/workoutSession';
 
-export async function getAllWorkoutSessions(page?: number, pageSize?: number): Promise<{ sessions: WorkoutSession[]; totalCount: number }> {
+export async function getAllWorkoutSessions(userId: string, page?: number, pageSize?: number): Promise<{ sessions: WorkoutSession[]; totalCount: number }> {
   let pool;
   try {
     pool = await getGolemConnection();
 
     const request = pool.request();
+    request.input('userId', userId);
 
     let paginationClause = '';
     if (page && pageSize) {
@@ -18,7 +19,7 @@ export async function getAllWorkoutSessions(page?: number, pageSize?: number): P
     const query = `
       SELECT *, COUNT(*) OVER() AS _total_count
       FROM workout_sessions
-      WHERE week_id IS NULL
+      WHERE week_id IS NULL AND user_id = @userId
       ORDER BY created_at DESC
       ${paginationClause}
     `;
@@ -46,16 +47,17 @@ export async function getAllWorkoutSessions(page?: number, pageSize?: number): P
   }
 }
 
-export async function createWorkoutSession(name: string): Promise<string> {
+export async function createWorkoutSession(userId: string, name: string): Promise<string> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('name', name)
       .query(`
-        INSERT INTO workout_sessions (name)
+        INSERT INTO workout_sessions (user_id, name)
         OUTPUT INSERTED.id
-        VALUES (@name)
+        VALUES (@userId, @name)
       `);
 
     return result.recordset[0].id;
@@ -69,13 +71,15 @@ export async function createWorkoutSession(name: string): Promise<string> {
   }
 }
 
-export async function getCurrentWorkoutSession(): Promise<WorkoutSession | null> {
+export async function getCurrentWorkoutSession(userId: string): Promise<WorkoutSession | null> {
   let pool;
   try {
     pool = await getGolemConnection();
-    const result = await pool.request().query(`
-      SELECT * FROM workout_sessions WHERE is_current = 1
-    `);
+    const result = await pool.request()
+      .input('userId', userId)
+      .query(`
+        SELECT * FROM workout_sessions WHERE is_current = 1 AND user_id = @userId
+      `);
 
     if (result.recordset.length === 0) {
       console.warn('No current workout session found');
@@ -93,13 +97,14 @@ export async function getCurrentWorkoutSession(): Promise<WorkoutSession | null>
   }
 }
 
-export async function getWorkoutSessionById(id: string): Promise<WorkoutSession> {
+export async function getWorkoutSessionById(userId: string, id: string): Promise<WorkoutSession> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('id', id)
-      .query(`SELECT * FROM workout_sessions WHERE id = @id`);
+      .query(`SELECT * FROM workout_sessions WHERE id = @id AND user_id = @userId`);
 
     if (result.recordset.length === 0) {
       throw new Error(`No workout session found for id: '${id}'`);
@@ -326,6 +331,7 @@ async function updateStatus(
 }
 
 export async function updateWorkoutSession(
+  userId: string,
   id: string,
   name: string,
   description: string | null,
@@ -346,8 +352,9 @@ export async function updateWorkoutSession(
     try {
       // Get current session state for status propagation diffing
       const currentResult = await transaction.request()
+        .input('userId', userId)
         .input('id', id)
-        .query(`SELECT id, week_id, order_index, is_current, is_completed FROM workout_sessions WHERE id = @id`);
+        .query(`SELECT id, week_id, order_index, is_current, is_completed FROM workout_sessions WHERE id = @id AND user_id = @userId`);
 
       if (currentResult.recordset.length === 0) {
         throw new Error(`No workout session found for id: '${id}'`);
@@ -393,7 +400,7 @@ export async function updateWorkoutSession(
   }
 }
 
-export async function deleteWorkoutSession(id: string): Promise<void> {
+export async function deleteWorkoutSession(userId: string, id: string): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -403,13 +410,14 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
     try {
       // Look up the session's program ID before deleting (NULL for standalone sessions)
       const sessionLookup = await transaction.request()
+        .input('userId', userId)
         .input('id', id)
         .query(`
           SELECT ws.id, b.program_id
           FROM workout_sessions ws
           LEFT JOIN weeks w ON ws.week_id = w.id
           LEFT JOIN blocks b ON w.block_id = b.id
-          WHERE ws.id = @id
+          WHERE ws.id = @id AND ws.user_id = @userId
         `);
 
       if (sessionLookup.recordset.length === 0) {
@@ -481,7 +489,7 @@ export async function deleteWorkoutSession(id: string): Promise<void> {
 
 // Resets an incomplete session: clears started_at, removes current flag, and advances
 // the program-wide current pointer to the lowest incomplete block → week → session.
-export async function resetWorkoutSession(id: string): Promise<void> {
+export async function resetWorkoutSession(userId: string, id: string): Promise<void> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -491,8 +499,9 @@ export async function resetWorkoutSession(id: string): Promise<void> {
     try {
       // Get current session state
       const currentResult = await transaction.request()
+        .input('userId', userId)
         .input('id', id)
-        .query(`SELECT id, week_id, order_index FROM workout_sessions WHERE id = @id`);
+        .query(`SELECT id, week_id, order_index FROM workout_sessions WHERE id = @id AND user_id = @userId`);
 
       if (currentResult.recordset.length === 0) {
         throw new Error(`No workout session found for id: '${id}'`);
@@ -575,13 +584,15 @@ export async function resetWorkoutSession(id: string): Promise<void> {
   }
 }
 
-export async function getWorkoutSessionCount(): Promise<number> {
+export async function getWorkoutSessionCount(userId: string): Promise<number> {
   let pool;
   try {
     pool = await getGolemConnection();
-    const result = await pool.request().query(`
-      SELECT COUNT(*) as count FROM workout_sessions
-    `);
+    const result = await pool.request()
+      .input('userId', userId)
+      .query(`
+        SELECT COUNT(*) as count FROM workout_sessions WHERE user_id = @userId
+      `);
 
     return result.recordset[0].count;
   } catch (error) {
@@ -594,11 +605,12 @@ export async function getWorkoutSessionCount(): Promise<number> {
   }
 }
 
-export async function getTemplateIdForSession(sessionId: string): Promise<string | null> {
+export async function getTemplateIdForSession(userId: string, sessionId: string): Promise<string | null> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('sessionId', sessionId)
       .query(`
         SELECT p.template_id
@@ -606,7 +618,7 @@ export async function getTemplateIdForSession(sessionId: string): Promise<string
         JOIN weeks w ON ws.week_id = w.id
         JOIN blocks b ON w.block_id = b.id
         JOIN programs p ON b.program_id = p.id
-        WHERE ws.id = @sessionId
+        WHERE ws.id = @sessionId AND ws.user_id = @userId
       `);
 
     if (result.recordset.length === 0) {

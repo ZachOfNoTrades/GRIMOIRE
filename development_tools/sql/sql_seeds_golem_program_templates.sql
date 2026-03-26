@@ -2,6 +2,9 @@
 -- Seed Data: Program Templates
 -- Run after sql_init_golem.sql to populate default templates.
 --
+-- Requires @sampleUserId to be declared before running
+-- DECLARE @sampleUserId UNIQUEIDENTIFIER = '<user-id-here>';
+--
 -- NOTE: Each prompt field stores only domain-specific context.
 -- Formatting rules (output schema, response rules) live in
 -- tracked .md files under nextjs/app/modules/golem/lib/prompts/.
@@ -11,17 +14,28 @@
   -- =============================
   -- User Profile
   -- =============================
-  UPDATE user_profile
-  SET profile_prompt = 'I am an intermediate lifter with 3 years of experience. I have a minor left shoulder impingement — avoid heavy overhead pressing and behind-the-neck movements. My goals are hypertrophy-focused with a secondary emphasis on strength. I respond well to moderate volume (15-20 sets per muscle group per week).',
-      modified_at = GETDATE()
-  WHERE id = 1;
+  IF NOT EXISTS (SELECT 1 FROM user_profiles WHERE user_id = @sampleUserId)
+  BEGIN
+    INSERT INTO user_profiles (user_id, profile_prompt) VALUES (
+      @sampleUserId,
+      'I am an intermediate lifter with 3 years of experience. I have a minor left shoulder impingement — avoid heavy overhead pressing and behind-the-neck movements. My goals are hypertrophy-focused with a secondary emphasis on strength. I respond well to moderate volume (15-20 sets per muscle group per week).'
+    );
+  END
+  ELSE
+  BEGIN
+    UPDATE user_profiles
+    SET profile_prompt = 'I am an intermediate lifter with 3 years of experience. I have a minor left shoulder impingement — avoid heavy overhead pressing and behind-the-neck movements. My goals are hypertrophy-focused with a secondary emphasis on strength. I respond well to moderate volume (15-20 sets per muscle group per week).',
+        modified_at = GETDATE()
+    WHERE user_id = @sampleUserId;
+  END
 
   -- =============================
   -- Powerlifting Template
   -- =============================
-INSERT INTO program_templates (id, name, description, program_prompt, week_prompt, session_prompt, days_per_week)
+INSERT INTO program_templates (id, user_id, name, description, program_prompt, week_prompt, session_prompt, days_per_week)
 VALUES (
   'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA',
+  @sampleUserId,
   'Powerlifting',
   'Standard powerlifting program template with prompts for program, week, and session generation.',
 

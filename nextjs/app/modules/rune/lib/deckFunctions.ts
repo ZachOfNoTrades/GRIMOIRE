@@ -1,7 +1,7 @@
 import { getRuneConnection, closeRuneConnection } from './db';
 import { Deck, DeckSummary } from '../types/deck';
 
-export async function getAllDecks(): Promise<{ decks: DeckSummary[] }> {
+export async function getAllDecks(userId: string): Promise<{ decks: DeckSummary[] }> {
   let pool;
   try {
     pool = await getRuneConnection();
@@ -14,12 +14,14 @@ export async function getAllDecks(): Promise<{ decks: DeckSummary[] }> {
       FROM decks d
       LEFT JOIN cards c ON c.deck_id = d.id AND c.is_disabled = 0
       LEFT JOIN card_progress cp ON cp.card_id = c.id
-      WHERE d.is_archived = 0
+      WHERE d.is_archived = 0 AND d.user_id = @userId
       GROUP BY d.id, d.name, d.description
       ORDER BY d.name
     `;
 
-    const result = await pool.request().query(query);
+    const result = await pool.request()
+      .input('userId', userId)
+      .query(query);
 
     if (result.recordset.length === 0) {
       console.warn('No decks found');
@@ -36,13 +38,14 @@ export async function getAllDecks(): Promise<{ decks: DeckSummary[] }> {
   }
 }
 
-export async function getDeckById(id: string): Promise<Deck> {
+export async function getDeckById(userId: string, id: string): Promise<Deck> {
   let pool;
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('id', id)
-      .query(`SELECT * FROM decks WHERE id = @id`);
+      .query(`SELECT * FROM decks WHERE id = @id AND user_id = @userId`);
 
     if (result.recordset.length === 0) {
       throw new Error(`No deck found for id: '${id}'`);
@@ -59,17 +62,18 @@ export async function getDeckById(id: string): Promise<Deck> {
   }
 }
 
-export async function createDeck(name: string, description: string | null): Promise<Deck> {
+export async function createDeck(userId: string, name: string, description: string | null): Promise<Deck> {
   let pool;
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('name', name)
       .input('description', description)
       .query(`
-        INSERT INTO decks (name, description)
+        INSERT INTO decks (user_id, name, description)
         OUTPUT INSERTED.*
-        VALUES (@name, @description)
+        VALUES (@userId, @name, @description)
       `);
 
     return result.recordset[0] as Deck;

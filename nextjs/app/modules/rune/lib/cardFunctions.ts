@@ -2,17 +2,18 @@ import { getRuneConnection, closeRuneConnection } from './db';
 import { CardWithProgress } from '../types/card';
 import { GeneratedCard } from '../types/generation';
 
-export async function getCardsByDeckId(deckId: string): Promise<CardWithProgress[]> {
+export async function getCardsByDeckId(userId: string, deckId: string): Promise<CardWithProgress[]> {
   let pool;
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('deckId', deckId)
       .query(`
         SELECT c.*, cp.ease_factor, cp.interval_days, cp.repetitions, cp.next_review_at, cp.last_reviewed_at
         FROM cards c
         LEFT JOIN card_progress cp ON cp.card_id = c.id
-        WHERE c.deck_id = @deckId
+        WHERE c.deck_id = @deckId AND c.user_id = @userId
         ORDER BY c.order_index
       `);
 
@@ -31,17 +32,18 @@ export async function getCardsByDeckId(deckId: string): Promise<CardWithProgress
   }
 }
 
-export async function getCardById(id: string): Promise<CardWithProgress> {
+export async function getCardById(userId: string, id: string): Promise<CardWithProgress> {
   let pool;
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
+      .input('userId', userId)
       .input('id', id)
       .query(`
         SELECT c.*, cp.ease_factor, cp.interval_days, cp.repetitions, cp.next_review_at, cp.last_reviewed_at
         FROM cards c
         LEFT JOIN card_progress cp ON cp.card_id = c.id
-        WHERE c.id = @id
+        WHERE c.id = @id AND c.user_id = @userId
       `);
 
     if (result.recordset.length === 0) {
@@ -60,7 +62,7 @@ export async function getCardById(id: string): Promise<CardWithProgress> {
 }
 
 // Inserts multiple cards into a deck in a single transaction. Returns the number of cards inserted.
-export async function insertCards(deckId: string, cards: GeneratedCard[], source: string = 'notion'): Promise<number> {
+export async function insertCards(userId: string, deckId: string, cards: GeneratedCard[], source: string = 'notion'): Promise<number> {
   let pool;
   try {
     pool = await getRuneConnection();
@@ -70,6 +72,7 @@ export async function insertCards(deckId: string, cards: GeneratedCard[], source
     try {
       for (const card of cards) {
         await transaction.request()
+          .input('userId', userId)
           .input('deckId', deckId)
           .input('front', card.front.trim())
           .input('back', card.back.trim())
@@ -77,8 +80,8 @@ export async function insertCards(deckId: string, cards: GeneratedCard[], source
           .input('source', source)
           .input('orderIndex', card.order_index)
           .query(`
-            INSERT INTO cards (deck_id, front, back, notes, source, order_index)
-            VALUES (@deckId, @front, @back, @notes, @source, @orderIndex)
+            INSERT INTO cards (user_id, deck_id, front, back, notes, source, order_index)
+            VALUES (@userId, @deckId, @front, @back, @notes, @source, @orderIndex)
           `);
       }
 

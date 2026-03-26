@@ -1,7 +1,7 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { ImportPayload, ImportResult } from '../types/import';
 
-export async function importWorkoutHistory(payload: ImportPayload): Promise<ImportResult> {
+export async function importWorkoutHistory(userId: string, payload: ImportPayload): Promise<ImportResult> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -13,10 +13,12 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
       let segmentsCreated = 0;
       let setsCreated = 0;
 
-      // Build exercise name → id map from existing exercises
-      const existingResult = await transaction.request().query(`
-        SELECT id, name FROM exercises
-      `);
+      // Build exercise name → id map from existing exercises (system + user's custom)
+      const existingResult = await transaction.request()
+        .input('userId', userId)
+        .query(`
+          SELECT id, name FROM exercises WHERE (user_id IS NULL OR user_id = @userId)
+        `);
       const exerciseNameToId = new Map<string, string>();
       for (const row of existingResult.recordset) {
         exerciseNameToId.set(row.name.toLowerCase(), row.id);
@@ -26,13 +28,14 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
       for (const exercise of payload.new_exercises) {
         if (!exerciseNameToId.has(exercise.name.toLowerCase())) {
           const result = await transaction.request()
+            .input('userId', userId)
             .input('name', exercise.name)
             .input('description', exercise.description)
             .input('category', exercise.category)
             .query(`
-              INSERT INTO exercises (name, description, category)
+              INSERT INTO exercises (user_id, name, description, category)
               OUTPUT INSERTED.id
-              VALUES (@name, @description, @category)
+              VALUES (@userId, @name, @description, @category)
             `);
           exerciseNameToId.set(exercise.name.toLowerCase(), result.recordset[0].id);
           exercisesCreated++;
@@ -42,12 +45,13 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
       // Create sessions, segments, and sets
       for (const session of payload.sessions) {
         const sessionResult = await transaction.request()
+          .input('userId', userId)
           .input('name', session.name)
           .input('startedAt', session.started_at)
           .query(`
-            INSERT INTO workout_sessions (name, started_at, is_completed)
+            INSERT INTO workout_sessions (user_id, name, started_at, is_completed)
             OUTPUT INSERTED.id
-            VALUES (@name, @startedAt, 1)
+            VALUES (@userId, @name, @startedAt, 1)
           `);
         const sessionId = sessionResult.recordset[0].id;
 
@@ -62,10 +66,11 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
             .input('exerciseId', exerciseId)
             .input('orderIndex', segment.order_index)
             .input('isWarmup', segment.is_warmup ? 1 : 0)
+            .input('userId', userId)
             .query(`
-              INSERT INTO session_segments (session_id, exercise_id, order_index, is_warmup)
+              INSERT INTO session_segments (user_id, session_id, exercise_id, order_index, is_warmup)
               OUTPUT INSERTED.id
-              VALUES (@sessionId, @exerciseId, @orderIndex, @isWarmup)
+              VALUES (@userId, @sessionId, @exerciseId, @orderIndex, @isWarmup)
             `);
           const segmentId = segmentResult.recordset[0].id;
           segmentsCreated++;
@@ -79,9 +84,10 @@ export async function importWorkoutHistory(payload: ImportPayload): Promise<Impo
               .input('weight', set.weight)
               .input('rpe', set.rpe)
               .input('timeSeconds', set.time_seconds ?? null)
+              .input('userId', userId)
               .query(`
-                INSERT INTO session_segment_sets (session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, is_completed)
-                VALUES (@segmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, 1)
+                INSERT INTO session_segment_sets (user_id, session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, is_completed)
+                VALUES (@userId, @segmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, 1)
               `);
             setsCreated++;
           }

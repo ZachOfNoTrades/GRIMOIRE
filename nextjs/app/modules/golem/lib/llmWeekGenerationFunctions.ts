@@ -80,6 +80,7 @@ function validateWeekPlans(plans: LLMSessionPlan[]): ValidationResult {
 // Generates session plans for a week using the week_prompt template.
 // Returns sessions with names + descriptions only (no target exercises).
 export async function generateNextWeekPlanWithLlm(
+  userId: string,
   weekContext: string | null,
   weekId: string,
   daysPerWeek: number,
@@ -90,7 +91,7 @@ export async function generateNextWeekPlanWithLlm(
   console.log(`[WeekPlanLLM] Generating ${daysPerWeek} session plans...`);
 
   const planPrompt = buildWeekPlanPrompt(weekContext, weekId, daysPerWeek, profileContext);
-  const outputFile = await callLLM(planPrompt);
+  const outputFile = await callLLM(userId, planPrompt);
   const planRaw = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
   const sessionPlans = parseWeekPlanResponse(planRaw);

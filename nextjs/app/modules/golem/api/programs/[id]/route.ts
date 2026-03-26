@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getProgramById, updateProgram, archiveProgram, activateProgram, deleteProgram } from '../../../lib/programFunctions';
 
 export async function GET(
@@ -6,9 +7,15 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
 
-    const program = await getProgramById(id);
+    const program = await getProgramById(userId!, id);
     return NextResponse.json(program);
 
   } catch (error) {
@@ -33,13 +40,19 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
     const { name, description } = await request.json();
 
-    await updateProgram(id, name, description);
+    await updateProgram(userId!, id, name, description);
 
     // Return the updated program
-    const updatedProgram = await getProgramById(id);
+    const updatedProgram = await getProgramById(userId!, id);
     return NextResponse.json(updatedProgram);
 
   } catch (error) {
@@ -64,19 +77,25 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
     const body = await request.json();
 
     if (body.is_archived !== undefined) {
-      await archiveProgram(id, body.is_archived);
+      await archiveProgram(userId!, id, body.is_archived);
     }
 
     if (body.is_current === true) {
-      await activateProgram(id);
+      await activateProgram(userId!, id);
     }
 
     // Return the updated program
-    const updatedProgram = await getProgramById(id);
+    const updatedProgram = await getProgramById(userId!, id);
     return NextResponse.json(updatedProgram);
 
   } catch (error) {
@@ -101,9 +120,15 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
 
-    await deleteProgram(id);
+    await deleteProgram(userId!, id);
     return NextResponse.json({ success: true });
 
   } catch (error) {

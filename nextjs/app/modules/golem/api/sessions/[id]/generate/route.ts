@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
+import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
 import { generateSessionTargetsWithLlm } from '../../../../lib/llmFunctions';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '../../../../lib/segmentFunctions';
@@ -10,21 +12,39 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authSession = await getAuthorizedSession();
+    if (!authSession) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = authSession.user.id;
+
+    // Rate limit check (admins bypass if enabled)
+    const skipLimit = shouldAdminBypassLimit() && await isAdmin();
+    if (!skipLimit) {
+      const { allowed, count, limit } = await checkGenerationLimit(userId!);
+      if (!allowed) {
+        return NextResponse.json(
+          { error: `Generation limit reached (${count}/${limit} in 24h)` },
+          { status: 429 }
+        );
+      }
+    }
+
     const { id } = await context.params;
 
     // Verify session exists
-    const session = await getWorkoutSessionById(id);
+    const session = await getWorkoutSessionById(userId!, id);
 
     // If program session, fetch session prompt from template
-    const templateId = await getTemplateIdForSession(id);
+    const templateId = await getTemplateIdForSession(userId!, id);
     let sessionContext: string | null = null;
     if (templateId) {
-      const programTemplate = await getProgramTemplateById(templateId);
+      const programTemplate = await getProgramTemplateById(userId!, templateId);
       sessionContext = programTemplate.session_prompt;
     }
 
     // Load user profile for LLM context
-    const userProfile = await getUserProfile();
+    const userProfile = await getUserProfile(userId!);
     const profileContext = userProfile.profile_prompt;
 
     // Use session description for LLM generation
@@ -34,10 +54,11 @@ export async function POST(
     }
 
     // Clear existing targets before generating new ones
-    await deleteAllTargetsForSession(id);
+    await deleteAllTargetsForSession(userId!, id);
 
     // Generate targets via LLM
     const targetExercises = await generateSessionTargetsWithLlm(
+      userId!,
       sessionContext,
       id,
       session.name,
@@ -45,7 +66,9 @@ export async function POST(
       profileContext,
     );
 
-    await createGeneratedTargets(id, targetExercises);
+    await createGeneratedTargets(userId!, id, targetExercises);
+
+    await logGeneration(userId!, "/modules/golem/api/sessions/generate");
 
     return NextResponse.json({ success: true }, { status: 201 });
 

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { importWorkoutHistory } from '../../../lib/importFunctions';
 import { ImportPayload } from '../../../types/import';
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
 
     const body: ImportPayload = await request.json();
 
@@ -14,7 +20,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await importWorkoutHistory(body);
+    const result = await importWorkoutHistory(userId!, body);
     return NextResponse.json(result, { status: 201 });
 
   } catch (error: any) {

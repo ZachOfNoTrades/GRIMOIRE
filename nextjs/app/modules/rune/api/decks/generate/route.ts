@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
+import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { generateDeckFromNotion } from '../../../lib/generationFunctions';
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
+    // Rate limit check (admins bypass if enabled)
+    const skipLimit = shouldAdminBypassLimit() && await isAdmin();
+    if (!skipLimit) {
+      const { allowed, count, limit } = await checkGenerationLimit(userId!);
+      if (!allowed) {
+        return NextResponse.json(
+          { error: `Generation limit reached (${count}/${limit} in 24h)` },
+          { status: 429 }
+        );
+      }
+    }
+
     const body = await request.json();
     const { deckName, deckDescription, notionUrl, customPrompt } = body;
 
@@ -21,11 +41,14 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await generateDeckFromNotion(
+      userId!,
       deckName.trim(),
       deckDescription?.trim() || null,
       notionUrl.trim(),
       customPrompt?.trim() || null,
     );
+
+    await logGeneration(userId!, "/modules/rune/api/decks/generate");
 
     return NextResponse.json({
       success: true,

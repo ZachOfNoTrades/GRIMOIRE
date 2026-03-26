@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthorizedSession } from '@/lib/permissions';
 import { getExerciseHistory } from '../../../../lib/exerciseFunctions';
 
 export async function GET(
@@ -6,11 +7,17 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getAuthorizedSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { id } = await context.params;
     const startDate = request.nextUrl.searchParams.get('startDate') || undefined;
     const endDate = request.nextUrl.searchParams.get('endDate') || undefined;
 
-    const { history, totalCount } = await getExerciseHistory(id, { startDate, endDate });
+    const { history, totalCount } = await getExerciseHistory(userId!, id, { startDate, endDate });
 
     return NextResponse.json({ history, totalCount });
 

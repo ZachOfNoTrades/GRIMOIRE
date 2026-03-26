@@ -33,6 +33,7 @@ export async function setFirstSessionAsCurrent(weekId: string): Promise<void> {
 
 // Inserts session plans (names + descriptions, no exercises) into a week
 export async function insertSessionsIntoWeek(
+  userId: string,
   weekId: string,
   sessions: CreateProgramSession[],
 ): Promise<void> {
@@ -41,13 +42,14 @@ export async function insertSessionsIntoWeek(
     pool = await getGolemConnection();
     for (const session of sessions) {
       await pool.request()
+        .input('userId', userId)
         .input('weekId', weekId)
         .input('orderIndex', session.order_index)
         .input('name', session.name)
         .input('description', session.description ?? null)
         .query(`
-          INSERT INTO workout_sessions (week_id, order_index, name, description)
-          VALUES (@weekId, @orderIndex, @name, @description)
+          INSERT INTO workout_sessions (user_id, week_id, order_index, name, description)
+          VALUES (@userId, @weekId, @orderIndex, @name, @description)
         `);
     }
   } catch (error) {
@@ -62,19 +64,19 @@ export async function insertSessionsIntoWeek(
 
 // Generates and saves next-week sessions based on the program's template.
 // Uses LLM to generate session plans (names + descriptions only, no exercises).
-export async function generateNextWeek(programId: string, weekId: string): Promise<void> {
+export async function generateNextWeek(userId: string, programId: string, weekId: string): Promise<void> {
 
   // Load template context (separate connections, closed immediately)
-  const templateId = await getTemplateIdForProgram(programId);
+  const templateId = await getTemplateIdForProgram(userId, programId);
   if (!templateId) {
     console.warn(`[GenerateNextWeek] No template found for program: '${programId}' — skipping generation`);
     return;
   }
 
-  const template = await getProgramTemplateById(templateId);
+  const template = await getProgramTemplateById(userId, templateId);
 
   // Load user profile for LLM context
-  const userProfile = await getUserProfile();
+  const userProfile = await getUserProfile(userId);
   const profileContext = userProfile.profile_prompt;
 
   let pool;
@@ -140,10 +142,10 @@ export async function generateNextWeek(programId: string, weekId: string): Promi
       await transaction.commit();
 
       // 5. Generate session plans via LLM (outside transaction)
-      const sessionPlans = await generateNextWeekPlanWithLlm(template.week_prompt, nextWeekId, template.days_per_week, profileContext);
+      const sessionPlans = await generateNextWeekPlanWithLlm(userId, template.week_prompt, nextWeekId, template.days_per_week, profileContext);
 
       // 6. Insert new sessions with names + descriptions (no target exercises)
-      await insertSessionsIntoWeek(nextWeekId, sessionPlans);
+      await insertSessionsIntoWeek(userId, nextWeekId, sessionPlans);
 
       console.log(`[GenerateNextWeek] Generated ${sessionPlans.length} session plans`);
 
