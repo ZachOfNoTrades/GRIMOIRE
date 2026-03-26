@@ -723,6 +723,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  // NOT FOUND PLACEHOLDER
+  if (!session) {
+    return (
+      <div className="page">
+        <main className="page-container">
+          <p className="text-page-subtitle text-center py-8">Session not found</p>
+        </main>
+      </div>
+    );
+  }
+
   return (
 
     // BACKGROUND
@@ -742,304 +753,302 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         <div className="mb-4">
 
           {/* TITLE */}
-          <h1 className="text-page-title">{session ? session.name : "Session Not Found"}</h1>
+          <h1 className="text-page-title">{session.name}</h1>
         </div>
 
         {/* CARDS */}
         <div className="card-container">
 
           {/* SESSION INFO CARD */}
-          {session && (
-            <div className="card">
+          <div className="card">
 
-              {/* CARD HEADER */}
-              <div className="card-header">
+            {/* CARD HEADER */}
+            <div className="card-header">
 
-                {/* TITLE */}
-                <h2 className="text-card-title">Session Info</h2>
+              {/* TITLE */}
+              <h2 className="text-card-title">Session Info</h2>
 
-                {/* SESSION ACTION BUTTONS */}
-                <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto sm:h-9">
-                  {!isEditingSession ? (
+              {/* SESSION ACTION BUTTONS */}
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto sm:h-9">
+                {!isEditingSession ? (
 
-                    // VIEW MODE ACTIONS
-                    <>
-
-                      {/* DELETE BUTTON */}
-                      <Button className="btn-red w-full sm:w-auto" onClick={() => setIsDeleteModalOpen(true)}>
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete</span>
-                      </Button>
-
-                      {/* RESET BUTTON */}
-                      <Button className="btn-off w-full sm:w-auto" onClick={() => setIsResetModalOpen(true)}>
-                        <RotateCcw className="w-4 h-4" />
-                        <span>Reset</span>
-                      </Button>
-
-                      {/* EDIT BUTTON */}
-                      <Button className="btn-blue w-full sm:w-auto" onClick={handleStartEditSession}>
-                        <Edit2 className="w-4 h-4" />
-                        <span>Edit</span>
-                      </Button>
-                    </>
-                  ) : (
-
-                    // EDIT MODE ACTIONS
-                    <>
-
-                      {/* CANCEL BUTTON */}
-                      <Button className="btn-link w-full sm:w-auto" onClick={handleCancelEditSession} disabled={isSavingSession}>
-                        <X className="w-4 h-4" />
-                        <span>Cancel</span>
-                      </Button>
-
-                      {/* SAVE BUTTON */}
-                      <Button className="btn-green w-full sm:w-auto" onClick={handleSaveSession} disabled={isSavingSession}>
-                        <Save className="w-4 h-4" />
-                        <span>{isSavingSession ? "Saving..." : "Save"}</span>
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* CARD CONTENT */}
-              <div className="card-content">
-
-                {isEditingSession ? (
+                  // VIEW MODE ACTIONS
                   <>
 
-                    {/* NAME INPUT */}
-                    <div>
-                      <label className="text-secondary">Name</label>
-                      <input
-                        type="text"
-                        value={editedSessionName}
-                        onChange={(e) => setEditedSessionName(e.target.value)}
-                        autoCapitalize="words"
-                        className="input-field"
-                      />
-                    </div>
+                    {/* DELETE BUTTON */}
+                    <Button className="btn-red w-full sm:w-auto" onClick={() => setIsDeleteModalOpen(true)}>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
+                    </Button>
 
-                    {/* DURATION INPUT (HH:MM:SS) */}
-                    {session.started_at && session.duration != null && !isInProgress && (
-                      <div>
-                        <label className="text-secondary">Duration</label>
-                        <div className="flex items-center gap-1">
-                          {/* HOURS */}
-                          <input
-                            id="duration-hours"
-                            type="number"
-                            min="0"
-                            max="99"
-                            value={editedDuration.split(":")[0] || ""}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
-                              const parts = editedDuration.split(":");
-                              const raw = e.target.value;
-                              parts[0] = raw === "" ? "" : String(Math.max(0, parseInt(raw) || 0)).padStart(2, "0");
-                              setEditedDuration(parts.join(":"));
-                            }}
-                            onBlur={(e) => {
-                              if (e.target.value === "") {
-                                const parts = editedDuration.split(":");
-                                parts[0] = "00";
-                                setEditedDuration(parts.join(":"));
-                              }
-                            }}
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("duration-minutes")?.focus(); } }}
-                            className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
-                          />
-                          <span className="text-muted font-medium">h</span>
+                    {/* RESET BUTTON */}
+                    <Button className="btn-off w-full sm:w-auto" onClick={() => setIsResetModalOpen(true)}>
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Reset</span>
+                    </Button>
 
-                          {/* MINUTES */}
-                          <input
-                            id="duration-minutes"
-                            type="number"
-                            min="0"
-                            max="59"
-                            value={editedDuration.split(":")[1] || ""}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
-                              const parts = editedDuration.split(":");
-                              const raw = e.target.value;
-                              parts[1] = raw === "" ? "" : String(Math.min(59, Math.max(0, parseInt(raw) || 0))).padStart(2, "0");
-                              setEditedDuration(parts.join(":"));
-                            }}
-                            onBlur={(e) => {
-                              if (e.target.value === "") {
-                                const parts = editedDuration.split(":");
-                                parts[1] = "00";
-                                setEditedDuration(parts.join(":"));
-                              }
-                            }}
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("duration-seconds")?.focus(); } }}
-                            className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
-                          />
-                          <span className="text-muted font-medium">m</span>
-
-                          {/* SECONDS */}
-                          <input
-                            id="duration-seconds"
-                            type="number"
-                            min="0"
-                            max="59"
-                            value={editedDuration.split(":")[2] || ""}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
-                              const parts = editedDuration.split(":");
-                              const raw = e.target.value;
-                              parts[2] = raw === "" ? "" : String(Math.min(59, Math.max(0, parseInt(raw) || 0))).padStart(2, "0");
-                              setEditedDuration(parts.join(":"));
-                            }}
-                            onBlur={(e) => {
-                              if (e.target.value === "") {
-                                const parts = editedDuration.split(":");
-                                parts[2] = "00";
-                                setEditedDuration(parts.join(":"));
-                              }
-                            }}
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
-                            className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
-                          />
-                          <span className="text-muted font-medium">s</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* DATE INPUT */}
-                    {session.started_at && !isInProgress && (
-                      <div>
-                        <label className="text-secondary">Date</label>
-                        <input
-                          type="date"
-                          value={editedStartDate}
-                          onChange={(e) => setEditedStartDate(e.target.value)}
-                          className="input-field"
-                        />
-                      </div>
-                    )}
-
-                    {/* DESCRIPTION INPUT */}
-                    <div>
-                      <label className="text-secondary">Description</label>
-                      <textarea
-                        value={editedSessionDescription}
-                        onChange={(e) => setEditedSessionDescription(e.target.value)}
-                        className="input-field resize-none field-sizing-content"
-                        placeholder="Session description..."
-                        rows={2}
-                      />
-                    </div>
-
-                    {/* REVIEW INPUT */}
-                    {session.is_completed && (
-                      <div>
-                        <label className="text-secondary">Review</label>
-                        <textarea
-                          value={editedSessionReview}
-                          onChange={(e) => setEditedSessionReview(e.target.value)}
-                          className="input-field resize-none field-sizing-content"
-                          placeholder="How did it go? Note any achievements, injuries, or areas to improve..."
-                          rows={2}
-                        />
-                      </div>
-                    )}
-
+                    {/* EDIT BUTTON */}
+                    <Button className="btn-blue w-full sm:w-auto" onClick={handleStartEditSession}>
+                      <Edit2 className="w-4 h-4" />
+                      <span>Edit</span>
+                    </Button>
                   </>
                 ) : (
+
+                  // EDIT MODE ACTIONS
                   <>
 
-                    {/* ACTIVE DURATION TIMER */}
-                    {isInProgress && (
-                      <div>
-                        <label className="text-secondary">Duration</label>
-                        <SessionTimer startedAt={timerStart!} offsetSeconds={timerOffset} />
-                      </div>
-                    )}
+                    {/* CANCEL BUTTON */}
+                    <Button className="btn-link w-full sm:w-auto" onClick={handleCancelEditSession} disabled={isSavingSession}>
+                      <X className="w-4 h-4" />
+                      <span>Cancel</span>
+                    </Button>
 
-                    {/* INACTIVE DURATION TIMER */}
-                    {session.is_completed && session.duration != null && (
-                      <div>
-                        <label className="text-secondary">Duration</label>
-                        <div className="flex items-center gap-1.5">
-                          <Timer className="w-4 h-4" />
-                          <span className="font-mono font-medium">{formatDuration(session.duration)}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* DATE COMPLETED */}
-                    {session.started_at && (
-                      <div>
-                        <label className="text-secondary">Date</label>
-                        <p className="text-primary">{formatDateLong(session.started_at)}</p>
-                      </div>
-                    )}
-
-                    {/* EXERCISE COUNT */}
-                    <div>
-                      <label className="text-secondary">Exercises</label>
-                      <p className="text-primary">{completedSegmentCount}/{totalSegmentCount}</p>
-                    </div>
-
-                    {/* SESSION DESCRIPTION */}
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <label className="text-secondary">Description</label>
-
-                        {/* REGENERATE PLAN BUTTON */}
-                        {session.week_id && (
-                          <Button
-                            className="btn-link"
-                            onClick={handleRegeneratePlan}
-                            disabled={isRegeneratingPlan}
-                          >
-                            {isRegeneratingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            <span>{isRegeneratingPlan ? "Regenerating..." : session.description ? "Regenerate Plan" : "Generate Plan"}</span>
-                          </Button>
-                        )}
-                      </div>
-                      {session.description && (
-                        <p className="text-primary whitespace-pre-wrap break-words">{session.description}</p>
-                      )}
-                    </div>
-
-                    {/* SESSION REVIEW */}
-                    {session.is_completed && session.review && (
-                      <div>
-                        <label className="text-secondary">Review</label>
-                        <p className="text-primary whitespace-pre-wrap break-words">{session.review}</p>
-                      </div>
-                    )}
-
-                    {/* SESSION ANALYSIS */}
-                    {session.is_completed && (
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <label className="text-secondary">Analysis</label>
-
-                          {/* ANALYZE BUTTON */}
-                          <Button
-                            className="btn-link"
-                            onClick={handleAnalyzeSession}
-                            disabled={isAnalyzing}
-                          >
-                            {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            <span>{isAnalyzing ? "Analyzing..." : session.analysis ? "Regenerate" : "Analyze"}</span>
-                          </Button>
-                        </div>
-                        {session.analysis && (
-                          <p className="text-primary whitespace-pre-wrap break-words">{session.analysis}</p>
-                        )}
-                      </div>
-                    )}
+                    {/* SAVE BUTTON */}
+                    <Button className="btn-green w-full sm:w-auto" onClick={handleSaveSession} disabled={isSavingSession}>
+                      <Save className="w-4 h-4" />
+                      <span>{isSavingSession ? "Saving..." : "Save"}</span>
+                    </Button>
                   </>
                 )}
               </div>
             </div>
-          )}
+
+            {/* CARD CONTENT */}
+            <div className="card-content">
+
+              {isEditingSession ? (
+                <>
+
+                  {/* NAME INPUT */}
+                  <div>
+                    <label className="text-secondary">Name</label>
+                    <input
+                      type="text"
+                      value={editedSessionName}
+                      onChange={(e) => setEditedSessionName(e.target.value)}
+                      autoCapitalize="words"
+                      className="input-field"
+                    />
+                  </div>
+
+                  {/* DURATION INPUT (HH:MM:SS) */}
+                  {session.started_at && session.duration != null && !isInProgress && (
+                    <div>
+                      <label className="text-secondary">Duration</label>
+                      <div className="flex items-center gap-1">
+                        {/* HOURS */}
+                        <input
+                          id="duration-hours"
+                          type="number"
+                          min="0"
+                          max="99"
+                          value={editedDuration.split(":")[0] || ""}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const parts = editedDuration.split(":");
+                            const raw = e.target.value;
+                            parts[0] = raw === "" ? "" : String(Math.max(0, parseInt(raw) || 0)).padStart(2, "0");
+                            setEditedDuration(parts.join(":"));
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              const parts = editedDuration.split(":");
+                              parts[0] = "00";
+                              setEditedDuration(parts.join(":"));
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("duration-minutes")?.focus(); } }}
+                          className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
+                        />
+                        <span className="text-muted font-medium">h</span>
+
+                        {/* MINUTES */}
+                        <input
+                          id="duration-minutes"
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={editedDuration.split(":")[1] || ""}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const parts = editedDuration.split(":");
+                            const raw = e.target.value;
+                            parts[1] = raw === "" ? "" : String(Math.min(59, Math.max(0, parseInt(raw) || 0))).padStart(2, "0");
+                            setEditedDuration(parts.join(":"));
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              const parts = editedDuration.split(":");
+                              parts[1] = "00";
+                              setEditedDuration(parts.join(":"));
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("duration-seconds")?.focus(); } }}
+                          className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
+                        />
+                        <span className="text-muted font-medium">m</span>
+
+                        {/* SECONDS */}
+                        <input
+                          id="duration-seconds"
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={editedDuration.split(":")[2] || ""}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const parts = editedDuration.split(":");
+                            const raw = e.target.value;
+                            parts[2] = raw === "" ? "" : String(Math.min(59, Math.max(0, parseInt(raw) || 0))).padStart(2, "0");
+                            setEditedDuration(parts.join(":"));
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              const parts = editedDuration.split(":");
+                              parts[2] = "00";
+                              setEditedDuration(parts.join(":"));
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+                          className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
+                        />
+                        <span className="text-muted font-medium">s</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DATE INPUT */}
+                  {session.started_at && !isInProgress && (
+                    <div>
+                      <label className="text-secondary">Date</label>
+                      <input
+                        type="date"
+                        value={editedStartDate}
+                        onChange={(e) => setEditedStartDate(e.target.value)}
+                        className="input-field"
+                      />
+                    </div>
+                  )}
+
+                  {/* DESCRIPTION INPUT */}
+                  <div>
+                    <label className="text-secondary">Description</label>
+                    <textarea
+                      value={editedSessionDescription}
+                      onChange={(e) => setEditedSessionDescription(e.target.value)}
+                      className="input-field resize-none field-sizing-content"
+                      placeholder="Session description..."
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* REVIEW INPUT */}
+                  {session.is_completed && (
+                    <div>
+                      <label className="text-secondary">Review</label>
+                      <textarea
+                        value={editedSessionReview}
+                        onChange={(e) => setEditedSessionReview(e.target.value)}
+                        className="input-field resize-none field-sizing-content"
+                        placeholder="How did it go? Note any achievements, injuries, or areas to improve..."
+                        rows={2}
+                      />
+                    </div>
+                  )}
+
+                </>
+              ) : (
+                <>
+
+                  {/* ACTIVE DURATION TIMER */}
+                  {isInProgress && (
+                    <div>
+                      <label className="text-secondary">Duration</label>
+                      <SessionTimer startedAt={timerStart!} offsetSeconds={timerOffset} />
+                    </div>
+                  )}
+
+                  {/* INACTIVE DURATION TIMER */}
+                  {session.is_completed && session.duration != null && (
+                    <div>
+                      <label className="text-secondary">Duration</label>
+                      <div className="flex items-center gap-1.5">
+                        <Timer className="w-4 h-4" />
+                        <span className="font-mono font-medium">{formatDuration(session.duration)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DATE COMPLETED */}
+                  {session.started_at && (
+                    <div>
+                      <label className="text-secondary">Date</label>
+                      <p className="text-primary">{formatDateLong(session.started_at)}</p>
+                    </div>
+                  )}
+
+                  {/* EXERCISE COUNT */}
+                  <div>
+                    <label className="text-secondary">Exercises</label>
+                    <p className="text-primary">{completedSegmentCount}/{totalSegmentCount}</p>
+                  </div>
+
+                  {/* SESSION DESCRIPTION */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-secondary">Description</label>
+
+                      {/* REGENERATE PLAN BUTTON */}
+                      {session.week_id && (
+                        <Button
+                          className="btn-link"
+                          onClick={handleRegeneratePlan}
+                          disabled={isRegeneratingPlan}
+                        >
+                          {isRegeneratingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                          <span>{isRegeneratingPlan ? "Regenerating..." : session.description ? "Regenerate Plan" : "Generate Plan"}</span>
+                        </Button>
+                      )}
+                    </div>
+                    {session.description && (
+                      <p className="text-primary whitespace-pre-wrap break-words">{session.description}</p>
+                    )}
+                  </div>
+
+                  {/* SESSION REVIEW */}
+                  {session.is_completed && session.review && (
+                    <div>
+                      <label className="text-secondary">Review</label>
+                      <p className="text-primary whitespace-pre-wrap break-words">{session.review}</p>
+                    </div>
+                  )}
+
+                  {/* SESSION ANALYSIS */}
+                  {session.is_completed && (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-secondary">Analysis</label>
+
+                        {/* ANALYZE BUTTON */}
+                        <Button
+                          className="btn-link"
+                          onClick={handleAnalyzeSession}
+                          disabled={isAnalyzing}
+                        >
+                          {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                          <span>{isAnalyzing ? "Analyzing..." : session.analysis ? "Regenerate" : "Analyze"}</span>
+                        </Button>
+                      </div>
+                      {session.analysis && (
+                        <p className="text-primary whitespace-pre-wrap break-words">{session.analysis}</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
 
           {/* SEGMENTS CARD */}
           <div className="card">
@@ -1437,32 +1446,30 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       </main>
 
       {/* BOTTOM ACTION BAR */}
-      {session && (
-        <div className="bottom-action-bar">
-          {session.is_completed ? (
+      <div className="bottom-action-bar">
+        {session.is_completed ? (
 
-            // RESUME WORKOUT BUTTON
-            <Button className="btn-link w-full sm:w-auto" onClick={handleResumeSession} disabled={isUpdatingStatus}>
-              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-              {isUpdatingStatus ? "Resuming..." : "Resume Workout"}
-            </Button>
-          ) : session.is_current && (session.started_at || session.resumed_at) ? (
+          // RESUME WORKOUT BUTTON
+          <Button className="btn-link w-full sm:w-auto" onClick={handleResumeSession} disabled={isUpdatingStatus}>
+            {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+            {isUpdatingStatus ? "Resuming..." : "Resume Workout"}
+          </Button>
+        ) : session.is_current && (session.started_at || session.resumed_at) ? (
 
-            // FINISH WORKOUT BUTTON
-            <Button className="btn-blue w-full sm:w-auto" onClick={handleCompleteSession} disabled={isUpdatingStatus}>
-              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
-              {isUpdatingStatus ? "Saving..." : "Finish Workout"}
-            </Button>
-          ) : (
+          // FINISH WORKOUT BUTTON
+          <Button className="btn-blue w-full sm:w-auto" onClick={handleCompleteSession} disabled={isUpdatingStatus}>
+            {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
+            {isUpdatingStatus ? "Saving..." : "Finish Workout"}
+          </Button>
+        ) : (
 
-            // START BUTTON
-            <Button className="btn-blue w-full sm:w-auto" onClick={handleStartSession} disabled={isUpdatingStatus}>
-              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {isUpdatingStatus ? "Starting..." : "Start Workout"}
-            </Button>
-          )}
-        </div>
-      )}
+          // START BUTTON
+          <Button className="btn-blue w-full sm:w-auto" onClick={handleStartSession} disabled={isUpdatingStatus}>
+            {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            {isUpdatingStatus ? "Starting..." : "Start Workout"}
+          </Button>
+        )}
+      </div>
 
       {/* REVIEW SESSION MODAL */}
       <ReviewSessionModal
