@@ -67,6 +67,7 @@ export default function UserDetailPage() {
       name: user.name || "",
       email: user.email || "",
       global_admin: user.global_admin,
+      generation_limit: user.generation_limit,
       enabled: user.enabled,
     });
   }
@@ -91,6 +92,7 @@ export default function UserDetailPage() {
           name: editingUser.name.trim(),
           email: editingUser.email.trim(),
           global_admin: editingUser.global_admin,
+          generation_limit: editingUser.generation_limit,
           enabled: editingUser.enabled,
         }),
       });
@@ -276,6 +278,12 @@ export default function UserDetailPage() {
                   <p className="text-primary">{user.global_admin ? "Admin" : "User"}</p>
                 </div>
 
+                {/* GENERATION LIMIT */}
+                <div>
+                  <label className="text-secondary">Generation Limit</label>
+                  <p className="text-primary">{user.generation_limit === 0 ? "Unlimited" : `${user.generation_limit} per ${process.env.GENERATION_WINDOW_HOURS} hours`}</p>
+                </div>
+
                 {/* STATUS */}
                 <div>
                   <label className="text-secondary">Status</label>
@@ -337,6 +345,20 @@ export default function UserDetailPage() {
                     <option value="admin">Admin</option>
                     <option value="user">User</option>
                   </select>
+                </div>
+
+                {/* GENERATION LIMIT */}
+                <div>
+                  <label className="text-secondary">Generation Limit (0 = unlimited)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editingUser.generation_limit ?? 15}
+                    onChange={(e) => setEditingUser({ ...editingUser, generation_limit: parseInt(e.target.value) || 0 })}
+                    className="input-field"
+                    placeholder=""
+                    disabled={isSaving}
+                  />
                 </div>
 
                 {/* STATUS DROPDOWN */}

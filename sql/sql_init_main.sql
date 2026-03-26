@@ -16,6 +16,7 @@ BEGIN TRY
             email NVARCHAR(255) UNIQUE NOT NULL,
             name NVARCHAR(255) NOT NULL,
             global_admin BIT NOT NULL DEFAULT 0,
+            generation_limit INT NOT NULL DEFAULT 1, -- 0 = unlimited
             enabled BIT NOT NULL DEFAULT 1,
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE()

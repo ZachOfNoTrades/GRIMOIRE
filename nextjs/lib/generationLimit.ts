@@ -1,14 +1,13 @@
 import { getMainConnection } from "@/lib/db";
 
-const DAILY_GENERATION_LIMIT = parseInt(process.env.GENERATION_LIMIT || "15", 10);
 const WINDOW_HOURS = parseInt(process.env.GENERATION_WINDOW_HOURS || "24", 10);
-const ADMIN_BYPASS = process.env.GENERATION_ADMIN_BYPASS !== "false"; // true by default
 
-export function shouldAdminBypassLimit(): boolean {
-  return ADMIN_BYPASS;
-}
+export async function checkGenerationLimit(userId: string, userLimit: number): Promise<{ allowed: boolean; count: number; limit: number }> {
+  // 0 = unlimited
+  if (userLimit === 0) {
+    return { allowed: true, count: 0, limit: 0 };
+  }
 
-export async function checkGenerationLimit(userId: string): Promise<{ allowed: boolean; count: number; limit: number }> {
   const pool = await getMainConnection();
   const result = await pool
     .request()
@@ -23,9 +22,9 @@ export async function checkGenerationLimit(userId: string): Promise<{ allowed: b
 
   const count = result.recordset[0].count;
   return {
-    allowed: count < DAILY_GENERATION_LIMIT,
+    allowed: count < userLimit,
     count,
-    limit: DAILY_GENERATION_LIMIT,
+    limit: userLimit,
   };
 }
 
@@ -40,7 +39,5 @@ export async function logGeneration(userId: string, endpoint: string): Promise<v
        VALUES (@userId, @endpoint)`
     );
 
-  // Log current usage
-  const { count, limit } = await checkGenerationLimit(userId);
-  console.log(`[Generation] user: '${userId}' endpoint: '${endpoint}' usage: ${count}/${limit} (${WINDOW_HOURS}h window)`);
+  console.log(`[Generation] user: '${userId}' endpoint: '${endpoint}' (${WINDOW_HOURS}h window)`);
 }

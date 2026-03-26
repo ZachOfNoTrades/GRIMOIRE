@@ -8,6 +8,7 @@ declare module "next-auth" {
       email: string;
       name: string;
       globalAdmin: boolean;
+      generationLimit: number;
     };
   }
 }
@@ -18,5 +19,6 @@ declare module "next-auth/jwt" {
     email: string;
     name: string;
     globalAdmin: boolean;
+    generationLimit: number;
   }
 }

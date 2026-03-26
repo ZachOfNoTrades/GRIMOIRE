@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
-import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
+import { getAuthorizedSession } from '@/lib/permissions';
+import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { generateNextWeek } from '../../../../../../lib/weekGenerationFunctions';
 
@@ -15,16 +15,13 @@ export async function POST(
     }
     const userId = session.user.id;
 
-    // Rate limit check (admins bypass if enabled)
-    const skipLimit = shouldAdminBypassLimit() && await isAdmin();
-    if (!skipLimit) {
-      const { allowed, count, limit } = await checkGenerationLimit(userId!);
-      if (!allowed) {
-        return NextResponse.json(
-          { error: `Generation limit reached (${count}/${limit} in 24h)` },
-          { status: 429 }
-        );
-      }
+    // Rate limit check
+    const { allowed, count, limit } = await checkGenerationLimit(userId!, session.user.generationLimit);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Generation limit reached (${count}/${limit} in 24h)` },
+        { status: 429 }
+      );
     }
 
     const { id, weekId } = await context.params;

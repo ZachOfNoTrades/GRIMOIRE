@@ -6,7 +6,7 @@ export async function getAllUsers(): Promise<User[]> {
   const result = await pool
     .request()
     .query<User>(
-      `SELECT id, email, name, global_admin, enabled, ts_created, ts_updated
+      `SELECT id, email, name, global_admin, generation_limit, enabled, ts_created, ts_updated
        FROM users
        ORDER BY ts_created DESC`
     );
@@ -24,7 +24,7 @@ export async function getUserById(id: string): Promise<User> {
     .request()
     .input("id", id)
     .query<User>(
-      `SELECT id, email, name, global_admin, enabled, ts_created, ts_updated
+      `SELECT id, email, name, global_admin, generation_limit, enabled, ts_created, ts_updated
        FROM users
        WHERE id = @id`
     );
@@ -42,7 +42,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     .request()
     .input("email", email)
     .query<User>(
-      `SELECT id, email, name, global_admin, enabled, ts_created, ts_updated
+      `SELECT id, email, name, global_admin, generation_limit, enabled, ts_created, ts_updated
        FROM users
        WHERE email = @email`
     );
@@ -62,7 +62,7 @@ export async function createUser(email: string, name: string): Promise<User> {
     .input("name", name)
     .query<User>(
       `INSERT INTO users (email, name)
-       OUTPUT INSERTED.id, INSERTED.email, INSERTED.name, INSERTED.global_admin, INSERTED.enabled, INSERTED.ts_created, INSERTED.ts_updated
+       OUTPUT INSERTED.id, INSERTED.email, INSERTED.name, INSERTED.global_admin, INSERTED.generation_limit, INSERTED.enabled, INSERTED.ts_created, INSERTED.ts_updated
        VALUES (@email, @name)`
     );
 
@@ -71,7 +71,7 @@ export async function createUser(email: string, name: string): Promise<User> {
 
 export async function updateUser(
   id: string,
-  data: { name?: string; email?: string; global_admin?: boolean; enabled?: boolean }
+  data: { name?: string; email?: string; global_admin?: boolean; generation_limit?: number; enabled?: boolean }
 ): Promise<User> {
   const pool = await getMainConnection();
 
@@ -91,6 +91,10 @@ export async function updateUser(
     setClauses.push("global_admin = @globalAdmin");
     request.input("globalAdmin", data.global_admin ? 1 : 0);
   }
+  if (data.generation_limit !== undefined) {
+    setClauses.push("generation_limit = @generationLimit");
+    request.input("generationLimit", data.generation_limit);
+  }
   if (data.enabled !== undefined) {
     setClauses.push("enabled = @enabled");
     request.input("enabled", data.enabled ? 1 : 0);
@@ -105,7 +109,7 @@ export async function updateUser(
   const result = await request.query<User>(
     `UPDATE users
      SET ${setClauses.join(", ")}
-     OUTPUT INSERTED.id, INSERTED.email, INSERTED.name, INSERTED.global_admin, INSERTED.enabled, INSERTED.ts_created, INSERTED.ts_updated
+     OUTPUT INSERTED.id, INSERTED.email, INSERTED.name, INSERTED.global_admin, INSERTED.generation_limit, INSERTED.enabled, INSERTED.ts_created, INSERTED.ts_updated
      WHERE id = @id`
   );
 

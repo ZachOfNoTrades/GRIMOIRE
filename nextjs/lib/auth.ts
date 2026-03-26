@@ -30,6 +30,7 @@ export const authOptions: NextAuthOptions = {
             token.id = user.id;
             token.name = user.name ?? "";
             token.globalAdmin = !!user.global_admin;
+            token.generationLimit = user.generation_limit ?? 1;
           } else {
             token.id = null;
             token.globalAdmin = false;
@@ -48,6 +49,7 @@ export const authOptions: NextAuthOptions = {
       session.user.email = token.email ?? "";
       session.user.name = token.name ?? "";
       session.user.globalAdmin = token.globalAdmin ?? false;
+      session.user.generationLimit = token.generationLimit ?? 1;
       return session;
     },
   },
