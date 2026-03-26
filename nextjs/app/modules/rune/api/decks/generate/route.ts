@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
 import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
-import { generateDeckFromNotion } from '../../../lib/generationFunctions';
+import { generateDeckFromNotion, generateDeckFromDescription } from '../../../lib/generationFunctions';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,25 +34,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!notionUrl || typeof notionUrl !== 'string' || notionUrl.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Notion URL is required' },
-        { status: 400 }
-      );
-    }
+    // Notion URL is optional — if not provided, generate from description
+    const hasNotionUrl = notionUrl && typeof notionUrl === 'string' && notionUrl.trim().length > 0;
 
     const job = createJob(userId!, "/modules/rune/api/decks/generate");
 
     // Fire-and-forget
     (async () => {
       try {
-        const result = await generateDeckFromNotion(
-          userId!,
-          deckName.trim(),
-          deckDescription?.trim() || null,
-          notionUrl.trim(),
-          customPrompt?.trim() || null,
-        );
+        const result = hasNotionUrl
+          ? await generateDeckFromNotion(
+              userId!,
+              deckName.trim(),
+              deckDescription?.trim() || null,
+              notionUrl.trim(),
+              customPrompt?.trim() || null,
+            )
+          : await generateDeckFromDescription(
+              userId!,
+              deckName.trim(),
+              deckDescription?.trim() || null,
+              customPrompt?.trim() || null,
+            );
 
         await logGeneration(userId!, "/modules/rune/api/decks/generate");
         completeJob(job.id, result);

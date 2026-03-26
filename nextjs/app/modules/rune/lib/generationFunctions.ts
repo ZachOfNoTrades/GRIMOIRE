@@ -10,6 +10,7 @@ export interface GenerateDeckResult {
   deckId: string;
   cardsGenerated: number;
   notionPageTitle: string;
+  source: 'notion' | 'description';
 }
 
 // Creates a new deck, fetches Notion page content, generates flash cards via LLM, and inserts them.
@@ -54,6 +55,53 @@ export async function generateDeckFromNotion(
       deckId,
       cardsGenerated,
       notionPageTitle: notionPage.title,
+      source: 'notion',
+    };
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
+
+// Creates a new deck, generates flash cards from a topic description via LLM, and inserts them.
+export async function generateDeckFromDescription(
+  userId: string,
+  deckName: string,
+  deckDescription: string | null,
+  customPrompt: string | null,
+): Promise<GenerateDeckResult> {
+  const startTime = Date.now();
+  const heartbeat = setInterval(() => {
+    const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+    console.log(`Card generation in progress... [${elapsedSeconds}s elapsed]`);
+  }, 15000);
+
+  try {
+    // Create the deck
+    const deck = await createDeck(userId, deckName, deckDescription);
+    const deckId = deck.id;
+
+    // Build description content from deck name and optional description
+    const description = deckDescription
+      ? `${deckName}: ${deckDescription}`
+      : deckName;
+
+    // Generate and insert cards
+    const cardsGenerated = await generateAndInsertCardsFromDescription(
+      userId,
+      deckId,
+      deckName,
+      description,
+      customPrompt,
+    );
+
+    const totalSeconds = Math.round((Date.now() - startTime) / 1000);
+    console.log(`[GenerateDeck] Complete in ${totalSeconds}s. ${cardsGenerated} cards created for deck '${deckName}'`);
+
+    return {
+      deckId,
+      cardsGenerated,
+      notionPageTitle: '',
+      source: 'description',
     };
   } finally {
     clearInterval(heartbeat);
@@ -110,4 +158,56 @@ async function generateAndInsertCards(
 
   // Insert cards into database
   return await insertCards(userId, deckId, payload.cards, 'notion');
+}
+
+// Generates cards via LLM from a topic description and inserts them into the deck.
+async function generateAndInsertCardsFromDescription(
+  userId: string,
+  deckId: string,
+  deckName: string,
+  description: string,
+  customPrompt: string | null,
+): Promise<number> {
+  // Get starting order_index for new cards
+  let pool;
+  let startIndex: number;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('deckId', deckId)
+      .query(`SELECT ISNULL(MAX(order_index), 0) + 1 AS next_index FROM cards WHERE deck_id = @deckId AND user_id = @userId`);
+    startIndex = result.recordset[0].next_index;
+  } catch (error) {
+    console.error('Error fetching start index:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+
+  // Build prompt from template
+  const taskPrompt = loadPromptFile('generateCardsFromDescription.md')
+    .replace('{{DESCRIPTION}}', description)
+    .replace('{{DECK_ID}}', deckId)
+    .replace('{{DECK_NAME}}', deckName)
+    .replace(/\{\{START_INDEX\}\}/g, String(startIndex))
+    .replace('{{CUSTOM_PROMPT}}', customPrompt?.trim() || 'None');
+
+  // Call LLM
+  console.log(`[GenerateCards] Calling LLM for deck '${deckName}' from description`);
+  const outputFile = await callLLM(taskPrompt);
+  const rawContent = readLLMOutput(outputFile);
+  try { unlinkSync(outputFile); } catch { } // Clear temp file
+
+  // Parse and validate
+  const payload = parseLLMResponse(rawContent);
+  const validation = validateGeneratedCards(payload);
+  if (!validation.valid) {
+    throw new Error(`Card generation validation failed: ${validation.errors.join('; ')}`);
+  }
+
+  // Insert cards into database
+  return await insertCards(userId, deckId, payload.cards, 'description');
 }

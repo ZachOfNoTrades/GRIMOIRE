@@ -17,14 +17,14 @@ export default function GenerateCardsPage() {
 
   // STATE
   const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<{ cardsGenerated: number; deckId: string; notionPageTitle: string } | null>(null);
+  const [result, setResult] = useState<{ cardsGenerated: number; deckId: string; notionPageTitle: string; source: string } | null>(null);
 
   const router = useRouter();
 
   // GENERATION JOB HOOK
   const { startPolling: startGeneratePolling } = useGenerationJob({
     onComplete: (result) => {
-      const data = result as { cardsGenerated: number; deckId: string; notionPageTitle: string };
+      const data = result as { cardsGenerated: number; deckId: string; notionPageTitle: string; source: string };
       setResult(data);
       toast.success(`Generated ${data.cardsGenerated} cards`);
       setIsGenerating(false);
@@ -41,10 +41,6 @@ export default function GenerateCardsPage() {
       toast.error("Deck name is required");
       return;
     }
-    if (!notionUrl.trim()) {
-      toast.error("Notion URL is required");
-      return;
-    }
 
     setIsGenerating(true);
     setResult(null);
@@ -56,7 +52,7 @@ export default function GenerateCardsPage() {
         body: JSON.stringify({
           deckName: deckName.trim(),
           deckDescription: deckDescription.trim() || null,
-          notionUrl: notionUrl.trim(),
+          notionUrl: notionUrl.trim() || null,
           customPrompt: customPrompt.trim() || null,
         }),
       });
@@ -114,7 +110,7 @@ export default function GenerateCardsPage() {
           <div className="card-header">
             <h2 className="text-card-title">
               <Zap className="w-5 h-5" />
-              Generate from Notion
+              Generate Cards
             </h2>
           </div>
 
@@ -150,7 +146,7 @@ export default function GenerateCardsPage() {
 
             {/* NOTION URL INPUT */}
             <div>
-              <label className="text-secondary">Notion Page URL</label>
+              <label className="text-secondary">Notion Page URL (optional)</label>
               <input
                 type="text"
                 value={notionUrl}
@@ -178,7 +174,7 @@ export default function GenerateCardsPage() {
             <div>
               <Button
                 onClick={handleGenerate}
-                disabled={isGenerating || !deckName.trim() || !notionUrl.trim()}
+                disabled={isGenerating || !deckName.trim()}
                 className="btn-blue"
               >
                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
@@ -191,8 +187,10 @@ export default function GenerateCardsPage() {
               <div className="alert-green">
                 <p>
                   Created deck with <strong>{result.cardsGenerated}</strong> cards
-                  {result.notionPageTitle && (
+                  {result.notionPageTitle ? (
                     <> from <strong>{result.notionPageTitle}</strong></>
+                  ) : (
+                    <> from description.</>
                   )}
                 </p>
               </div>
