@@ -16,6 +16,7 @@ import ExercisePickerModal from "./ExercisePickerModal";
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
 import { generateUUID } from "../../../utils/id";
+import { useGenerationJob } from "@/lib/useGenerationJob";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -83,6 +84,43 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
   const searchParams = useSearchParams();
   const isNewSession = searchParams.get("new") === "true";
+
+  // GENERATION JOB HOOKS
+  const { startPolling: startGeneratePolling } = useGenerationJob({
+    onComplete: () => {
+      fetchSegments();
+      toast.success("Exercises generated");
+      setIsGenerating(false);
+    },
+    onError: (error) => {
+      toast.error(error);
+      setIsGenerating(false);
+    },
+  });
+
+  const { startPolling: startRegeneratePlanPolling } = useGenerationJob({
+    onComplete: () => {
+      fetchSession();
+      toast.success("Plan regenerated");
+      setIsRegeneratingPlan(false);
+    },
+    onError: (error) => {
+      toast.error(error);
+      setIsRegeneratingPlan(false);
+    },
+  });
+
+  const { startPolling: startAnalyzePolling } = useGenerationJob({
+    onComplete: () => {
+      fetchSession();
+      toast.success("Analysis generated");
+      setIsAnalyzing(false);
+    },
+    onError: (error) => {
+      toast.error(error);
+      setIsAnalyzing(false);
+    },
+  });
 
   // LOAD DATA
   useEffect(() => {
@@ -588,18 +626,21 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         method: "POST",
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to generate exercises");
+      if (response.status === 202) {
+        const { jobId } = await response.json();
+        startGeneratePolling(jobId);
         return;
       }
 
-      await fetchSegments();
-      toast.success("Exercises generated");
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to generate exercises");
+        setIsGenerating(false);
+        return;
+      }
     } catch (error) {
       toast.error("Failed to generate exercises");
       console.error("Error generating exercises:", error);
-    } finally {
       setIsGenerating(false);
     }
   };
@@ -612,21 +653,21 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         method: "POST",
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to regenerate plan");
+      if (response.status === 202) {
+        const { jobId } = await response.json();
+        startRegeneratePlanPolling(jobId);
         return;
       }
 
-      const updatedSession = await response.json();
-      setSession(updatedSession);
-      setEditedSessionName(updatedSession.name);
-      setEditedSessionDescription(updatedSession.description || "");
-      toast.success("Plan regenerated");
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to regenerate plan");
+        setIsRegeneratingPlan(false);
+        return;
+      }
     } catch (error) {
       toast.error("Failed to regenerate plan");
       console.error("Error regenerating plan:", error);
-    } finally {
       setIsRegeneratingPlan(false);
     }
   };
@@ -641,19 +682,21 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         method: "POST",
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to analyze session");
+      if (response.status === 202) {
+        const { jobId } = await response.json();
+        startAnalyzePolling(jobId);
         return;
       }
 
-      const updatedSession = await response.json();
-      setSession(updatedSession);
-      toast.success("Analysis generated");
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to analyze session");
+        setIsAnalyzing(false);
+        return;
+      }
     } catch (error) {
       toast.error("Failed to analyze session");
       console.error("Error analyzing session:", error);
-    } finally {
       setIsAnalyzing(false);
     }
   };

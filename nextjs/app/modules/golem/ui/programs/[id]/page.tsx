@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDateShort } from "../../../utils/format";
+import { useGenerationJob } from "@/lib/useGenerationJob";
 
 export default function ProgramPage({ params }: { params: Promise<{ id: string }> }) {
 
@@ -25,6 +26,18 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
   const menuRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
+
+  // GENERATION JOB HOOK
+  const { startPolling: startGenerateWeekPolling } = useGenerationJob({
+    onComplete: () => {
+      fetchProgram();
+      setGeneratingWeekId(null);
+    },
+    onError: (error) => {
+      toast.error(error);
+      setGeneratingWeekId(null);
+    },
+  });
 
   useEffect(() => {
     fetchProgram();
@@ -140,13 +153,18 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
     try {
       const { id } = await params;
       const response = await fetch(`/modules/golem/api/programs/${id}/weeks/${weekId}/generate`, { method: 'POST' });
+
+      if (response.status === 202) {
+        const { jobId } = await response.json();
+        startGenerateWeekPolling(jobId);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error("Failed to generate next week");
       }
-      await fetchProgram();
     } catch (error) {
       console.error("Error generating next week:", error);
-    } finally {
       setGeneratingWeekId(null);
     }
   };

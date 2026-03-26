@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
 import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
+import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
 import { generateSessionAnalysisWithLlm } from '../../../../lib/llmFunctions';
 import { getProgramTemplateById } from '../../../../lib/programTemplateFunctions';
@@ -52,34 +53,47 @@ export async function POST(
     const userProfile = await getUserProfile(userId!);
     const profileContext = userProfile.profile_prompt;
 
-    // Generate analysis via LLM (LLM queries session data itself via SQL skill)
-    const analysis = await generateSessionAnalysisWithLlm(
-      userId!,
-      analysisContext,
-      profileContext,
-      id,
-      session.review,
-    );
+    const job = createJob(userId!, "/modules/golem/api/sessions/analyze");
 
-    // Save analysis directly to workout_sessions
-    let pool;
-    try {
-      pool = await getGolemConnection();
-      await pool.request()
-        .input('id', id)
-        .input('analysis', analysis)
-        .query(`UPDATE workout_sessions SET analysis = @analysis, modified_at = GETDATE() WHERE id = @id`);
-    } finally {
-      if (pool) {
-        await closeGolemConnection(pool);
+    // Fire-and-forget
+    (async () => {
+      try {
+        // Generate analysis via LLM (LLM queries session data itself via SQL skill)
+        const analysis = await generateSessionAnalysisWithLlm(
+          userId!,
+          analysisContext,
+          profileContext,
+          id,
+          session.review,
+        );
+
+        // Save analysis directly to workout_sessions
+        let pool;
+        try {
+          pool = await getGolemConnection();
+          await pool.request()
+            .input('id', id)
+            .input('analysis', analysis)
+            .query(`UPDATE workout_sessions SET analysis = @analysis, modified_at = GETDATE() WHERE id = @id`);
+        } finally {
+          if (pool) {
+            await closeGolemConnection(pool);
+          }
+        }
+
+        await logGeneration(userId!, "/modules/golem/api/sessions/analyze");
+
+        // Return the updated session as the job result
+        const updatedSession = await getWorkoutSessionById(userId!, id);
+        completeJob(job.id, updatedSession);
+        console.log(`[Generation] Job ${job.id} completed`);
+      } catch (error: any) {
+        console.error(`[Generation] Job ${job.id} failed:`, error);
+        failJob(job.id, error?.message || "Generation failed");
       }
-    }
+    })();
 
-    await logGeneration(userId!, "/modules/golem/api/sessions/analyze");
-
-    // Return the updated session
-    const updatedSession = await getWorkoutSessionById(userId!, id);
-    return NextResponse.json(updatedSession);
+    return NextResponse.json({ jobId: job.id }, { status: 202 });
 
   } catch (error: any) {
     // Handle 404 from getWorkoutSessionById

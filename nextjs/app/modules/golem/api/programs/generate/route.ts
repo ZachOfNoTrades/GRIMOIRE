@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
 import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
+import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { generateProgramFromTemplate } from '../../../lib/llmFunctions';
 
 export async function POST(request: Request) {
@@ -33,11 +34,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const id = await generateProgramFromTemplate(userId!, templateId);
+    const job = createJob(userId!, "/modules/golem/api/programs/generate");
 
-    await logGeneration(userId!, "/modules/golem/api/programs/generate");
+    // Fire-and-forget
+    (async () => {
+      try {
+        const programId = await generateProgramFromTemplate(userId!, templateId);
 
-    return NextResponse.json({ id });
+        await logGeneration(userId!, "/modules/golem/api/programs/generate");
+        completeJob(job.id, { id: programId });
+        console.log(`[Generation] Job ${job.id} completed`);
+      } catch (error: any) {
+        console.error(`[Generation] Job ${job.id} failed:`, error);
+        failJob(job.id, error?.message || "Generation failed");
+      }
+    })();
+
+    return NextResponse.json({ jobId: job.id }, { status: 202 });
 
   } catch (error) {
     console.error('Error in POST /api/programs/generate:', error);

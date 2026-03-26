@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
 import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
+import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { getWorkoutSessionById, getTemplateIdForSession, updateWorkoutSession } from '../../../../lib/workoutSessionFunctions';
 import { regenerateSessionPlanWithLlm } from '../../../../lib/llmFunctions';
 import { getProgramTemplateById } from '../../../../lib/programTemplateFunctions';
@@ -46,29 +47,42 @@ export async function POST(
     const userProfile = await getUserProfile(userId!);
     const profileContext = userProfile.profile_prompt;
 
-    // Regenerate plan via LLM
-    const plan = await regenerateSessionPlanWithLlm(userId!, weekContext, profileContext, id);
+    const job = createJob(userId!, "/modules/golem/api/sessions/regenerate-plan");
 
-    // Update session with new name and description (preserve all other fields)
-    await updateWorkoutSession(
-      userId!,
-      id,
-      plan.name,
-      plan.description,
-      session.review,
-      session.analysis,
-      session.started_at,
-      session.resumed_at,
-      session.duration,
-      session.is_current,
-      session.is_completed,
-    );
+    // Fire-and-forget
+    (async () => {
+      try {
+        // Regenerate plan via LLM
+        const plan = await regenerateSessionPlanWithLlm(userId!, weekContext, profileContext, id);
 
-    await logGeneration(userId!, "/modules/golem/api/sessions/regenerate-plan");
+        // Update session with new name and description (preserve all other fields)
+        await updateWorkoutSession(
+          userId!,
+          id,
+          plan.name,
+          plan.description,
+          session.review,
+          session.analysis,
+          session.started_at,
+          session.resumed_at,
+          session.duration,
+          session.is_current,
+          session.is_completed,
+        );
 
-    // Return the updated session
-    const updatedSession = await getWorkoutSessionById(userId!, id);
-    return NextResponse.json(updatedSession);
+        await logGeneration(userId!, "/modules/golem/api/sessions/regenerate-plan");
+
+        // Return the updated session as the job result
+        const updatedSession = await getWorkoutSessionById(userId!, id);
+        completeJob(job.id, updatedSession);
+        console.log(`[Generation] Job ${job.id} completed`);
+      } catch (error: any) {
+        console.error(`[Generation] Job ${job.id} failed:`, error);
+        failJob(job.id, error?.message || "Generation failed");
+      }
+    })();
+
+    return NextResponse.json({ jobId: job.id }, { status: 202 });
 
   } catch (error: any) {
     // Handle 404 from getWorkoutSessionById

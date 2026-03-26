@@ -6,6 +6,7 @@ import { ArrowLeft, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { ProgramTemplateSummary } from "../../../types/programTemplate";
+import { useGenerationJob } from "@/lib/useGenerationJob";
 
 export default function GenerateProgramPage() {
 
@@ -20,6 +21,20 @@ export default function GenerateProgramPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const router = useRouter();
+
+  // GENERATION JOB HOOK
+  const { startPolling: startGeneratePolling } = useGenerationJob({
+    onComplete: (result) => {
+      const { id } = result as { id: string };
+      toast.success("Program generated");
+      router.push(`/modules/golem/ui/programs/${id}`);
+      setIsSubmitting(false);
+    },
+    onError: (error) => {
+      toast.error(error);
+      setIsSubmitting(false);
+    },
+  });
 
   useEffect(() => {
     fetchData();
@@ -57,19 +72,21 @@ export default function GenerateProgramPage() {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to generate program");
+      if (response.status === 202) {
+        const { jobId } = await response.json();
+        startGeneratePolling(jobId);
         return;
       }
 
-      const { id } = await response.json();
-      toast.success("Program generated");
-      router.push(`/modules/golem/ui/programs/${id}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to generate program");
+        setIsSubmitting(false);
+        return;
+      }
     } catch (error) {
       console.error("Error generating program:", error);
       toast.error("Failed to generate program");
-    } finally {
       setIsSubmitting(false);
     }
   };

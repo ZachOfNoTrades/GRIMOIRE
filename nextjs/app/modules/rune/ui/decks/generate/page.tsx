@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Zap } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { useGenerationJob } from "@/lib/useGenerationJob";
 
 export default function GenerateCardsPage() {
 
@@ -19,6 +20,20 @@ export default function GenerateCardsPage() {
   const [result, setResult] = useState<{ cardsGenerated: number; deckId: string; notionPageTitle: string } | null>(null);
 
   const router = useRouter();
+
+  // GENERATION JOB HOOK
+  const { startPolling: startGeneratePolling } = useGenerationJob({
+    onComplete: (result) => {
+      const data = result as { cardsGenerated: number; deckId: string; notionPageTitle: string };
+      setResult(data);
+      toast.success(`Generated ${data.cardsGenerated} cards`);
+      setIsGenerating(false);
+    },
+    onError: (error) => {
+      toast.error(error);
+      setIsGenerating(false);
+    },
+  });
 
   // GENERATE HANDLER
   const handleGenerate = async () => {
@@ -46,19 +61,21 @@ export default function GenerateCardsPage() {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to generate cards");
+      if (response.status === 202) {
+        const { jobId } = await response.json();
+        startGeneratePolling(jobId);
         return;
       }
 
-      const data = await response.json();
-      setResult(data);
-      toast.success(`Generated ${data.cardsGenerated} cards`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to generate cards");
+        setIsGenerating(false);
+        return;
+      }
     } catch (error) {
       console.error("Error generating cards:", error);
       toast.error("Failed to generate cards");
-    } finally {
       setIsGenerating(false);
     }
   };

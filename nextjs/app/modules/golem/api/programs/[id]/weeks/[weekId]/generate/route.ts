@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
 import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
+import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { generateNextWeek } from '../../../../../../lib/weekGenerationFunctions';
 
 export async function POST(
@@ -28,22 +29,26 @@ export async function POST(
 
     const { id, weekId } = await context.params;
 
-    await generateNextWeek(userId!, id, weekId);
+    const job = createJob(userId!, "/modules/golem/api/programs/weeks/generate");
 
-    await logGeneration(userId!, "/modules/golem/api/programs/weeks/generate");
+    // Fire-and-forget
+    (async () => {
+      try {
+        await generateNextWeek(userId!, id, weekId);
 
-    return NextResponse.json({ success: true });
+        await logGeneration(userId!, "/modules/golem/api/programs/weeks/generate");
+        completeJob(job.id, { success: true });
+        console.log(`[Generation] Job ${job.id} completed`);
+      } catch (error: any) {
+        console.error(`[Generation] Job ${job.id} failed:`, error);
+        failJob(job.id, error?.message || "Generation failed");
+      }
+    })();
+
+    return NextResponse.json({ jobId: job.id }, { status: 202 });
 
   } catch (error) {
     console.error('Error in POST /api/programs/[id]/weeks/[weekId]/generate:', error);
-
-    if (error instanceof Error && error.message.includes('No week found')) {
-      return NextResponse.json(
-        { error: 'Week not found' },
-        { status: 404 }
-      );
-    }
-
     return NextResponse.json(
       { error: 'Failed to generate next week' },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
 import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
+import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
 import { generateSessionTargetsWithLlm } from '../../../../lib/llmFunctions';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '../../../../lib/segmentFunctions';
@@ -53,24 +54,36 @@ export async function POST(
       return NextResponse.json({ error: 'Session description is required for generation' }, { status: 400 });
     }
 
-    // Clear existing targets before generating new ones
-    await deleteAllTargetsForSession(userId!, id);
+    const job = createJob(userId!, "/modules/golem/api/sessions/generate");
 
-    // Generate targets via LLM
-    const targetExercises = await generateSessionTargetsWithLlm(
-      userId!,
-      sessionContext,
-      id,
-      session.name,
-      sessionDescription,
-      profileContext,
-    );
+    // Fire-and-forget
+    (async () => {
+      try {
+        // Clear existing targets before generating new ones
+        await deleteAllTargetsForSession(userId!, id);
 
-    await createGeneratedTargets(userId!, id, targetExercises);
+        // Generate targets via LLM
+        const targetExercises = await generateSessionTargetsWithLlm(
+          userId!,
+          sessionContext,
+          id,
+          session.name,
+          sessionDescription,
+          profileContext,
+        );
 
-    await logGeneration(userId!, "/modules/golem/api/sessions/generate");
+        await createGeneratedTargets(userId!, id, targetExercises);
 
-    return NextResponse.json({ success: true }, { status: 201 });
+        await logGeneration(userId!, "/modules/golem/api/sessions/generate");
+        completeJob(job.id, { success: true });
+        console.log(`[Generation] Job ${job.id} completed`);
+      } catch (error: any) {
+        console.error(`[Generation] Job ${job.id} failed:`, error);
+        failJob(job.id, error?.message || "Generation failed");
+      }
+    })();
+
+    return NextResponse.json({ jobId: job.id }, { status: 202 });
 
   } catch (error: any) {
     // Handle 404 from getWorkoutSessionById
