@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Module } from "@/types/module";
 import { iconMap, defaultIcon } from "@/lib/iconMap";
 
@@ -11,6 +12,8 @@ export default function DashboardPage() {
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
+  const { data: session } = useSession();
+  const firstName = session?.user?.name?.split(" ")[0] || "";
 
   const router = useRouter();
 
@@ -51,7 +54,9 @@ export default function DashboardPage() {
       <div className="page-container">
 
         {/* PAGE TITLE */}
-        <h1 className="text-page-title mb-8">Modules</h1>
+        <h1 className="text-page-title mb-8">
+          {firstName ? `Welcome, ${firstName}` : "Modules"}
+        </h1>
 
         {/* MODULE GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

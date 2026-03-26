@@ -17,10 +17,9 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, account, profile }) {
-      // On initial sign-in, populate token from Google profile
+      // On initial sign-in, populate token email from Google profile
       if (account && profile) {
         token.email = profile.email ?? "";
-        token.name = profile.name ?? "";
       }
 
       // Look up user in database by email
@@ -29,6 +28,7 @@ export const authOptions: NextAuthOptions = {
           const user = await getUserByEmail(token.email);
           if (user && user.enabled) {
             token.id = user.id;
+            token.name = user.name ?? "";
             token.globalAdmin = !!user.global_admin;
           } else {
             token.id = null;
