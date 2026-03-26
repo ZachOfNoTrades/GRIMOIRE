@@ -39,6 +39,23 @@ BEGIN TRY
         );
     END
 
+    -- =============================
+    -- Generation Log (rate limiting + usage tracking)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='generation_log' AND xtype='U')
+    BEGIN
+        CREATE TABLE generation_log (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            endpoint NVARCHAR(255) NOT NULL,
+            ts_created DATETIME DEFAULT GETDATE(),
+
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IX_generation_log_user_created ON generation_log (user_id, ts_created);
+    END
+
     -- Module registrations
     INSERT INTO modules (id, name, slug, description, icon) VALUES
     ('A0000000-0000-0000-0000-000000000001', 'GOLEM', 'golem', 'Workout Tracker', 'Dumbbell'),

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedSession, isAdmin } from '@/lib/permissions';
+import { shouldAdminBypassLimit, checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
 import { generateSessionAnalysisWithLlm } from '../../../../lib/llmFunctions';
 import { getProgramTemplateById } from '../../../../lib/programTemplateFunctions';
@@ -16,6 +17,18 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const userId = authSession.user.id;
+
+    // Rate limit check (admins bypass if enabled)
+    const skipLimit = shouldAdminBypassLimit() && await isAdmin();
+    if (!skipLimit) {
+      const { allowed, count, limit } = await checkGenerationLimit(userId!);
+      if (!allowed) {
+        return NextResponse.json(
+          { error: `Generation limit reached (${count}/${limit} in 24h)` },
+          { status: 429 }
+        );
+      }
+    }
 
     const { id } = await context.params;
 
@@ -61,6 +74,8 @@ export async function POST(
         await closeGolemConnection(pool);
       }
     }
+
+    await logGeneration(userId!, "/modules/golem/api/sessions/analyze");
 
     // Return the updated session
     const updatedSession = await getWorkoutSessionById(userId!, id);
