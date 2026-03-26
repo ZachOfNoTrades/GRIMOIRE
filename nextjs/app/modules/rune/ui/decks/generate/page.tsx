@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, Zap } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { useGenerationJob } from "@/lib/useGenerationJob";
@@ -181,7 +181,7 @@ export default function GenerateCardsPage() {
                 disabled={isGenerating || !deckName.trim() || !notionUrl.trim()}
                 className="btn-blue"
               >
-                <Zap className="w-4 h-4" />
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                 {isGenerating ? "Generating..." : "Generate Cards"}
               </Button>
             </div>

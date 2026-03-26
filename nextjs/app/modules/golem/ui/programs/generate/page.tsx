@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { ProgramTemplateSummary } from "../../../types/programTemplate";
@@ -161,8 +161,8 @@ export default function GenerateProgramPage() {
             onClick={handleSubmit}
             disabled={!isFormValid || isSubmitting}
           >
-            <Zap className="w-4 h-4" />
-            {isSubmitting ? ("Generating...") : "Generate Program"}
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            {isSubmitting ? "Generating..." : "Generate Program"}
           </Button>
         </div>
       </main>

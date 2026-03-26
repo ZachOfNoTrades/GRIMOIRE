@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Loader2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
@@ -393,7 +393,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                 disabled={generatingWeekId === previousWeek!.id}
                                 onClick={() => generateNextWeek(previousWeek!.id)}
                               >
-                                <Sparkles className="w-4 h-4" />
+                                {generatingWeekId === previousWeek!.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                                 {generatingWeekId === previousWeek!.id ? "Generating..." : "Generate Week"}
                               </Button>
                             ) : (
@@ -473,7 +473,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                               disabled={generatingWeekId === previousWeek!.id}
                               onClick={() => generateNextWeek(previousWeek!.id)}
                             >
-                              <RefreshCw className="w-4 h-4" />
+                              {generatingWeekId === previousWeek!.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                               {generatingWeekId === previousWeek!.id ? "Regenerating..." : "Regenerate Week"}
                             </Button>
                           )}
