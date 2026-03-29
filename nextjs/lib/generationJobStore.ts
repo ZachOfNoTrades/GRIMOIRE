@@ -13,18 +13,29 @@ export interface GenerationJob {
   completedAt?: number;
 }
 
-const jobs = new Map<string, GenerationJob>();
+// Use globalThis to ensure the Map is shared across all Next.js route bundles
+const globalStore = globalThis as typeof globalThis & {
+  __generationJobs?: Map<string, GenerationJob>;
+  __generationJobsCleanup?: ReturnType<typeof setInterval>;
+};
+
+if (!globalStore.__generationJobs) {
+  globalStore.__generationJobs = new Map<string, GenerationJob>();
+}
+const jobs = globalStore.__generationJobs;
 
 // Cleanup jobs older than 10 minutes every 5 minutes
 const JOB_TTL_MS = 10 * 60 * 1000;
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, job] of jobs) {
-    if (now - job.createdAt > JOB_TTL_MS) {
-      jobs.delete(id);
+if (!globalStore.__generationJobsCleanup) {
+  globalStore.__generationJobsCleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [id, job] of jobs) {
+      if (now - job.createdAt > JOB_TTL_MS) {
+        jobs.delete(id);
+      }
     }
-  }
-}, 5 * 60 * 1000);
+  }, 5 * 60 * 1000);
+}
 
 export function createJob(userId: string, endpoint: string): GenerationJob {
   const job: GenerationJob = {
