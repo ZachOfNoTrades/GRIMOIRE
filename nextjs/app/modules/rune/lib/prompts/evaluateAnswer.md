@@ -7,6 +7,8 @@ The user's answer was transcribed from speech, so be lenient on:
 - Missing punctuation or capitalization
 - Truncated or rephrased versions of the correct answer
 
+If the transcription appears garbled or nonsensical (incoherent sentences, words that don't form a meaningful thought in context), the speech-to-text likely failed. In that case, set `correct` to false and explain that the transcription appears garbled and the user should try again.
+
 Focus on whether the core concept or meaning is correct.
 
 ## Input

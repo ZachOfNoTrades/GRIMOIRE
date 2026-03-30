@@ -111,6 +111,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
       const result: EvaluationResult = await response.json();
       setEvaluationResult(result);
+
+      // Reveal the answer
+      setIsFlipped(true);
     } catch (error) {
       console.error("Evaluation error:", error);
     } finally {
@@ -595,12 +598,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
             {/* EVALUATION RESULT */}
             {evaluationResult && (
               <div className={`alert-${evaluationResult.correct ? "green" : "red"} mt-3`}>
-                <p className="font-semibold">
-                  {evaluationResult.correct ? "Correct" : "Incorrect"}
-                  <span className="font-normal text-sm ml-2">
-                    (Suggested: {ratingToLabel(evaluationResult.suggestedRating)})
-                  </span>
-                </p>
+                <p className="font-semibold">{evaluationResult.correct ? "Correct" : "Incorrect"}</p>
                 <p className="text-sm mt-1">{evaluationResult.explanation}</p>
               </div>
             )}
@@ -608,10 +606,20 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
             {/* RATING BUTTONS — only visible when flipped and not yet rated */}
             {isFlipped && !currentCardAlreadyRated && (
               <div className="flex gap-2 mt-5">
-                <button onClick={(e) => { e.stopPropagation(); handleRate(1); }} className="alert-red cursor-pointer text-center flex-1">AGAIN</button>
-                <button onClick={(e) => { e.stopPropagation(); handleRate(2); }} className="alert-yellow cursor-pointer text-center flex-1">HARD</button>
-                <button onClick={(e) => { e.stopPropagation(); handleRate(3); }} className="alert-green cursor-pointer text-center flex-1">GOOD</button>
-                <button onClick={(e) => { e.stopPropagation(); handleRate(4); }} className="alert-blue cursor-pointer text-center flex-1">EASY</button>
+                {[
+                  { rating: 1, label: "AGAIN", className: "alert-red" },
+                  { rating: 2, label: "HARD", className: "alert-yellow" },
+                  { rating: 3, label: "GOOD", className: "alert-green" },
+                  { rating: 4, label: "EASY", className: "alert-blue" },
+                ].map(({ rating, label, className }) => (
+                  <button
+                    key={rating}
+                    onClick={(e) => { e.stopPropagation(); handleRate(rating); }}
+                    className={`${className} cursor-pointer text-center flex-1 ${evaluationResult?.suggestedRating === rating ? "ring-2 ring-offset-2 ring-current" : ""}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             )}
 
