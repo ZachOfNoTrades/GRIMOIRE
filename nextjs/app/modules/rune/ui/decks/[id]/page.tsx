@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, Mic, Square, BrainCircuit } from "lucide-react";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
@@ -147,6 +147,26 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
     return () => { clearTimeout(rateTimer); };
   }, [evaluationResult]);
+
+  // Disable hands-free mode (used when user manually interrupts)
+  const disableHandsFree = () => {
+    handsFreeRef.current = false;
+    setHandsFree(false);
+  };
+
+  // Speak the question, then auto-record if hands-free is on
+  const handleSpeakAndRecord = async () => {
+    if (!currentCard) return;
+    await speakQuestion(currentCard.front);
+    if (!handsFreeRef.current) return;
+
+    try {
+      await startRecording();
+    } catch {
+      handsFreeRef.current = false;
+      setHandsFree(false);
+    }
+  };
 
   // Evaluate the user's spoken answer against the expected answer
   const handleEvaluate = async () => {
@@ -623,7 +643,20 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               {!isFlipped ? (
                 <>
                   {/* FRONT FACE */}
-                  <div className="badge-gray self-start">QUESTION</div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="badge-gray">QUESTION</div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                        else { handleSpeakAndRecord(); }
+                      }}
+                      className="text-subtle hover:text-primary transition-colors cursor-pointer"
+                      title={isSpeaking ? "Stop speaking" : "Speak question"}
+                    >
+                      {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                  </div>
 
                   {/* QUESTION TEXT */}
                   <div className="text-primary mt-4 flex-1">{currentCard.front}</div>
@@ -639,13 +672,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (currentCard) speakQuestion(currentCard.back);
+                        if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                        else if (currentCard) { speakQuestion(currentCard.back); }
                       }}
-                      disabled={isSpeaking}
                       className="text-subtle hover:text-primary transition-colors cursor-pointer"
-                      title="Speak answer"
+                      title={isSpeaking ? "Stop speaking" : "Speak answer"}
                     >
-                      <Volume2 className="w-4 h-4" />
+                      {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
                   </div>
 
@@ -660,31 +693,18 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
 
-            {/* SPEAK / RECORD BUTTONS */}
-            <div className="flex gap-2 mt-3">
-              {/* SPEAK BUTTON */}
-              <Button
-                onClick={() => currentCard && speakQuestion(currentCard.front)}
-                disabled={isSpeaking || isRecording}
-                className="btn-off flex-1"
-              >
-                <Volume2 className="w-4 h-4" />
-                {isSpeaking ? "Speaking..." : "Speak"}
-              </Button>
-
-              {/* RECORD BUTTON */}
-              <Button
-                onClick={isRecording ? stopRecording : () => { setEvaluationResult(null); startRecording(); }}
-                disabled={isSpeaking || isTranscribing}
-                className={`${isRecording ? "btn-red" : "btn-off"} flex-1`}
-              >
-                {isRecording ? (
-                  <><Square className="w-4 h-4" /> Stop</>
-                ) : (
-                  <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
-                )}
-              </Button>
-            </div>
+            {/* RECORD BUTTON */}
+            <Button
+              onClick={isRecording ? () => { stopRecording(); disableHandsFree(); } : () => { setEvaluationResult(null); startRecording(); }}
+              disabled={isSpeaking || isTranscribing}
+              className={`${isRecording ? "btn-red" : "btn-off"} w-full mt-3`}
+            >
+              {isRecording ? (
+                <><Square className="w-4 h-4" /> Stop</>
+              ) : (
+                <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
+              )}
+            </Button>
 
             {/* TRANSCRIPT */}
             {transcript && (
@@ -692,12 +712,14 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 <div className="flex items-center justify-between">
                   <p className="text-subtle text-xs">YOUR ANSWER</p>
                   <button
-                    onClick={() => speakQuestion(transcript)}
-                    disabled={isSpeaking}
+                    onClick={() => {
+                      if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                      else { speakQuestion(transcript); }
+                    }}
                     className="text-subtle hover:text-primary transition-colors cursor-pointer"
-                    title="Speak transcript"
+                    title={isSpeaking ? "Stop speaking" : "Speak transcript"}
                   >
-                    <Volume2 className="w-4 h-4" />
+                    {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                 </div>
                 <p className="text-primary mt-1">{transcript}</p>
@@ -722,12 +744,14 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{evaluationResult.correct ? "Correct" : "Incorrect"}</p>
                   <button
-                    onClick={() => speakQuestion(evaluationResult.explanation)}
-                    disabled={isSpeaking}
+                    onClick={() => {
+                      if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                      else { speakQuestion(evaluationResult.explanation); }
+                    }}
                     className="text-inherit opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Speak evaluation"
+                    title={isSpeaking ? "Stop speaking" : "Speak evaluation"}
                   >
-                    <Volume2 className="w-4 h-4" />
+                    {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                 </div>
                 <p className="text-sm mt-1">{evaluationResult.explanation}</p>

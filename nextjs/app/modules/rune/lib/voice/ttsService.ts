@@ -33,11 +33,15 @@ export class TextToSpeechService {
 
       audioElement.src = audioData;
 
-      // Wait for playback to complete
+      // Wait for playback to complete (resolves on end, pause/stop, or error)
       await new Promise<void>((resolve, reject) => {
         const onEnded = () => {
           cleanup();
           resolve();
+        };
+        const onPause = () => {
+          cleanup();
+          resolve(); // Intentional stop — resolve cleanly
         };
         const onError = () => {
           cleanup();
@@ -45,10 +49,12 @@ export class TextToSpeechService {
         };
         const cleanup = () => {
           audioElement.removeEventListener("ended", onEnded);
+          audioElement.removeEventListener("pause", onPause);
           audioElement.removeEventListener("error", onError);
         };
 
         audioElement.addEventListener("ended", onEnded);
+        audioElement.addEventListener("pause", onPause);
         audioElement.addEventListener("error", onError);
 
         audioElement.play().catch((error) => {

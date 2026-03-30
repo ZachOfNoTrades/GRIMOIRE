@@ -62,7 +62,9 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       });
     });
 
-    return transcript;
+    // Strip non-speech annotations like (muffled noises), (coughing), [BLANK_AUDIO], etc.
+    const cleaned = transcript.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g, " ").trim();
+    return cleaned;
 
   } finally {
     // Clean up temp file

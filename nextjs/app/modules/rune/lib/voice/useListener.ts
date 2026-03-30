@@ -27,6 +27,7 @@ export function useListener(): UseListenerReturn {
   // Refs
   const recorderRef = useRef<AudioRecorder | null>(null);
   const sttRef = useRef<SpeechToTextService | null>(null);
+  const recordingStartRef = useRef<number>(0);
 
   // Get or create instances
   const getRecorder = useCallback(() => {
@@ -43,9 +44,10 @@ export function useListener(): UseListenerReturn {
     return sttRef.current;
   }, []);
 
-  /** Process a recorded audio blob through STT. */
+  /** Process a recorded audio blob through STT. Discards if recording was under 1 second. */
   const processAudio = useCallback(async (audioBlob: Blob) => {
-    if (audioBlob.size === 0) return;
+    const recordingDuration = Date.now() - recordingStartRef.current;
+    if (audioBlob.size === 0 || recordingDuration < 1000) return;
 
     setIsTranscribing(true);
     try {
@@ -65,6 +67,7 @@ export function useListener(): UseListenerReturn {
 
     setTranscript(null);
     setIsRecording(true);
+    recordingStartRef.current = Date.now();
 
     try {
       // Mic permission is requested inside startRecording
