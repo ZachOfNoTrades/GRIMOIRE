@@ -62,7 +62,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
   const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
-  const { isRecording, isTranscribing, transcript, startRecording, stopRecording, clearTranscript } = useListener();
+  const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener();
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
 
@@ -81,10 +81,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     }
   }, [currentIndex, studySessionId]);
 
-  // Clear evaluation and transcript when card changes
+  // Stop recording and clear state when card changes
   useEffect(() => {
-    setEvaluationResult(null);
+    cancelRecording();
+    stopSpeaking();
     clearTranscript();
+    setEvaluationResult(null);
   }, [currentIndex]);
 
   // Evaluate the user's spoken answer against the expected answer
@@ -563,7 +565,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
               {/* RECORD BUTTON */}
               <Button
-                onClick={isRecording ? stopRecording : startRecording}
+                onClick={isRecording ? stopRecording : () => { setEvaluationResult(null); startRecording(); }}
                 disabled={isSpeaking || isTranscribing}
                 className={`${isRecording ? "btn-red" : "btn-off"} flex-1`}
               >
@@ -634,7 +636,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               {/* PREV BUTTON */}
               <Button
                 onClick={handlePrev}
-                disabled={currentIndex === 0}
+                disabled={currentIndex === 0 || isRecording || isTranscribing}
                 className="btn-off flex-1"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -644,7 +646,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               {/* NEXT BUTTON */}
               <Button
                 onClick={handleNext}
-                disabled={currentIndex >= cards.length - 1}
+                disabled={currentIndex >= cards.length - 1 || isRecording || isTranscribing}
                 className="btn-off flex-1"
               >
                 NEXT

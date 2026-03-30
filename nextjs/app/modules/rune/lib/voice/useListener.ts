@@ -13,6 +13,7 @@ interface UseListenerReturn {
   // STT actions
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
+  cancelRecording: () => void;
   clearTranscript: () => void;
 }
 
@@ -86,6 +87,15 @@ export function useListener(): UseListenerReturn {
     processAudio(blob);
   }, [processAudio]);
 
+  /** Stop recording and discard audio without transcribing. */
+  const cancelRecording = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder || !recorder.isRecording()) return;
+
+    setIsRecording(false);
+    recorder.stopRecording(); // Discard the blob
+  }, []);
+
   /** Clear the current transcript. */
   const clearTranscript = useCallback(() => {
     setTranscript(null);
@@ -104,6 +114,7 @@ export function useListener(): UseListenerReturn {
     transcript,
     startRecording,
     stopRecording,
+    cancelRecording,
     clearTranscript,
   };
 }
