@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2 } from "lucide-react";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress } from "../../../types/card";
 import { useSpeaker } from "../../../lib/voice/useSpeaker";
+import { useListener } from "../../../lib/voice/useListener";
 
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
@@ -60,6 +61,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
   const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
+  const { isRecording, isTranscribing, transcript, startRecording, stopRecording, clearTranscript } = useListener();
 
   // Refs for duration tracking
   const sessionStartRef = useRef<number>(0);
@@ -504,15 +506,39 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
 
-            {/* SPEAK BUTTON */}
-            <Button
-              onClick={() => currentCard && speakQuestion(currentCard.front)}
-              disabled={isSpeaking}
-              className="btn-off w-full mt-3"
-            >
-              <Volume2 className="w-4 h-4" />
-              {isSpeaking ? "Speaking..." : "Speak Question"}
-            </Button>
+            {/* SPEAK / RECORD BUTTONS */}
+            <div className="flex gap-2 mt-3">
+              {/* SPEAK BUTTON */}
+              <Button
+                onClick={() => currentCard && speakQuestion(currentCard.front)}
+                disabled={isSpeaking || isRecording}
+                className="btn-off flex-1"
+              >
+                <Volume2 className="w-4 h-4" />
+                {isSpeaking ? "Speaking..." : "Speak"}
+              </Button>
+
+              {/* RECORD BUTTON */}
+              <Button
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isSpeaking || isTranscribing}
+                className={`${isRecording ? "btn-red" : "btn-off"} flex-1`}
+              >
+                {isRecording ? (
+                  <><Square className="w-4 h-4" /> Stop</>
+                ) : (
+                  <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
+                )}
+              </Button>
+            </div>
+
+            {/* TRANSCRIPT */}
+            {transcript && (
+              <div className="card mt-3">
+                <p className="text-subtle text-xs mb-1">YOUR ANSWER</p>
+                <p className="text-primary">{transcript}</p>
+              </div>
+            )}
 
             {/* RATING BUTTONS — only visible when flipped and not yet rated */}
             {isFlipped && !currentCardAlreadyRated && (
