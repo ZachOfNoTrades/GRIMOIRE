@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, Mic, Square, BrainCircuit } from "lucide-react";
+import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress } from "../../../types/card";
@@ -469,6 +470,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // ACTIVE STUDY SESSION
   return (
     <div className="page">
+
+      <Toaster />
+
       <main className="page-container" style={{ maxWidth: "36rem" }}>
 
         {/* HIDDEN AUDIO ELEMENT FOR TTS */}

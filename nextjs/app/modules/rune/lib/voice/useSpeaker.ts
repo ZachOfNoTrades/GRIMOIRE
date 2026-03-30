@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import toast from "react-hot-toast";
 import { TextToSpeechService } from "./ttsService";
 
 interface UseSpeakerReturn {
@@ -34,7 +35,7 @@ export function useSpeaker(): UseSpeakerReturn {
 
   /** Preload audio for a question in the background. */
   const preloadQuestion = useCallback((text: string) => {
-    getTtsService().preload(text).catch(() => {}); // Silent fail — speak will fetch if preload missed
+    getTtsService().preload(text).catch(() => { }); // Silent fail — speak will fetch if preload missed
   }, [getTtsService]);
 
   /** Speak the given text through the audio element. */
@@ -46,6 +47,7 @@ export function useSpeaker(): UseSpeakerReturn {
       await getTtsService().speak(text, audioRef.current);
     } catch (error) {
       console.error("TTS playback error:", error);
+      toast.error("Text-to-speech generation failed");
     } finally {
       setIsSpeaking(false);
     }

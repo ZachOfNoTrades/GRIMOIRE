@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import toast from "react-hot-toast";
 import { AudioRecorder } from "./audioRecorder";
 import { SpeechToTextService } from "./sttService";
 
@@ -52,6 +53,7 @@ export function useListener(): UseListenerReturn {
       setTranscript(text);
     } catch (error) {
       console.error("STT transcription error:", error);
+      toast.error("Speech-to-text generation failed");
     } finally {
       setIsTranscribing(false);
     }
@@ -72,7 +74,7 @@ export function useListener(): UseListenerReturn {
         processAudio(blob);
       });
     } catch {
-      console.error("Microphone permission denied");
+      toast.error("Microphone permission denied");
       setIsRecording(false);
     }
   }, [getRecorder, processAudio]);

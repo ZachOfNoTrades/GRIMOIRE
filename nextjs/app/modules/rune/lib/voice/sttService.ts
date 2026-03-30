@@ -10,8 +10,12 @@ export class SpeechToTextService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "STT transcription failed");
+      let message = "STT transcription failed";
+      try {
+        const error = await response.json();
+        message = error.error || message;
+      } catch { /* response may not be JSON */ }
+      throw new Error(message);
     }
 
     const data = await response.json();
