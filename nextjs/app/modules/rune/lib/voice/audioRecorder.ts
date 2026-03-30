@@ -11,34 +11,26 @@ export class AudioRecorder {
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private onSilenceStop: (() => void) | null = null;
 
-  /** Request microphone permission and prepare the stream. */
-  async requestPermission(): Promise<boolean> {
-    try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { sampleRate: SAMPLE_RATE, channelCount: 1, echoCancellation: true },
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   /**
    * Start recording audio from the microphone.
    * Captures raw PCM at 16kHz mono for direct Whisper consumption.
-   * Auto-stops after `silenceMs` of silence if `onStop` is provided.
+   * Auto-stops after `silenceMs` of post-speech silence if `onStop` is provided.
    */
-  startRecording(
+  async startRecording(
     onStop?: () => void,
     silenceMs = Number(process.env.NEXT_PUBLIC_SILENCE_TIMEOUT_MS) || 5000,
-  ): void {
-    if (!this.stream || this.recording) return;
+  ): Promise<void> {
+    if (this.recording) return;
+
+    // Request mic each time so the browser indicator tracks recording accurately
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: SAMPLE_RATE, channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    });
 
     this.pcmChunks = [];
     this.recording = true;
     this.onSilenceStop = onStop ?? null;
 
-    // Create AudioContext at 16kHz to avoid resampling
     this.audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     this.sourceNode = this.audioContext.createMediaStreamSource(this.stream);
 
@@ -56,7 +48,7 @@ export class AudioRecorder {
     // Set up silence detection
     if (onStop) {
       this.analyser = this.audioContext.createAnalyser();
-      this.analyser.fftSize = 512;
+      this.analyser.fftSize = 2048;
       this.sourceNode.connect(this.analyser);
       this.startSilenceDetection(silenceMs);
     }
@@ -75,8 +67,13 @@ export class AudioRecorder {
     await this.audioContext?.close();
     this.audioContext = null;
 
+    // Release mic
+    this.releaseStream();
+
     // Merge PCM chunks into a single buffer
     const totalLength = this.pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    if (totalLength === 0) return new Blob([]);
+
     const pcm = new Float32Array(totalLength);
     let offset = 0;
     for (const chunk of this.pcmChunks) {
@@ -85,7 +82,6 @@ export class AudioRecorder {
     }
     this.pcmChunks = [];
 
-    // Encode as WAV
     return this.encodeWav(pcm, SAMPLE_RATE);
   }
 
@@ -93,18 +89,23 @@ export class AudioRecorder {
     return this.recording;
   }
 
-  /** Release microphone stream. */
+  /** Release all resources. */
   dispose(): void {
     this.stopSilenceDetection();
     this.processorNode?.disconnect();
     this.sourceNode?.disconnect();
     this.audioContext?.close();
     this.audioContext = null;
+    this.releaseStream();
+    this.recording = false;
+  }
+
+  /** Stop mic stream tracks so the browser indicator disappears. */
+  private releaseStream(): void {
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop());
       this.stream = null;
     }
-    this.recording = false;
   }
 
   /** Encode Float32Array PCM data as a WAV file Blob. */
@@ -151,12 +152,16 @@ export class AudioRecorder {
     }
   }
 
-  /** Monitor audio levels and auto-stop on sustained silence. */
+  /**
+   * Monitor audio levels and auto-stop after sustained silence,
+   * but only once speech has been detected first.
+   */
   private startSilenceDetection(silenceMs: number): void {
     if (!this.analyser) return;
 
     const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
-    const silenceThreshold = 10;
+    const silenceThreshold = 5;
+    let speechDetected = false;
 
     const checkLevel = () => {
       if (!this.recording || !this.analyser) return;
@@ -171,18 +176,20 @@ export class AudioRecorder {
       }
       const rms = Math.sqrt(sum / dataArray.length) * 100;
 
-      if (rms < silenceThreshold) {
+      if (rms >= silenceThreshold) {
+        speechDetected = true;
+        if (this.silenceTimer) {
+          clearTimeout(this.silenceTimer);
+          this.silenceTimer = null;
+        }
+      } else if (speechDetected) {
+        // Silence after speech — start countdown
         if (!this.silenceTimer) {
           this.silenceTimer = setTimeout(() => {
             if (this.recording && this.onSilenceStop) {
               this.onSilenceStop();
             }
           }, silenceMs);
-        }
-      } else {
-        if (this.silenceTimer) {
-          clearTimeout(this.silenceTimer);
-          this.silenceTimer = null;
         }
       }
 

@@ -60,21 +60,20 @@ export function useListener(): UseListenerReturn {
   const startRecording = useCallback(async () => {
     const recorder = getRecorder();
 
-    const hasPermission = await recorder.requestPermission();
-    if (!hasPermission) {
-      console.error("Microphone permission denied");
-      return;
-    }
-
     setTranscript(null);
     setIsRecording(true);
 
-    // Auto-stop on silence, then process
-    recorder.startRecording(async () => {
+    try {
+      // Mic permission is requested inside startRecording
+      await recorder.startRecording(async () => {
+        setIsRecording(false);
+        const blob = await recorder.stopRecording();
+        processAudio(blob);
+      });
+    } catch {
+      console.error("Microphone permission denied");
       setIsRecording(false);
-      const blob = await recorder.stopRecording();
-      processAudio(blob);
-    });
+    }
   }, [getRecorder, processAudio]);
 
   /** Stop recording and transcribe. */
