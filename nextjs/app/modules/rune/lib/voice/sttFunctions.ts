@@ -33,6 +33,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         "-f", inputPath,
         "--no-timestamps",
         "-np", // No prints except results
+        "-l", "en", // Skip language detection
       ], {
         timeout: 30000,
       });
