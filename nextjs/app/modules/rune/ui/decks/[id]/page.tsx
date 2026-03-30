@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress } from "../../../types/card";
+import { useSpeaker } from "../../../lib/voice/useSpeaker";
 
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
@@ -58,6 +59,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
+  const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
 
   // Refs for duration tracking
   const sessionStartRef = useRef<number>(0);
@@ -66,6 +68,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // Derived
   const currentCard = cards[currentIndex] || null;
   const currentCardAlreadyRated = currentCard?.sessionRating !== null;
+
+  // Preload TTS audio when current card changes
+  useEffect(() => {
+    if (currentCard && studySessionId) {
+      preloadQuestion(currentCard.front);
+    }
+  }, [currentIndex, studySessionId]);
 
   // LOAD DATA
   useEffect(() => {
@@ -203,6 +212,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
   // Quit session
   const handleQuit = useCallback(async () => {
+    stopSpeaking();
     await completeSession();
     setStudySessionId(null);
     setSessionComplete(false);
@@ -414,6 +424,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     <div className="page">
       <main className="page-container" style={{ maxWidth: "36rem" }}>
 
+        {/* HIDDEN AUDIO ELEMENT FOR TTS */}
+        <audio ref={audioRef} preload="none" />
+
         {/* SESSION HEADER */}
         <div className="flex items-center justify-between mb-2">
 
@@ -490,6 +503,16 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 </>
               )}
             </div>
+
+            {/* SPEAK BUTTON */}
+            <Button
+              onClick={() => currentCard && speakQuestion(currentCard.front)}
+              disabled={isSpeaking}
+              className="btn-off w-full mt-3"
+            >
+              <Volume2 className="w-4 h-4" />
+              {isSpeaking ? "Speaking..." : "Speak Question"}
+            </Button>
 
             {/* RATING BUTTONS — only visible when flipped and not yet rated */}
             {isFlipped && !currentCardAlreadyRated && (
