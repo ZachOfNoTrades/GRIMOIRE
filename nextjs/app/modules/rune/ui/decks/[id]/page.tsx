@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, Mic, Square } from "lucide-react";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, Mic, Square, BrainCircuit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress } from "../../../types/card";
 import { useSpeaker } from "../../../lib/voice/useSpeaker";
 import { useListener } from "../../../lib/voice/useListener";
+import type { EvaluationResult } from "../../../lib/voice/evaluationFunctions";
 
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
@@ -62,6 +63,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [sessionComplete, setSessionComplete] = useState(false);
   const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
   const { isRecording, isTranscribing, transcript, startRecording, stopRecording, clearTranscript } = useListener();
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
 
   // Refs for duration tracking
   const sessionStartRef = useRef<number>(0);
@@ -77,6 +80,43 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
       preloadQuestion(currentCard.front);
     }
   }, [currentIndex, studySessionId]);
+
+  // Clear evaluation and transcript when card changes
+  useEffect(() => {
+    setEvaluationResult(null);
+    clearTranscript();
+  }, [currentIndex]);
+
+  // Evaluate the user's spoken answer against the expected answer
+  const handleEvaluate = async () => {
+    if (!currentCard || !transcript) return;
+
+    setIsEvaluating(true);
+    try {
+      const response = await fetch(`/modules/rune/api/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: currentCard.front,
+          expectedAnswer: currentCard.back,
+          userAnswer: transcript,
+          notes: currentCard.notes,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("Evaluation failed");
+        return;
+      }
+
+      const result: EvaluationResult = await response.json();
+      setEvaluationResult(result);
+    } catch (error) {
+      console.error("Evaluation error:", error);
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
 
   // LOAD DATA
   useEffect(() => {
@@ -537,6 +577,31 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               <div className="card mt-3">
                 <p className="text-subtle text-xs mb-1">YOUR ANSWER</p>
                 <p className="text-primary">{transcript}</p>
+              </div>
+            )}
+
+            {/* EVALUATE BUTTON */}
+            {transcript && !evaluationResult && (
+              <Button
+                onClick={handleEvaluate}
+                disabled={isEvaluating}
+                className="btn-blue w-full mt-3"
+              >
+                <BrainCircuit className="w-4 h-4" />
+                {isEvaluating ? "Evaluating..." : "Evaluate Answer"}
+              </Button>
+            )}
+
+            {/* EVALUATION RESULT */}
+            {evaluationResult && (
+              <div className={`alert-${evaluationResult.correct ? "green" : "red"} mt-3`}>
+                <p className="font-semibold">
+                  {evaluationResult.correct ? "Correct" : "Incorrect"}
+                  <span className="font-normal text-sm ml-2">
+                    (Suggested: {ratingToLabel(evaluationResult.suggestedRating)})
+                  </span>
+                </p>
+                <p className="text-sm mt-1">{evaluationResult.explanation}</p>
               </div>
             )}
 
