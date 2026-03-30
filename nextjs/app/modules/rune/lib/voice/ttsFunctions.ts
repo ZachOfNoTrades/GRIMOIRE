@@ -25,9 +25,14 @@ export async function synthesizeSpeech(text: string): Promise<string> {
 
   try {
     await new Promise<void>((resolve, reject) => {
+      const lengthScale = process.env.PIPER_LENGTH_SCALE || "1.0";
+      const sentenceSilence = process.env.PIPER_SENTENCE_SILENCE || "0.2";
+
       const proc = spawn(piperBinary, [
         "--model", piperModel,
         "--output_file", outputPath,
+        "--length_scale", lengthScale,
+        "--sentence_silence", sentenceSilence,
       ], {
         timeout: 30000,
       });
