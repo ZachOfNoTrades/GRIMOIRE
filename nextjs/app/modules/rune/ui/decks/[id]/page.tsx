@@ -2,10 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit } from "lucide-react";
+import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress } from "../../../types/card";
+import { useSpeaker } from "../../../lib/voice/useSpeaker";
+import { useListener } from "../../../lib/voice/useListener";
+import type { EvaluationResult } from "../../../lib/voice/evaluationFunctions";
 
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
@@ -58,6 +62,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
+  const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
+  const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener();
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
+  const [handsFree, setHandsFree] = useState(false);
+  const handsFreeRef = useRef(false); // Ref to track hands-free in async callbacks
 
   // Refs for duration tracking
   const sessionStartRef = useRef<number>(0);
@@ -66,6 +76,131 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // Derived
   const currentCard = cards[currentIndex] || null;
   const currentCardAlreadyRated = currentCard?.sessionRating !== null;
+
+  // Preload TTS audio when current card changes
+  useEffect(() => {
+    if (currentCard && studySessionId) {
+      preloadQuestion(currentCard.front);
+    }
+  }, [currentIndex, studySessionId]);
+
+  // Stop recording and clear state when card changes
+  useEffect(() => {
+    cancelRecording();
+    stopSpeaking();
+    clearTranscript();
+    setEvaluationResult(null);
+  }, [currentIndex]);
+
+  // Hands-free auto-loop: speak question, then auto-record
+  useEffect(() => {
+    if (!handsFreeRef.current || !studySessionId || !currentCard) return;
+
+    let cancelled = false;
+
+    const runHandsFree = async () => {
+      // Speak the question
+      await speakQuestion(currentCard.front);
+      if (cancelled || !handsFreeRef.current) return;
+
+      // Auto-start recording after TTS finishes
+      try {
+        await startRecording();
+      } catch {
+        // Mic permission denied — disable hands-free
+        handsFreeRef.current = false;
+        setHandsFree(false);
+      }
+    };
+
+    runHandsFree();
+
+    return () => { cancelled = true; };
+  }, [currentIndex, studySessionId]);
+
+  // Auto-evaluate when transcript arrives in hands-free mode
+  useEffect(() => {
+    if (handsFreeRef.current && transcript) {
+      handleEvaluate();
+    }
+  }, [transcript]);
+
+  // Auto-speak evaluation result in hands-free mode, then auto-rate after 5s
+  useEffect(() => {
+    if (!handsFreeRef.current || !evaluationResult) return;
+
+    let rateTimer: ReturnType<typeof setTimeout>;
+
+    const run = async () => {
+      await speakQuestion(evaluationResult.explanation);
+      if (!handsFreeRef.current) return;
+
+      // Wait 5 seconds then auto-rate with suggested rating
+      rateTimer = setTimeout(() => {
+        if (handsFreeRef.current) {
+          handleRate(evaluationResult.suggestedRating);
+        }
+      }, 5000);
+    };
+
+    run();
+
+    return () => { clearTimeout(rateTimer); };
+  }, [evaluationResult]);
+
+  // Disable hands-free mode (used when user manually interrupts)
+  const disableHandsFree = () => {
+    handsFreeRef.current = false;
+    setHandsFree(false);
+  };
+
+  // Speak the question, then auto-record if hands-free is on
+  const handleSpeakAndRecord = async () => {
+    if (!currentCard) return;
+    await speakQuestion(currentCard.front);
+    if (!handsFreeRef.current) return;
+
+    try {
+      await startRecording();
+    } catch {
+      handsFreeRef.current = false;
+      setHandsFree(false);
+    }
+  };
+
+  // Evaluate the user's spoken answer against the expected answer
+  const handleEvaluate = async () => {
+    if (!currentCard || !transcript) return;
+
+    setIsEvaluating(true);
+    try {
+      const response = await fetch(`/modules/rune/api/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: currentCard.front,
+          expectedAnswer: currentCard.back,
+          userAnswer: transcript,
+          notes: currentCard.notes,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("Evaluation failed");
+        return;
+      }
+
+      const result: EvaluationResult = await response.json();
+      setEvaluationResult(result);
+
+      // Reveal the answer
+      setIsFlipped(true);
+    } catch (error) {
+      console.error("Evaluation error:", error);
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
 
   // LOAD DATA
   useEffect(() => {
@@ -98,6 +233,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Start a hands-free study session
+  const startHandsFree = async () => {
+    handsFreeRef.current = true;
+    setHandsFree(true);
+    await startSession();
   };
 
   // Start a study session
@@ -203,6 +345,10 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
   // Quit session
   const handleQuit = useCallback(async () => {
+    handsFreeRef.current = false;
+    setHandsFree(false);
+    stopSpeaking();
+    cancelRecording();
     await completeSession();
     setStudySessionId(null);
     setSessionComplete(false);
@@ -327,9 +473,22 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
 
+          {/* HANDS-FREE CHECKBOX */}
+          <label className="flex items-center gap-2 mb-3 cursor-pointer text-secondary">
+            <input
+              type="checkbox"
+              checked={handsFree}
+              onChange={(e) => {
+                handsFreeRef.current = e.target.checked;
+                setHandsFree(e.target.checked);
+              }}
+            />
+            Hands-free mode
+          </label>
+
           {/* START BUTTON */}
           <Button
-            onClick={startSession}
+            onClick={handsFree ? startHandsFree : startSession}
             className="btn-blue w-full"
           >
             Start Study Session
@@ -412,14 +571,31 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // ACTIVE STUDY SESSION
   return (
     <div className="page">
+
+      <Toaster />
+
       <main className="page-container" style={{ maxWidth: "36rem" }}>
+
+        {/* HIDDEN AUDIO ELEMENT FOR TTS */}
+        <audio ref={audioRef} preload="none" />
 
         {/* SESSION HEADER */}
         <div className="flex items-center justify-between mb-2">
 
-          {/* DECK NAME */}
-          <div>
+          {/* DECK NAME + HANDS-FREE TOGGLE */}
+          <div className="flex items-center gap-3">
             <p className="text-subtle">{deck.name}</p>
+            <label className="flex items-center gap-1 cursor-pointer text-subtle text-xs">
+              <input
+                type="checkbox"
+                checked={handsFree}
+                onChange={(e) => {
+                  handsFreeRef.current = e.target.checked;
+                  setHandsFree(e.target.checked);
+                }}
+              />
+              Hands-free
+            </label>
           </div>
 
           {/* QUIT BUTTON */}
@@ -467,7 +643,20 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               {!isFlipped ? (
                 <>
                   {/* FRONT FACE */}
-                  <div className="badge-gray self-start">QUESTION</div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="badge-gray">QUESTION</div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                        else { handleSpeakAndRecord(); }
+                      }}
+                      className="text-subtle hover:text-primary transition-colors cursor-pointer"
+                      title={isSpeaking ? "Stop speaking" : "Speak question"}
+                    >
+                      {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                  </div>
 
                   {/* QUESTION TEXT */}
                   <div className="text-primary mt-4 flex-1">{currentCard.front}</div>
@@ -478,7 +667,20 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               ) : (
                 <>
                   {/* BACK FACE */}
-                  <div className="badge-gray self-start">ANSWER</div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="badge-gray">ANSWER</div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                        else if (currentCard) { speakQuestion(currentCard.back); }
+                      }}
+                      className="text-subtle hover:text-primary transition-colors cursor-pointer"
+                      title={isSpeaking ? "Stop speaking" : "Speak answer"}
+                    >
+                      {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                  </div>
 
                   {/* ANSWER TEXT */}
                   <div className="text-primary mt-4 flex-1">{currentCard.back}</div>
@@ -491,13 +693,88 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
 
+            {/* RECORD BUTTON */}
+            <Button
+              onClick={isRecording ? () => { stopRecording(); disableHandsFree(); } : () => { setEvaluationResult(null); startRecording(); }}
+              disabled={isSpeaking || isTranscribing}
+              className={`${isRecording ? "btn-red" : "btn-off"} w-full mt-3`}
+            >
+              {isRecording ? (
+                <><Square className="w-4 h-4" /> Stop</>
+              ) : (
+                <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
+              )}
+            </Button>
+
+            {/* TRANSCRIPT */}
+            {transcript && (
+              <div className="card mt-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-subtle text-xs">YOUR ANSWER</p>
+                  <button
+                    onClick={() => {
+                      if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                      else { speakQuestion(transcript); }
+                    }}
+                    className="text-subtle hover:text-primary transition-colors cursor-pointer"
+                    title={isSpeaking ? "Stop speaking" : "Speak transcript"}
+                  >
+                    {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-primary mt-1">{transcript}</p>
+              </div>
+            )}
+
+            {/* EVALUATE BUTTON */}
+            {transcript && !evaluationResult && (
+              <Button
+                onClick={handleEvaluate}
+                disabled={isEvaluating}
+                className="btn-blue w-full mt-3 py-4 text-lg"
+              >
+                <BrainCircuit className="w-5 h-5" />
+                {isEvaluating ? "Evaluating..." : "Evaluate Answer"}
+              </Button>
+            )}
+
+            {/* EVALUATION RESULT */}
+            {evaluationResult && (
+              <div className={`alert-${evaluationResult.correct ? "green" : "red"} mt-3`}>
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold">{evaluationResult.correct ? "Correct" : "Incorrect"}</p>
+                  <button
+                    onClick={() => {
+                      if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                      else { speakQuestion(evaluationResult.explanation); }
+                    }}
+                    className="text-inherit opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+                    title={isSpeaking ? "Stop speaking" : "Speak evaluation"}
+                  >
+                    {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-sm mt-1">{evaluationResult.explanation}</p>
+              </div>
+            )}
+
             {/* RATING BUTTONS — only visible when flipped and not yet rated */}
             {isFlipped && !currentCardAlreadyRated && (
               <div className="flex gap-2 mt-5">
-                <button onClick={(e) => { e.stopPropagation(); handleRate(1); }} className="alert-red cursor-pointer text-center flex-1">AGAIN</button>
-                <button onClick={(e) => { e.stopPropagation(); handleRate(2); }} className="alert-yellow cursor-pointer text-center flex-1">HARD</button>
-                <button onClick={(e) => { e.stopPropagation(); handleRate(3); }} className="alert-green cursor-pointer text-center flex-1">GOOD</button>
-                <button onClick={(e) => { e.stopPropagation(); handleRate(4); }} className="alert-blue cursor-pointer text-center flex-1">EASY</button>
+                {[
+                  { rating: 1, label: "AGAIN", className: "alert-red" },
+                  { rating: 2, label: "HARD", className: "alert-yellow" },
+                  { rating: 3, label: "GOOD", className: "alert-green" },
+                  { rating: 4, label: "EASY", className: "alert-blue" },
+                ].map(({ rating, label, className }) => (
+                  <button
+                    key={rating}
+                    onClick={(e) => { e.stopPropagation(); handleRate(rating); }}
+                    className={`${className} cursor-pointer text-center flex-1 ${evaluationResult?.suggestedRating === rating ? "ring-2 ring-offset-2 ring-current" : ""}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -512,7 +789,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               {/* PREV BUTTON */}
               <Button
                 onClick={handlePrev}
-                disabled={currentIndex === 0}
+                disabled={currentIndex === 0 || isRecording || isTranscribing}
                 className="btn-off flex-1"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -522,7 +799,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               {/* NEXT BUTTON */}
               <Button
                 onClick={handleNext}
-                disabled={currentIndex >= cards.length - 1}
+                disabled={currentIndex >= cards.length - 1 || isRecording || isTranscribing}
                 className="btn-off flex-1"
               >
                 NEXT
