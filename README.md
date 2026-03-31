@@ -4,11 +4,9 @@
 
 GRIMOIRE is a Next.js-based application designed to host a multitude of projects.
 
-> **Note**: While this repository is structured as a multi-module platform, [GOLEM - Workout Generator](./docs/modules/MODULES.md) is currently the only active module.
-
 ### GRIMOIRE Management
 
-- [Resource Setup Guide](./docs/resouces/RESOURCES.md)
+- [Resource Setup Guide](./docs/resources/RESOURCES.md)
 - [Installation Guides](./docs/installation)
 - [Development Guide](./docs/development/DEVELOPMENT.md)
 
