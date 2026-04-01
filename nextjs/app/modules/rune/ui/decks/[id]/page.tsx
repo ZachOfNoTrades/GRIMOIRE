@@ -10,6 +10,7 @@ import { CardWithProgress } from "../../../types/card";
 import { useSpeaker } from "../../../lib/voice/useSpeaker";
 import { useListener } from "../../../lib/voice/useListener";
 import type { EvaluationResult } from "../../../lib/voice/evaluationFunctions";
+import { formatRelativePast } from "@/lib/format";
 import ManageCardModal from "./cards/ManageCardModal";
 import DeleteCardModal from "./cards/DeleteCardModal";
 import DeleteDeckModal from "./DeleteDeckModal";
@@ -618,6 +619,14 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               <p className="stat-label">Due</p>
               <p className="stat-value">
                 {cards.filter((c) => !c.next_review_at || new Date(c.next_review_at) <= new Date()).length}
+              </p>
+            </div>
+
+            {/* LAST REVIEWED */}
+            <div className="stat-card">
+              <p className="stat-label">Last Reviewed</p>
+              <p className="stat-value text-base">
+                {formatRelativePast(deck.last_reviewed_at)}
               </p>
             </div>
           </div>

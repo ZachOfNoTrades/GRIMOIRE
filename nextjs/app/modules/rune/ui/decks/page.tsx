@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DeckSummary } from "../../types/deck";
+import { formatRelativePast } from "@/lib/format";
 
 export default function DecksPage() {
 
@@ -86,6 +87,7 @@ export default function DecksPage() {
                     <th className="table-header-cell">Deck</th>
                     <th className="table-header-cell !text-right w-0">Cards</th>
                     <th className="table-header-cell !text-right w-0">Due</th>
+                    <th className="table-header-cell !text-right w-0">Last Reviewed</th>
                   </tr>
                 </thead>
                 <tbody className="table-body">
@@ -105,6 +107,7 @@ export default function DecksPage() {
                       </td>
                       <td className="table-cell !text-right whitespace-nowrap">{deck.card_count}</td>
                       <td className="table-cell !text-right whitespace-nowrap">{deck.due_count}</td>
+                      <td className="table-cell !text-right whitespace-nowrap text-secondary">{formatRelativePast(deck.last_reviewed_at)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -5,6 +5,7 @@ export interface Deck {
   is_archived: boolean;
   created_at: Date;
   modified_at: Date;
+  last_reviewed_at: Date | null;
 }
 
 export interface DeckSummary {
@@ -13,4 +14,5 @@ export interface DeckSummary {
   description: string | null;
   card_count: number;
   due_count: number;
+  last_reviewed_at: Date | null;
 }
