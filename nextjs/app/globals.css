@@ -1636,3 +1636,25 @@ body {
 .flashcard-progress-segment-easy {
   background: var(--alert-blue-text);
 }
+
+/* Countdown fill animation for auto-rate */
+@keyframes countdown-fill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+.countdown-fill {
+  position: relative;
+  overflow: hidden;
+}
+
+.countdown-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  right: auto;
+  background: currentColor;
+  opacity: 0.2;
+  border-radius: inherit;
+  animation: countdown-fill 5s linear forwards;
+}

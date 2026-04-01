@@ -72,6 +72,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [userAnswer, setUserAnswer] = useState("");
   const [answerModified, setAnswerModified] = useState(false); // true when userAnswer changed since last evaluation
+  const [autoRateCountdown, setAutoRateCountdown] = useState(false);
   const [handsFree, setHandsFree] = useState(false);
   const [cardsExpanded, setCardsExpanded] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
@@ -155,8 +156,10 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
       await speakQuestion(evaluationResult.explanation);
       if (!handsFreeRef.current) return;
 
-      // Wait 5 seconds then auto-rate with suggested rating
+      // Start countdown, then auto-rate with suggested rating
+      setAutoRateCountdown(true);
       rateTimer = setTimeout(() => {
+        setAutoRateCountdown(false);
         if (handsFreeRef.current) {
           handleRate(evaluationResult.suggestedRating);
         }
@@ -165,7 +168,10 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
     run();
 
-    return () => { clearTimeout(rateTimer); };
+    return () => {
+      setAutoRateCountdown(false);
+      clearTimeout(rateTimer);
+    };
   }, [evaluationResult]);
 
   // Close card popover menu on outside click
@@ -1105,7 +1111,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     className={`${className} cursor-pointer text-center flex-1 ${currentCard.sessionRating === rating
                       ? "ring-2 ring-offset-2 ring-current"
                       : evaluationResult?.suggestedRating === rating && !currentCardAlreadyRated
-                        ? "ring-2 ring-offset-2 ring-current"
+                        ? (autoRateCountdown ? "countdown-fill ring-2 ring-offset-2 ring-current" : "ring-2 ring-offset-2 ring-current")
                         : ""
                       }`}
                   >
