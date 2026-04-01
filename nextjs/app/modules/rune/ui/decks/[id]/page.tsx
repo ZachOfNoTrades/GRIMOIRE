@@ -97,9 +97,31 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const sessionStartRef = useRef<number>(0);
   const sessionDurationRef = useRef<number>(0);
 
+  // Wake Lock ref for hands-free mode
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
   // Derived
   const currentCard = cards[currentIndex] || null;
   const currentCardAlreadyRated = currentCard?.sessionRating !== null;
+
+  // Acquire/release Wake Lock when hands-free mode changes
+  useEffect(() => {
+    if (handsFree) {
+      navigator.wakeLock?.request("screen")
+        .then((lock) => { wakeLockRef.current = lock; })
+        .catch(() => {}); // Silent fail — not all browsers support Wake Lock
+    } else if (wakeLockRef.current) {
+      wakeLockRef.current.release().catch(() => {});
+      wakeLockRef.current = null;
+    }
+
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    };
+  }, [handsFree]);
 
   // Preload TTS audio when current card changes
   useEffect(() => {
