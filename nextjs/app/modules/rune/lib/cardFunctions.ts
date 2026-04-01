@@ -61,6 +61,51 @@ export async function getCardById(userId: string, id: string): Promise<CardWithP
   }
 }
 
+// Inserts a single card and returns it
+export async function insertCard(userId: string, deckId: string, front: string, back: string, notes: string | null): Promise<CardWithProgress> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+
+    // Get next order_index
+    const indexResult = await pool.request()
+      .input('deckId', deckId)
+      .query(`SELECT ISNULL(MAX(order_index), -1) + 1 AS next_index FROM cards WHERE deck_id = @deckId`);
+    const nextIndex = indexResult.recordset[0].next_index;
+
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('deckId', deckId)
+      .input('front', front.trim())
+      .input('back', back.trim())
+      .input('notes', notes?.trim() || null)
+      .input('orderIndex', nextIndex)
+      .query(`
+        INSERT INTO cards (user_id, deck_id, front, back, notes, source, order_index)
+        OUTPUT INSERTED.*
+        VALUES (@userId, @deckId, @front, @back, @notes, 'manual', @orderIndex)
+      `);
+
+    // Return as CardWithProgress with null progress fields
+    const card = result.recordset[0];
+    return {
+      ...card,
+      ease_factor: null,
+      interval_days: null,
+      repetitions: null,
+      next_review_at: null,
+      last_reviewed_at: null,
+    } as CardWithProgress;
+  } catch (error) {
+    console.error('Error inserting card:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
 // Inserts multiple cards into a deck in a single transaction. Returns the number of cards inserted.
 export async function insertCards(userId: string, deckId: string, cards: GeneratedCard[], source: string = 'notion'): Promise<number> {
   let pool;

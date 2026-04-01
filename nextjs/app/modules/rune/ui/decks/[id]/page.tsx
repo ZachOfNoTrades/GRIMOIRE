@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, ChevronDown } from "lucide-react";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, ChevronDown, Plus } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
@@ -10,6 +10,7 @@ import { CardWithProgress } from "../../../types/card";
 import { useSpeaker } from "../../../lib/voice/useSpeaker";
 import { useListener } from "../../../lib/voice/useListener";
 import type { EvaluationResult } from "../../../lib/voice/evaluationFunctions";
+import ManageCardModal from "./cards/ManageCardModal";
 
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
@@ -68,6 +69,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [handsFree, setHandsFree] = useState(false);
   const [cardsExpanded, setCardsExpanded] = useState(false);
+  const [isAddingCard, setIsAddingCard] = useState(false);
   const handsFreeRef = useRef(false); // Ref to track hands-free in async callbacks
 
   // Refs for duration tracking
@@ -367,6 +369,43 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     startSession();
   }, []);
 
+  // Silent background refetch to reconcile client state with DB
+  const refetchCards = async () => {
+    try {
+      const response = await fetch(`/modules/rune/api/decks/${id}/cards`);
+      if (response.ok) {
+        const freshCards: CardWithProgress[] = await response.json();
+        setCards((prev) => {
+          // Preserve sessionRating from existing local state
+          const ratingMap = new Map(prev.map((c) => [c.id, c.sessionRating]));
+          return freshCards.map((c) => ({
+            ...c,
+            sessionRating: ratingMap.get(c.id) ?? null,
+          }));
+        });
+      }
+    } catch (error) {
+      console.error("Error refetching cards:", error);
+    }
+  };
+
+  // Add a new card
+  const handleAddCard = async (front: string, back: string, notes: string | null) => {
+    // Client update with temp card
+    const tempId = crypto.randomUUID();
+    const tempCard = { id: tempId, deck_id: id, front, back, notes, source: "manual", source_id: null, order_index: cards.length, is_disabled: false, created_at: new Date(), modified_at: new Date(), ease_factor: null, interval_days: null, repetitions: null, next_review_at: null, last_reviewed_at: null, sessionRating: null };
+    setCards((prev) => [...prev, tempCard as CardWithProgress & { sessionRating: number | null }]);
+    setIsAddingCard(false);
+
+    // Background DB insert + refetch to get real ID
+    await fetch(`/modules/rune/api/decks/${id}/cards`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ front, back, notes }),
+    });
+    refetchCards();
+  };
+
   // LOADING
   if (isLoading) {
     return (
@@ -513,8 +552,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
             </div>
 
             {/* TABLE (visible when expanded) */}
-            {cardsExpanded && (
-              <div className="table-container">
+            {cardsExpanded && (<>
+              <div className="table-container max-h-[400px] overflow-y-auto">
                 <table className="table">
                   <thead className="table-header">
                     <tr className="table-header-row">
@@ -541,8 +580,26 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   </tbody>
                 </table>
               </div>
-            )}
+
+              {/* ADD CARD BUTTON */}
+              <div className="p-3">
+                <Button
+                  onClick={() => setIsAddingCard(true)}
+                  className="btn-link w-full"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Card
+                </Button>
+              </div>
+            </>)}
           </div>
+
+          {/* ADD CARD MODAL */}
+          <ManageCardModal
+            isOpen={isAddingCard}
+            onClose={() => setIsAddingCard(false)}
+            onAdd={handleAddCard}
+          />
         </main>
       </div>
     );
