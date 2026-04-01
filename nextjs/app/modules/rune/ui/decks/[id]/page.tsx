@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit } from "lucide-react";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, ChevronDown } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
@@ -67,6 +67,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [handsFree, setHandsFree] = useState(false);
+  const [cardsExpanded, setCardsExpanded] = useState(false);
   const handsFreeRef = useRef(false); // Ref to track hands-free in async callbacks
 
   // Refs for duration tracking
@@ -490,9 +491,58 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
           <Button
             onClick={handsFree ? startHandsFree : startSession}
             className="btn-blue w-full"
+            disabled={cards.length === 0}
           >
             Start Study Session
           </Button>
+
+          {/* CARDS SECTION (expandable) */}
+          <div className={`card mt-6 ${!cardsExpanded ? "!pb-2" : ""}`}>
+
+            {/* CARD HEADER (toggles expand) */}
+            <div
+              className={`card-header cursor-pointer ${!cardsExpanded ? "!pb-0" : ""}`}
+              onClick={() => setCardsExpanded((v) => !v)}
+            >
+              <h2 className="text-card-title">
+                Cards
+              </h2>
+
+              {/* EXPAND CHEVRON */}
+              <ChevronDown className={`w-5 h-5 text-secondary transition-transform ${cardsExpanded ? "rotate-180" : ""}`} />
+            </div>
+
+            {/* TABLE (visible when expanded) */}
+            {cardsExpanded && (
+              <div className="table-container">
+                <table className="table">
+                  <thead className="table-header">
+                    <tr className="table-header-row">
+                      <th className="table-header-cell w-0">#</th>
+                      <th className="table-header-cell">Front</th>
+                    </tr>
+                  </thead>
+                  <tbody className="table-body">
+
+                    {/* EMPTY PLACEHOLDER */}
+                    {cards.length === 0 && (
+                      <tr className="table-row">
+                        <td className="table-empty" colSpan={2}>No cards in this deck</td>
+                      </tr>
+                    )}
+
+                    {/* CARD ROWS */}
+                    {cards.map((card, index) => (
+                      <tr key={card.id} className="table-row">
+                        <td className="table-cell text-secondary">{index + 1}</td>
+                        <td className="table-cell max-w-[200px] truncate">{card.front}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </main>
       </div>
     );
