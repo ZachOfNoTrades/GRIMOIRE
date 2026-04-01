@@ -62,6 +62,67 @@ export async function getDeckById(userId: string, id: string): Promise<Deck> {
   }
 }
 
+export async function deleteDeck(userId: string, deckId: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Delete card reviews for cards in this deck
+      await transaction.request()
+        .input('userId', userId)
+        .input('deckId', deckId)
+        .query(`
+          DELETE cr FROM card_reviews cr
+          INNER JOIN cards c ON c.id = cr.card_id
+          WHERE c.deck_id = @deckId AND c.user_id = @userId
+        `);
+
+      // Delete card progress for cards in this deck
+      await transaction.request()
+        .input('userId', userId)
+        .input('deckId', deckId)
+        .query(`
+          DELETE cp FROM card_progress cp
+          INNER JOIN cards c ON c.id = cp.card_id
+          WHERE c.deck_id = @deckId AND c.user_id = @userId
+        `);
+
+      // Delete study sessions for this deck
+      await transaction.request()
+        .input('userId', userId)
+        .input('deckId', deckId)
+        .query(`DELETE FROM study_sessions WHERE deck_id = @deckId AND user_id = @userId`);
+
+      // Delete cards in this deck
+      await transaction.request()
+        .input('userId', userId)
+        .input('deckId', deckId)
+        .query(`DELETE FROM cards WHERE deck_id = @deckId AND user_id = @userId`);
+
+      // Delete the deck
+      await transaction.request()
+        .input('userId', userId)
+        .input('deckId', deckId)
+        .query(`DELETE FROM decks WHERE id = @deckId AND user_id = @userId`);
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deleting deck:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
 export async function createDeck(userId: string, name: string, description: string | null): Promise<Deck> {
   let pool;
   try {

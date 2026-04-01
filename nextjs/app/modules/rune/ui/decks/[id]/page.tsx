@@ -12,6 +12,7 @@ import { useListener } from "../../../lib/voice/useListener";
 import type { EvaluationResult } from "../../../lib/voice/evaluationFunctions";
 import ManageCardModal from "./cards/ManageCardModal";
 import DeleteCardModal from "./cards/DeleteCardModal";
+import DeleteDeckModal from "./DeleteDeckModal";
 
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
@@ -76,6 +77,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteCards, setShowBulkDeleteCards] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showDeleteDeck, setShowDeleteDeck] = useState(false);
   const [cardMenuOpenId, setCardMenuOpenId] = useState<string | null>(null);
   const cardMenuRef = useRef<HTMLDivElement>(null);
   const handsFreeRef = useRef(false); // Ref to track hands-free in async callbacks
@@ -524,6 +526,14 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  // Delete deck
+  const handleDeleteDeck = async () => {
+    const response = await fetch(`/modules/rune/api/decks/${id}`, { method: "DELETE" });
+    if (response.ok) {
+      router.push("/modules/rune/ui/decks");
+    }
+  };
+
   // LOADING
   if (isLoading) {
     return (
@@ -560,58 +570,39 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  // NO CARDS
-  if (cards.length === 0) {
-    return (
-      <div className="page">
-        <main className="page-container">
-          {/* BACK BUTTON */}
-          <Button
-            onClick={() => router.push("/modules/rune/ui/decks")}
-            className="btn-link !pl-0 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </Button>
-
-          {/* HEADER */}
-          <div className="mb-6">
-            <h1 className="text-page-title">{deck.name}</h1>
-            {deck.description && (
-              <p className="text-secondary">{deck.description}</p>
-            )}
-          </div>
-
-          {/* EMPTY STATE */}
-          <div className="card">
-            <p className="text-secondary text-center py-8">No cards in this deck</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   // PRE-SESSION: deck info + start button
   if (!studySessionId) {
     return (
       <div className="page">
-        <main className="page-container" style={{ maxWidth: "36rem" }}>
+        <main className="page-container">
 
-          {/* BACK BUTTON */}
-          <Button
-            onClick={() => router.push("/modules/rune/ui/decks")}
-            className="btn-link !pl-0 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </Button>
+          {/* HEADER */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              {/* BACK BUTTON */}
+              <Button
+                onClick={() => router.push("/modules/rune/ui/decks")}
+                className="btn-link !pl-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back</span>
+              </Button>
 
-          {/* DECK INFO */}
-          <div className="mb-6">
-            <h1 className="text-page-title">{deck.name}</h1>
-            {deck.description && (
-              <p className="text-secondary">{deck.description}</p>
-            )}
+              {/* TITLE */}
+              <h1 className="text-page-title">{deck.name}</h1>
+              {deck.description && (
+                <p className="text-secondary">{deck.description}</p>
+              )}
+            </div>
+
+            {/* DELETE DECK BUTTON */}
+            <Button
+              onClick={() => setShowDeleteDeck(true)}
+              className="btn-red !p-3"
+              title="Delete deck"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
 
           {/* STATS */}
@@ -806,6 +797,14 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
             bulkCount={selectedCardIds.size}
             onClose={() => setShowBulkDeleteCards(false)}
             onConfirm={handleBulkDeleteCards}
+          />
+
+          {/* DELETE DECK MODAL */}
+          <DeleteDeckModal
+            isOpen={showDeleteDeck}
+            onClose={() => setShowDeleteDeck(false)}
+            deckName={deck.name}
+            onConfirm={handleDeleteDeck}
           />
         </main>
       </div>
