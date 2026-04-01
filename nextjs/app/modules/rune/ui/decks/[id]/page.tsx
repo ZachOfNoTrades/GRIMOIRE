@@ -15,6 +15,12 @@ import ManageCardModal from "./cards/ManageCardModal";
 import DeleteCardModal from "./cards/DeleteCardModal";
 import DeleteDeckModal from "./DeleteDeckModal";
 
+enum SpeakingSource {
+  Question,
+  CardAnswer,
+  Evaluation,
+}
+
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
   const shuffled = [...array];
@@ -73,6 +79,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [userAnswer, setUserAnswer] = useState("");
   const [answerModified, setAnswerModified] = useState(false); // true when userAnswer changed since last evaluation
   const [autoRateCountdown, setAutoRateCountdown] = useState(false);
+  const [speakingSource, setSpeakingSource] = useState<SpeakingSource | null>(null); // tracks which button triggered TTS
   const [handsFree, setHandsFree] = useState(false);
   const [cardsExpanded, setCardsExpanded] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
@@ -104,7 +111,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // Stop recording and clear state when card changes
   useEffect(() => {
     cancelRecording();
-    stopSpeaking();
+    stopSpeakingTracked();
     clearTranscript();
     setEvaluationResult(null);
     setUserAnswer("");
@@ -119,7 +126,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
     const runHandsFree = async () => {
       // Speak the question
-      await speakQuestion(currentCard.front);
+      await speakFrom(SpeakingSource.Question, currentCard.front);
       if (cancelled || !handsFreeRef.current) return;
 
       // Auto-start recording after TTS finishes
@@ -153,7 +160,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     let rateTimer: ReturnType<typeof setTimeout>;
 
     const run = async () => {
-      await speakQuestion(evaluationResult.explanation);
+      await speakFrom(SpeakingSource.Evaluation, evaluationResult.explanation);
       if (!handsFreeRef.current) return;
 
       // Start countdown, then auto-rate with suggested rating
@@ -192,10 +199,23 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     setHandsFree(false);
   };
 
+  // Speak with source tracking so only the active button shows stop icon
+  const speakFrom = async (source: SpeakingSource, text: string) => {
+    setSpeakingSource(source);
+    await speakQuestion(text);
+    setSpeakingSource(null);
+  };
+
+  // Stop speaking and clear source
+  const stopSpeakingTracked = () => {
+    stopSpeaking();
+    setSpeakingSource(null);
+  };
+
   // Speak the question, then auto-record if hands-free is on
   const handleSpeakAndRecord = async () => {
     if (!currentCard) return;
-    await speakQuestion(currentCard.front);
+    await speakFrom(SpeakingSource.Question, currentCard.front);
     if (!handsFreeRef.current) return;
 
     try {
@@ -391,7 +411,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const handleQuit = useCallback(async () => {
     handsFreeRef.current = false;
     setHandsFree(false);
-    stopSpeaking();
+    stopSpeakingTracked();
     cancelRecording();
     await completeSession();
     setStudySessionId(null);
@@ -988,13 +1008,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                        if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
                         else { handleSpeakAndRecord(); }
                       }}
                       className="text-subtle hover:text-primary transition-colors cursor-pointer"
-                      title={isSpeaking ? "Stop speaking" : "Speak question"}
+                      title={speakingSource === SpeakingSource.Question ? "Stop speaking" : "Speak question"}
                     >
-                      {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      {speakingSource === SpeakingSource.Question ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
                   </div>
 
@@ -1012,13 +1032,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
-                        else if (currentCard) { speakQuestion(currentCard.back); }
+                        if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
+                        else if (currentCard) { speakFrom(SpeakingSource.CardAnswer, currentCard.back); }
                       }}
                       className="text-subtle hover:text-primary transition-colors cursor-pointer"
-                      title={isSpeaking ? "Stop speaking" : "Speak answer"}
+                      title={speakingSource === SpeakingSource.CardAnswer ? "Stop speaking" : "Speak answer"}
                     >
-                      {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      {speakingSource === SpeakingSource.CardAnswer ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
                   </div>
 
@@ -1083,13 +1103,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   <p className="font-semibold">{evaluationResult.correct ? "Correct" : "Incorrect"}</p>
                   <button
                     onClick={() => {
-                      if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
-                      else { speakQuestion(evaluationResult.explanation); }
+                      if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
+                      else { speakFrom(SpeakingSource.Evaluation, evaluationResult.explanation); }
                     }}
                     className="text-inherit opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
-                    title={isSpeaking ? "Stop speaking" : "Speak evaluation"}
+                    title={speakingSource === SpeakingSource.Evaluation ? "Stop speaking" : "Speak evaluation"}
                   >
-                    {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    {speakingSource === SpeakingSource.Evaluation ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                 </div>
                 <p className="text-sm mt-1">{evaluationResult.explanation}</p>
