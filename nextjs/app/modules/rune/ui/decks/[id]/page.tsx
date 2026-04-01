@@ -70,6 +70,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener();
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
+  const [userAnswer, setUserAnswer] = useState("");
+  const [answerModified, setAnswerModified] = useState(false); // true when userAnswer changed since last evaluation
   const [handsFree, setHandsFree] = useState(false);
   const [cardsExpanded, setCardsExpanded] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
@@ -104,6 +106,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     stopSpeaking();
     clearTranscript();
     setEvaluationResult(null);
+    setUserAnswer("");
+    setAnswerModified(false);
   }, [currentIndex]);
 
   // Hands-free auto-loop: speak question, then auto-record
@@ -132,10 +136,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     return () => { cancelled = true; };
   }, [currentIndex, studySessionId]);
 
-  // Auto-evaluate when transcript arrives in hands-free mode
+  // Inject transcript into free response field and auto-evaluate in hands-free mode
   useEffect(() => {
-    if (handsFreeRef.current && transcript) {
-      handleEvaluate();
+    if (!transcript) return;
+    setUserAnswer(transcript);
+    if (handsFreeRef.current) {
+      handleEvaluate(transcript);
     }
   }, [transcript]);
 
@@ -194,9 +200,10 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
-  // Evaluate the user's spoken answer against the expected answer
-  const handleEvaluate = async () => {
-    if (!currentCard || !transcript) return;
+  // Evaluate the user's answer against the expected answer
+  const handleEvaluate = async (answerOverride?: string) => {
+    const answer = (answerOverride ?? userAnswer).trim();
+    if (!currentCard || !answer) return;
 
     setIsEvaluating(true);
     try {
@@ -206,7 +213,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
         body: JSON.stringify({
           question: currentCard.front,
           expectedAnswer: currentCard.back,
-          userAnswer: transcript,
+          userAnswer: answer,
           notes: currentCard.notes,
         }),
       });
@@ -218,6 +225,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
       const result: EvaluationResult = await response.json();
       setEvaluationResult(result);
+      setAnswerModified(false);
 
       // Reveal the answer
       setIsFlipped(true);
@@ -1015,43 +1023,41 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
 
-            {/* RECORD BUTTON */}
-            <Button
-              onClick={isRecording ? () => { stopRecording(); disableHandsFree(); } : () => { setEvaluationResult(null); startRecording(); }}
-              disabled={isSpeaking || isTranscribing}
-              className={`${isRecording ? "btn-red" : "btn-off"} w-full mt-3`}
-            >
-              {isRecording ? (
-                <><Square className="w-4 h-4" /> Stop</>
-              ) : (
-                <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
-              )}
-            </Button>
+            {/* YOUR ANSWER */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-subtle">YOUR ANSWER</p>
 
-            {/* TRANSCRIPT */}
-            {transcript && (
-              <div className="card mt-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-subtle text-xs">YOUR ANSWER</p>
-                  <button
-                    onClick={() => {
-                      if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
-                      else { speakQuestion(transcript); }
-                    }}
-                    className="text-subtle hover:text-primary transition-colors cursor-pointer"
-                    title={isSpeaking ? "Stop speaking" : "Speak transcript"}
-                  >
-                    {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-primary mt-1">{transcript}</p>
+                {/* RECORD BUTTON */}
+                <Button
+                  onClick={isRecording ? () => { stopRecording(); disableHandsFree(); } : () => { setEvaluationResult(null); setUserAnswer(""); startRecording(); }}
+                  disabled={isSpeaking || isTranscribing}
+                  className={`${isRecording ? "btn-red" : "btn-off"}`}
+                >
+                  {isRecording ? (
+                    <><Square className="w-4 h-4" /> Stop</>
+                  ) : (
+                    <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
+                  )}
+                </Button>
               </div>
-            )}
+
+              {/* USER ANSWER FIELD */}
+              <textarea
+                className="input-field w-full"
+                rows={3}
+                value={userAnswer}
+                onChange={(e) => { setUserAnswer(e.target.value); setAnswerModified(true); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEvaluate(); } }}
+                placeholder="Type or record your answer..."
+                disabled={isRecording || isTranscribing}
+              />
+            </div>
 
             {/* EVALUATE BUTTON */}
-            {transcript && !evaluationResult && (
+            {userAnswer.trim() && (!evaluationResult || answerModified) && (
               <Button
-                onClick={handleEvaluate}
+                onClick={() => handleEvaluate()}
                 disabled={isEvaluating}
                 className="btn-blue w-full mt-3 py-4 text-lg"
               >
