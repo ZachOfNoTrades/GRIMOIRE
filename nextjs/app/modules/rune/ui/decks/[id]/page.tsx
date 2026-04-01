@@ -219,6 +219,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const disableHandsFree = () => {
     handsFreeRef.current = false;
     setHandsFree(false);
+    setAutoRateCountdown(false); // clear countdown animation
   };
 
   // Speak with source tracking so only the active button shows stop icon
@@ -697,8 +698,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               type="checkbox"
               checked={handsFree}
               onChange={(e) => {
-                handsFreeRef.current = e.target.checked;
-                setHandsFree(e.target.checked);
+                if (e.target.checked) {
+                  handsFreeRef.current = true;
+                  setHandsFree(true);
+                } else {
+                  disableHandsFree();
+                }
               }}
             />
             Hands-free mode
@@ -972,8 +977,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 type="checkbox"
                 checked={handsFree}
                 onChange={(e) => {
-                  handsFreeRef.current = e.target.checked;
-                  setHandsFree(e.target.checked);
+                  if (e.target.checked) {
+                    handsFreeRef.current = true;
+                    setHandsFree(true);
+                  } else {
+                    disableHandsFree();
+                  }
                 }}
               />
               Hands-free
