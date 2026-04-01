@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, ChevronDown, Plus, Pencil, MoreVertical } from "lucide-react";
-import { Toaster } from "react-hot-toast";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, ChevronDown, Plus, Pencil, Trash2, MoreVertical } from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress } from "../../../types/card";
@@ -11,6 +11,7 @@ import { useSpeaker } from "../../../lib/voice/useSpeaker";
 import { useListener } from "../../../lib/voice/useListener";
 import type { EvaluationResult } from "../../../lib/voice/evaluationFunctions";
 import ManageCardModal from "./cards/ManageCardModal";
+import DeleteCardModal from "./cards/DeleteCardModal";
 
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
@@ -71,6 +72,10 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [cardsExpanded, setCardsExpanded] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [editingCard, setEditingCard] = useState<CardWithProgress | null>(null);
+  const [deletingCard, setDeletingCard] = useState<CardWithProgress | null>(null);
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteCards, setShowBulkDeleteCards] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [cardMenuOpenId, setCardMenuOpenId] = useState<string | null>(null);
   const cardMenuRef = useRef<HTMLDivElement>(null);
   const handsFreeRef = useRef(false); // Ref to track hands-free in async callbacks
@@ -438,6 +443,87 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     refetchCards();
   };
 
+  // Delete a single card
+  const handleDeleteCard = async (cardId: string) => {
+    // Client update first
+    setCards((prev) => prev.filter((c) => c.id !== cardId));
+    setDeletingCard(null);
+
+    // Background DB delete + refetch
+    try {
+      const response = await fetch(`/modules/rune/api/decks/${id}/cards`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId }),
+      });
+      if (!response.ok) {
+        toast.error("Failed to delete card");
+      }
+    } catch {
+      toast.error("Failed to delete card");
+    }
+    refetchCards();
+  };
+
+  // Toggle card selection
+  const toggleCardSelection = (cardId: string) => {
+    const next = new Set(selectedCardIds);
+    if (next.has(cardId)) { next.delete(cardId); } else { next.add(cardId); }
+    setSelectedCardIds(next);
+  };
+
+  // Toggle select all cards
+  const toggleSelectAllCards = () => {
+    if (selectedCardIds.size === cards.length) {
+      setSelectedCardIds(new Set());
+    } else {
+      setSelectedCardIds(new Set(cards.map((c) => c.id)));
+    }
+  };
+
+  // Bulk delete selected cards
+  const handleBulkDeleteCards = async () => {
+    if (selectedCardIds.size === 0) return;
+
+    // Client update first
+    const idsToDelete = new Set(selectedCardIds);
+    setCards((prev) => prev.filter((c) => !idsToDelete.has(c.id)));
+    setSelectedCardIds(new Set());
+    setShowBulkDeleteCards(false);
+
+    // Background DB deletes
+    setIsBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const cardId of idsToDelete) {
+        try {
+          const response = await fetch(`/modules/rune/api/decks/${id}/cards`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cardId }),
+          });
+          if (response.ok) { successCount++; } else { failCount++; }
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Deleted ${successCount} card${successCount === 1 ? "" : "s"}`);
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to delete ${failCount} card${failCount === 1 ? "" : "s"}`);
+      }
+
+      // Refetch for data integrity
+      refetchCards();
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   // LOADING
   if (isLoading) {
     return (
@@ -579,8 +665,28 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 Cards
               </h2>
 
-              {/* EXPAND CHEVRON */}
-              <ChevronDown className={`w-5 h-5 text-secondary transition-transform ${cardsExpanded ? "rotate-180" : ""}`} />
+              <div className="flex items-center gap-2">
+
+                {/* BULK DELETE BUTTON */}
+                {cardsExpanded && (
+                  <Button
+                    onClick={(e) => { e.stopPropagation(); setShowBulkDeleteCards(true); }}
+                    disabled={selectedCardIds.size === 0}
+                    className="btn-red relative !p-2"
+                    title={selectedCardIds.size > 0 ? `Delete ${selectedCardIds.size} card${selectedCardIds.size === 1 ? "" : "s"}` : "Select cards to delete"}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {selectedCardIds.size > 0 && (
+                      <span className="notification-count-red absolute -top-1 -right-1">
+                        {selectedCardIds.size}
+                      </span>
+                    )}
+                  </Button>
+                )}
+
+                {/* EXPAND CHEVRON */}
+                <ChevronDown className={`w-5 h-5 text-secondary transition-transform ${cardsExpanded ? "rotate-180" : ""}`} />
+              </div>
             </div>
 
             {/* TABLE (visible when expanded) */}
@@ -589,6 +695,14 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 <table className="table">
                   <thead className="table-header">
                     <tr className="table-header-row">
+                      <th className="table-header-cell w-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedCardIds.size === cards.length && cards.length > 0}
+                          onChange={toggleSelectAllCards}
+                          className="checkbox"
+                        />
+                      </th>
                       <th className="table-header-cell w-0">#</th>
                       <th className="table-header-cell">Front</th>
                       <th className="table-header-cell w-0"></th>
@@ -599,13 +713,21 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     {/* EMPTY PLACEHOLDER */}
                     {cards.length === 0 && (
                       <tr className="table-row">
-                        <td className="table-empty" colSpan={3}>No cards in this deck</td>
+                        <td className="table-empty" colSpan={4}>No cards in this deck</td>
                       </tr>
                     )}
 
                     {/* CARD ROWS */}
                     {cards.map((card, index) => (
                       <tr key={card.id} className="table-row">
+                        <td className="table-cell">
+                          <input
+                            type="checkbox"
+                            checked={selectedCardIds.has(card.id)}
+                            onChange={() => toggleCardSelection(card.id)}
+                            className="checkbox"
+                          />
+                        </td>
                         <td className="table-cell text-secondary">{index + 1}</td>
                         <td className="table-cell max-w-[200px] truncate">{card.front}</td>
                         <td className="table-cell !text-right whitespace-nowrap">
@@ -630,6 +752,14 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                                   onClick={() => { setCardMenuOpenId(null); setEditingCard(card); }}
                                 >
                                   <Pencil className="w-4 h-4 mr-3" /> Edit
+                                </button>
+
+                                {/* DELETE OPTION */}
+                                <button
+                                  className="popover-item text-alert-red"
+                                  onClick={() => { setCardMenuOpenId(null); setDeletingCard(card); }}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-3" /> Delete
                                 </button>
                               </div>
                             )}
@@ -661,6 +791,21 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
             onClose={() => { setIsAddingCard(false); setEditingCard(null); }}
             onAdd={handleAddCard}
             onEdit={handleEditCard}
+          />
+
+          {/* DELETE CARD MODAL (single) */}
+          <DeleteCardModal
+            card={deletingCard}
+            onClose={() => setDeletingCard(null)}
+            onConfirm={() => deletingCard ? handleDeleteCard(deletingCard.id) : Promise.resolve()}
+          />
+
+          {/* DELETE CARD MODAL (bulk) */}
+          <DeleteCardModal
+            isOpen={showBulkDeleteCards}
+            bulkCount={selectedCardIds.size}
+            onClose={() => setShowBulkDeleteCards(false)}
+            onConfirm={handleBulkDeleteCards}
           />
         </main>
       </div>
