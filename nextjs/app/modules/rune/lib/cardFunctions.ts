@@ -106,6 +106,36 @@ export async function insertCard(userId: string, deckId: string, front: string, 
   }
 }
 
+// Updates a card's front, back, and notes fields
+export async function updateCard(userId: string, cardId: string, front: string, back: string, notes: string | null): Promise<void> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('cardId', cardId)
+      .input('front', front.trim())
+      .input('back', back.trim())
+      .input('notes', notes?.trim() || null)
+      .query(`
+        UPDATE cards
+        SET front = @front, back = @back, notes = @notes, modified_at = GETDATE()
+        WHERE id = @cardId AND user_id = @userId -- user_id check is a safety net; ownership is enforced at the API layer
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No card found for id: '${cardId}'`);
+    }
+  } catch (error) {
+    console.error('Error updating card:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
 // Inserts multiple cards into a deck in a single transaction. Returns the number of cards inserted.
 export async function insertCards(userId: string, deckId: string, cards: GeneratedCard[], source: string = 'notion'): Promise<number> {
   let pool;

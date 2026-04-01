@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, ChevronDown, Plus } from "lucide-react";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, ChevronDown, Plus, Pencil, MoreVertical } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
@@ -70,6 +70,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [handsFree, setHandsFree] = useState(false);
   const [cardsExpanded, setCardsExpanded] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
+  const [editingCard, setEditingCard] = useState<CardWithProgress | null>(null);
+  const [cardMenuOpenId, setCardMenuOpenId] = useState<string | null>(null);
+  const cardMenuRef = useRef<HTMLDivElement>(null);
   const handsFreeRef = useRef(false); // Ref to track hands-free in async callbacks
 
   // Refs for duration tracking
@@ -150,6 +153,18 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
     return () => { clearTimeout(rateTimer); };
   }, [evaluationResult]);
+
+  // Close card popover menu on outside click
+  useEffect(() => {
+    if (!cardMenuOpenId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (cardMenuRef.current && !cardMenuRef.current.contains(e.target as Node)) {
+        setCardMenuOpenId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [cardMenuOpenId]);
 
   // Disable hands-free mode (used when user manually interrupts)
   const disableHandsFree = () => {
@@ -406,6 +421,23 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     refetchCards();
   };
 
+  // Edit an existing card
+  const handleEditCard = async (cardId: string, front: string, back: string, notes: string | null) => {
+    // Client update first
+    setCards((prev) =>
+      prev.map((c) => c.id === cardId ? { ...c, front, back, notes } as typeof c : c)
+    );
+    setEditingCard(null);
+
+    // Background DB update + refetch
+    await fetch(`/modules/rune/api/decks/${id}/cards`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cardId, front, back, notes }),
+    });
+    refetchCards();
+  };
+
   // LOADING
   if (isLoading) {
     return (
@@ -559,6 +591,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     <tr className="table-header-row">
                       <th className="table-header-cell w-0">#</th>
                       <th className="table-header-cell">Front</th>
+                      <th className="table-header-cell w-0"></th>
                     </tr>
                   </thead>
                   <tbody className="table-body">
@@ -566,7 +599,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     {/* EMPTY PLACEHOLDER */}
                     {cards.length === 0 && (
                       <tr className="table-row">
-                        <td className="table-empty" colSpan={2}>No cards in this deck</td>
+                        <td className="table-empty" colSpan={3}>No cards in this deck</td>
                       </tr>
                     )}
 
@@ -575,6 +608,33 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                       <tr key={card.id} className="table-row">
                         <td className="table-cell text-secondary">{index + 1}</td>
                         <td className="table-cell max-w-[200px] truncate">{card.front}</td>
+                        <td className="table-cell !text-right whitespace-nowrap">
+
+                          {/* ACTION MENU */}
+                          <div className="relative inline-block" ref={cardMenuOpenId === card.id ? cardMenuRef : undefined}>
+
+                            {/* MENU TRIGGER BUTTON */}
+                            <Button
+                              onClick={(e) => { e.stopPropagation(); setCardMenuOpenId(cardMenuOpenId === card.id ? null : card.id); }}
+                              className="btn-link"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+
+                            {cardMenuOpenId === card.id && (
+                              <div className="popover-menu">
+
+                                {/* EDIT OPTION */}
+                                <button
+                                  className="popover-item"
+                                  onClick={() => { setCardMenuOpenId(null); setEditingCard(card); }}
+                                >
+                                  <Pencil className="w-4 h-4 mr-3" /> Edit
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -594,11 +654,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
             </>)}
           </div>
 
-          {/* ADD CARD MODAL */}
+          {/* MANAGE CARD MODAL (add or edit) */}
           <ManageCardModal
-            isOpen={isAddingCard}
-            onClose={() => setIsAddingCard(false)}
+            isOpen={isAddingCard || !!editingCard}
+            editCard={editingCard}
+            onClose={() => { setIsAddingCard(false); setEditingCard(null); }}
             onAdd={handleAddCard}
+            onEdit={handleEditCard}
           />
         </main>
       </div>

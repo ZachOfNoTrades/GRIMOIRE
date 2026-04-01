@@ -3,14 +3,17 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
+import { CardWithProgress } from "../../../../types/card";
 
 interface ManageCardModalProps {
   isOpen: boolean;
+  editCard?: CardWithProgress | null;
   onClose: () => void;
   onAdd: (front: string, back: string, notes: string | null) => Promise<void>;
+  onEdit: (cardId: string, front: string, back: string, notes: string | null) => Promise<void>;
 }
 
-export default function ManageCardModal({ isOpen, onClose, onAdd }: ManageCardModalProps) {
+export default function ManageCardModal({ isOpen, editCard, onClose, onAdd, onEdit }: ManageCardModalProps) {
   // INPUT
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
@@ -19,21 +22,32 @@ export default function ManageCardModal({ isOpen, onClose, onAdd }: ManageCardMo
   // STATE
   const [isSaving, setIsSaving] = useState(false);
 
-  // Reset fields when modal opens
+  // DERIVED
+  const isEditing = !!editCard;
+
+  // Populate fields when editing, reset when adding
   useEffect(() => {
-    if (isOpen) {
+    if (editCard) {
+      setFront(editCard.front);
+      setBack(editCard.back);
+      setNotes(editCard.notes || "");
+    } else if (isOpen) {
       setFront("");
       setBack("");
       setNotes("");
     }
-  }, [isOpen]);
+  }, [isOpen, editCard]);
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     if (!front.trim() || !back.trim()) return;
 
     setIsSaving(true);
     try {
-      await onAdd(front.trim(), back.trim(), notes.trim() || null);
+      if (isEditing) {
+        await onEdit(editCard!.id, front.trim(), back.trim(), notes.trim() || null);
+      } else {
+        await onAdd(front.trim(), back.trim(), notes.trim() || null);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -43,7 +57,7 @@ export default function ManageCardModal({ isOpen, onClose, onAdd }: ManageCardMo
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Add Card"
+      title={isEditing ? "Edit Card" : "Add Card"}
       footer={
         <div className="flex gap-2 justify-end">
           {/* CANCEL BUTTON */}
@@ -51,13 +65,13 @@ export default function ManageCardModal({ isOpen, onClose, onAdd }: ManageCardMo
             Cancel
           </Button>
 
-          {/* ADD BUTTON */}
+          {/* SAVE BUTTON */}
           <Button
-            onClick={handleAdd}
+            onClick={handleSave}
             className="btn-blue"
             disabled={isSaving || !front.trim() || !back.trim()}
           >
-            {isSaving ? "Saving..." : "Add"}
+            {isSaving ? "Saving..." : isEditing ? "Save" : "Add"}
           </Button>
         </div>
       }
