@@ -74,45 +74,57 @@ export default function DecksPage() {
 
           {/* DECK TABLE */}
           <div className="table-container">
-            {isLoading ? (
-              <div className="loading-container py-8">
-                <div className="loading-spinner" />
-              </div>
-            ) : decks.length === 0 ? (
-              <p className="text-page-subtitle text-center py-8">No decks found</p>
-            ) : (
-              <table className="table">
-                <thead className="table-header">
-                  <tr className="table-header-row">
-                    <th className="table-header-cell">Deck</th>
-                    <th className="table-header-cell !text-right w-0">Cards</th>
-                    <th className="table-header-cell !text-right w-0">Due</th>
-                    <th className="table-header-cell !text-right w-0">Last Reviewed</th>
+            <table className="table">
+              <thead className="table-header">
+                <tr className="table-header-row">
+                  <th className="table-header-cell">Deck</th>
+                  <th className="table-header-cell !text-right w-0">Cards</th>
+                  <th className="table-header-cell !text-right w-0">Due</th>
+                  <th className="table-header-cell !text-right w-0">Last Reviewed</th>
+                </tr>
+              </thead>
+              <tbody className="table-body">
+
+                {/* LOADING PLACEHOLDER */}
+                {isLoading && (
+                  <tr className="table-row">
+                    <td className="table-empty" colSpan={4}>
+                      <div className="loading-container">
+                        <div className="loading-spinner" />
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="table-body">
-                  {decks.map((deck) => (
-                    <tr
-                      key={deck.id}
-                      className="table-row-clickable"
-                      onClick={() => router.push(`/modules/rune/ui/decks/${deck.id}`)}
-                    >
-                      <td className="table-cell">
-                        <div>
-                          <p>{deck.name}</p>
-                          {deck.description && (
-                            <p className="text-secondary">{deck.description}</p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="table-cell !text-right whitespace-nowrap">{deck.card_count}</td>
-                      <td className="table-cell !text-right whitespace-nowrap">{deck.due_count}</td>
-                      <td className="table-cell !text-right whitespace-nowrap text-secondary">{formatRelativePast(deck.last_reviewed_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                )}
+
+                {/* EMPTY PLACEHOLDER */}
+                {!isLoading && decks.length === 0 && (
+                  <tr className="table-row">
+                    <td className="table-empty" colSpan={4}>No decks found</td>
+                  </tr>
+                )}
+
+                {/* DECK ROWS */}
+                {!isLoading && decks.map((deck) => (
+                  <tr
+                    key={deck.id}
+                    className="table-row-clickable"
+                    onClick={() => router.push(`/modules/rune/ui/decks/${deck.id}`)}
+                  >
+                    <td className="table-cell">
+                      <div>
+                        <p>{deck.name}</p>
+                        {deck.description && (
+                          <p className="text-secondary">{deck.description}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="table-cell !text-right whitespace-nowrap">{deck.card_count}</td>
+                    <td className="table-cell !text-right whitespace-nowrap">{deck.due_count}</td>
+                    <td className="table-cell !text-right whitespace-nowrap text-secondary">{formatRelativePast(deck.last_reviewed_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </main>
