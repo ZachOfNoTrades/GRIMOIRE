@@ -314,7 +314,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // Rate a card
   const handleRate = useCallback(
     async (rating: number) => {
-      if (!currentCard || currentCardAlreadyRated) return;
+      if (!currentCard) return;
+      const isReRating = currentCardAlreadyRated;
 
       // Update local state
       setCards((prev) =>
@@ -326,7 +327,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
       // Submit review to API
       if (studySessionId) {
         try {
-          await fetch(`/modules/rune/api/decks/${id}/study/review`, {
+          const response = await fetch(`/modules/rune/api/decks/${id}/study/review`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -336,6 +337,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               responseTimeMs: null,
             }),
           });
+          if (!response.ok) {
+            console.error("Failed to submit review:", response.status);
+          }
         } catch (error) {
           console.error("Error submitting review:", error);
         }
@@ -1086,8 +1090,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             )}
 
-            {/* RATING BUTTONS — only visible when flipped and not yet rated */}
-            {isFlipped && !currentCardAlreadyRated && (
+            {/* RATING BUTTONS */}
+            {isFlipped && (
               <div className="flex gap-2 mt-5">
                 {[
                   { rating: 1, label: "AGAIN", className: "alert-red" },
@@ -1098,17 +1102,17 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   <button
                     key={rating}
                     onClick={(e) => { e.stopPropagation(); handleRate(rating); }}
-                    className={`${className} cursor-pointer text-center flex-1 ${evaluationResult?.suggestedRating === rating ? "ring-2 ring-offset-2 ring-current" : ""}`}
+                    className={`${className} cursor-pointer text-center flex-1 ${currentCard.sessionRating === rating
+                      ? "ring-2 ring-offset-2 ring-current"
+                      : evaluationResult?.suggestedRating === rating && !currentCardAlreadyRated
+                        ? "ring-2 ring-offset-2 ring-current"
+                        : ""
+                      }`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-            )}
-
-            {/* RATED INDICATOR */}
-            {isFlipped && currentCardAlreadyRated && currentCard.sessionRating !== null && (
-              <div className="text-secondary text-center mt-5">Rated: {ratingToLabel(currentCard.sessionRating)}</div>
             )}
 
             {/* NAVIGATION */}
