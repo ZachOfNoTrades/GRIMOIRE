@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedSession } from '@/lib/permissions';
 import { submitCardReview, completeStudySession } from '../../../../../lib/studyFunctions';
+import { getDeckById } from '../../../../../lib/deckFunctions';
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getAuthorizedSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
+
+    const { id } = await context.params;
+
+    // Verify deck ownership
+    await getDeckById(userId!, id);
 
     const body = await request.json();
     const { cardId, studySessionId, rating, responseTimeMs } = body;
@@ -32,6 +41,14 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in POST /api/decks/[id]/study/review:', error);
+
+    if (error instanceof Error && error.message.includes('No deck found')) {
+      return NextResponse.json(
+        { error: 'Deck not found' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to submit review' },
       { status: 500 }
@@ -39,13 +56,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getAuthorizedSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
+
+    const { id } = await context.params;
+
+    // Verify deck ownership
+    await getDeckById(userId!, id);
 
     const body = await request.json();
     const { studySessionId, durationSeconds } = body;
@@ -62,6 +87,14 @@ export async function PUT(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in PUT /api/decks/[id]/study/review:', error);
+
+    if (error instanceof Error && error.message.includes('No deck found')) {
+      return NextResponse.json(
+        { error: 'Deck not found' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to complete session' },
       { status: 500 }

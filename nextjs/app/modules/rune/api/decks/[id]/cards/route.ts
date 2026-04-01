@@ -72,13 +72,21 @@ export async function POST(
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getAuthorizedSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
+
+    const { id } = await context.params;
+
+    // Verify deck ownership
+    await getDeckById(userId!, id);
 
     const body = await request.json();
     const { cardId, front, back, notes } = body;
@@ -95,6 +103,13 @@ export async function PUT(request: Request) {
 
   } catch (error) {
     console.error('Error in PUT /api/decks/[id]/cards:', error);
+
+    if (error instanceof Error && error.message.includes('No deck found')) {
+      return NextResponse.json(
+        { error: 'Deck not found' },
+        { status: 404 }
+      );
+    }
 
     if (error instanceof Error && error.message.includes('No card found')) {
       return NextResponse.json(
