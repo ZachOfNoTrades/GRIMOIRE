@@ -62,6 +62,18 @@ export function useSpeaker(): UseSpeakerReturn {
     }
   }, []);
 
+  // Disable media key controls so keyboard play/pause doesn't replay old audio
+  useEffect(() => {
+    if ("mediaSession" in navigator) {
+      const noop = () => {};
+      navigator.mediaSession.setActionHandler("play", noop);
+      navigator.mediaSession.setActionHandler("pause", noop);
+      navigator.mediaSession.setActionHandler("stop", noop);
+      navigator.mediaSession.setActionHandler("previoustrack", noop);
+      navigator.mediaSession.setActionHandler("nexttrack", noop);
+    }
+  }, []);
+
   // Clean up on unmount
   useEffect(() => {
     return () => {

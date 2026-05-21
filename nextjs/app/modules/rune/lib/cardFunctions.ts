@@ -61,6 +61,128 @@ export async function getCardById(userId: string, id: string): Promise<CardWithP
   }
 }
 
+// Deletes a card and its associated progress and reviews
+export async function deleteCard(userId: string, cardId: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Delete card reviews
+      await transaction.request()
+        .input('cardId', cardId)
+        .query(`DELETE FROM card_reviews WHERE card_id = @cardId`);
+
+      // Delete card progress
+      await transaction.request()
+        .input('cardId', cardId)
+        .query(`DELETE FROM card_progress WHERE card_id = @cardId`);
+
+      // Delete card
+      const result = await transaction.request()
+        .input('userId', userId)
+        .input('cardId', cardId)
+        .query(`
+          DELETE FROM cards
+          WHERE id = @cardId AND user_id = @userId -- user_id check is a safety net; ownership is enforced at the API layer
+        `);
+
+      if (result.rowsAffected[0] === 0) {
+        throw new Error(`No card found for id: '${cardId}'`);
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deleting card:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Inserts a single card and returns it
+export async function insertCard(userId: string, deckId: string, front: string, back: string, notes: string | null): Promise<CardWithProgress> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+
+    // Get next order_index
+    const indexResult = await pool.request()
+      .input('deckId', deckId)
+      .query(`SELECT ISNULL(MAX(order_index), -1) + 1 AS next_index FROM cards WHERE deck_id = @deckId`);
+    const nextIndex = indexResult.recordset[0].next_index;
+
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('deckId', deckId)
+      .input('front', front.trim())
+      .input('back', back.trim())
+      .input('notes', notes?.trim() || null)
+      .input('orderIndex', nextIndex)
+      .query(`
+        INSERT INTO cards (user_id, deck_id, front, back, notes, source, order_index)
+        OUTPUT INSERTED.*
+        VALUES (@userId, @deckId, @front, @back, @notes, 'manual', @orderIndex)
+      `);
+
+    // Return as CardWithProgress with null progress fields
+    const card = result.recordset[0];
+    return {
+      ...card,
+      ease_factor: null,
+      interval_days: null,
+      repetitions: null,
+      next_review_at: null,
+      last_reviewed_at: null,
+    } as CardWithProgress;
+  } catch (error) {
+    console.error('Error inserting card:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Updates a card's front, back, and notes fields
+export async function updateCard(userId: string, cardId: string, front: string, back: string, notes: string | null): Promise<void> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('cardId', cardId)
+      .input('front', front.trim())
+      .input('back', back.trim())
+      .input('notes', notes?.trim() || null)
+      .query(`
+        UPDATE cards
+        SET front = @front, back = @back, notes = @notes, modified_at = GETDATE()
+        WHERE id = @cardId AND user_id = @userId -- user_id check is a safety net; ownership is enforced at the API layer
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No card found for id: '${cardId}'`);
+    }
+  } catch (error) {
+    console.error('Error updating card:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
 // Inserts multiple cards into a deck in a single transaction. Returns the number of cards inserted.
 export async function insertCards(userId: string, deckId: string, cards: GeneratedCard[], source: string = 'notion'): Promise<number> {
   let pool;

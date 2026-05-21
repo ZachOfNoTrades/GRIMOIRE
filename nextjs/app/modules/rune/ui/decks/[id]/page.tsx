@@ -2,14 +2,24 @@
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit } from "lucide-react";
-import { Toaster } from "react-hot-toast";
+import { ArrowLeft, X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, ChevronDown, Plus, Pencil, Trash2, MoreVertical } from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress } from "../../../types/card";
 import { useSpeaker } from "../../../lib/voice/useSpeaker";
 import { useListener } from "../../../lib/voice/useListener";
 import type { EvaluationResult } from "../../../lib/voice/evaluationFunctions";
+import { formatRelativePast } from "@/lib/format";
+import ManageCardModal from "./cards/ManageCardModal";
+import DeleteCardModal from "./cards/DeleteCardModal";
+import DeleteDeckModal from "./DeleteDeckModal";
+
+enum SpeakingSource {
+  Question,
+  CardAnswer,
+  Evaluation,
+}
 
 // Fisher-Yates shuffle
 function shuffle<T>(array: T[]): T[] {
@@ -66,16 +76,52 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener();
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
+  const [userAnswer, setUserAnswer] = useState("");
+  const [answerModified, setAnswerModified] = useState(false); // true when userAnswer changed since last evaluation
+  const [autoRateCountdown, setAutoRateCountdown] = useState(false);
+  const [speakingSource, setSpeakingSource] = useState<SpeakingSource | null>(null); // tracks which button triggered TTS
   const [handsFree, setHandsFree] = useState(false);
+  const [cardsExpanded, setCardsExpanded] = useState(false);
+  const [isAddingCard, setIsAddingCard] = useState(false);
+  const [editingCard, setEditingCard] = useState<CardWithProgress | null>(null);
+  const [deletingCard, setDeletingCard] = useState<CardWithProgress | null>(null);
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteCards, setShowBulkDeleteCards] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showDeleteDeck, setShowDeleteDeck] = useState(false);
+  const [cardMenuOpenId, setCardMenuOpenId] = useState<string | null>(null);
+  const cardMenuRef = useRef<HTMLDivElement>(null);
   const handsFreeRef = useRef(false); // Ref to track hands-free in async callbacks
 
   // Refs for duration tracking
   const sessionStartRef = useRef<number>(0);
   const sessionDurationRef = useRef<number>(0);
 
+  // Wake Lock ref for hands-free mode
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
   // Derived
   const currentCard = cards[currentIndex] || null;
   const currentCardAlreadyRated = currentCard?.sessionRating !== null;
+
+  // Acquire/release Wake Lock when hands-free mode changes
+  useEffect(() => {
+    if (handsFree) {
+      navigator.wakeLock?.request("screen")
+        .then((lock) => { wakeLockRef.current = lock; })
+        .catch(() => {}); // Silent fail — not all browsers support Wake Lock
+    } else if (wakeLockRef.current) {
+      wakeLockRef.current.release().catch(() => {});
+      wakeLockRef.current = null;
+    }
+
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    };
+  }, [handsFree]);
 
   // Preload TTS audio when current card changes
   useEffect(() => {
@@ -87,9 +133,11 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // Stop recording and clear state when card changes
   useEffect(() => {
     cancelRecording();
-    stopSpeaking();
+    stopSpeakingTracked();
     clearTranscript();
     setEvaluationResult(null);
+    setUserAnswer("");
+    setAnswerModified(false);
   }, [currentIndex]);
 
   // Hands-free auto-loop: speak question, then auto-record
@@ -100,7 +148,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
     const runHandsFree = async () => {
       // Speak the question
-      await speakQuestion(currentCard.front);
+      await speakFrom(SpeakingSource.Question, currentCard.front);
       if (cancelled || !handsFreeRef.current) return;
 
       // Auto-start recording after TTS finishes
@@ -118,10 +166,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     return () => { cancelled = true; };
   }, [currentIndex, studySessionId]);
 
-  // Auto-evaluate when transcript arrives in hands-free mode
+  // Inject transcript into free response field and auto-evaluate in hands-free mode
   useEffect(() => {
-    if (handsFreeRef.current && transcript) {
-      handleEvaluate();
+    if (!transcript) return;
+    setUserAnswer(transcript);
+    if (handsFreeRef.current) {
+      handleEvaluate(transcript);
     }
   }, [transcript]);
 
@@ -132,11 +182,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     let rateTimer: ReturnType<typeof setTimeout>;
 
     const run = async () => {
-      await speakQuestion(evaluationResult.explanation);
+      await speakFrom(SpeakingSource.Evaluation, evaluationResult.explanation);
       if (!handsFreeRef.current) return;
 
-      // Wait 5 seconds then auto-rate with suggested rating
+      // Start countdown, then auto-rate with suggested rating
+      setAutoRateCountdown(true);
       rateTimer = setTimeout(() => {
+        setAutoRateCountdown(false);
         if (handsFreeRef.current) {
           handleRate(evaluationResult.suggestedRating);
         }
@@ -145,19 +197,48 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
     run();
 
-    return () => { clearTimeout(rateTimer); };
+    return () => {
+      setAutoRateCountdown(false);
+      clearTimeout(rateTimer);
+    };
   }, [evaluationResult]);
+
+  // Close card popover menu on outside click
+  useEffect(() => {
+    if (!cardMenuOpenId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (cardMenuRef.current && !cardMenuRef.current.contains(e.target as Node)) {
+        setCardMenuOpenId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [cardMenuOpenId]);
 
   // Disable hands-free mode (used when user manually interrupts)
   const disableHandsFree = () => {
     handsFreeRef.current = false;
     setHandsFree(false);
+    setAutoRateCountdown(false); // clear countdown animation
+  };
+
+  // Speak with source tracking so only the active button shows stop icon
+  const speakFrom = async (source: SpeakingSource, text: string) => {
+    setSpeakingSource(source);
+    await speakQuestion(text);
+    setSpeakingSource(null);
+  };
+
+  // Stop speaking and clear source
+  const stopSpeakingTracked = () => {
+    stopSpeaking();
+    setSpeakingSource(null);
   };
 
   // Speak the question, then auto-record if hands-free is on
   const handleSpeakAndRecord = async () => {
     if (!currentCard) return;
-    await speakQuestion(currentCard.front);
+    await speakFrom(SpeakingSource.Question, currentCard.front);
     if (!handsFreeRef.current) return;
 
     try {
@@ -168,9 +249,10 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
-  // Evaluate the user's spoken answer against the expected answer
-  const handleEvaluate = async () => {
-    if (!currentCard || !transcript) return;
+  // Evaluate the user's answer against the expected answer
+  const handleEvaluate = async (answerOverride?: string) => {
+    const answer = (answerOverride ?? userAnswer).trim();
+    if (!currentCard || !answer) return;
 
     setIsEvaluating(true);
     try {
@@ -180,7 +262,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
         body: JSON.stringify({
           question: currentCard.front,
           expectedAnswer: currentCard.back,
-          userAnswer: transcript,
+          userAnswer: answer,
           notes: currentCard.notes,
         }),
       });
@@ -192,6 +274,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
       const result: EvaluationResult = await response.json();
       setEvaluationResult(result);
+      setAnswerModified(false);
 
       // Reveal the answer
       setIsFlipped(true);
@@ -280,7 +363,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // Rate a card
   const handleRate = useCallback(
     async (rating: number) => {
-      if (!currentCard || currentCardAlreadyRated) return;
+      if (!currentCard) return;
+      const isReRating = currentCardAlreadyRated;
 
       // Update local state
       setCards((prev) =>
@@ -292,7 +376,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
       // Submit review to API
       if (studySessionId) {
         try {
-          await fetch(`/modules/rune/api/decks/${id}/study/review`, {
+          const response = await fetch(`/modules/rune/api/decks/${id}/study/review`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -302,6 +386,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               responseTimeMs: null,
             }),
           });
+          if (!response.ok) {
+            console.error("Failed to submit review:", response.status);
+          }
         } catch (error) {
           console.error("Error submitting review:", error);
         }
@@ -347,7 +434,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const handleQuit = useCallback(async () => {
     handsFreeRef.current = false;
     setHandsFree(false);
-    stopSpeaking();
+    stopSpeakingTracked();
     cancelRecording();
     await completeSession();
     setStudySessionId(null);
@@ -365,6 +452,149 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     setStudySessionId(null);
     startSession();
   }, []);
+
+  // Silent background refetch to reconcile client state with DB
+  const refetchCards = async () => {
+    try {
+      const response = await fetch(`/modules/rune/api/decks/${id}/cards`);
+      if (response.ok) {
+        const freshCards: CardWithProgress[] = await response.json();
+        setCards((prev) => {
+          // Preserve sessionRating from existing local state
+          const ratingMap = new Map(prev.map((c) => [c.id, c.sessionRating]));
+          return freshCards.map((c) => ({
+            ...c,
+            sessionRating: ratingMap.get(c.id) ?? null,
+          }));
+        });
+      }
+    } catch (error) {
+      console.error("Error refetching cards:", error);
+    }
+  };
+
+  // Add a new card
+  const handleAddCard = async (front: string, back: string, notes: string | null) => {
+    // Client update with temp card
+    const tempId = crypto.randomUUID();
+    const tempCard = { id: tempId, deck_id: id, front, back, notes, source: "manual", source_id: null, order_index: cards.length, is_disabled: false, created_at: new Date(), modified_at: new Date(), ease_factor: null, interval_days: null, repetitions: null, next_review_at: null, last_reviewed_at: null, sessionRating: null };
+    setCards((prev) => [...prev, tempCard as CardWithProgress & { sessionRating: number | null }]);
+    setIsAddingCard(false);
+
+    // Background DB insert + refetch to get real ID
+    await fetch(`/modules/rune/api/decks/${id}/cards`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ front, back, notes }),
+    });
+    refetchCards();
+  };
+
+  // Edit an existing card
+  const handleEditCard = async (cardId: string, front: string, back: string, notes: string | null) => {
+    // Client update first
+    setCards((prev) =>
+      prev.map((c) => c.id === cardId ? { ...c, front, back, notes } as typeof c : c)
+    );
+    setEditingCard(null);
+
+    // Background DB update + refetch
+    await fetch(`/modules/rune/api/decks/${id}/cards`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cardId, front, back, notes }),
+    });
+    refetchCards();
+  };
+
+  // Delete a single card
+  const handleDeleteCard = async (cardId: string) => {
+    // Client update first
+    setCards((prev) => prev.filter((c) => c.id !== cardId));
+    setDeletingCard(null);
+
+    // Background DB delete + refetch
+    try {
+      const response = await fetch(`/modules/rune/api/decks/${id}/cards`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId }),
+      });
+      if (!response.ok) {
+        toast.error("Failed to delete card");
+      }
+    } catch {
+      toast.error("Failed to delete card");
+    }
+    refetchCards();
+  };
+
+  // Toggle card selection
+  const toggleCardSelection = (cardId: string) => {
+    const next = new Set(selectedCardIds);
+    if (next.has(cardId)) { next.delete(cardId); } else { next.add(cardId); }
+    setSelectedCardIds(next);
+  };
+
+  // Toggle select all cards
+  const toggleSelectAllCards = () => {
+    if (selectedCardIds.size === cards.length) {
+      setSelectedCardIds(new Set());
+    } else {
+      setSelectedCardIds(new Set(cards.map((c) => c.id)));
+    }
+  };
+
+  // Bulk delete selected cards
+  const handleBulkDeleteCards = async () => {
+    if (selectedCardIds.size === 0) return;
+
+    // Client update first
+    const idsToDelete = new Set(selectedCardIds);
+    setCards((prev) => prev.filter((c) => !idsToDelete.has(c.id)));
+    setSelectedCardIds(new Set());
+    setShowBulkDeleteCards(false);
+
+    // Background DB deletes
+    setIsBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const cardId of idsToDelete) {
+        try {
+          const response = await fetch(`/modules/rune/api/decks/${id}/cards`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cardId }),
+          });
+          if (response.ok) { successCount++; } else { failCount++; }
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Deleted ${successCount} card${successCount === 1 ? "" : "s"}`);
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to delete ${failCount} card${failCount === 1 ? "" : "s"}`);
+      }
+
+      // Refetch for data integrity
+      refetchCards();
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  // Delete deck
+  const handleDeleteDeck = async () => {
+    const response = await fetch(`/modules/rune/api/decks/${id}`, { method: "DELETE" });
+    if (response.ok) {
+      router.push("/modules/rune/ui/decks");
+    }
+  };
 
   // LOADING
   if (isLoading) {
@@ -402,58 +632,39 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  // NO CARDS
-  if (cards.length === 0) {
-    return (
-      <div className="page">
-        <main className="page-container">
-          {/* BACK BUTTON */}
-          <Button
-            onClick={() => router.push("/modules/rune/ui/decks")}
-            className="btn-link !pl-0 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </Button>
-
-          {/* HEADER */}
-          <div className="mb-6">
-            <h1 className="text-page-title">{deck.name}</h1>
-            {deck.description && (
-              <p className="text-secondary">{deck.description}</p>
-            )}
-          </div>
-
-          {/* EMPTY STATE */}
-          <div className="card">
-            <p className="text-secondary text-center py-8">No cards in this deck</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   // PRE-SESSION: deck info + start button
   if (!studySessionId) {
     return (
       <div className="page">
-        <main className="page-container" style={{ maxWidth: "36rem" }}>
+        <main className="page-container">
 
-          {/* BACK BUTTON */}
-          <Button
-            onClick={() => router.push("/modules/rune/ui/decks")}
-            className="btn-link !pl-0 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </Button>
+          {/* HEADER */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              {/* BACK BUTTON */}
+              <Button
+                onClick={() => router.push("/modules/rune/ui/decks")}
+                className="btn-link !pl-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back</span>
+              </Button>
 
-          {/* DECK INFO */}
-          <div className="mb-6">
-            <h1 className="text-page-title">{deck.name}</h1>
-            {deck.description && (
-              <p className="text-secondary">{deck.description}</p>
-            )}
+              {/* TITLE */}
+              <h1 className="text-page-title">{deck.name}</h1>
+              {deck.description && (
+                <p className="text-secondary">{deck.description}</p>
+              )}
+            </div>
+
+            {/* DELETE DECK BUTTON */}
+            <Button
+              onClick={() => setShowDeleteDeck(true)}
+              className="btn-red !p-3"
+              title="Delete deck"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
 
           {/* STATS */}
@@ -471,6 +682,14 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 {cards.filter((c) => !c.next_review_at || new Date(c.next_review_at) <= new Date()).length}
               </p>
             </div>
+
+            {/* LAST REVIEWED */}
+            <div className="stat-card">
+              <p className="stat-label">Last Reviewed</p>
+              <p className="stat-value text-base">
+                {formatRelativePast(deck.last_reviewed_at)}
+              </p>
+            </div>
           </div>
 
           {/* HANDS-FREE CHECKBOX */}
@@ -479,8 +698,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               type="checkbox"
               checked={handsFree}
               onChange={(e) => {
-                handsFreeRef.current = e.target.checked;
-                setHandsFree(e.target.checked);
+                if (e.target.checked) {
+                  handsFreeRef.current = true;
+                  setHandsFree(true);
+                } else {
+                  disableHandsFree();
+                }
               }}
             />
             Hands-free mode
@@ -490,9 +713,173 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
           <Button
             onClick={handsFree ? startHandsFree : startSession}
             className="btn-blue w-full"
+            disabled={cards.length === 0}
           >
             Start Study Session
           </Button>
+
+          {/* CARDS SECTION (expandable) */}
+          <div className={`card mt-6 ${!cardsExpanded ? "!pb-2" : ""}`}>
+
+            {/* CARD HEADER (toggles expand) */}
+            <div
+              className={`card-header cursor-pointer ${!cardsExpanded ? "!pb-0" : ""}`}
+              onClick={() => setCardsExpanded((v) => !v)}
+            >
+              <h2 className="text-card-title">
+                Cards
+              </h2>
+
+              <div className="flex items-center gap-2">
+
+                {/* BULK DELETE BUTTON */}
+                {cardsExpanded && (
+                  <Button
+                    onClick={(e) => { e.stopPropagation(); setShowBulkDeleteCards(true); }}
+                    disabled={selectedCardIds.size === 0}
+                    className="btn-red relative !p-2"
+                    title={selectedCardIds.size > 0 ? `Delete ${selectedCardIds.size} card${selectedCardIds.size === 1 ? "" : "s"}` : "Select cards to delete"}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {selectedCardIds.size > 0 && (
+                      <span className="notification-count-red absolute -top-1 -right-1">
+                        {selectedCardIds.size}
+                      </span>
+                    )}
+                  </Button>
+                )}
+
+                {/* EXPAND CHEVRON */}
+                <ChevronDown className={`w-5 h-5 text-secondary transition-transform ${cardsExpanded ? "rotate-180" : ""}`} />
+              </div>
+            </div>
+
+            {/* TABLE (visible when expanded) */}
+            {cardsExpanded && (<>
+              <div className="table-container max-h-[400px] overflow-y-auto">
+                <table className="table">
+                  <thead className="table-header">
+                    <tr className="table-header-row">
+                      <th className="table-header-cell w-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedCardIds.size === cards.length && cards.length > 0}
+                          onChange={toggleSelectAllCards}
+                          className="checkbox"
+                        />
+                      </th>
+                      <th className="table-header-cell w-0">#</th>
+                      <th className="table-header-cell">Front</th>
+                      <th className="table-header-cell w-0"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="table-body">
+
+                    {/* EMPTY PLACEHOLDER */}
+                    {cards.length === 0 && (
+                      <tr className="table-row">
+                        <td className="table-empty" colSpan={4}>No cards in this deck</td>
+                      </tr>
+                    )}
+
+                    {/* CARD ROWS */}
+                    {cards.map((card, index) => (
+                      <tr key={card.id} className="table-row">
+                        <td className="table-cell">
+                          <input
+                            type="checkbox"
+                            checked={selectedCardIds.has(card.id)}
+                            onChange={() => toggleCardSelection(card.id)}
+                            className="checkbox"
+                          />
+                        </td>
+                        <td className="table-cell text-secondary">{index + 1}</td>
+                        <td className="table-cell max-w-[200px] truncate">{card.front}</td>
+                        <td className="table-cell !text-right whitespace-nowrap">
+
+                          {/* ACTION MENU */}
+                          <div className="relative inline-block" ref={cardMenuOpenId === card.id ? cardMenuRef : undefined}>
+
+                            {/* MENU TRIGGER BUTTON */}
+                            <Button
+                              onClick={(e) => { e.stopPropagation(); setCardMenuOpenId(cardMenuOpenId === card.id ? null : card.id); }}
+                              className="btn-link"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+
+                            {cardMenuOpenId === card.id && (
+                              <div className="popover-menu">
+
+                                {/* EDIT OPTION */}
+                                <button
+                                  className="popover-item"
+                                  onClick={() => { setCardMenuOpenId(null); setEditingCard(card); }}
+                                >
+                                  <Pencil className="w-4 h-4 mr-3" /> Edit
+                                </button>
+
+                                {/* DELETE OPTION */}
+                                <button
+                                  className="popover-item text-alert-red"
+                                  onClick={() => { setCardMenuOpenId(null); setDeletingCard(card); }}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-3" /> Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ADD CARD BUTTON */}
+              <div className="p-3">
+                <Button
+                  onClick={() => setIsAddingCard(true)}
+                  className="btn-link w-full"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Card
+                </Button>
+              </div>
+            </>)}
+          </div>
+
+          {/* MANAGE CARD MODAL (add or edit) */}
+          <ManageCardModal
+            isOpen={isAddingCard || !!editingCard}
+            editCard={editingCard}
+            onClose={() => { setIsAddingCard(false); setEditingCard(null); }}
+            onAdd={handleAddCard}
+            onEdit={handleEditCard}
+          />
+
+          {/* DELETE CARD MODAL (single) */}
+          <DeleteCardModal
+            card={deletingCard}
+            onClose={() => setDeletingCard(null)}
+            onConfirm={() => deletingCard ? handleDeleteCard(deletingCard.id) : Promise.resolve()}
+          />
+
+          {/* DELETE CARD MODAL (bulk) */}
+          <DeleteCardModal
+            isOpen={showBulkDeleteCards}
+            bulkCount={selectedCardIds.size}
+            onClose={() => setShowBulkDeleteCards(false)}
+            onConfirm={handleBulkDeleteCards}
+          />
+
+          {/* DELETE DECK MODAL */}
+          <DeleteDeckModal
+            isOpen={showDeleteDeck}
+            onClose={() => setShowDeleteDeck(false)}
+            deckName={deck.name}
+            onConfirm={handleDeleteDeck}
+          />
         </main>
       </div>
     );
@@ -590,8 +977,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 type="checkbox"
                 checked={handsFree}
                 onChange={(e) => {
-                  handsFreeRef.current = e.target.checked;
-                  setHandsFree(e.target.checked);
+                  if (e.target.checked) {
+                    handsFreeRef.current = true;
+                    setHandsFree(true);
+                  } else {
+                    disableHandsFree();
+                  }
                 }}
               />
               Hands-free
@@ -648,13 +1039,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
+                        if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
                         else { handleSpeakAndRecord(); }
                       }}
                       className="text-subtle hover:text-primary transition-colors cursor-pointer"
-                      title={isSpeaking ? "Stop speaking" : "Speak question"}
+                      title={speakingSource === SpeakingSource.Question ? "Stop speaking" : "Speak question"}
                     >
-                      {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      {speakingSource === SpeakingSource.Question ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
                   </div>
 
@@ -672,13 +1063,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
-                        else if (currentCard) { speakQuestion(currentCard.back); }
+                        if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
+                        else if (currentCard) { speakFrom(SpeakingSource.CardAnswer, currentCard.back); }
                       }}
                       className="text-subtle hover:text-primary transition-colors cursor-pointer"
-                      title={isSpeaking ? "Stop speaking" : "Speak answer"}
+                      title={speakingSource === SpeakingSource.CardAnswer ? "Stop speaking" : "Speak answer"}
                     >
-                      {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      {speakingSource === SpeakingSource.CardAnswer ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
                   </div>
 
@@ -693,43 +1084,41 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
 
-            {/* RECORD BUTTON */}
-            <Button
-              onClick={isRecording ? () => { stopRecording(); disableHandsFree(); } : () => { setEvaluationResult(null); startRecording(); }}
-              disabled={isSpeaking || isTranscribing}
-              className={`${isRecording ? "btn-red" : "btn-off"} w-full mt-3`}
-            >
-              {isRecording ? (
-                <><Square className="w-4 h-4" /> Stop</>
-              ) : (
-                <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
-              )}
-            </Button>
+            {/* YOUR ANSWER */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-subtle">YOUR ANSWER</p>
 
-            {/* TRANSCRIPT */}
-            {transcript && (
-              <div className="card mt-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-subtle text-xs">YOUR ANSWER</p>
-                  <button
-                    onClick={() => {
-                      if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
-                      else { speakQuestion(transcript); }
-                    }}
-                    className="text-subtle hover:text-primary transition-colors cursor-pointer"
-                    title={isSpeaking ? "Stop speaking" : "Speak transcript"}
-                  >
-                    {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-primary mt-1">{transcript}</p>
+                {/* RECORD BUTTON */}
+                <Button
+                  onClick={isRecording ? () => { stopRecording(); disableHandsFree(); } : () => { setEvaluationResult(null); setUserAnswer(""); startRecording(); }}
+                  disabled={isSpeaking || isTranscribing}
+                  className={`${isRecording ? "btn-red" : "btn-off"}`}
+                >
+                  {isRecording ? (
+                    <><Square className="w-4 h-4" /> Stop</>
+                  ) : (
+                    <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
+                  )}
+                </Button>
               </div>
-            )}
+
+              {/* USER ANSWER FIELD */}
+              <textarea
+                className="input-field w-full"
+                rows={3}
+                value={userAnswer}
+                onChange={(e) => { setUserAnswer(e.target.value); setAnswerModified(true); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEvaluate(); } }}
+                placeholder="Type or record your answer..."
+                disabled={isRecording || isTranscribing}
+              />
+            </div>
 
             {/* EVALUATE BUTTON */}
-            {transcript && !evaluationResult && (
+            {userAnswer.trim() && (!evaluationResult || answerModified) && (
               <Button
-                onClick={handleEvaluate}
+                onClick={() => handleEvaluate()}
                 disabled={isEvaluating}
                 className="btn-blue w-full mt-3 py-4 text-lg"
               >
@@ -745,21 +1134,21 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   <p className="font-semibold">{evaluationResult.correct ? "Correct" : "Incorrect"}</p>
                   <button
                     onClick={() => {
-                      if (isSpeaking) { stopSpeaking(); disableHandsFree(); }
-                      else { speakQuestion(evaluationResult.explanation); }
+                      if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
+                      else { speakFrom(SpeakingSource.Evaluation, evaluationResult.explanation); }
                     }}
                     className="text-inherit opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
-                    title={isSpeaking ? "Stop speaking" : "Speak evaluation"}
+                    title={speakingSource === SpeakingSource.Evaluation ? "Stop speaking" : "Speak evaluation"}
                   >
-                    {isSpeaking ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    {speakingSource === SpeakingSource.Evaluation ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                 </div>
                 <p className="text-sm mt-1">{evaluationResult.explanation}</p>
               </div>
             )}
 
-            {/* RATING BUTTONS — only visible when flipped and not yet rated */}
-            {isFlipped && !currentCardAlreadyRated && (
+            {/* RATING BUTTONS */}
+            {isFlipped && (
               <div className="flex gap-2 mt-5">
                 {[
                   { rating: 1, label: "AGAIN", className: "alert-red" },
@@ -770,17 +1159,17 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   <button
                     key={rating}
                     onClick={(e) => { e.stopPropagation(); handleRate(rating); }}
-                    className={`${className} cursor-pointer text-center flex-1 ${evaluationResult?.suggestedRating === rating ? "ring-2 ring-offset-2 ring-current" : ""}`}
+                    className={`${className} cursor-pointer text-center flex-1 ${currentCard.sessionRating === rating
+                      ? "ring-2 ring-offset-2 ring-current"
+                      : evaluationResult?.suggestedRating === rating && !currentCardAlreadyRated
+                        ? (autoRateCountdown ? "countdown-fill ring-2 ring-offset-2 ring-current" : "ring-2 ring-offset-2 ring-current")
+                        : ""
+                      }`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-            )}
-
-            {/* RATED INDICATOR */}
-            {isFlipped && currentCardAlreadyRated && currentCard.sessionRating !== null && (
-              <div className="text-secondary text-center mt-5">Rated: {ratingToLabel(currentCard.sessionRating)}</div>
             )}
 
             {/* NAVIGATION */}
