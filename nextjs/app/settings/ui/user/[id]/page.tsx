@@ -2,12 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Edit2, Save, Trash2 } from "lucide-react";
-import toast from "react-hot-toast";
+import { ArrowLeft, Edit2, Plus, Save, Trash2 } from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
 import { User } from "@/types/user";
+import { UserApiKeySummary } from "@/types/apiKey";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import DeleteUserModal from "./DeleteUserModal";
+import AddApiKeyModal from "./AddApiKeyModal";
+import RenameApiKeyModal from "./RenameApiKeyModal";
+import RevokeApiKeyModal from "./RevokeApiKeyModal";
 
 export default function UserDetailPage() {
   const params = useParams();
@@ -16,24 +20,45 @@ export default function UserDetailPage() {
 
   // DATA
   const [user, setUser] = useState<User | null>(null);
+  const [apiKeys, setApiKeys] = useState<UserApiKeySummary[]>([]);
 
   // INPUT
   const [editingUser, setEditingUser] = useState<Partial<User>>({});
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
+  const [isApiKeysLoading, setIsApiKeysLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isAddKeyModalOpen, setIsAddKeyModalOpen] = useState(false);
+  const [renameKeyTarget, setRenameKeyTarget] = useState<UserApiKeySummary | null>(null);
+  const [revokeKeyTarget, setRevokeKeyTarget] = useState<UserApiKeySummary | null>(null);
+  const [isRevokingKey, setIsRevokingKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch user
   useEffect(() => {
     if (userId) {
       fetchUser();
+      fetchApiKeys();
     }
   }, [userId]);
+
+  async function fetchApiKeys() {
+    try {
+      const response = await fetch("/api/users/me/api-keys");
+      if (response.ok) {
+        const data = await response.json();
+        setApiKeys(data);
+      }
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+    } finally {
+      setIsApiKeysLoading(false);
+    }
+  }
 
   async function fetchUser() {
     try {
@@ -115,6 +140,31 @@ export default function UserDetailPage() {
     }
   }
 
+  async function handleRevokeKey() {
+    if (!revokeKeyTarget) return;
+    setIsRevokingKey(true);
+    try {
+      const response = await fetch(`/api/users/me/api-keys/${revokeKeyTarget.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        toast.error(data.error || "Failed to revoke API key");
+        return;
+      }
+
+      toast.success("API key revoked");
+      setRevokeKeyTarget(null);
+      fetchApiKeys();
+    } catch (error) {
+      console.error("Error revoking API key:", error);
+      toast.error("Failed to revoke API key");
+    } finally {
+      setIsRevokingKey(false);
+    }
+  }
+
   async function handleDeleteUser() {
     setIsDeleting(true);
     try {
@@ -181,6 +231,9 @@ export default function UserDetailPage() {
 
   return (
     <div className="page">
+
+      <Toaster />
+
       <div className="page-container">
 
         {/* HEADER */}
@@ -378,6 +431,93 @@ export default function UserDetailPage() {
             )}
           </div>
         </div>
+
+        {/* API KEYS CARD */}
+        <div className="card mt-6">
+
+          {/* HEADER */}
+          <div className="card-header flex items-center justify-between">
+            <h3 className="text-card-title">API Keys</h3>
+
+            {/* ADD KEY BUTTON */}
+            <Button
+              className="btn-blue"
+              onClick={() => setIsAddKeyModalOpen(true)}
+            >
+              <Plus className="w-4 h-4" />
+              New Key
+            </Button>
+          </div>
+
+          {/* API KEYS TABLE */}
+          <div className="table-container" style={{ border: "none" }}>
+            <table className="table">
+              <thead className="table-header">
+                <tr className="table-header-row">
+                  <th className="table-header-cell">Name</th>
+                  <th className="table-header-cell">Prefix</th>
+                  <th className="table-header-cell">Created</th>
+                  <th className="table-header-cell">Last Used</th>
+                  <th className="table-header-cell"></th>
+                </tr>
+              </thead>
+              <tbody className="table-body">
+
+                {/* LOADING PLACEHOLDER */}
+                {isApiKeysLoading && (
+                  <tr className="table-row">
+                    <td className="table-cell" colSpan={5}>
+                      <div className="loading-container">
+                        <div className="loading-spinner" />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
+                {/* EMPTY PLACEHOLDER */}
+                {!isApiKeysLoading && apiKeys.length === 0 && (
+                  <tr className="table-row">
+                    <td className="table-empty" colSpan={5}>No API keys found</td>
+                  </tr>
+                )}
+
+                {/* API KEY ROWS */}
+                {!isApiKeysLoading && apiKeys.map((key) => (
+                  <tr key={key.id} className="table-row">
+                    <td className="table-cell">{key.name}</td>
+                    <td className="table-cell font-mono">{key.key_prefix}</td>
+                    <td className="table-cell">{new Date(key.ts_created).toLocaleString()}</td>
+                    <td className="table-cell">
+                      {key.ts_last_used ? new Date(key.ts_last_used).toLocaleString() : "Never"}
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex items-center justify-end gap-2">
+
+                        {/* RENAME BUTTON */}
+                        <Button
+                          className="btn-blue !p-2"
+                          onClick={() => setRenameKeyTarget(key)}
+                          title="Rename"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+
+                        {/* REVOKE BUTTON */}
+                        <Button
+                          className="btn-red !p-2"
+                          onClick={() => setRevokeKeyTarget(key)}
+                          title="Revoke"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* DELETE USER MODAL */}
@@ -387,6 +527,30 @@ export default function UserDetailPage() {
         onConfirm={handleDeleteUser}
         userName={user.name || user.email}
         isDeleting={isDeleting}
+      />
+
+      {/* ADD API KEY MODAL */}
+      <AddApiKeyModal
+        isOpen={isAddKeyModalOpen}
+        onClose={() => setIsAddKeyModalOpen(false)}
+        onKeyCreated={fetchApiKeys}
+      />
+
+      {/* RENAME API KEY MODAL */}
+      <RenameApiKeyModal
+        isOpen={!!renameKeyTarget}
+        onClose={() => setRenameKeyTarget(null)}
+        onKeyRenamed={fetchApiKeys}
+        apiKey={renameKeyTarget}
+      />
+
+      {/* REVOKE API KEY MODAL */}
+      <RevokeApiKeyModal
+        isOpen={!!revokeKeyTarget}
+        onClose={() => setRevokeKeyTarget(null)}
+        onConfirm={handleRevokeKey}
+        keyName={revokeKeyTarget?.name || ""}
+        isRevoking={isRevokingKey}
       />
     </div>
   );

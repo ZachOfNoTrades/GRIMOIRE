@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthorizedSession, isAdmin } from "@/lib/permissions";
+import { getAuthorizedConnection, isAdmin } from "@/lib/permissions";
 import { getUserById, updateUser, deleteUser, getGlobalAdminCount } from "@/lib/users";
 
 export async function GET(
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     // Auth guard
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -36,7 +36,7 @@ export async function PUT(
 ) {
   try {
     // Auth guard
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -80,7 +80,7 @@ export async function DELETE(
 ) {
   try {
     // Auth guard
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
