@@ -347,7 +347,8 @@ body {
 
 .navbar {
   background: var(--solid-background);
-  border: 1px solid var(--card-border);
+  border: none;
+  border-bottom: 1px solid var(--color-primary);
 }
 
 .bottom-action-bar {
@@ -1068,7 +1069,8 @@ body {
 
 .btn-blue {
   background: var(--btn-blue-bg);
-  color: white;
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
 }
 
 .btn-blue:hover:not(:disabled) {
@@ -1077,7 +1079,8 @@ body {
 
 .btn-green {
   background: var(--btn-green-bg);
-  color: white;
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
 }
 
 .btn-green:hover:not(:disabled) {
@@ -1086,7 +1089,8 @@ body {
 
 .btn-red {
   background: var(--btn-red-bg);
-  color: white;
+  border: 1px solid var(--alert-red-text);
+  color: var(--alert-red-text);
 }
 
 .btn-red:hover:not(:disabled) {
@@ -1308,12 +1312,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--badge-green-bg);
-  border-color: var(--badge-green-border);
   color: var(--badge-green-text);
 }
 
@@ -1323,12 +1328,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--table-header-bg);
-  border-color: var(--card-border);
   color: var(--color-gray);
 }
 
@@ -1337,12 +1343,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--badge-red-bg);
-  border-color: var(--badge-red-border);
   color: var(--badge-red-text);
 }
 
@@ -1351,12 +1358,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--badge-yellow-bg);
-  border-color: var(--badge-yellow-border);
   color: var(--badge-yellow-text);
 }
 
@@ -1365,12 +1373,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--badge-blue-bg);
-  border-color: var(--badge-blue-border);
   color: var(--badge-blue-text);
 }
 
@@ -1512,7 +1521,7 @@ body {
   width: 2rem;
   height: 2rem;
   border: 3px solid var(--card-border);
-  border-top-color: var(--color-secondary);
+  border-top-color: var(--color-primary);
   border-radius: 9999px;
   animation: spinner-spin 0.7s linear infinite;
 }
