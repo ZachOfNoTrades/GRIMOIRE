@@ -11,3 +11,8 @@ export interface UserApiKeySummary {
   ts_created: string;
   ts_last_used: string | null;
 }
+
+export interface CreatedApiKey {
+  plaintext: string;
+  summary: UserApiKeySummary;
+}
