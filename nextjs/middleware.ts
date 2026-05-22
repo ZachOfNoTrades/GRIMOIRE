@@ -1,10 +1,19 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
+function isApiPath(pathname: string): boolean {
+  return pathname.startsWith("/api/") || /^\/modules\/[^/]+\/api\//.test(pathname);
+}
+
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
     const pathname = req.nextUrl.pathname;
+
+    // Bypass the signin/authentication redirect
+    if (isApiPath(pathname) && req.headers.get("x-api-key")) {
+      return NextResponse.next();
+    }
 
     const authenticated = !!token;
     const authorized = !!token?.id;
@@ -29,6 +38,11 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         const pathname = req.nextUrl.pathname;
+
+        // Bypass authorization redirect
+        if (isApiPath(pathname) && req.headers.get("x-api-key")) {
+          return true;
+        }
 
         const authenticated = !!token;
         const authorized = !!token?.id;

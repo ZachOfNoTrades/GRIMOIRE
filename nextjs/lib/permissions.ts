@@ -1,14 +1,17 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { resolveApiKey } from "@/lib/apiKey";
 
-// Verifies the current session exists and the user is authorized.
-// Returns the session or null if unauthorized.
+// Verifies the current session exists and te user is authorized,
+// or accepts an x-api-key header
 export async function getAuthorizedSession() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return null;
-  }
-  return session;
+  if (session?.user?.id) return session;
+
+  const apiKeySession = await resolveApiKey(); // Check DB for key validity
+  if (apiKeySession) return apiKeySession;
+
+  return null;
 }
 
 // Checks if the current session user has admin privileges.
