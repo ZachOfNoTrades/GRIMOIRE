@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Edit2, Save, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { User } from "@/types/user";
+import { UserApiKeySummary } from "@/types/apiKey";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import DeleteUserModal from "./DeleteUserModal";
@@ -16,12 +17,14 @@ export default function UserDetailPage() {
 
   // DATA
   const [user, setUser] = useState<User | null>(null);
+  const [apiKeys, setApiKeys] = useState<UserApiKeySummary[]>([]);
 
   // INPUT
   const [editingUser, setEditingUser] = useState<Partial<User>>({});
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
+  const [isApiKeysLoading, setIsApiKeysLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -32,8 +35,23 @@ export default function UserDetailPage() {
   useEffect(() => {
     if (userId) {
       fetchUser();
+      fetchApiKeys();
     }
   }, [userId]);
+
+  async function fetchApiKeys() {
+    try {
+      const response = await fetch("/api/users/me/api-keys");
+      if (response.ok) {
+        const data = await response.json();
+        setApiKeys(data);
+      }
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+    } finally {
+      setIsApiKeysLoading(false);
+    }
+  }
 
   async function fetchUser() {
     try {
@@ -376,6 +394,61 @@ export default function UserDetailPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* API KEYS CARD */}
+        <div className="card mt-6">
+
+          {/* HEADER */}
+          <div className="card-header">
+            <h3 className="text-card-title">API Keys</h3>
+          </div>
+
+          {/* API KEYS TABLE */}
+          <div className="table-container" style={{ border: "none" }}>
+            <table className="table">
+              <thead className="table-header">
+                <tr className="table-header-row">
+                  <th className="table-header-cell">Name</th>
+                  <th className="table-header-cell">Prefix</th>
+                  <th className="table-header-cell">Created</th>
+                  <th className="table-header-cell">Last Used</th>
+                </tr>
+              </thead>
+              <tbody className="table-body">
+
+                {/* LOADING PLACEHOLDER */}
+                {isApiKeysLoading && (
+                  <tr className="table-row">
+                    <td className="table-cell" colSpan={4}>
+                      <div className="loading-container">
+                        <div className="loading-spinner" />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
+                {/* EMPTY PLACEHOLDER */}
+                {!isApiKeysLoading && apiKeys.length === 0 && (
+                  <tr className="table-row">
+                    <td className="table-empty" colSpan={4}>No API keys found</td>
+                  </tr>
+                )}
+
+                {/* API KEY ROWS */}
+                {!isApiKeysLoading && apiKeys.map((key) => (
+                  <tr key={key.id} className="table-row">
+                    <td className="table-cell">{key.name}</td>
+                    <td className="table-cell font-mono">{key.key_prefix}</td>
+                    <td className="table-cell">{new Date(key.ts_created).toLocaleString()}</td>
+                    <td className="table-cell">
+                      {key.ts_last_used ? new Date(key.ts_last_used).toLocaleString() : "Never"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

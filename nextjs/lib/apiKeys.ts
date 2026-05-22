@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "crypto";
 import { headers } from "next/headers";
 import type { Session } from "next-auth";
 import { getMainConnection } from "@/lib/db";
-import type { GeneratedApiKey } from "@/types/apiKey";
+import type { GeneratedApiKey, UserApiKeySummary } from "@/types/apiKey";
 
 const KEY_PREFIX = "grm_";
 const RANDOM_BYTES = 32;
@@ -66,4 +66,23 @@ export async function resolveApiKey(): Promise<Session | null> {
     },
     expires: "",
   };
+}
+
+export async function listUserApiKeys(userId: string): Promise<UserApiKeySummary[]> {
+  const pool = await getMainConnection();
+  const result = await pool
+    .request()
+    .input("userId", userId)
+    .query<UserApiKeySummary>(
+      `SELECT id, name, key_prefix, ts_created, ts_last_used
+       FROM dbo.user_api_keys
+       WHERE user_id = @userId AND revoked = 0
+       ORDER BY ts_created DESC`
+    );
+
+  if (result.recordset.length === 0) {
+    console.warn(`No api keys found for user id: '${userId}'`);
+  }
+
+  return result.recordset;
 }

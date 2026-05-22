@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveApiKey } from "@/lib/apiKey";
+import { resolveApiKey } from "@/lib/apiKeys";
 
 // Verifies the current session exists and te user is authorized,
 // or accepts an x-api-key header
