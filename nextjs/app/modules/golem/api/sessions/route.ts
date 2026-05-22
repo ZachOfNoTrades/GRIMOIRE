@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedConnection } from '@/lib/permissions';
 import { getAllWorkoutSessions, createWorkoutSession } from '../../lib/workoutSessionFunctions';
 
 export async function GET(request: Request) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

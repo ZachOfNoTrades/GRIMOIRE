@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedConnection } from '@/lib/permissions';
 import { getCurrentWorkoutSession } from '../../../lib/workoutSessionFunctions';
 
 export async function GET() {
   try {
-    const authSession = await getAuthorizedSession();
+    const authSession = await getAuthorizedConnection();
     if (!authSession) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

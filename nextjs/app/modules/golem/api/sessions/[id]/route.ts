@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedConnection } from '@/lib/permissions';
 import { getWorkoutSessionById, updateWorkoutSession, deleteWorkoutSession, resetWorkoutSession } from '../../../lib/workoutSessionFunctions';
 
 export async function GET(
@@ -7,7 +7,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authSession = await getAuthorizedSession();
+    const authSession = await getAuthorizedConnection();
     if (!authSession) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -40,7 +40,7 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authSession = await getAuthorizedSession();
+    const authSession = await getAuthorizedConnection();
     if (!authSession) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -77,7 +77,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authSession = await getAuthorizedSession();
+    const authSession = await getAuthorizedConnection();
     if (!authSession) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -113,7 +113,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authSession = await getAuthorizedSession();
+    const authSession = await getAuthorizedConnection();
     if (!authSession) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

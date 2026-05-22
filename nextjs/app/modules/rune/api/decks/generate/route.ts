@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedConnection } from '@/lib/permissions';
 import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { generateDeckFromNotion, generateDeckFromDescription } from '../../../lib/generationFunctions';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

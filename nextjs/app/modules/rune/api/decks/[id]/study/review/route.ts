@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedConnection } from '@/lib/permissions';
 import { submitCardReview, completeStudySession } from '../../../../../lib/studyFunctions';
 import { getDeckById } from '../../../../../lib/deckFunctions';
 
@@ -8,7 +8,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -61,7 +61,7 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

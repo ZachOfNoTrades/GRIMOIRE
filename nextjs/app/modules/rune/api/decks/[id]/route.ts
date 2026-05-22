@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedConnection } from '@/lib/permissions';
 import { getDeckById, deleteDeck } from '../../../lib/deckFunctions';
 
 export async function GET(
@@ -7,7 +7,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -39,7 +39,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedConnection } from '@/lib/permissions';
 import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { getWorkoutSessionById, getTemplateIdForSession, updateWorkoutSession } from '../../../../lib/workoutSessionFunctions';
@@ -12,7 +12,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authSession = await getAuthorizedSession();
+    const authSession = await getAuthorizedConnection();
     if (!authSession) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

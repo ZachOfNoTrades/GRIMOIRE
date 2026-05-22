@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getAuthorizedSession } from "@/lib/permissions";
+import { getAuthorizedConnection } from "@/lib/permissions";
 import { listUserApiKeys } from "@/lib/apiKeys";
 
 export async function GET() {
   try {
     // auth guard
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedConnection();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
