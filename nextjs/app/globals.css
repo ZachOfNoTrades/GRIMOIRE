@@ -402,8 +402,6 @@ body {
   flex-direction: column;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   padding: 1.5rem;
 }
 
@@ -439,15 +437,12 @@ body {
 .module-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   cursor: pointer;
   transition: all 200ms;
   padding: 1.5rem;
 }
 
 .module-card:hover {
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   border-color: var(--input-border);
 }
 
@@ -456,7 +451,6 @@ body {
   display: flex;
   align-items: center;
   background: var(--hover-bg);
-  border-radius: 0.5rem;
   padding: 0.625rem 0.75rem;
   cursor: pointer;
   transition: background 150ms ease-in-out;
@@ -479,7 +473,6 @@ body {
   flex-direction: column;
   background: var(--hover-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.5rem;
   padding: 1rem;
   transition: all 200ms ease-in-out;
 }
@@ -487,9 +480,7 @@ body {
 /* Using @media fixes stuck hover state on mobile */
 @media (hover: hover) {
   .sub-card:hover {
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.1);
     border-color: var(--input-border);
-    transform: translateY(-2px);
   }
 }
 
@@ -560,15 +551,12 @@ body {
 .module-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   transition: all 200ms ease-in-out;
   cursor: pointer;
   padding: 1.5rem;
 }
 
 .module-card:hover {
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   border-color: var(--input-border);
 }
 
@@ -577,7 +565,6 @@ body {
 }
 
 .module-card.module-card-disabled:hover {
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   border-color: var(--card-border);
 }
 
@@ -586,7 +573,6 @@ body {
   inset: 0;
   background-color: var(--hover-bg);
   opacity: 0.975;
-  border-radius: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -634,8 +620,6 @@ body {
 .modal-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   padding: 1rem;
   max-width: 600px;
   max-height: 85vh;
@@ -736,7 +720,6 @@ body {
   --alert-border-color: var(--alert-green-border);
   background: var(--alert-green-bg);
   border: 1px solid var(--alert-green-border);
-  border-radius: 0.75rem;
   color: var(--alert-green-text);
   padding: 0.75rem;
 }
@@ -745,7 +728,6 @@ body {
   --alert-border-color: var(--alert-yellow-border);
   background: var(--alert-yellow-bg);
   border: 1px solid var(--alert-yellow-border);
-  border-radius: 0.75rem;
   color: var(--alert-yellow-text);
   padding: 0.75rem;
 }
@@ -754,7 +736,6 @@ body {
   --alert-border-color: var(--alert-red-border);
   background: var(--alert-red-bg);
   border: 1px solid var(--alert-red-border);
-  border-radius: 0.75rem;
   color: var(--alert-red-text);
   padding: 0.75rem;
 }
@@ -763,7 +744,6 @@ body {
   --alert-border-color: var(--alert-blue-border);
   background: var(--alert-blue-bg);
   border: 1px solid var(--alert-blue-border);
-  border-radius: 0.75rem;
   color: var(--alert-blue-text);
   padding: 0.75rem;
 }
@@ -788,9 +768,7 @@ body {
 /* Input Fields */
 .input-field {
   background: var(--input-bg);
-  box-shadow: 0 1px px 0 rgb(0 0 0 / 0.05);
   border: 1px solid var(--input-border);
-  border-radius: 0.5rem;
   color: var(--color-primary);
   width: 100%;
   min-width: 120px;
@@ -821,9 +799,7 @@ body {
 /* Dropdown Fields */
 .dropdown-field {
   background: var(--input-bg);
-  box-shadow: 0 1px px 0 rgb(0 0 0 / 0.05);
   border: 1px solid var(--input-border);
-  border-radius: 0.5rem;
   color: var(--color-primary);
   width: 100%;
   min-width: 120px;
@@ -863,8 +839,6 @@ body {
   width: 10rem;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.375rem;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   padding: 0.25rem 0;
   z-index: 50;
   overflow-anchor: none;
@@ -981,8 +955,6 @@ body {
   max-width: 20rem;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   z-index: 9999;
   overflow: hidden;
 }
@@ -1042,7 +1014,6 @@ body {
   width: 1rem;
   height: 1rem;
   border: 1px solid var(--input-border);
-  border-radius: 0.25rem;
   background: var(--input-bg);
   cursor: pointer;
   position: relative;
@@ -1089,7 +1060,6 @@ body {
   gap: 0.5rem;
   padding: 0.5rem 1rem;
   font-weight: 500;
-  border-radius: 0.375rem;
   transition: all 200ms;
   border: none;
   cursor: pointer;
@@ -1137,7 +1107,6 @@ body {
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
   transition: all 200ms;
   cursor: pointer;
   color: var(--btn-link-text);
@@ -1182,7 +1151,6 @@ body {
   font-weight: 500;
   font-size: 0.875rem;
   line-height: 1.25rem;
-  border-radius: 0.375rem;
   cursor: pointer;
   transition: background 200ms;
   background: #ffffff;
@@ -1244,7 +1212,6 @@ body {
   color: var(--btn-blue-bg);
   border-bottom-color: var(--btn-blue-bg);
   background: var(--hover-bg);
-  border-radius: 0.375rem 0.375rem 0 0;
 }
 
 /* ========================================
@@ -1255,7 +1222,6 @@ body {
 .table-container {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.5rem;
   overflow: auto;
 }
 
@@ -1342,7 +1308,6 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid transparent;
@@ -1358,7 +1323,6 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid transparent;
@@ -1373,7 +1337,6 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid transparent;
@@ -1388,7 +1351,6 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid transparent;
@@ -1403,7 +1365,6 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid transparent;
@@ -1468,7 +1429,6 @@ body {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   padding: 1rem;
-  border-radius: 0.5rem;
   width: 100%;
 }
 
@@ -1476,7 +1436,6 @@ body {
   background: var(--alert-green-bg);
   border: 1px solid var(--alert-green-border);
   padding: 1rem;
-  border-radius: 0.5rem;
   width: 100%;
 }
 
@@ -1484,7 +1443,6 @@ body {
   background: var(--alert-yellow-bg);
   border: 1px solid var(--alert-yellow-border);
   padding: 1rem;
-  border-radius: 0.5rem;
   width: 100%;
 }
 
@@ -1492,7 +1450,6 @@ body {
   background: var(--alert-red-bg);
   border: 1px solid var(--alert-red-border);
   padding: 1rem;
-  border-radius: 0.5rem;
   width: 100%;
 }
 
@@ -1507,7 +1464,6 @@ body {
   flex-direction: column;
   align-items: center;
   border: 2px dashed var(--card-border);
-  border-radius: 0.5rem;
   padding: 2rem;
   text-align: center;
   transition: all 200ms ease-in-out;
@@ -1526,13 +1482,11 @@ body {
   background: var(--progress-bar-bg);
   margin-top: 0.5rem;
   width: auto;
-  border-radius: 9999px;
   height: 0.4rem;
 }
 
 .progress-bar-fill {
   height: 100%;
-  border-radius: 9999px;
 }
 
 .progress-bar-fill-blue {
@@ -1589,7 +1543,6 @@ body {
 .flashcard-container {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
   padding: 2rem 1.75rem;
   cursor: pointer;
   user-select: none;
@@ -1609,7 +1562,6 @@ body {
 .flashcard-progress-bar {
   display: flex;
   height: 4px;
-  border-radius: 2px;
   overflow: hidden;
   background: var(--progress-bar-bg);
   gap: 1px;
