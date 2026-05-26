@@ -88,7 +88,8 @@ BEGIN TRY
     -- Module registrations
     INSERT INTO modules (id, name, slug, description, icon) VALUES
     ('A0000000-0000-0000-0000-000000000001', 'GOLEM', 'golem', 'Workout Tracker', 'Dumbbell'),
-    ('A0000000-0000-0000-0000-000000000002', 'RUNE', 'rune', 'Flash Cards', 'BookOpen');
+    ('A0000000-0000-0000-0000-000000000002', 'RUNE', 'rune', 'Flash Cards', 'BookOpen'),
+    ('A0000000-0000-0000-0000-000000000003', 'Forage', 'forage', 'Food & macro tracker', 'Apple');
 
     COMMIT TRANSACTION MainDbInitialization;
     PRINT '';
