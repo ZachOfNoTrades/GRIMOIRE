@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Module } from "@/types/module";
 import { iconMap, defaultIcon } from "@/lib/iconMap";
+import VersionBadge from "@/components/VersionBadge";
 
 // A single navigable page within a module (route = /modules/<slug>/ui/<sub>).
 interface ModulePage {
@@ -265,6 +266,11 @@ export default function MainNavDrawer() {
                 );
               })}
             </div>
+
+            {/* BUILD FOOTER — outside .main-nav-body so it stays pinned to the
+                bottom of the panel while the module list scrolls. Carries the
+                full version + commit that the navbar chip truncates on a phone. */}
+            <VersionBadge />
           </aside>
         </div>,
         document.body

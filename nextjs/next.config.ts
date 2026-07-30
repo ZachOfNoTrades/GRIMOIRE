@@ -1,6 +1,51 @@
 import type { NextConfig } from "next";
+import { execSync } from "node:child_process";
+
+// BUILD IDENTITY — resolved once, when the dev server or build starts, and
+// inlined into both bundles via `env` below (see lib/version.ts for the typed
+// accessors). Every lookup is best-effort: a tarball export with no .git, or a
+// detached HEAD, must not fail the build — it just yields a blank/"unknown"
+// segment that the badge renders around.
+function readGit(command: string): string {
+  try {
+    return execSync(command, { cwd: __dirname, stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "";
+  }
+}
+
+// Build number = commits on the current branch. Self-bumping (every commit is a
+// new build), strictly increasing, and directly comparable — which is what a
+// hand-maintained semver stops being once the app revs on each requested change.
+// package.json's `version` is deliberately NOT the displayed version; it stays
+// put as npm metadata.
+const buildNumber = readGit("git rev-list --count HEAD");
+
+// Release channel shown on the tag. Named here rather than derived from the git
+// branch: the branch is a working name that gets renamed, while the channel is
+// what the tag promises about the build. Override per-deploy with
+// NEXT_PUBLIC_APP_CHANNEL.
+const RELEASE_CHANNEL = "ymir";
+
+const gitCommit = readGit("git rev-parse --short HEAD");
+// A dirty working tree means the running code is NOT the commit sha alone, so
+// mark it — otherwise the badge claims a precision it doesn't have on a dev box
+// where everything is uncommitted.
+const gitDirty = readGit("git status --porcelain") !== "";
 
 const nextConfig: NextConfig = {
+  // Exposed to the client (NEXT_PUBLIC_ prefix) so the nav-drawer footer can
+  // render without a round trip. Explicit env vars still win, which is how a
+  // deploy pins a channel name that isn't the one baked in here.
+  env: {
+    NEXT_PUBLIC_APP_BUILD: process.env.NEXT_PUBLIC_APP_BUILD || buildNumber,
+    NEXT_PUBLIC_APP_CHANNEL: process.env.NEXT_PUBLIC_APP_CHANNEL || RELEASE_CHANNEL,
+    NEXT_PUBLIC_APP_COMMIT:
+      process.env.NEXT_PUBLIC_APP_COMMIT || (gitCommit ? `${gitCommit}${gitDirty ? "-dirty" : ""}` : ""),
+  },
+
   // TypeScript IS type-checked at build time (the codebase is clean per
   // `tsc --noEmit`) — leave that gate on so real type errors fail the build.
   // ESLint is skipped only because this project has no ESLint config set up

@@ -1916,6 +1916,45 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   color: var(--badge-blue-text);
 }
 
+/* RELEASE / VERSION TAG — build-identity line pinned to the nav-drawer footer
+   (components/VersionBadge.tsx). Deliberately smaller and flatter than the
+   .badge-* family: it's ambient metadata, not a status the user has to act on. */
+.version-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.6rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+  background: var(--badge-yellow-bg);
+  color: var(--badge-yellow-text);
+}
+
+/* NAV DRAWER FOOTER LINE — pinned below the scrollable module list, so the
+   build identity is always one tap away without taking navbar space. */
+.version-line {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-top: 1px solid var(--card-border);
+}
+
+.version-line-build {
+  font-size: 0.65rem;
+  letter-spacing: 0.03em;
+  color: var(--color-gray);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* DASHBOARD MODULE-CARD BADGES — "what's due in this module" pills on the homepage cards.
    Composed with .badge-<tone> for color; these rules only resize and constrain them.
    The homepage grid is 2-up on mobile with no page-container side padding, so a card is
