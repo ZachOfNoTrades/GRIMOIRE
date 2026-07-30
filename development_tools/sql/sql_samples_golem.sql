@@ -357,6 +357,75 @@ BEGIN TRY
     (@sampleUserId, @tse_leg2_press, 2, 0, 10, 380.0, 7.5, NULL),
     (@sampleUserId, @tse_leg2_press, 3, 0, 8, 400.0, 8.0, NULL);
 
+    -- =============================
+    -- Sample Day Archetype + Slots (deterministic generation engine)
+    -- A reusable "day" = ordered slots; primary pinned for specificity, accessory scored + rotated.
+    -- =============================
+    DECLARE @sampleProgramId UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM programs WHERE user_id = @sampleUserId ORDER BY created_at);
+    DECLARE @mgChest UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Chest');
+    DECLARE @mgTriceps UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Triceps');
+    DECLARE @mgCore UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Core');
+    DECLARE @archUpperPush UNIQUEIDENTIFIER = NEWID();
+
+    INSERT INTO day_archetypes (id, user_id, program_id, name, description) VALUES
+    (@archUpperPush, @sampleUserId, @sampleProgramId, 'Upper Push (engine)', 'Sample archetype: horizontal-press primary + triceps accessory + timed core hold');
+
+    -- time_low/high_seconds is a CARDIO-only dose; rep-based and strength-hold (time_effort) slots leave it NULL.
+    -- The strength time_effort core slot has no range — the engine progresses it from logged history (self-report on first use).
+    INSERT INTO day_slots (user_id, day_archetype_id, order_index, role, target_muscle_group_id, category_filter, rotation_cadence, pinned_exercise_id, progression_model, rep_low, rep_high, time_low_seconds, time_high_seconds, target_rpe, load_step_pct, round_to_step, set_target) VALUES
+    (@sampleUserId, @archUpperPush, 1, 'primary',   @mgChest,   'Strength', 'per_block',   @benchPressId, 'double_progression',  6, 10, NULL, NULL, 7.5, 0.05, 5, 4),
+    (@sampleUserId, @archUpperPush, 2, 'accessory', @mgTriceps, 'Strength', 'per_session', NULL,          'double_progression', 10, 15, NULL, NULL, 8.0, 0.05, 5, 3),
+    (@sampleUserId, @archUpperPush, 3, 'core',      @mgCore,    'Strength', 'per_session', NULL,          'time_effort',          8, 12, NULL, NULL, NULL, 0.05, 5, 3);
+
+    -- =============================
+    -- More sample day archetypes (deterministic generation engine)
+    -- Rounds out a push/pull/legs split (the Upper Push above) and adds a conditioning day, so the engine
+    -- has varied slots to fill: pinned specificity (per_block) vs. scored selection (per_session), every
+    -- role in the vocabulary, and time_effort on both strength holds (no range; progressed from history)
+    -- and a Cardio interval block (time_low/high_seconds carries the dose).
+    -- =============================
+    DECLARE @mgQuads      UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Quads');
+    DECLARE @mgHamstrings UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Hamstrings');
+    DECLARE @mgGlutes     UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Glutes');
+    DECLARE @mgCalves     UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Calves');
+    DECLARE @mgLats       UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Lats');
+    DECLARE @mgUpperBack  UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Upper Back');
+    DECLARE @mgShoulders  UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Shoulders');
+    DECLARE @mgBiceps     UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Biceps');
+    DECLARE @mgForearms   UNIQUEIDENTIFIER = (SELECT id FROM muscle_groups WHERE name = 'Forearms');
+
+    DECLARE @archLowerSquat   UNIQUEIDENTIFIER = NEWID();
+    DECLARE @archUpperPull    UNIQUEIDENTIFIER = NEWID();
+    DECLARE @archConditioning UNIQUEIDENTIFIER = NEWID();
+
+    -- Two program-attached "days" plus one program_id NULL library archetype (reusable across programs).
+    INSERT INTO day_archetypes (id, user_id, program_id, name, description) VALUES
+    (@archLowerSquat,   @sampleUserId, @sampleProgramId, 'Lower - Squat Focus (engine)',      'Sample archetype: squat primary + hip-hinge secondary + unilateral quad + glute/calf isolation + timed core'),
+    (@archUpperPull,    @sampleUserId, @sampleProgramId, 'Upper Pull (engine)',               'Sample archetype: vertical-pull primary + scored horizontal row + rear-delt/biceps isolation + timed grip carry'),
+    (@archConditioning, @sampleUserId, NULL,             'Conditioning - Intervals (engine)', 'Sample library archetype (no program): timed cardio intervals + timed core finisher - exercises the Cardio + time_effort path');
+
+    -- Lower - Squat Focus: pinned squat + hinge + unilateral (per_block specificity); glute/calf scored (per_session); strength time_effort core hold (no range).
+    INSERT INTO day_slots (user_id, day_archetype_id, order_index, role, target_muscle_group_id, category_filter, rotation_cadence, pinned_exercise_id, progression_model, rep_low, rep_high, time_low_seconds, time_high_seconds, target_rpe, load_step_pct, round_to_step, set_target) VALUES
+    (@sampleUserId, @archLowerSquat, 1, 'primary',    @mgQuads,      'Strength', 'per_block',   @backSquatId,        'double_progression',  5,  8, NULL, NULL, 7.5, 0.05, 5, 4),
+    (@sampleUserId, @archLowerSquat, 2, 'secondary',  @mgHamstrings, 'Strength', 'per_block',   @romanianDeadliftId, 'double_progression',  8, 12, NULL, NULL, 8.0, 0.05, 5, 3),
+    (@sampleUserId, @archLowerSquat, 3, 'unilateral', @mgQuads,      'Strength', 'per_block',   @splitSquatId,       'double_progression',  8, 12, NULL, NULL, 8.0, 0.05, 5, 3),
+    (@sampleUserId, @archLowerSquat, 4, 'isolation',  @mgGlutes,     'Strength', 'per_session', NULL,                'double_progression', 10, 15, NULL, NULL, 8.0, 0.05, 5, 3),
+    (@sampleUserId, @archLowerSquat, 5, 'isolation',  @mgCalves,     'Strength', 'per_session', NULL,                'double_progression', 12, 20, NULL, NULL, 8.0, 0.05, 5, 4),
+    (@sampleUserId, @archLowerSquat, 6, 'core',       @mgCore,       'Strength', 'per_session', NULL,                'time_effort',          8, 12, NULL, NULL, NULL, 0.05, 5, 3);
+
+    -- Upper Pull: pinned vertical pull (per_block); scored horizontal row + rear-delt + biceps (per_session); strength time_effort grip carry (no range).
+    INSERT INTO day_slots (user_id, day_archetype_id, order_index, role, target_muscle_group_id, category_filter, rotation_cadence, pinned_exercise_id, progression_model, rep_low, rep_high, time_low_seconds, time_high_seconds, target_rpe, load_step_pct, round_to_step, set_target) VALUES
+    (@sampleUserId, @archUpperPull, 1, 'primary',   @mgLats,      'Strength', 'per_block',   @pullUpId, 'double_progression',  6, 10, NULL, NULL, 7.5, 0.05, 5, 4),
+    (@sampleUserId, @archUpperPull, 2, 'secondary', @mgUpperBack, 'Strength', 'per_session', NULL,      'double_progression',  8, 12, NULL, NULL, 8.0, 0.05, 5, 3),
+    (@sampleUserId, @archUpperPull, 3, 'isolation', @mgShoulders, 'Strength', 'per_session', NULL,      'double_progression', 12, 20, NULL, NULL, 8.0, 0.05, 5, 3),
+    (@sampleUserId, @archUpperPull, 4, 'isolation', @mgBiceps,    'Strength', 'per_session', NULL,      'double_progression', 10, 15, NULL, NULL, 8.0, 0.05, 5, 3),
+    (@sampleUserId, @archUpperPull, 5, 'carry',     @mgForearms,  'Strength', 'per_session', NULL,      'time_effort',          8, 12, NULL, NULL, NULL, 0.05, 5, 3);
+
+    -- Conditioning - Intervals: a Cardio interval block (8 timed rounds, e.g. bike/sprints — seconds dose set) + a strength time_effort core finisher (no range).
+    INSERT INTO day_slots (user_id, day_archetype_id, order_index, role, target_muscle_group_id, category_filter, rotation_cadence, pinned_exercise_id, progression_model, rep_low, rep_high, time_low_seconds, time_high_seconds, target_rpe, load_step_pct, round_to_step, set_target) VALUES
+    (@sampleUserId, @archConditioning, 1, 'conditioning', @mgQuads, 'Cardio',   'per_session', NULL, 'time_effort', 8, 12, 30,   60,   NULL, 0.05, 5, 8),
+    (@sampleUserId, @archConditioning, 2, 'core',         @mgCore,  'Strength', 'per_session', NULL, 'time_effort', 8, 12, NULL, NULL, NULL, 0.05, 5, 3);
+
     COMMIT TRANSACTION GolemDbSampleRecords;
     PRINT '';
     PRINT 'GOLEM records created successfully.'

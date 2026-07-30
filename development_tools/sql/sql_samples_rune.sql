@@ -1,6 +1,6 @@
 -- =============================
 -- Flash Cards (RUNE) Sample Data
--- Version: 202603180000
+-- Version: 202607020000
 -- =============================
 
 BEGIN TRANSACTION RuneDbSampleRecords;
@@ -12,62 +12,84 @@ BEGIN TRY
     -- =============================
     -- Decks
     -- =============================
-    INSERT INTO decks (id, user_id, name, description, is_archived) VALUES
-    ('11111111-1111-1111-1111-111111111111', @sampleUserId, 'Anatomy & Physiology', 'Major muscles, bones, and body systems', 0),
-    ('22222222-2222-2222-2222-222222222222', @sampleUserId, 'Japanese N5 Vocabulary', 'JLPT N5 level vocabulary', 0),
-    ('33333333-3333-3333-3333-333333333333', @sampleUserId, 'SQL Fundamentals', 'Core SQL concepts and syntax', 1);
+    INSERT INTO decks (id, user_id, name, description, source_url, is_archived) VALUES
+    ('11111111-1111-1111-1111-111111111111', @sampleUserId, 'Anatomy & Physiology', 'Major muscles, bones, and body systems', NULL, 0),
+    ('22222222-2222-2222-2222-222222222222', @sampleUserId, 'Japanese N5 Vocabulary', 'JLPT N5 level vocabulary', 'https://www.notion.so/japanese-n5-vocab-abc123', 0),
+    ('33333333-3333-3333-3333-333333333333', @sampleUserId, 'SQL Fundamentals', 'Core SQL concepts and syntax', NULL, 1);
 
     -- =============================
     -- Cards
     -- =============================
     -- Anatomy deck cards
-    INSERT INTO cards (id, user_id, deck_id, front, back, notes, source, source_id, order_index, is_disabled) VALUES
-    ('AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', @sampleUserId, '11111111-1111-1111-1111-111111111111', 'What muscle is the primary hip extensor?', 'Gluteus Maximus', 'Also assists with external rotation of the hip', 'manual', NULL, 1, 0),
-    ('BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', @sampleUserId, '11111111-1111-1111-1111-111111111111', 'What are the three heads of the triceps?', 'Long head, lateral head, medial head', 'The long head crosses the shoulder joint', 'manual', NULL, 2, 0),
-    ('CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', @sampleUserId, '11111111-1111-1111-1111-111111111111', 'What is the origin of the pectoralis major?', 'Clavicle, sternum, and upper ribs', NULL, 'manual', NULL, 3, 0),
-    ('DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD', @sampleUserId, '11111111-1111-1111-1111-111111111111', 'What does the anterior deltoid do?', 'Shoulder flexion and internal rotation', NULL, 'manual', NULL, 4, 0);
+    INSERT INTO cards (id, user_id, deck_id, front, back, notes, category, source, source_id, order_index, is_disabled) VALUES
+    ('AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', @sampleUserId, '11111111-1111-1111-1111-111111111111', 'What muscle is the primary hip extensor?', 'Gluteus Maximus', 'Also assists with external rotation of the hip', 'Lower Body', 'manual', NULL, 1, 0),
+    ('BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', @sampleUserId, '11111111-1111-1111-1111-111111111111', 'What are the three heads of the triceps?', 'Long head, lateral head, medial head', 'The long head crosses the shoulder joint', 'Upper Body', 'manual', NULL, 2, 0),
+    ('CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', @sampleUserId, '11111111-1111-1111-1111-111111111111', 'What is the origin of the pectoralis major?', 'Clavicle, sternum, and upper ribs', NULL, 'Upper Body', 'manual', NULL, 3, 0),
+    ('DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD', @sampleUserId, '11111111-1111-1111-1111-111111111111', 'What does the anterior deltoid do?', 'Shoulder flexion and internal rotation', NULL, 'Upper Body', 'manual', NULL, 4, 0);
 
     -- Japanese deck cards
-    INSERT INTO cards (id, user_id, deck_id, front, back, notes, source, source_id, order_index, is_disabled) VALUES
-    ('EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE', @sampleUserId, '22222222-2222-2222-2222-222222222222', '食べる', 'たべる — to eat', 'Ichidan (ru-verb)', 'manual', NULL, 1, 0),
-    ('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF', @sampleUserId, '22222222-2222-2222-2222-222222222222', '飲む', 'のむ — to drink', 'Godan (u-verb)', 'manual', NULL, 2, 0),
-    ('44444444-4444-4444-4444-444444444444', @sampleUserId, '22222222-2222-2222-2222-222222222222', '大きい', 'おおきい — big, large', 'i-adjective', 'manual', NULL, 3, 0);
+    INSERT INTO cards (id, user_id, deck_id, front, back, notes, category, source, source_id, order_index, is_disabled) VALUES
+    ('EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE', @sampleUserId, '22222222-2222-2222-2222-222222222222', '食べる', 'たべる — to eat', 'Ichidan (ru-verb)', 'Verbs', 'manual', NULL, 1, 0),
+    ('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF', @sampleUserId, '22222222-2222-2222-2222-222222222222', '飲む', 'のむ — to drink', 'Godan (u-verb)', 'Verbs', 'manual', NULL, 2, 0),
+    ('44444444-4444-4444-4444-444444444444', @sampleUserId, '22222222-2222-2222-2222-222222222222', '大きい', 'おおきい — big, large', 'i-adjective', 'Adjectives', 'manual', NULL, 3, 0);
 
-    -- SQL deck cards (archived deck)
-    INSERT INTO cards (id, user_id, deck_id, front, back, notes, source, source_id, order_index, is_disabled) VALUES
-    ('55555555-5555-5555-5555-555555555555', @sampleUserId, '33333333-3333-3333-3333-333333333333', 'What does INNER JOIN do?', 'Returns only rows that have matching values in both tables', NULL, 'manual', NULL, 1, 0),
-    ('66666666-6666-6666-6666-666666666666', @sampleUserId, '33333333-3333-3333-3333-333333333333', 'Difference between WHERE and HAVING?', 'WHERE filters rows before grouping; HAVING filters groups after GROUP BY', NULL, 'manual', NULL, 2, 0);
+    -- SQL deck cards (archived deck) — left uncategorized to exercise the "Uncategorized" bucket
+    INSERT INTO cards (id, user_id, deck_id, front, back, notes, category, source, source_id, order_index, is_disabled) VALUES
+    ('55555555-5555-5555-5555-555555555555', @sampleUserId, '33333333-3333-3333-3333-333333333333', 'What does INNER JOIN do?', 'Returns only rows that have matching values in both tables', NULL, NULL, 'manual', NULL, 1, 0),
+    ('66666666-6666-6666-6666-666666666666', @sampleUserId, '33333333-3333-3333-3333-333333333333', 'Difference between WHERE and HAVING?', 'WHERE filters rows before grouping; HAVING filters groups after GROUP BY', NULL, NULL, 'manual', NULL, 2, 0);
+
+    -- =============================
+    -- Collections (a named group of decks, studied as one session)
+    -- =============================
+    INSERT INTO collections (id, user_id, name, description) VALUES
+    ('C0110000-0000-0000-0000-000000000001', @sampleUserId, 'Exam Prep', 'Everything to review before the exam');
+
+    -- Membership — one collection spanning two decks, so a collection study session
+    -- draws due cards from both.
+    INSERT INTO collection_decks (collection_id, deck_id, order_index) VALUES
+    ('C0110000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 0),
+    ('C0110000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 1);
 
     -- =============================
     -- Study Sessions
+    -- A session is scoped to EITHER one deck or one collection (never both) —
+    -- the last row below is a collection-wide session.
     -- =============================
-    INSERT INTO study_sessions (id, user_id, deck_id, started_at, completed_at, duration, cards_studied, cards_correct) VALUES
-    ('77777777-7777-7777-7777-777777777777', @sampleUserId, '11111111-1111-1111-1111-111111111111', '2026-03-15 09:00:00', '2026-03-15 09:08:00', 480, 4, 3),
-    ('88888888-8888-8888-8888-888888888888', @sampleUserId, '11111111-1111-1111-1111-111111111111', '2026-03-17 08:30:00', '2026-03-17 08:35:00', 300, 4, 4),
-    ('99999999-9999-9999-9999-999999999999', @sampleUserId, '22222222-2222-2222-2222-222222222222', '2026-03-16 20:00:00', '2026-03-16 20:05:00', 300, 3, 2);
+    INSERT INTO study_sessions (id, user_id, deck_id, collection_id, started_at, completed_at, duration, cards_studied, cards_correct) VALUES
+    ('77777777-7777-7777-7777-777777777777', @sampleUserId, '11111111-1111-1111-1111-111111111111', NULL, '2026-03-15 09:00:00', '2026-03-15 09:08:00', 480, 4, 3),
+    ('88888888-8888-8888-8888-888888888888', @sampleUserId, '11111111-1111-1111-1111-111111111111', NULL, '2026-03-17 08:30:00', '2026-03-17 08:35:00', 300, 4, 4),
+    ('99999999-9999-9999-9999-999999999999', @sampleUserId, '22222222-2222-2222-2222-222222222222', NULL, '2026-03-16 20:00:00', '2026-03-16 20:05:00', 300, 3, 2),
+    ('C0115E55-0000-0000-0000-000000000001', @sampleUserId, NULL, 'C0110000-0000-0000-0000-000000000001', '2026-03-18 07:45:00', '2026-03-18 07:52:00', 420, 3, 3);
 
     -- =============================
     -- Card Reviews
     -- =============================
     -- Session 1: Anatomy (March 15)
     INSERT INTO card_reviews (user_id, card_id, study_session_id, rating, response_time_ms) VALUES
-    ('AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', @sampleUserId, '77777777-7777-7777-7777-777777777777', 4, 2100),
-    ('BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', @sampleUserId, '77777777-7777-7777-7777-777777777777', 3, 4500),
-    ('CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', @sampleUserId, '77777777-7777-7777-7777-777777777777', 2, 8200),
-    ('DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD', @sampleUserId, '77777777-7777-7777-7777-777777777777', 3, 3800);
+    (@sampleUserId, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', '77777777-7777-7777-7777-777777777777', 4, 2100),
+    (@sampleUserId, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', '77777777-7777-7777-7777-777777777777', 3, 4500),
+    (@sampleUserId, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', '77777777-7777-7777-7777-777777777777', 2, 8200),
+    (@sampleUserId, 'DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD', '77777777-7777-7777-7777-777777777777', 3, 3800);
 
     -- Session 2: Anatomy (March 17)
     INSERT INTO card_reviews (user_id, card_id, study_session_id, rating, response_time_ms) VALUES
-    ('AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', @sampleUserId, '88888888-8888-8888-8888-888888888888', 4, 1500),
-    ('BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', @sampleUserId, '88888888-8888-8888-8888-888888888888', 4, 2800),
-    ('CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', @sampleUserId, '88888888-8888-8888-8888-888888888888', 3, 5100),
-    ('DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD', @sampleUserId, '88888888-8888-8888-8888-888888888888', 4, 2200);
+    (@sampleUserId, 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', '88888888-8888-8888-8888-888888888888', 4, 1500),
+    (@sampleUserId, 'BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB', '88888888-8888-8888-8888-888888888888', 4, 2800),
+    (@sampleUserId, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', '88888888-8888-8888-8888-888888888888', 3, 5100),
+    (@sampleUserId, 'DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD', '88888888-8888-8888-8888-888888888888', 4, 2200);
 
     -- Session 3: Japanese (March 16)
     INSERT INTO card_reviews (user_id, card_id, study_session_id, rating, response_time_ms) VALUES
-    ('EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE', @sampleUserId, '99999999-9999-9999-9999-999999999999', 3, 3200),
-    ('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF', @sampleUserId, '99999999-9999-9999-9999-999999999999', 1, 9500),
-    ('44444444-4444-4444-4444-444444444444', @sampleUserId, '99999999-9999-9999-9999-999999999999', 3, 4100);
+    (@sampleUserId, 'EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE', '99999999-9999-9999-9999-999999999999', 3, 3200),
+    (@sampleUserId, 'FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF', '99999999-9999-9999-9999-999999999999', 1, 9500),
+    (@sampleUserId, '44444444-4444-4444-4444-444444444444', '99999999-9999-9999-9999-999999999999', 3, 4100);
+
+    -- Session 4: Exam Prep collection (March 18) — one session, cards from BOTH
+    -- member decks, which is the whole point of a collection.
+    INSERT INTO card_reviews (user_id, card_id, study_session_id, rating, response_time_ms) VALUES
+    (@sampleUserId, 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC', 'C0115E55-0000-0000-0000-000000000001', 3, 4400),
+    (@sampleUserId, 'EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE', 'C0115E55-0000-0000-0000-000000000001', 4, 2600),
+    (@sampleUserId, 'FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF', 'C0115E55-0000-0000-0000-000000000001', 3, 5300);
 
     -- =============================
     -- Card Progress (current spaced repetition state)

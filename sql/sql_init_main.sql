@@ -57,10 +57,58 @@ BEGIN TRY
         CREATE INDEX IX_generation_log_user_created ON generation_log (user_id, ts_created);
     END
 
+    -- =============================
+    -- User API Keys
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_api_keys' AND xtype='U')
+    BEGIN
+        CREATE TABLE user_api_keys (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            name NVARCHAR(100) NOT NULL,
+            key_prefix NVARCHAR(16) NOT NULL,
+            key_hash VARBINARY(32) NOT NULL,
+            ts_created DATETIME DEFAULT GETDATE(),
+            ts_last_used DATETIME NULL,
+            revoked BIT NOT NULL DEFAULT 0,
+            ts_revoked DATETIME NULL,
+
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            CONSTRAINT UQ_user_api_keys_hash UNIQUE (key_hash)
+        );
+
+        -- Filtered unique so a user can reuse a name after revoking the old key.
+        CREATE UNIQUE INDEX UX_user_api_keys_active_name
+            ON user_api_keys (user_id, name) WHERE revoked = 0;
+
+        CREATE INDEX IX_user_api_keys_user_active
+            ON user_api_keys (user_id) WHERE revoked = 0;
+    END
+
+    -- =============================
+    -- User Module Access (per-user allow-list)
+    -- =============================
+    -- Empty table for a user == full access ("give everyone everything" default);
+    -- one or more rows restricts that user to exactly the granted modules. A
+    -- global_admin always sees every module regardless. See lib/moduleAccess.ts.
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_modules' AND xtype='U')
+    BEGIN
+        CREATE TABLE user_modules (
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            module_id UNIQUEIDENTIFIER NOT NULL,
+            ts_created DATETIME DEFAULT GETDATE(),
+
+            CONSTRAINT PK_user_modules PRIMARY KEY (user_id, module_id),
+            CONSTRAINT FK_user_modules_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            CONSTRAINT FK_user_modules_module FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
+        );
+    END
+
     -- Module registrations
     INSERT INTO modules (id, name, slug, description, icon) VALUES
     ('A0000000-0000-0000-0000-000000000001', 'GOLEM', 'golem', 'Workout Tracker', 'Dumbbell'),
-    ('A0000000-0000-0000-0000-000000000002', 'RUNE', 'rune', 'Flash Cards', 'BookOpen');
+    ('A0000000-0000-0000-0000-000000000002', 'RUNE', 'rune', 'Flash Cards', 'BookOpen'),
+    ('A0000000-0000-0000-0000-000000000004', 'Forage', 'forage', 'Food & macro tracker', 'Apple');
 
     COMMIT TRANSACTION MainDbInitialization;
     PRINT '';
