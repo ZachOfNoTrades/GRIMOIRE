@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { ExerciseHistoryEntry } from "../../../types/exercise";
 import { HistoryRange, formatDateShortWithYear, formatDuration } from "../../../utils/format";
+import { DistanceUnit, DISTANCE_UNIT_ABBREV, metersToUnit } from "../../../utils/units";
 
 const rangeOptions: { value: HistoryRange; label: string }[] = [
   { value: "6m", label: "6 Months" },
@@ -22,9 +23,11 @@ interface HistoryTabProps {
   totalCount?: number;
   highlightSessionId?: string;
   onSessionClick?: (sessionId: string) => void;
+  // Display unit for logged distance (set when the exercise tracks distance); undefined = don't show distance.
+  distanceUnit?: DistanceUnit;
 }
 
-export default function HistoryTab({ history, loading, range, customStartDate, customEndDate, onRangeChange, onCustomDateChange, totalCount, highlightSessionId, onSessionClick }: HistoryTabProps) {
+export default function HistoryTab({ history, loading, range, customStartDate, customEndDate, onRangeChange, onCustomDateChange, totalCount, highlightSessionId, onSessionClick, distanceUnit }: HistoryTabProps) {
 
   // Whether the current filter is hiding older results
   const hasOlderHistory = totalCount != null && totalCount > history.length;
@@ -156,6 +159,9 @@ export default function HistoryTab({ history, loading, range, customStartDate, c
                           {set.weight > 0 ? `${set.weight}` : "BW"} x {set.reps}
                         </>
                     }
+                    {distanceUnit && set.distance != null && set.distance > 0 && (
+                      <span className="text-secondary"> · {metersToUnit(set.distance, distanceUnit)}{DISTANCE_UNIT_ABBREV[distanceUnit]}</span>
+                    )}
                     {set.rpe != null && <span className="text-secondary"> @{set.rpe}</span>}
                   </p>
                 ))}

@@ -4,8 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, StickyNote, X, Circle, CircleCheck, EllipsisVertical, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
+import PopoverMenu from "@/components/PopoverMenu";
 import { SegmentWithSets } from "../../../types/segment";
 import { generateUUID } from "../../../utils/id";
+import { DistanceUnit, DISTANCE_UNIT_ABBREV, DEFAULT_SHORT_UNIT, metersToUnit, unitToMeters } from "../../../utils/units";
 
 enum SetField {
   Weight = "weight",
@@ -15,6 +17,7 @@ enum SetField {
   TimeSeconds = "time_seconds",
   TimeHours = "time_hours",
   TimeMinutes = "time_minutes",
+  Distance = "distance",
 }
 
 interface SetTabProps {
@@ -24,6 +27,13 @@ interface SetTabProps {
   onAutoSave: (segment: SegmentWithSets) => void;
   exerciseCategory: string;
   isTimed: boolean;
+  // Distance modality of the exercise ('short' | 'long' | null) and the resolved display unit for that
+  // band, from the user's preferences. When distanceType is set, a distance input is shown per set.
+  distanceType?: string | null;
+  distanceUnit?: DistanceUnit;
+  // Fired when a WORKING set transitions incomplete -> complete, so the session page can
+  // start the between-sets rest timer. Not fired for warmup sets or un-completing a set.
+  onSetCompleted?: () => void;
 }
 
 export default function SetTab({
@@ -33,6 +43,9 @@ export default function SetTab({
   onAutoSave,
   exerciseCategory,
   isTimed,
+  distanceType,
+  distanceUnit = DEFAULT_SHORT_UNIT,
+  onSetCompleted,
 }: SetTabProps) {
 
   // INPUT
@@ -42,8 +55,7 @@ export default function SetTab({
   const [notesSetId, setNotesSetId] = useState<string | null>(null);
   const [openMenuSetId, setOpenMenuSetId] = useState<string | null>(null);
   const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
-  const [menuDirection, setMenuDirection] = useState<"down" | "up">("down");
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuAnchorRef = useRef<HTMLDivElement>(null);
 
   // DERIVED
   const warmupSets = editedSegment.sets.filter((s) => s.is_warmup);
@@ -51,6 +63,7 @@ export default function SetTab({
   const isExerciseSwapped = editedSegment.target !== null && editedSegment.exercise_id !== editedSegment.target.exercise_id; // Target weights don't translate between exercises
   const isCardio = isTimed && exerciseCategory === "Cardio";
   const isTimedNonCardio = isTimed && exerciseCategory !== "Cardio";
+  const showDistance = distanceType === "short" || distanceType === "long";
 
   // Prescribed target counts are captured on mount and stay fixed so added sets remain "beyond target"
   const [prescribedWarmupCount] = useState(() =>
@@ -59,17 +72,6 @@ export default function SetTab({
   const [prescribedWorkingCount] = useState(() =>
     editedSegment.target ? editedSegment.target.sets.filter((s) => !s.is_warmup).length : 0
   );
-
-  // Close action menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpenMenuSetId(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Helper: decompose time_seconds into { hours, minutes, seconds }
   const decomposeTime = (totalSeconds: number | null) => {
@@ -116,6 +118,9 @@ export default function SetTab({
         // Cardio h/m/s: update minutes component
         const current = decomposeTime(set.time_seconds);
         updatedSet.time_seconds = composeTime(current.hours, parseInt(value) || 0, current.seconds);
+      } else if (field === SetField.Distance) {
+        // Input is in the display unit; store the canonical meters value.
+        updatedSet.distance = value === "" ? null : unitToMeters(parseFloat(value) || 0, distanceUnit);
       }
       return updatedSet;
     });
@@ -142,6 +147,7 @@ export default function SetTab({
       weight: 0,
       rpe: null,
       time_seconds: isTimed ? 0 : null,
+      distance: null,
       notes: null,
       is_completed: false,
       created_at: new Date(),
@@ -177,12 +183,57 @@ export default function SetTab({
     else {
       const updatedSets = editedSegment.sets.map((s) => {
         if (s.id !== setId) return s;
-        return { ...s, weight: 0, reps: isTimed ? null : 0, rpe: null, time_seconds: isTimed ? 0 : null, notes: null, is_completed: false };
+        return { ...s, weight: 0, reps: isTimed ? null : 0, rpe: null, time_seconds: isTimed ? 0 : null, distance: null, notes: null, is_completed: false };
       });
       setEditedSegment({ ...editedSegment, sets: updatedSets });
     }
 
     // UI hides clear button for any other scenarios
+  };
+
+  // When a working set is logged at a weight different from its prescribed target, carry that weight
+  // forward onto the FOLLOWING target sets that share the same prescribed weight (stopping at the first
+  // deviation, so deliberately different prescriptions like back-off sets are preserved). The carried
+  // value is stored in `carried_weight` (the prescribed `weight` is kept so the placeholder can show
+  // "new (old)"); for exercises with NO prescribed weight (weight 0, e.g. RPE-only hip thrust) the run is
+  // the contiguous still-zero sets and the placeholder shows just the carried weight. This only updates
+  // the displayed placeholder — it is NOT persisted (the segments PUT writes logged sets, never the
+  // target), so it stays frontend-only per design.
+  const carryLoggedWeightToTargets = (
+    target: typeof editedSegment.target,
+    completedSet: { is_warmup: boolean; set_number: number },
+    loggedWeight: number,
+  ): typeof editedSegment.target => {
+    if (!target) return target;
+    const originTarget = target.sets.find(
+      (ts) => ts.is_warmup === completedSet.is_warmup && ts.set_number === completedSet.set_number
+    );
+    // Nothing to carry without a real logged weight to propagate.
+    if (!originTarget || loggedWeight <= 0) return target;
+
+    const runWeight = originTarget.weight; // the shared PRESCRIBED weight following sets must match to follow (0 = no-target run)
+    const isReset = loggedWeight === runWeight; // logged back to the prescription → clear any prior carry on the run
+
+    // Walk the same-type target sets in order after the completed one; carry (or reset) while their
+    // PRESCRIBED weight matches runWeight. Compare on `weight` (not carried_weight) so a re-log re-cascades.
+    const runSetNumbers = new Set<number>();
+    const sameTypeSorted = target.sets
+      .filter((ts) => ts.is_warmup === completedSet.is_warmup && ts.set_number > completedSet.set_number)
+      .sort((a, b) => a.set_number - b.set_number);
+    for (const ts of sameTypeSorted) {
+      if (ts.weight !== runWeight) break; // first deviation ends the run (preserve back-offs etc.)
+      runSetNumbers.add(ts.set_number);
+    }
+    if (runSetNumbers.size === 0) return target;
+
+    return {
+      ...target,
+      sets: target.sets.map((ts) =>
+        ts.is_warmup === completedSet.is_warmup && runSetNumbers.has(ts.set_number)
+          ? { ...ts, carried_weight: isReset ? null : loggedWeight }
+          : ts
+      ),
+    };
   };
 
   const handleToggleSetCompleted = (setId: string) => {
@@ -213,7 +264,7 @@ export default function SetTab({
         if (targetSetData) {
           return {
             ...set,
-            weight: set.weight > 0 ? set.weight : (isExerciseSwapped ? 0 : targetSetData.weight),
+            weight: set.weight > 0 ? set.weight : (isExerciseSwapped ? 0 : (targetSetData.carried_weight ?? targetSetData.weight)),
             reps: isTimed ? set.reps : ((set.reps != null && set.reps > 0) ? set.reps : targetSetData.reps),
             time_seconds: !isTimed ? set.time_seconds : ((set.time_seconds != null && set.time_seconds > 0) ? set.time_seconds : targetSetData.time_seconds),
             rpe: set.rpe !== null ? set.rpe : targetSetData.rpe,
@@ -224,9 +275,20 @@ export default function SetTab({
         // No target available, just mark completed
         return { ...set, is_completed: true };
       });
-      const updatedSegment = { ...editedSegment, sets: updatedSets };
+
+      // Carry the just-logged weight onto the remaining target sets (display-only) for weight-based
+      // exercises whose target still translates (not a cardio slot, not a swapped exercise).
+      const completedSet = updatedSets.find((s) => s.id === setId);
+      const updatedTarget = (!isCardio && !isExerciseSwapped && completedSet)
+        ? carryLoggedWeightToTargets(editedSegment.target, completedSet, completedSet.weight)
+        : editedSegment.target;
+
+      const updatedSegment = { ...editedSegment, target: updatedTarget, sets: updatedSets };
       setEditedSegment(updatedSegment);
       onAutoSave(updatedSegment);
+
+      // Kick off the rest timer for working sets only (warmups don't need a tracked rest).
+      if (!set.is_warmup) onSetCompleted?.();
     }
 
     // If handling toggling from ON to OFF
@@ -364,6 +426,23 @@ export default function SetTab({
     const timeComponents = decomposeTime(set.time_seconds);
     const targetTimeComponents = decomposeTime(targetSet?.time_seconds ?? null);
 
+    // Weight placeholder: a carried weight (logged on an earlier set) shows as "new (old)" when there was
+    // a prescribed weight, or just "new" when there wasn't (e.g. RPE-only exercises). Otherwise the bare
+    // prescribed weight, or "-" when there's none / the exercise was swapped.
+    let weightPlaceholder = "-";
+    if (targetSet && !isExerciseSwapped) {
+      const carried = targetSet.carried_weight ?? null;
+      if (carried != null && carried > 0) {
+        weightPlaceholder = targetSet.weight > 0 ? `${carried} (${targetSet.weight})` : String(carried);
+      } else if (targetSet.weight > 0) {
+        weightPlaceholder = String(targetSet.weight);
+      }
+    }
+
+    // Distance placeholder: the prescribed target distance in the display unit, or "-" when none.
+    const targetDistanceInUnit = metersToUnit(targetSet?.distance ?? null, distanceUnit);
+    const distancePlaceholder = targetDistanceInUnit != null && targetDistanceInUnit > 0 ? String(targetDistanceInUnit) : "-";
+
     return (
       <div key={set.id} className="relative flex items-center gap-2">
 
@@ -395,7 +474,7 @@ export default function SetTab({
               value={set.weight || ""}
               onChange={(e) => handleSetFieldChange(set.id, SetField.Weight, e.target.value)}
               className="input-field input-field-compact text-center"
-              placeholder={targetSet && targetSet.weight > 0 && !isExerciseSwapped ? String(targetSet.weight) : "-"}
+              placeholder={weightPlaceholder}
               onFocus={(e) => e.target.select()}
               onBlur={() => handleSetFieldBlur(set.id)}
               onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
@@ -501,6 +580,34 @@ export default function SetTab({
           </>
         )}
 
+        {/* DISTANCE INPUT (shown when the exercise tracks distance; value is in the user's chosen unit,
+            stored as meters) */}
+        {showDistance && (
+          <div className="flex flex-col flex-1 min-w-15">
+            <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Dist ({DISTANCE_UNIT_ABBREV[distanceUnit]})</label>
+            <input
+              id={`${set.id}-distance`}
+              type="number"
+              value={metersToUnit(set.distance, distanceUnit) ?? ""}
+              onChange={(e) => handleSetFieldChange(set.id, SetField.Distance, e.target.value)}
+              className="input-field input-field-compact text-center"
+              placeholder={distancePlaceholder}
+              onFocus={(e) => e.target.select()}
+              onBlur={() => handleSetFieldBlur(set.id)}
+              onKeyDown={(e) => {
+                // Enter advances to RPE (or blurs if RPE already set), keeping the distance field out of the
+                // modality-specific advance chains in handleEnterAdvance.
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                if (set.rpe !== null) (e.target as HTMLInputElement).blur();
+                else document.getElementById(`${set.id}-rpe`)?.focus();
+              }}
+              step="0.01"
+              min="0"
+            />
+          </div>
+        )}
+
         {/* RPE INPUT */}
         <div className="flex flex-col flex-1 min-w-15">
           <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>RPE</label>
@@ -520,63 +627,31 @@ export default function SetTab({
           />
         </div>
 
-        {/* ACTION MENU */}
-        <div className={`relative ${isFirstInSection ? 'mt-5' : ''}`} ref={openMenuSetId === set.id ? menuRef : undefined}>
-
-          {/* MENU TRIGGER */}
+        {/* ACTION MENU TRIGGER — popover content itself is a single shared
+            instance rendered once below the set list (see menuAnchorRef),
+            since only one set's menu can be open at a time. */}
+        <div className={isFirstInSection ? 'mt-5' : ''} ref={openMenuSetId === set.id ? menuAnchorRef : undefined}>
           <Button
-            onClick={(e) => {
-              if (openMenuSetId === set.id) { setOpenMenuSetId(null); return; }
-              const buttonRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              const scrollContainer = (e.currentTarget as HTMLElement).closest(".modal-body");
-              const containerBottom = scrollContainer
-                ? scrollContainer.getBoundingClientRect().bottom
-                : window.innerHeight;
-              const spaceBelow = containerBottom - buttonRect.bottom;
-              setMenuDirection(spaceBelow < 120 ? "up" : "down"); // 120px accounts for menu height
-
-              // Preserve scroll position so popover render doesn't shift view
-              const scrollTop = scrollContainer?.scrollTop;
-              setOpenMenuSetId(set.id);
-              if (scrollContainer && scrollTop !== undefined) {
-                requestAnimationFrame(() => { scrollContainer.scrollTop = scrollTop; });
-              }
-            }}
+            onClick={() => setOpenMenuSetId(openMenuSetId === set.id ? null : set.id)}
             className="btn-link"
           >
             <EllipsisVertical className="w-4 h-4" />
           </Button>
-
-          {/* MENU POPOVER */}
-          {openMenuSetId === set.id && (
-            <div className={`popover-menu ${menuDirection === "up" ? "popover-menu-up" : ""}`}>
-
-              {/* NOTES ITEM */}
-              <button
-                onClick={() => { handleOpenSetNotes(set.id); setOpenMenuSetId(null); }}
-                className="popover-item"
-              >
-                <StickyNote className="w-4 h-4 mr-3" />
-                {set.notes ? "Edit Notes" : "Add Notes"}
-                {hasNotes && <div className="dot-blue ml-auto" />}
-              </button>
-
-              {/* REMOVE SET ITEM */}
-              {showRemoveSet && (
-                <button
-                  onClick={() => { handleClearSet(set.id, true); setOpenMenuSetId(null); }}
-                  className="popover-item"
-                >
-                  <X className="w-4 h-4 mr-3" />
-                  Remove Set
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
     );
   };
+
+  // Mirrors renderSetRow's showRemoveSet derivation for whichever set's menu is open.
+  const openMenuSet = editedSegment.sets.find((s) => s.id === openMenuSetId) ?? null;
+  const showRemoveSetForOpenMenu = (() => {
+    if (!openMenuSet) return false;
+    const setsOfType = openMenuSet.is_warmup ? warmupSets : workingSets;
+    const isLastInSection = setsOfType[setsOfType.length - 1]?.id === openMenuSet.id;
+    const segmentTargetSetCount = openMenuSet.is_warmup ? prescribedWarmupCount : prescribedWorkingCount;
+    const isBeyondTarget = openMenuSet.set_number > segmentTargetSetCount;
+    return isLastInSection && isBeyondTarget;
+  })();
 
   return (
     <>
@@ -614,7 +689,7 @@ export default function SetTab({
                 )}
               </div>
               {isWarmupExpanded && (
-                <div className="expandable-card-content space-y-4 flex flex-col">
+                <div className="expandable-card-content">
                   {warmupSets.map((set, index) => renderSetRow(set, index === 0, index === warmupSets.length - 1))}
                   <div className="flex justify-center">
                     <Button onClick={() => handleAddSet(true)} className="btn-link">
@@ -667,6 +742,13 @@ export default function SetTab({
             const newHeight = textarea.scrollHeight;
             textarea.style.height = Math.min(newHeight, maxHeight) + "px";
             textarea.style.overflowY = newHeight > maxHeight ? "auto" : "hidden";
+          }}
+          onKeyDown={(e) => {
+            // Plain Enter closes the keyboard (blurs); Shift+Enter still inserts a newline
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
           }}
           onBlur={(e) => {
             const trimmedNotes = e.target.value.trim() || null;
@@ -723,6 +805,34 @@ export default function SetTab({
           placeholder="Add notes for this set..."
         />
       </Modal>
+
+      {/* SET ACTION MENU POPOVER — single shared instance for whichever set's
+          menu is open (see menuAnchorRef on the trigger in renderSetRow) */}
+      <PopoverMenu open={openMenuSet !== null} onClose={() => setOpenMenuSetId(null)} anchorRef={menuAnchorRef}>
+        {openMenuSet && (<>
+
+          {/* NOTES ITEM */}
+          <button
+            onClick={() => { handleOpenSetNotes(openMenuSet.id); setOpenMenuSetId(null); }}
+            className="popover-item"
+          >
+            <StickyNote className="w-4 h-4 mr-3" />
+            {openMenuSet.notes ? "Edit Notes" : "Add Notes"}
+            {!!openMenuSet.notes && <div className="dot-blue ml-auto" />}
+          </button>
+
+          {/* REMOVE SET ITEM */}
+          {showRemoveSetForOpenMenu && (
+            <button
+              onClick={() => { handleClearSet(openMenuSet.id, true); setOpenMenuSetId(null); }}
+              className="popover-item"
+            >
+              <X className="w-4 h-4 mr-3" />
+              Remove Set
+            </button>
+          )}
+        </>)}
+      </PopoverMenu>
 
     </>
   );

@@ -2,11 +2,14 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, BarChart3, Dumbbell, History, Pencil } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
 import { ExerciseHistoryEntry } from "../../../types/exercise";
+import { Location, Equipment } from "../../../types/location";
+import ExerciseEquipmentPicker from "../ExerciseEquipmentPicker";
 import { formatDateLong, formatDuration } from "../../../utils/format";
 import { calculateEstimatedOneRepMax } from "../../../utils/calc";
 import HistoryTab from "../../session/[id]/HistoryTab";
@@ -19,14 +22,21 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   // DATA
   const [exercise, setExercise] = useState<ExerciseWithMuscleGroups | null>(null);
   const [allMuscleGroups, setAllMuscleGroups] = useState<MuscleGroup[]>([]);
+  const [allEquipment, setAllEquipment] = useState<Equipment[]>([]);
   const [history, setHistory] = useState<ExerciseHistoryEntry[]>([]);
+
+  // STATE — enabled state is per-location; resolve which location this page edits.
+  const [locationId, setLocationId] = useState("");
+  const [locationName, setLocationName] = useState("");
 
   // INPUT
   const [editedName, setEditedName] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
   const [editedCategory, setEditedCategory] = useState("Strength");
   const [editedIsTimed, setEditedIsTimed] = useState(false);
+  const [editedDistanceType, setEditedDistanceType] = useState(""); // "" = none, "short", "long"
   const [editedMuscleGroups, setEditedMuscleGroups] = useState<Array<{ muscleGroupId: string; isPrimary: boolean }>>([]);
+  const [editedEquipment, setEditedEquipment] = useState<string[]>([]);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -42,18 +52,49 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const [scrollToSessionId, setScrollToSessionId] = useState<string | null>(null);
 
   const router = useRouter();
+  const goBack = useGoBack();
 
-  // LOAD DATA
+  // RESOLVE LOCATION — URL ?location= param, else active, else default, else first.
   useEffect(() => {
-    fetchExercise();
+    void (async () => {
+      try {
+        const resp = await fetch("/modules/golem/api/locations");
+        if (!resp.ok) return;
+        const locs: Location[] = await resp.json();
+        const urlLocation = new URLSearchParams(window.location.search).get("location");
+        const resolved =
+          (urlLocation && locs.find((l) => l.id === urlLocation)) ||
+          locs.find((l) => l.is_active) ||
+          locs.find((l) => l.is_default) ||
+          locs[0];
+        if (resolved) {
+          setLocationId(resolved.id);
+          setLocationName(resolved.name);
+        }
+      } catch (error) {
+        console.error("Error resolving location:", error);
+      }
+    })();
+  }, []);
+
+  // LOAD DATA — muscle groups + history are location-independent.
+  useEffect(() => {
     fetchAllMuscleGroups();
+    fetchAllEquipment();
     fetchHistory();
   }, [id]);
+
+  // Exercise enabled state is per-location, so (re)fetch once the location resolves.
+  useEffect(() => {
+    if (!locationId) return;
+    fetchExercise();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, locationId]);
 
   const fetchExercise = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/modules/golem/api/exercises/${id}`);
+      const response = await fetch(`/modules/golem/api/exercises/${id}?location=${locationId}`);
       if (response.status === 404) {
         setNotFound(true);
         return;
@@ -80,6 +121,19 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
       setAllMuscleGroups(data);
     } catch (error) {
       console.error("Error fetching muscle groups:", error);
+    }
+  };
+
+  const fetchAllEquipment = async () => {
+    try {
+      const response = await fetch("/modules/golem/api/equipment");
+      if (!response.ok) {
+        throw new Error("Failed to fetch equipment");
+      }
+      const data = await response.json();
+      setAllEquipment(data.equipment ?? []);
+    } catch (error) {
+      console.error("Error fetching equipment:", error);
     }
   };
 
@@ -135,12 +189,14 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     setEditedDescription(exercise.description || "");
     setEditedCategory(exercise.category);
     setEditedIsTimed(exercise.is_timed);
+    setEditedDistanceType(exercise.distance_type ?? "");
     setEditedMuscleGroups(
       exercise.muscleGroups.map((mg) => ({
         muscleGroupId: mg.muscle_group_id,
         isPrimary: mg.is_primary,
       }))
     );
+    setEditedEquipment(exercise.equipment ?? []);
     setIsEditing(true);
   };
 
@@ -150,7 +206,9 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     setEditedDescription("");
     setEditedCategory("Strength");
     setEditedIsTimed(false);
+    setEditedDistanceType("");
     setEditedMuscleGroups([]);
+    setEditedEquipment([]);
   };
 
   const handleSave = async () => {
@@ -170,7 +228,9 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
           description: editedDescription.trim() || null,
           category: editedCategory,
           isTimed: editedIsTimed,
+          distanceType: editedDistanceType || null,
           muscleGroups: editedMuscleGroups,
+          equipment: editedEquipment,
         }),
       });
 
@@ -201,7 +261,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const handleDisableExercise = async () => {
     setIsDisabling(true);
     try {
-      const response = await fetch(`/modules/golem/api/exercises/${id}`, {
+      const response = await fetch(`/modules/golem/api/exercises/${id}?location=${locationId}`, {
         method: "DELETE",
       });
 
@@ -213,7 +273,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
       setExercise({ ...exercise!, is_disabled: true });
       setIsDisableModalOpen(false);
-      toast.success("Exercise disabled");
+      toast.success(locationName ? `Exercise disabled at ${locationName}` : "Exercise disabled");
     } catch (error) {
       toast.error("Failed to disable exercise");
       console.error("Error disabling exercise:", error);
@@ -226,7 +286,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const handleEnableExercise = async () => {
     setIsEnabling(true);
     try {
-      const response = await fetch(`/modules/golem/api/exercises/${id}`, {
+      const response = await fetch(`/modules/golem/api/exercises/${id}?location=${locationId}`, {
         method: "PATCH",
       });
 
@@ -238,7 +298,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
       setExercise({ ...exercise!, is_disabled: false });
       setIsEnableModalOpen(false);
-      toast.success("Exercise enabled");
+      toast.success(locationName ? `Exercise enabled at ${locationName}` : "Exercise enabled");
     } catch (error) {
       toast.error("Failed to enable exercise");
       console.error("Error enabling exercise:", error);
@@ -285,7 +345,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/golem/ui/exercises")}
+            onClick={() => goBack("/modules/golem/ui/exercises")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -296,6 +356,13 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
           <div className="flex items-center gap-3">
             <h1 className="text-page-title">{exercise.name}</h1>
           </div>
+
+          {/* LOCATION CONTEXT — enable/disable applies to this location's list */}
+          {locationName && (
+            <p className="text-page-subtitle">
+              Enabled list for <span className="text-primary">{locationName}</span>
+            </p>
+          )}
         </div>
 
         <div className="card-container">
@@ -422,6 +489,20 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     </label>
                   </div>
 
+                  {/* DISTANCE TRACKING SELECT */}
+                  <div>
+                    <label className="text-secondary">Distance Tracking</label>
+                    <select
+                      value={editedDistanceType}
+                      onChange={(e) => setEditedDistanceType(e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="">None</option>
+                      <option value="short">Short (m / yd / ft)</option>
+                      <option value="long">Long (km / mi)</option>
+                    </select>
+                  </div>
+
                   {/* MUSCLE GROUPS TABLE */}
                   <div>
                     <label className="text-secondary">Muscle Groups</label>
@@ -486,6 +567,14 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                       </table>
                     </div>
                   </div>
+
+                  {/* EQUIPMENT PICKER */}
+                  <div>
+                    <label className="text-secondary">Equipment</label>
+                    <div className="mt-1">
+                      <ExerciseEquipmentPicker selectedIds={editedEquipment} onChange={setEditedEquipment} />
+                    </div>
+                  </div>
                 </>
               ) : (
                 <>
@@ -507,6 +596,14 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     <p className="text-primary">{exercise.category}</p>
                   </div>
 
+                  {/* DISTANCE TRACKING */}
+                  <div>
+                    <label className="text-secondary">Distance Tracking</label>
+                    <p className="text-primary">
+                      {exercise.distance_type === "short" ? "Short (m / yd / ft)" : exercise.distance_type === "long" ? "Long (km / mi)" : "None"}
+                    </p>
+                  </div>
+
                   {/* MUSCLE GROUPS */}
                   <div>
                     <label className="text-secondary">Muscle Groups</label>
@@ -521,6 +618,26 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                             {mg.muscle_group_name}
                           </span>
                         ))}
+                      </div>
+                    ) : (
+                      <p className="text-primary">—</p>
+                    )}
+                  </div>
+
+                  {/* EQUIPMENT */}
+                  <div>
+                    <label className="text-secondary">Equipment</label>
+                    {exercise.equipment && exercise.equipment.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {exercise.equipment.map((equipmentId) => {
+                          const item = allEquipment.find((eq) => eq.id === equipmentId);
+                          return (
+                            // EQUIPMENT BADGE
+                            <span key={equipmentId} className="badge badge-gray">
+                              {item?.name ?? "Unknown"}
+                            </span>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-primary">—</p>

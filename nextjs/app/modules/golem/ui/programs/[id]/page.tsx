@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useGoBack } from "@/lib/useGoBack";
 import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Loader2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import PopoverMenu from "@/components/PopoverMenu";
 import toast from "react-hot-toast";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
 import SessionTimer from "../../../components/SessionTimer";
@@ -23,9 +25,10 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
   const [isActivating, setIsActivating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
+  const goBack = useGoBack();
 
   // GENERATION JOB HOOK
   const { startPolling: startGenerateWeekPolling } = useGenerationJob({
@@ -41,17 +44,6 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     fetchProgram();
-  }, []);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const fetchProgram = async () => {
@@ -209,7 +201,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/golem/ui/home")}
+            onClick={() => goBack("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -237,7 +229,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
             </div>
 
             {/* ACTIONS MENU */}
-            <div className="relative" ref={menuRef}>
+            <div ref={menuButtonRef}>
 
               {/* MENU TRIGGER */}
               <Button
@@ -246,51 +238,49 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
               >
                 <EllipsisVertical className="w-4 h-4" />
               </Button>
-
-              {/* MENU POPOVER */}
-              {isMenuOpen && (
-                <div className="popover-menu">
-
-                  {/* SET AS CURRENT ITEM */}
-                  {!program.is_current && (
-                    <button
-                      onClick={() => { setIsMenuOpen(false); handleSetCurrent(); }}
-                      className="popover-item"
-                      disabled={isActivating}
-                    >
-                      <Play className="w-4 h-4 mr-3" />
-                      {isActivating ? "Saving..." : "Set as Current"}
-                    </button>
-                  )}
-
-                  {/* ARCHIVE ITEM */}
-                  <button
-                    onClick={() => { setIsMenuOpen(false); handleArchive(); }}
-                    className="popover-item"
-                    disabled={isArchiving}
-                  >
-                    {program.is_archived ? (
-                      <ArchiveRestore className="w-4 h-4 mr-3" />
-                    ) : (
-                      <Archive className="w-4 h-4 mr-3" />
-                    )}
-                    {isArchiving ? "Saving..." : program.is_archived ? "Unarchive" : "Archive"}
-                  </button>
-
-                  {/* DELETE ITEM */}
-                  {!hasCompletedSessions && (
-                    <button
-                      onClick={() => { setIsMenuOpen(false); handleDelete(); }}
-                      className="popover-item"
-                      disabled={isDeleting}
-                    >
-                      <Trash2 className="w-4 h-4 mr-3" />
-                      {isDeleting ? "Deleting..." : "Delete"}
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* MENU POPOVER */}
+            <PopoverMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} anchorRef={menuButtonRef}>
+
+              {/* SET AS CURRENT ITEM */}
+              {!program.is_current && (
+                <button
+                  onClick={() => { setIsMenuOpen(false); handleSetCurrent(); }}
+                  className="popover-item"
+                  disabled={isActivating}
+                >
+                  <Play className="w-4 h-4 mr-3" />
+                  {isActivating ? "Saving..." : "Set as Current"}
+                </button>
+              )}
+
+              {/* ARCHIVE ITEM */}
+              <button
+                onClick={() => { setIsMenuOpen(false); handleArchive(); }}
+                className="popover-item"
+                disabled={isArchiving}
+              >
+                {program.is_archived ? (
+                  <ArchiveRestore className="w-4 h-4 mr-3" />
+                ) : (
+                  <Archive className="w-4 h-4 mr-3" />
+                )}
+                {isArchiving ? "Saving..." : program.is_archived ? "Unarchive" : "Archive"}
+              </button>
+
+              {/* DELETE ITEM */}
+              {!hasCompletedSessions && (
+                <button
+                  onClick={() => { setIsMenuOpen(false); handleDelete(); }}
+                  className="popover-item"
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-4 h-4 mr-3" />
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              )}
+            </PopoverMenu>
           </div>
 
           {/* DESCRIPTION */}

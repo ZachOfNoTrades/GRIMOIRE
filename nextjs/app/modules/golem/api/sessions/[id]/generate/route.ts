@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedUser } from '@/lib/permissions';
 import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { getWorkoutSessionById, getTemplateIdForSession } from '../../../../lib/workoutSessionFunctions';
@@ -13,7 +13,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authSession = await getAuthorizedSession();
+    const authSession = await getAuthorizedUser(request);
     if (!authSession) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -59,8 +59,9 @@ export async function POST(
         // Clear existing targets before generating new ones
         await deleteAllTargetsForSession(userId!, id);
 
-        // Generate targets via LLM
-        const targetExercises = await generateSessionTargetsWithLlm(
+        // Generate targets via LLM. This path returns the target segments only;
+        // it doesn't surface separate exercise suggestions for approval.
+        const targets = await generateSessionTargetsWithLlm(
           userId!,
           sessionContext,
           id,
@@ -68,12 +69,19 @@ export async function POST(
           sessionDescription,
           profileContext,
         );
+        const suggestions: never[] = [];
 
-        await createGeneratedTargets(userId!, id, targetExercises);
+        // Save targets that reference existing exercises
+        await createGeneratedTargets(userId!, id, targets);
 
         await logGeneration(userId!, "/modules/golem/api/sessions/generate");
-        completeJob(job.id, { success: true });
-        console.log(`[Generation] Job ${job.id} completed`);
+
+        // Include suggested exercises in the job result for user approval
+        completeJob(job.id, {
+          success: true,
+          suggestedExercises: suggestions.length > 0 ? suggestions : undefined,
+        });
+        console.log(`[Generation] Job ${job.id} completed (${targets.length} targets, ${suggestions.length} suggestions)`);
       } catch (error: any) {
         console.error(`[Generation] Job ${job.id} failed:`, error);
         failJob(job.id, error?.message || "Generation failed");

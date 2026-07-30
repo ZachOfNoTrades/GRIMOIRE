@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedUser } from '@/lib/permissions';
 import { getAllWorkoutSessions, createWorkoutSession } from '../../lib/workoutSessionFunctions';
 
 export async function GET(request: Request) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -13,8 +13,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : undefined;
     const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : undefined;
+    const scope = searchParams.get('scope') === 'standalone' ? 'standalone' : 'all';
 
-    const result = await getAllWorkoutSessions(userId!, page, pageSize);
+    const result = await getAllWorkoutSessions(userId!, page, pageSize, scope);
     return NextResponse.json(result);
 
   } catch (error) {
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

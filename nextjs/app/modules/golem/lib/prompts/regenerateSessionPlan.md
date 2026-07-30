@@ -32,6 +32,10 @@ Before regenerating the plan, use the SQL Query skill to gather relevant context
 5. Incorporate any injury notes, fatigue observations, or user feedback found in recent session reviews and analyses.
 6. Do not recommend exercises that are disabled (`is_disabled = 1` in the exercises table). If referencing specific exercises in the description, verify they are enabled.
 
+7. If volume landmarks are provided, ensure the session plan contributes toward (not exceeds) the weekly MRV for each targeted muscle group.
+
+{{VOLUME_LANDMARKS}}
+
 {{TEMPLATE_CONTEXT}}
 
 {{PROFILE_CONTEXT}}

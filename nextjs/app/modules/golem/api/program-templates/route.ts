@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedUser } from '@/lib/permissions';
 import { getAllProgramTemplates, createProgramTemplate } from '../../lib/programTemplateFunctions';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -24,7 +24,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

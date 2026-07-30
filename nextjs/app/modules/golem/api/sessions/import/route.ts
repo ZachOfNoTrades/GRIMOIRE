@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedUser } from '@/lib/permissions';
 import { importWorkoutHistory } from '../../../lib/importFunctions';
 import { ImportPayload } from '../../../types/import';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

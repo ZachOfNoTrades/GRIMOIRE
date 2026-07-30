@@ -4,6 +4,7 @@ import { assemblePrompt } from './promptLoader';
 import { LLMSessionPlan } from '../types/weekGeneration';
 import { CreateProgramSession } from '../types/program';
 import { ValidationResult } from '../types/llm';
+import { formatVolumeLandmarksForPrompt } from './volumeLandmarkFunctions';
 
 // =============================
 // Week Plan Prompt Building
@@ -14,9 +15,10 @@ function buildWeekPlanPrompt(
   weekId: string,
   daysPerWeek: number,
   profileContext: string | null = null,
+  volumeLandmarksContext: string | null = null,
 ): string {
-  // Load formatting file and inject DB context + profile context, then replace runtime placeholders
-  const basePrompt = assemblePrompt('generateWeekPlan.md', weekContext, profileContext);
+  // Load formatting file and inject DB context + profile context + volume landmarks, then replace runtime placeholders
+  const basePrompt = assemblePrompt('generateWeekPlan.md', weekContext, profileContext, volumeLandmarksContext);
   return basePrompt
     .replace('{{WEEK_ID}}', weekId)
     .replace(/\{\{DAYS_PER_WEEK\}\}/g, String(daysPerWeek));
@@ -90,7 +92,8 @@ export async function generateNextWeekPlanWithLlm(
 
   console.log(`[WeekPlanLLM] Generating ${daysPerWeek} session plans...`);
 
-  const planPrompt = buildWeekPlanPrompt(weekContext, weekId, daysPerWeek, profileContext);
+  const volumeLandmarks = await formatVolumeLandmarksForPrompt(userId);
+  const planPrompt = buildWeekPlanPrompt(weekContext, weekId, daysPerWeek, profileContext, volumeLandmarks);
   const outputFile = await callLLM(userId, planPrompt);
   const planRaw = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file

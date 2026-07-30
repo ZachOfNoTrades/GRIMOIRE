@@ -1,0 +1,27 @@
+/* Day Archetype Config — terminal-console list polish shared with the golem
+   Settings menu ("gs-" row/icon pattern, ui/settings/settings.css) so this
+   config surface reads as the same module aesthetic. Layered on top of the
+   app-wide .slot-row classes rather than replacing them. Row-list chrome
+   itself (icon tile, hover rail, stagger, per-row composition strip) now
+   lives in ExpandableRowList / .erow-* — this file only styles the slots
+   listing inside the detail pane. */
+
+/* ============ SLOT LIST AS PROGRAM LISTING ============
+   A day archetype's slots are not just a list — they're an ordered
+   instruction set the engine walks top → bottom at generation time.
+   A code-editor gutter (right-aligned line numbers + a rule) says that
+   plainly, instead of a decorative numbered badge. */
+.dac-gutter-num {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: stretch; /* full slot-row height, so the rule reads as one continuous gutter line */
+  width: 1.75rem;
+  padding-right: 0.625rem;
+  margin-right: 0.125rem;
+  border-right: 1px solid var(--card-border);
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+}

@@ -47,15 +47,19 @@ export default function RecommendationsView({
   const referenceAllMuscles = [...referencePrimaryMuscles, ...referenceSecondaryMuscles];
   const hasRecommendations = referenceExercise && referenceAllMuscles.length > 0;
 
-  // Recommended exercises: exact match on primary and secondary muscles, excluding current; target exercise pinned to top
+  // Recommended exercises: exact match on primary and secondary muscles, same category,
+  // excluding current; target exercise pinned to top.
+  // The prescribed target is always shown regardless of its disabled state so the user
+  // can revert to it after a swap, even when the "Show disabled" toggle is off.
   const arraysMatch = (a: string[], b: string[]) =>
     a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i]);
   const recommendedExercises = hasRecommendations
     ? exercises
         .filter(
           (ex) =>
-            (showDisabled || !ex.is_disabled) &&
+            (showDisabled || !ex.is_disabled || ex.id === targetExerciseId) &&
             ex.id !== currentExerciseId &&
+            ex.category === referenceExercise!.category &&
             arraysMatch(ex.primary_muscles, referencePrimaryMuscles) &&
             arraysMatch(ex.secondary_muscles, referenceSecondaryMuscles)
         )

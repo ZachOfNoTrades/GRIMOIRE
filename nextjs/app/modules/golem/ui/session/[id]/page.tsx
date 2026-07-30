@@ -1,31 +1,47 @@
 "use client";
 
-import { useState, useEffect, useRef, use } from "react";
+import { useState, useEffect, useRef, useCallback, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ChevronDown, ChevronUp, ArrowLeftRight } from "lucide-react";
+import { useGoBack } from "@/lib/useGoBack";
+import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
-import { SegmentWithSets, TargetSegment } from "../../../types/segment";
+import { SegmentWithSets, TargetSegment, SuggestedExercise } from "../../../types/segment";
 import { ExerciseSummary } from "../../../types/exercise";
+import { DaySlot } from "../../../types/dayArchetype";
+import SessionEngineControls from "../../../components/SessionEngineControls";
+import { Location } from "../../../types/location";
 import DeleteSessionModal from "./DeleteSessionModal";
 import ResetSessionModal from "./ResetSessionModal";
 import ReviewSessionModal from "./ReviewSessionModal";
 import EditSegmentModal from "./EditSegmentModal";
 import ExercisePickerModal from "./ExercisePickerModal";
+import ExerciseSuggestionsModal from "./ExerciseSuggestionsModal";
+import PreWorkoutModal from "./PreWorkoutModal";
+import LocationPickerModal from "../../locations/LocationPickerModal";
+import { PreSurvey } from "../../../types/preSurvey";
 import SessionTimer from "../../../components/SessionTimer";
+import RestTimer from "../../../components/RestTimer";
 import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
 import { generateUUID } from "../../../utils/id";
 import { useGenerationJob } from "@/lib/useGenerationJob";
+import { useConfirm } from "@/lib/useConfirm";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { confirm, confirmModal } = useConfirm();
 
   // DATA
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [loggedSegments, setLoggedSegments] = useState<SegmentWithSets[]>([]);
   const [targetSegments, setTargetSegments] = useState<TargetSegment[]>([]);
   const [exercises, setExercises] = useState<ExerciseSummary[]>([]);
+  const [preSurvey, setPreSurvey] = useState<PreSurvey | null>(null);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [distanceUnits, setDistanceUnits] = useState<{ short: string | null; long: string | null }>({ short: null, long: null });
+  const [isWorkoutPickerOpen, setIsWorkoutPickerOpen] = useState(false);
+  const [isWarmupPickerOpen, setIsWarmupPickerOpen] = useState(false);
 
   // INPUT
   const [editedSessionName, setEditedSessionName] = useState("");
@@ -33,6 +49,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [editedSessionReview, setEditedSessionReview] = useState("");
   const [editedStartDate, setEditedStartDate] = useState("");
   const [editedDuration, setEditedDuration] = useState("");
+  const [restTimerSeconds, setRestTimerSeconds] = useState(90); // configured rest length (s); hydrated from localStorage
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingSession, setIsEditingSession] = useState(false);
@@ -48,17 +65,54 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isDeletingSegment, setIsDeletingSegment] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isRegeneratingPlan, setIsRegeneratingPlan] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isWarmupExpanded, setIsWarmupExpanded] = useState(false);
+  const [isWarmupExpanded, setIsWarmupExpanded] = useState(true);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [pendingSuggestions, setPendingSuggestions] = useState<SuggestedExercise[]>([]);
+  const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState(false);
+  const [isAcceptingSuggestions, setIsAcceptingSuggestions] = useState(false);
+  const [isPreWorkoutModalOpen, setIsPreWorkoutModalOpen] = useState(false);
+  const [isStartingViaPreWorkout, setIsStartingViaPreWorkout] = useState(false);
+  const [preWorkoutInitialStep, setPreWorkoutInitialStep] = useState(0);
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null); // epoch ms the current rest ends; null = no rest running
+  const [isRestTimerEnabled, setIsRestTimerEnabled] = useState(true); // user profile setting; assume on until the profile loads
   const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
   const pendingCompletionDurationRef = useRef<number>(0);
   const segmentsForSaveRef = useRef<SegmentWithSets[]>([]);
   const isSavingRef = useRef(false);
   const pendingSaveRef = useRef<SegmentWithSets | null>(null);
 
+  // REST TIMER — between-sets countdown. Duration persists in localStorage; the running
+  // rest is tracked as an absolute end time so it stays accurate across re-renders/tab sleeps.
+  useEffect(() => {
+    const stored = Number(localStorage.getItem("golem_rest_timer_seconds"));
+    if (Number.isFinite(stored) && stored >= 15) setRestTimerSeconds(stored);
+  }, []);
+
+  // Start (or restart) the rest countdown — fired when a working set is marked complete.
+  // Skipped entirely when the user has turned the rest timer off in their Golem profile.
+  const handleStartRestTimer = useCallback(() => {
+    if (!isRestTimerEnabled) return;
+    setRestEndsAt(Date.now() + restTimerSeconds * 1000);
+  }, [restTimerSeconds, isRestTimerEnabled]);
+
+  // ±15s: nudge both the running countdown and the saved default (min 15s).
+  const handleAdjustRestTimer = useCallback((deltaSeconds: number) => {
+    setRestTimerSeconds((prev) => {
+      const next = Math.max(15, prev + deltaSeconds);
+      try { localStorage.setItem("golem_rest_timer_seconds", String(next)); } catch { /* private mode / quota — non-fatal */ }
+      return next;
+    });
+    setRestEndsAt((prev) => (prev == null ? prev : prev + deltaSeconds * 1000));
+  }, []);
+
+  // Dismiss the rest timer (manual skip, or auto once it has elapsed).
+  const handleSkipRestTimer = useCallback(() => setRestEndsAt(null), []);
+
   // DERIVED
+  const archetypeSlots = session?.day_archetype_slots ?? []; // slot preview placeholders, bundled with the session (no extra fetch)
+  const warmupArchetypeSlots = [...archetypeSlots].filter((s) => s.is_warmup).sort((a, b) => a.order_index - b.order_index);
+  const workingArchetypeSlots = [...archetypeSlots].filter((s) => !s.is_warmup).sort((a, b) => a.order_index - b.order_index);
   const timerStart = session?.resumed_at ?? session?.started_at ?? null;
   const timerOffset = session?.resumed_at ? (session.duration ?? 0) : 0;
   const isInProgress = !!timerStart && !session?.is_completed;
@@ -81,32 +135,76 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     ...workingUnlinkedTargets.map(t => ({ type: 'target' as const, key: t.id, effectiveOrder: t.order_index, target: t })),
   ].sort((a, b) => a.effectiveOrder - b.effectiveOrder);
 
+  // Build a virtual SegmentWithSets from an unlinked TargetSegment so it can participate in modal navigation.
+  // Uses the target's id as a deterministic segment id so findIndex lookups match across renders.
+  const instantiateTargetAsSegment = (target: TargetSegment): SegmentWithSets => ({
+    id: target.id, // deterministic — stays stable across renders and matches what handleOpenTargetSegment produces
+    session_id: id,
+    exercise_id: target.exercise_id,
+    exercise_name: target.exercise_name,
+    exercise_category: target.exercise_category,
+    exercise_is_timed: target.exercise_is_timed,
+    exercise_distance_type: target.exercise_distance_type,
+    target_id: target.id,
+    order_index: target.order_index,
+    is_warmup: target.is_warmup,
+    modifier_id: null,
+    modifier_name: null,
+    notes: null,
+    created_at: new Date(),
+    modified_at: new Date(),
+    sets: target.sets.map((ts) => ({
+      id: ts.id, // deterministic set ids too
+      session_segment_id: target.id,
+      set_number: ts.set_number,
+      is_warmup: ts.is_warmup,
+      reps: target.exercise_is_timed ? null : 0,
+      weight: 0,
+      rpe: null,
+      time_seconds: target.exercise_is_timed ? 0 : null,
+      distance: null,
+      notes: null,
+      is_completed: false,
+      created_at: new Date(),
+      modified_at: new Date(),
+    })),
+    target,
+  });
+
+  // Separate warmup and working navigation lists for modal swipe navigation.
+  // Each section has its own nav so swipes stay within warmup OR working — never crossing the boundary.
+  // Includes both logged segments and unlinked targets (as virtual segments), sorted by effective order_index.
+  const effectiveOrder = (s: SegmentWithSets) => s.target?.order_index ?? s.order_index;
+  const warmupNavSegments: SegmentWithSets[] = [
+    ...warmupLoggedSegments,
+    ...warmupUnlinkedTargets.map(instantiateTargetAsSegment),
+  ].sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
+  const workingNavSegments: SegmentWithSets[] = [
+    ...workingLoggedSegments,
+    ...workingUnlinkedTargets.map(instantiateTargetAsSegment),
+  ].sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
+
   const router = useRouter();
+  const goBack = useGoBack();
   const searchParams = useSearchParams();
   const isNewSession = searchParams.get("new") === "true";
 
   // GENERATION JOB HOOKS
   const { startPolling: startGeneratePolling } = useGenerationJob({
-    onComplete: () => {
+    onComplete: (result: any) => {
       fetchSegments();
       toast.success("Exercises generated");
       setIsGenerating(false);
+
+      // Check for suggested exercises in the job result
+      if (result?.suggestedExercises?.length > 0) {
+        setPendingSuggestions(result.suggestedExercises);
+        setIsSuggestionsModalOpen(true);
+      }
     },
     onError: (error) => {
       toast.error(error);
       setIsGenerating(false);
-    },
-  });
-
-  const { startPolling: startRegeneratePlanPolling } = useGenerationJob({
-    onComplete: () => {
-      fetchSession();
-      toast.success("Plan regenerated");
-      setIsRegeneratingPlan(false);
-    },
-    onError: (error) => {
-      toast.error(error);
-      setIsRegeneratingPlan(false);
     },
   });
 
@@ -126,7 +224,41 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     fetchSessionData();
     fetchExercises();
+    fetchPreSurvey();
+    loadLocations();
+    loadUserProfile();
   }, [id]);
+
+  // Load the session-relevant user profile settings: preferred distance display units (per band) for the
+  // per-set distance input, and whether the between-sets rest timer is enabled.
+  const loadUserProfile = async () => {
+    try {
+      const resp = await fetch("/modules/golem/api/user-profile");
+      if (!resp.ok) return;
+      const profile = await resp.json();
+      setDistanceUnits({ short: profile.distance_unit_short ?? null, long: profile.distance_unit_long ?? null });
+      setIsRestTimerEnabled(profile.rest_timer_enabled ?? true);
+    } catch {
+      // best-effort; the distance input falls back to default units (meters / km) and the rest timer stays on
+    }
+  };
+
+  // Locations drive which equipment + enabled-exercise list generation uses.
+  const loadLocations = async () => {
+    try {
+      const resp = await fetch("/modules/golem/api/locations");
+      if (!resp.ok) return;
+      setLocations(await resp.json());
+    } catch {
+      // best-effort; the location controls just hide
+    }
+  };
+
+  // After the workout location changes, refresh locations + the exercise list it governs.
+  const handleWorkoutLocationChanged = async () => {
+    await loadLocations();
+    await fetchExercises();
+  };
 
   // Initialize edit mode for new sessions
   useEffect(() => {
@@ -135,6 +267,38 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       router.replace(`/modules/golem/ui/session/${id}`, { scroll: false });
     }
   }, [isNewSession, session, isLoading]);
+
+  // Reflect the open segment modal in the URL (?segment=<id>) so a page refresh re-opens it.
+  // Uses router.replace to persist the param without polluting browser history.
+  const updateSegmentParam = (segmentId: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (segmentId) {
+      params.set("segment", segmentId);
+    } else {
+      params.delete("segment");
+    }
+    const query = params.toString();
+    router.replace(`/modules/golem/ui/session/${id}${query ? `?${query}` : ""}`, { scroll: false });
+  };
+
+  // On load (or refresh), re-open the segment modal named by ?segment=<id> once data is ready.
+  const didRestoreSegmentRef = useRef(false);
+  useEffect(() => {
+    if (didRestoreSegmentRef.current) return;
+    if (isLoading || !session) return;
+    const restoreSegmentId = searchParams.get("segment");
+    if (!restoreSegmentId) {
+      didRestoreSegmentRef.current = true;
+      return;
+    }
+    // navSegments hold both logged segments and instantiated targets, keyed by their deterministic ids.
+    const restoreSegment = [...workingNavSegments, ...warmupNavSegments].find((s) => s.id === restoreSegmentId);
+    if (restoreSegment) {
+      setSegmentModalData(restoreSegment);
+      setIsSegmentModalOpen(true);
+      didRestoreSegmentRef.current = true;
+    }
+  }, [isLoading, session, searchParams, workingNavSegments, warmupNavSegments]);
 
   // Keep save ref in sync with loggedSegments (avoids stale closures without triggering re-renders during saves)
   useEffect(() => {
@@ -187,6 +351,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       }
     } catch (error) {
       console.error("Error fetching exercises:", error);
+    }
+  };
+
+  const fetchPreSurvey = async () => {
+    try {
+      const response = await fetch(`/modules/golem/api/sessions/${id}/pre-survey`);
+      if (response.ok) {
+        const data = await response.json();
+        setPreSurvey(data);
+      }
+    } catch (error) {
+      console.error("Error fetching pre-survey:", error);
     }
   };
 
@@ -309,6 +485,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       const updatedSession = await response.json();
       setSession(updatedSession);
       setLoggedSegments([]);
+      setTargetSegments([]); // reset also clears the generated target segments (filled slots)
       setIsResetModalOpen(false);
       toast.success("Session reset");
     } catch (error) {
@@ -322,50 +499,75 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   // STATUS HANDLERS
   const updateSessionStatus = async (overrides: Partial<WorkoutSession>) => {
     if (!session) return;
+    const previousSession = session;
+    const body = {
+      name: session.name,
+      description: session.description,
+      review: session.review,
+      analysis: session.analysis,
+      started_at: session.started_at,
+      resumed_at: session.resumed_at,
+      duration: session.duration,
+      is_current: session.is_current,
+      is_completed: session.is_completed,
+      ...overrides,
+    };
+    // OPTIMISTIC UPDATE — the PUT persists exactly the fields we send and echoes them
+    // back unchanged, so merging the overrides locally is safe; roll back on failure.
+    setSession({ ...session, ...overrides });
     setIsUpdatingStatus(true);
     try {
       const response = await fetch(`/modules/golem/api/sessions/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: session.name,
-          description: session.description,
-          review: session.review,
-          analysis: session.analysis,
-          started_at: session.started_at,
-          resumed_at: session.resumed_at,
-          duration: session.duration,
-          is_current: session.is_current,
-          is_completed: session.is_completed,
-          ...overrides,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         toast.error(errorData.error || "Failed to update session");
+        setSession(previousSession);
         return;
       }
-
-      const updatedSession = await response.json();
-      setSession(updatedSession);
     } catch (error) {
       toast.error("Failed to update session");
       console.error("Error updating session:", error);
+      setSession(previousSession);
     } finally {
       setIsUpdatingStatus(false);
     }
   };
 
   const handleStartSession = () => {
+    // Pre-workout wizard gates the session start — modal opens, then on Save/Skip the session actually starts.
+    setIsStartingViaPreWorkout(true);
+    setPreWorkoutInitialStep(0);
+    setIsPreWorkoutModalOpen(true);
+  };
+
+  // Called when the user advances out of the start-flow wizard.
+  // didSave === true → user clicked Save & Continue, so chain into exercise generation.
+  // didSave === false → user clicked Skip, just start the session.
+  const handlePreWorkoutContinueToStart = (didSave: boolean) => {
+    setIsPreWorkoutModalOpen(false);
+    setIsStartingViaPreWorkout(false);
     updateSessionStatus({ is_current: true, started_at: new Date() });
+    if (didSave) {
+      handleGenerateExercises();
+    }
+  };
+
+  const openPreWorkout = (step: number = 0) => {
+    setIsStartingViaPreWorkout(false);
+    setPreWorkoutInitialStep(step);
+    setIsPreWorkoutModalOpen(true);
   };
 
   const handleResumeSession = () => {
     updateSessionStatus({ is_completed: false, is_current: true, resumed_at: new Date() });
   };
 
-  const handleCompleteSession = () => {
+  const handleCompleteSession = async () => {
     if (!session) return;
 
     // Check for incomplete working sets and confirm if any exist
@@ -374,9 +576,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       .filter(s => !s.is_warmup && !s.is_completed);
 
     if (incompleteWorkingSets.length > 0) {
-      const confirmed = window.confirm(
-        `You have ${incompleteWorkingSets.length} incomplete working set${incompleteWorkingSets.length > 1 ? "s" : ""}. Complete session anyway?`
-      );
+      const confirmed = await confirm({
+        title: "Incomplete Sets",
+        message: `You have ${incompleteWorkingSets.length} incomplete working set${incompleteWorkingSets.length > 1 ? "s" : ""}. Complete session anyway?`,
+        confirmLabel: "Complete Anyway",
+      });
       if (!confirmed) return;
     }
 
@@ -412,44 +616,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const handleOpenSegment = (segment: SegmentWithSets) => {
     setSegmentModalData(segment);
     setIsSegmentModalOpen(true);
+    updateSegmentParam(segment.id);
   };
 
   // Initialize a new EditSegmentModal and pass target set data (modal will handle filling out sets[])
+  // Uses deterministic IDs so the segment matches its entry in navigationSegments for swipe navigation.
   const handleOpenTargetSegment = (target: TargetSegment) => {
-    const newSegmentId = generateUUID();
-    const newSegment: SegmentWithSets = {
-      id: newSegmentId,
-      session_id: id,
-      exercise_id: target.exercise_id,
-      exercise_name: target.exercise_name,
-      exercise_category: target.exercise_category,
-      exercise_is_timed: target.exercise_is_timed,
-      target_id: target.id,
-      order_index: target.order_index,
-      is_warmup: target.is_warmup,
-      modifier_id: null,
-      modifier_name: null,
-      notes: null,
-      created_at: new Date(),
-      modified_at: new Date(),
-      sets: target.sets.map((ts) => ({
-        id: generateUUID(),
-        session_segment_id: newSegmentId,
-        set_number: ts.set_number,
-        is_warmup: ts.is_warmup,
-        reps: target.exercise_is_timed ? null : 0,
-        weight: 0,
-        rpe: null,
-        time_seconds: target.exercise_is_timed ? 0 : null,
-        notes: null,
-        is_completed: false,
-        created_at: new Date(),
-        modified_at: new Date(),
-      })),
-      target: target,
-    };
-    setSegmentModalData(newSegment);
+    const targetSegment = instantiateTargetAsSegment(target);
+    setSegmentModalData(targetSegment);
     setIsSegmentModalOpen(true);
+    updateSegmentParam(targetSegment.id);
   };
 
   const handleAddSegment = () => {
@@ -475,6 +651,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       exercise_name: exercise.name,
       exercise_category: exercise.category,
       exercise_is_timed: exercise.is_timed,
+      exercise_distance_type: exercise.distance_type,
       target_id: null,
       order_index: Math.max(0, ...sourceSegments.map(s => s.order_index), ...sourceTargets.map(t => t.order_index)) + 1,
       is_warmup: isWarmup,
@@ -492,6 +669,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         weight: 0,
         rpe: null,
         time_seconds: exercise.is_timed ? 0 : null,
+        distance: null,
         notes: null,
         is_completed: false,
         created_at: new Date(),
@@ -503,6 +681,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     handleSaveSegment(newSegment);
     setSegmentModalData(newSegment);
     setIsSegmentModalOpen(true);
+    updateSegmentParam(segmentId);
   };
 
   const handleSaveSegment = async (editedSegment: SegmentWithSets) => {
@@ -645,30 +824,32 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  // REGENERATE PLAN HANDLER
-  const handleRegeneratePlan = async () => {
-    setIsRegeneratingPlan(true);
+  // ACCEPT SUGGESTED EXERCISES HANDLER
+  const handleAcceptSuggestions = async (accepted: SuggestedExercise[]) => {
+    setIsAcceptingSuggestions(true);
     try {
-      const response = await fetch(`/modules/golem/api/sessions/${id}/regenerate-plan`, {
+      const response = await fetch(`/modules/golem/api/sessions/${id}/accept-suggestions`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exercises: accepted }),
       });
-
-      if (response.status === 202) {
-        const { jobId } = await response.json();
-        startRegeneratePlanPolling(jobId);
-        return;
-      }
 
       if (!response.ok) {
         const errorData = await response.json();
-        toast.error(errorData.error || "Failed to regenerate plan");
-        setIsRegeneratingPlan(false);
+        toast.error(errorData.error || "Failed to create exercises");
         return;
       }
+
+      const { created } = await response.json();
+      toast.success(`${created} exercise${created !== 1 ? "s" : ""} added`);
+      setIsSuggestionsModalOpen(false);
+      setPendingSuggestions([]);
+      fetchSegments(); // Reload to show new targets
     } catch (error) {
-      toast.error("Failed to regenerate plan");
-      console.error("Error regenerating plan:", error);
-      setIsRegeneratingPlan(false);
+      toast.error("Failed to create exercises");
+      console.error("Error accepting suggestions:", error);
+    } finally {
+      setIsAcceptingSuggestions(false);
     }
   };
 
@@ -699,6 +880,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       console.error("Error analyzing session:", error);
       setIsAnalyzing(false);
     }
+  };
+
+  // Helper: format an archetype slot's prescription (sets×reps, or sets×time for cardio, or open-ended sets for strength holds)
+  const formatSlotDose = (slot: DaySlot): string => {
+    if (slot.progression_model === "time_effort") {
+      return slot.time_low_seconds != null && slot.time_high_seconds != null
+        ? `${slot.set_target}×${slot.time_low_seconds}-${slot.time_high_seconds}s`
+        : `${slot.set_target} sets`;
+    }
+    return `${slot.set_target}×${slot.rep_low}-${slot.rep_high}`;
   };
 
   // Helper: check if a set contains any manually entered data
@@ -737,33 +928,75 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   return (
 
     // BACKGROUND
-    <div className="page page-with-bottom-bar">
+    <div className="page-with-bottom-bar">
 
       <Toaster position="bottom-center" />
 
+      {/* REST TIMER — floating between-sets countdown; fixed-position so it stays above the
+          open segment modal while the user logs the next set. */}
+      {restEndsAt != null && (
+        <RestTimer
+          endsAt={restEndsAt}
+          onAdjust={handleAdjustRestTimer}
+          onSkip={handleSkipRestTimer}
+        />
+      )}
+
+      {/* PAGE SCROLL — the scroll surface; sits OUTSIDE page-container's padding so the scrollbar gutter doesn't make right padding > left padding. */}
+      <div className="page-scroll">
+
       <main className="page-container">
 
-        {/* BACK BUTTON */}
-        <Button className="btn-link mb-2" onClick={() => router.push("/modules/golem/ui/home")}>
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back</span>
-        </Button>
-
         {/* HEADER */}
-        <div className="mb-4">
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+
+          {/* BACK BUTTON */}
+          <Button className="btn-link self-start sm:self-auto mb-2 sm:mb-0" onClick={() => goBack("/modules/golem/ui/home")}>
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
+          </Button>
 
           {/* TITLE */}
-          <h1 className="text-page-title">{session.name}</h1>
+          <h1 className="text-page-title !mb-0">{session.name}</h1>
         </div>
 
+        {/* LOCATION PILLS — tap to pick which location's equipment + enabled exercises drive
+            generation. Warmup can use a different location than the working sets. */}
+        {locations.length > 0 && (
+          <div className="mb-4 flex items-center gap-2 flex-wrap">
+
+            {/* WORKOUT LOCATION PILL */}
+            <Button
+              className="btn-pill"
+              onClick={() => setIsWorkoutPickerOpen(true)}
+              aria-label="Workout location"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>{locations.find((l) => l.is_active)?.name ?? "Set location"}</span>
+              <ChevronDown className="w-4 h-4 opacity-70" />
+            </Button>
+
+            {/* WARMUP LOCATION PILL — falls back to "Same as workout" when unset */}
+            <Button
+              className="btn-pill"
+              onClick={() => setIsWarmupPickerOpen(true)}
+              aria-label="Warmup location"
+            >
+              <Flame className="w-4 h-4" />
+              <span>{locations.find((l) => l.is_warmup_active)?.name ?? "Warmup: same"}</span>
+              <ChevronDown className="w-4 h-4 opacity-70" />
+            </Button>
+          </div>
+        )}
+
         {/* CARDS */}
-        <div className="card-container">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] lg:gap-6 lg:items-start">
 
           {/* SESSION INFO CARD */}
-          <div className="card">
+          <div className="card lg:sticky lg:top-4 lg:max-h-[calc(100dvh-9rem)] lg:overflow-y-auto">
 
-            {/* CARD HEADER */}
-            <div className="card-header">
+            {/* CARD HEADER — flex-wrap so the action buttons drop to a second row instead of overflowing the narrow desktop column (which would clip the Edit button). */}
+            <div className="card-header flex-wrap">
 
               {/* TITLE */}
               <h2 className="text-card-title">Session Info</h2>
@@ -831,6 +1064,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       className="input-field"
                     />
                   </div>
+
+                  {/* DAY ARCHETYPE — read-only readout (assignment happens via the Engine Generation picker, not here), kept
+                      visible in edit mode too so the user can always see which day archetype the session belongs to. */}
+                  {session.day_archetype_name && (
+                    <div>
+                      <label className="text-secondary">Day Archetype</label>
+                      <p className="text-primary break-words">{session.day_archetype_name}</p>
+                    </div>
+                  )}
 
                   {/* DURATION INPUT (HH:MM:SS) */}
                   {session.started_at && session.duration != null && !isInProgress && (
@@ -944,18 +1186,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   </div>
 
                   {/* REVIEW INPUT */}
-                  {session.is_completed && (
-                    <div>
-                      <label className="text-secondary">Review</label>
-                      <textarea
-                        value={editedSessionReview}
-                        onChange={(e) => setEditedSessionReview(e.target.value)}
-                        className="input-field resize-none field-sizing-content"
-                        placeholder="How did it go? Note any achievements, injuries, or areas to improve..."
-                        rows={2}
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label className="text-secondary">Review</label>
+                    <textarea
+                      value={editedSessionReview}
+                      onChange={(e) => setEditedSessionReview(e.target.value)}
+                      className="input-field resize-none field-sizing-content"
+                      placeholder="How did it go? Note any achievements, injuries, or areas to improve..."
+                      rows={2}
+                    />
+                  </div>
 
                 </>
               ) : (
@@ -994,30 +1234,66 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     <p className="text-primary">{completedSegmentCount}/{totalSegmentCount}</p>
                   </div>
 
-                  {/* SESSION DESCRIPTION */}
+                  {/* DAY ARCHETYPE — the assigned engine day archetype, surfaced as a plain labeled readout. Previously the
+                      name was only visible (truncated) inside the Engine Generation picker, so on mobile the user couldn't
+                      tell which day archetype the session belonged to. */}
+                  {session.day_archetype_name && (
+                    <div>
+                      <label className="text-secondary">Day Archetype</label>
+                      <p className="text-primary break-words">{session.day_archetype_name}</p>
+                    </div>
+                  )}
+
+                  {/* PRE-WORKOUT SURVEY */}
                   <div>
                     <div className="flex items-center justify-between">
-                      <label className="text-secondary">Description</label>
+                      <label className="text-secondary">Pre-Workout</label>
 
-                      {/* REGENERATE PLAN BUTTON */}
-                      {session.week_id && (
-                        <Button
-                          className="btn-link"
-                          onClick={handleRegeneratePlan}
-                          disabled={isRegeneratingPlan}
-                        >
-                          {isRegeneratingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                          <span>{isRegeneratingPlan ? "Regenerating..." : session.description ? "Regenerate Plan" : "Generate Plan"}</span>
-                        </Button>
-                      )}
+                      {/* EDIT PRE-WORKOUT BUTTON */}
+                      <Button
+                        className="btn-link"
+                        onClick={() => openPreWorkout(0)}
+                      >
+                        <ClipboardList className="w-4 h-4" />
+                        <span>{preSurvey && (preSurvey.muscles.length > 0 || preSurvey.notes) ? "Edit" : "Add"}</span>
+                      </Button>
                     </div>
+
+                    {/* SURVEY SUMMARY */}
+                    {preSurvey && (preSurvey.muscles.length > 0 || preSurvey.notes) ? (
+                      <div className="flex flex-col gap-1">
+
+                        {/* MUSCLE FATIGUE LIST */}
+                        {preSurvey.muscles.length > 0 && (
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                            {preSurvey.muscles.map((m) => (
+                              <span key={m.muscle_group_id} className="text-primary text-sm">
+                                {m.muscle_group_name}: <span className="font-mono">{m.fatigue}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* SURVEY NOTES */}
+                        {preSurvey.notes && (
+                          <p className="text-primary whitespace-pre-wrap break-words">{preSurvey.notes}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-secondary">No survey recorded</p>
+                    )}
+                  </div>
+
+                  {/* SESSION DESCRIPTION */}
+                  <div>
+                    <label className="text-secondary">Description</label>
                     {session.description && (
                       <p className="text-primary whitespace-pre-wrap break-words">{session.description}</p>
                     )}
                   </div>
 
                   {/* SESSION REVIEW */}
-                  {session.is_completed && session.review && (
+                  {session.review && (
                     <div>
                       <label className="text-secondary">Review</label>
                       <p className="text-primary whitespace-pre-wrap break-words">{session.review}</p>
@@ -1050,7 +1326,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          {/* SEGMENTS CARD */}
+          {/* RIGHT COLUMN — the wide grid child (1.5fr track): Engine Generation card stacked above the Exercises card.
+              On mobile the flex-col collapses so the order is Session Info → Engine Generation → Exercises. */}
+          <div className="flex flex-col gap-6">
+
+            {/* ENGINE GENERATION CARD — its own card, always shown regardless of the Session Info edit/view state
+                (deterministic engine — pick a day archetype + generate). Refresh both the session record AND the
+                segments, since generation writes new target segments. */}
+            <SessionEngineControls sessionId={id} currentArchetypeId={session?.day_archetype_id ?? null} currentArchetypeName={session?.day_archetype_name ?? null} onGenerated={() => { void fetchSession(); void fetchSegments(); }} />
+
+          {/* SEGMENTS CARD — sits below the Engine Generation card in the right column. The Pre-Workout action moved to the sticky bottom bar. */}
           <div className="card">
 
             {/* CARD HEADER */}
@@ -1058,18 +1343,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
               {/* TITLE */}
               <h2 className="text-card-title">Exercises</h2>
-
-              {/* REGENERATE EXERCISES BUTTON */}
-              {(loggedSegments.length > 0 || targetSegments.length > 0) && (
-                <Button
-                  className="btn-link"
-                  onClick={handleGenerateExercises}
-                  disabled={isGenerating || !session?.description?.trim()}
-                >
-                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  <span>{isGenerating ? "Regenerating..." : "Regenerate"}</span>
-                </Button>
-              )}
             </div>
 
             {/* CARD CONTENT */}
@@ -1080,19 +1353,129 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 // GENERATE EXERCISES UI
                 <div className="flex flex-col gap-3">
 
-                  {/* GENERATE BUTTON */}
-                  <Button
-                    className="btn-blue"
-                    onClick={handleGenerateExercises}
-                    disabled={isGenerating || !session?.description?.trim()}
-                  >
-                    {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    <span>{isGenerating ? "Generating..." : "Generate Exercises"}</span>
-                  </Button>
+                  {/* ARCHETYPE SLOT PLACEHOLDERS — preview of the unfilled engine slots for the assigned day
+                      archetype. Non-interactive; "Assign & Generate" (Engine Generation card) fills them with real exercises.
+                      Split into Warmup / Working groups using the same expandable-card component as the post-generation
+                      layout, so grouping/collapsing behavior doesn't change once the engine fills the slots. */}
+                  {session.day_archetype_id && archetypeSlots.length > 0 && (
+                    <div className="flex flex-col gap-3">
+
+                      {/* WARMUP SLOT GROUP — same expandable-card component as the generated Warmup section */}
+                      {warmupArchetypeSlots.length > 0 && (
+                        <div
+                          className={`expandable-card ${isWarmupExpanded ? "expandable-card-open" : "py-1"}`}
+                        >
+
+                          {/* WARMUP SLOT GROUP TOGGLE */}
+                          <div
+                            className="expandable-card-toggle"
+                            onClick={() => setIsWarmupExpanded(!isWarmupExpanded)}
+                          >
+                            <h3 className="text-h3">Warmup</h3>
+                            {isWarmupExpanded ? (
+                              <ChevronUp className="w-5 h-5 text-muted" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-muted" />
+                            )}
+                          </div>
+
+                          {/* WARMUP SLOT GROUP EXPANDED CONTENT */}
+                          {isWarmupExpanded && (
+                            <div className="expandable-card-content">
+
+                              {/* WARMUP SLOT PLACEHOLDER SUB-CARDS (ordered) */}
+                              {warmupArchetypeSlots.map((slot) => (
+
+                                // SLOT PLACEHOLDER SUB-CARD
+                                <div key={slot.id} className="sub-card relative opacity-75">
+
+                                  {/* SUB-CARD HEADER */}
+                                  <div className="sub-card-header">
+
+                                    {/* SLOT MUSCLE / ROLE */}
+                                    <div className="flex items-center gap-2">
+                                      <Circle className="icon-gray !w-4 !h-4 shrink-0" />
+                                      <h3 className="text-card-title capitalize">{slot.pinned_exercise_name ?? slot.target_muscle_name ?? slot.role}</h3>
+
+                                      {/* OPTIONAL INDICATOR */}
+                                      {slot.is_optional && (
+                                        <span className="badge-gray">optional</span>
+                                      )}
+                                    </div>
+
+                                    {/* SLOT ROLE BADGE — matches the generated-segment badge placement (pinned bottom-right) */}
+                                    <span className="badge-gray capitalize absolute bottom-3 right-3">{slot.role}</span>
+                                  </div>
+
+                                  {/* SUB-CARD CONTENT */}
+                                  <div className="sub-card-content">
+
+                                    {/* PRESCRIPTION SUMMARY */}
+                                    <p className="text-secondary">
+                                      {formatSlotDose(slot)}
+                                      {slot.target_rpe != null && <span> @ {slot.target_rpe}RPE</span>}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* WORKING SLOT GROUP LABEL */}
+                      {warmupArchetypeSlots.length > 0 && (
+                        <h3 className="text-h3">Working</h3>
+                      )}
+
+                      {/* WORKING SLOT PLACEHOLDER SUB-CARDS (ordered) */}
+                      {workingArchetypeSlots.map((slot) => (
+
+                        // SLOT PLACEHOLDER SUB-CARD
+                        <div key={slot.id} className="sub-card relative opacity-75">
+
+                          {/* SUB-CARD HEADER */}
+                          <div className="sub-card-header">
+
+                            {/* SLOT MUSCLE / ROLE */}
+                            <div className="flex items-center gap-2">
+                              <Circle className="icon-gray !w-4 !h-4 shrink-0" />
+                              <h3 className="text-card-title capitalize">{slot.pinned_exercise_name ?? slot.target_muscle_name ?? slot.role}</h3>
+
+                              {/* OPTIONAL INDICATOR */}
+                              {slot.is_optional && (
+                                <span className="badge-gray">optional</span>
+                              )}
+                            </div>
+
+                            {/* SLOT ROLE BADGE — matches the generated-segment badge placement (pinned bottom-right) */}
+                            <span className="badge-gray capitalize absolute bottom-3 right-3">{slot.role}</span>
+                          </div>
+
+                          {/* SUB-CARD CONTENT */}
+                          <div className="sub-card-content">
+
+                            {/* PRESCRIPTION SUMMARY */}
+                            <p className="text-secondary">
+                              {formatSlotDose(slot)}
+                              {slot.target_rpe != null && <span> @ {slot.target_rpe}RPE</span>}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* NO-ARCHETYPE HINT — engine generation lives in the Engine Generation card; point the user there
+                      when there's nothing to preview yet (no archetype assigned). */}
+                  {!(session.day_archetype_id && archetypeSlots.length > 0) && (
+                    <p className="text-secondary text-sm">Assign a day archetype and generate from the Engine Generation panel, or add exercises manually below.</p>
+                  )}
                 </div>
               )}
 
-              {/* WARMUP SECTION */}
+              {/* WARMUP SECTION — collapsible list of warmup segments/targets. Also surfaced inside the
+                  Pre-Workout wizard; kept here on the page so warmups stay visible/editable without opening it. */}
               {hasWarmupSection && (
                 <div
                   className={`expandable-card ${isWarmupExpanded ? "expandable-card-open" : "py-1"}`}
@@ -1153,13 +1536,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                 {segment.notes && (
                                   <div className="text-secondary flex items-start gap-1">
                                     <StickyNote className="w-3 h-3 shrink-0 mt-1" />
-                                    <span className="break-all">{segment.notes}</span>
+                                    <span className="break-words whitespace-pre-wrap">{segment.notes}</span>
                                   </div>
                                 )}
 
                                 {/* SETS */}
                                 {(() => {
-                                  // Build a unified list ordered by set_number: show logged if it has data, otherwise show target
+                                  // Build a unified list ordered by set_number: show logged if it has data, otherwise show target.
                                   const isSwapped = segment.target && segment.target.exercise_id !== segment.exercise_id;
                                   const targetSets = segment.target?.sets ?? [];
                                   const allSetNumbers = [...new Set([
@@ -1277,7 +1660,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
 
-              {/* WORKING SECTION LABEL */}
+              {/* WORKING SECTION LABEL — only shown when a warmup section precedes it, to separate the two. */}
               {hasWarmupSection && (
                 <h3 className="text-h3">Working</h3>
               )}
@@ -1291,7 +1674,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     // WORKING SEGMENT SUB-CARD
                     <div
                       key={item.key}
-                      className="sub-card cursor-pointer"
+                      className="sub-card cursor-pointer relative"
                       onClick={() => handleOpenSegment(segment)}
                     >
 
@@ -1305,6 +1688,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                             : <Circle className="icon-gray !w-4 !h-4 shrink-0" />
                           }
                           <h3 className="text-card-title">{segment.exercise_name}</h3>
+
+                          {/* SLOT ROLE BADGE — the day-archetype slot this exercise came from (pinned bottom-right) */}
+                          {segment.target?.slot_role && (
+                            <span className="badge-gray capitalize absolute bottom-3 right-3">{segment.target.slot_role}</span>
+                          )}
                         </div>
 
                         {/* SWAPPED EXERCISE INDICATOR */}
@@ -1320,27 +1708,35 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         {segment.notes && (
                           <div className="text-secondary flex items-start gap-1">
                             <StickyNote className="w-3 h-3 shrink-0 mt-1" />
-                            <span className="break-all">{segment.notes}</span>
+                            <span className="break-words whitespace-pre-wrap">{segment.notes}</span>
                           </div>
                         )}
 
                         {/* SETS */}
                         {(() => {
-                          // Build a unified list ordered by set_number: show logged if it has data, otherwise show target
+                          // Build a unified list ordered by set_number: show logged if it has data, otherwise show target.
+                          // Warmup and working sets each have their own set_number sequence, so unify each kind
+                          // separately and render warmups first (prefixed "W") — matching the warmup/working split elsewhere.
                           const isSwapped = segment.target && segment.target.exercise_id !== segment.exercise_id;
-                          const workingSets = segment.sets.filter((s) => !s.is_warmup);
-                          const workingTargets = segment.target?.sets.filter((ts) => !ts.is_warmup) ?? [];
-                          const allSetNumbers = [...new Set([
-                            ...workingSets.map(s => s.set_number),
-                            ...workingTargets.map(ts => ts.set_number),
-                          ])].sort((a, b) => a - b);
 
-                          const rows = allSetNumbers.map(num => {
-                            const logged = workingSets.find(s => s.set_number === num);
-                            const target = workingTargets.find(ts => ts.set_number === num);
-                            const useLogged = logged && (logged.is_completed || hasSetData(logged));
-                            return { num, logged: useLogged ? logged : null, target: !useLogged ? target : null };
-                          }).filter(r => r.logged || r.target);
+                          // ROW BUILDER — unify logged + target sets of one kind (warmup or working) by set_number
+                          const buildRows = (isWarmup: boolean) => {
+                            const loggedSets = segment.sets.filter((s) => s.is_warmup === isWarmup);
+                            const targetSets = segment.target?.sets.filter((ts) => ts.is_warmup === isWarmup) ?? [];
+                            const setNumbers = [...new Set([
+                              ...loggedSets.map(s => s.set_number),
+                              ...targetSets.map(ts => ts.set_number),
+                            ])].sort((a, b) => a - b);
+                            return setNumbers.map(num => {
+                              const logged = loggedSets.find(s => s.set_number === num);
+                              const target = targetSets.find(ts => ts.set_number === num);
+                              const useLogged = logged && (logged.is_completed || hasSetData(logged));
+                              return { num, isWarmup, logged: useLogged ? logged : null, target: !useLogged ? target : null };
+                            }).filter(r => r.logged || r.target);
+                          };
+
+                          // WARMUPS FIRST, THEN WORKING SETS
+                          const rows = [...buildRows(true), ...buildRows(false)];
 
                           return rows.length === 0 ? (
 
@@ -1352,8 +1748,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                             <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
                               {rows.map((row) => row.logged ? (
 
-                                // WORKING SET ROW
-                                <p key={row.logged.id} className={!row.logged.is_completed ? 'text-secondary' : ''}>
+                                // WORKING / WARMUP SET ROW — warmups distinguished by a lighter font weight
+                                <p key={row.logged.id} className={`${row.isWarmup ? 'font-extralight ' : ''}${!row.logged.is_completed ? 'text-secondary' : ''}`}>
                                   <span>{row.logged.time_seconds != null && row.logged.time_seconds > 0
                                     ? <>{row.logged.weight > 0 ? `${row.logged.weight}lb x ` : ""}{row.logged.time_seconds < 60 ? `${row.logged.time_seconds}s` : `${Math.floor(row.logged.time_seconds / 60)}:${String(row.logged.time_seconds % 60).padStart(2, "0")}`}</>
                                     : <>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</>
@@ -1363,8 +1759,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                 </p>
                               ) : row.target ? (
 
-                                // TARGET SET ROW
-                                <p key={row.target.id} className="text-secondary">
+                                // TARGET SET ROW — warmups distinguished by a lighter font weight
+                                <p key={row.target.id} className={`text-secondary${row.isWarmup ? ' font-extralight' : ''}`}>
                                   <span>{row.target.time_seconds != null && row.target.time_seconds > 0
                                     ? <>{!isSwapped && row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
                                     : isSwapped
@@ -1388,7 +1784,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   // WORKING TARGET SUB-CARD
                   <div
                     key={item.key}
-                    className="sub-card cursor-pointer"
+                    className="sub-card cursor-pointer relative"
                     onClick={() => handleOpenTargetSegment(target)}
                   >
 
@@ -1399,6 +1795,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       <div className="flex items-center gap-2">
                         <Circle className="icon-gray !w-4 !h-4" />
                         <h3 className="text-card-title">{target.exercise_name}</h3>
+
+                        {/* SLOT ROLE BADGE — the day-archetype slot this exercise came from (pinned bottom-right) */}
+                        {target.slot_role && (
+                          <span className="badge-gray capitalize absolute bottom-3 right-3">{target.slot_role}</span>
+                        )}
                       </div>
                     </div>
 
@@ -1415,9 +1816,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                         // SETS
                         <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
 
-                          {/* WORKING SET ROWS */}
-                          {target.sets.filter((s) => !s.is_warmup).map((set) => (
-                            <p key={set.id} className="text-secondary">
+                          {/* SET ROWS — warmups (prefixed "W") first, then working; query already orders is_warmup DESC, set_number */}
+                          {target.sets.map((set) => (
+                            <p key={set.id} className={`text-secondary${set.is_warmup ? ' font-extralight' : ''}`}>
                               <span>{set.time_seconds != null && set.time_seconds > 0
                                 ? <>{set.weight > 0 ? `${set.weight}lb x ` : ""}{set.time_seconds < 60 ? `${set.time_seconds}s` : `${Math.floor(set.time_seconds / 60)}:${String(set.time_seconds % 60).padStart(2, "0")}`}</>
                                 : <>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</>
@@ -1442,33 +1843,47 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
               </Button>
             </div>
           </div>
+          </div>
         </div>
       </main>
 
+      </div>
+
       {/* BOTTOM ACTION BAR */}
       <div className="bottom-action-bar">
-        {session.is_completed ? (
 
-          // RESUME WORKOUT BUTTON
-          <Button className="btn-link w-full sm:w-auto" onClick={handleResumeSession} disabled={isUpdatingStatus}>
-            {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-            {isUpdatingStatus ? "Resuming..." : "Resume Workout"}
-          </Button>
-        ) : session.is_current && (session.started_at || session.resumed_at) ? (
+        {/* ACTION GROUP — Pre-Workout paired with the primary start/finish/resume action. Mobile: stacked full-width so the labels never cramp at narrow phone widths; desktop: side by side, centered at natural width. */}
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto justify-center">
 
-          // FINISH WORKOUT BUTTON
-          <Button className="btn-blue w-full sm:w-auto" onClick={handleCompleteSession} disabled={isUpdatingStatus}>
-            {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
-            {isUpdatingStatus ? "Saving..." : "Finish Workout"}
+          {/* PRE-WORKOUT BUTTON — high-traffic, used every session; opens the wizard at the warmup mini-session. */}
+          <Button className="btn-off w-full sm:w-auto" onClick={() => openPreWorkout(1)}>
+            <Dumbbell className="w-4 h-4" />
+            <span>Pre-Workout</span>
           </Button>
-        ) : (
 
-          // START BUTTON
-          <Button className="btn-blue w-full sm:w-auto" onClick={handleStartSession} disabled={isUpdatingStatus}>
-            {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {isUpdatingStatus ? "Starting..." : "Start Workout"}
-          </Button>
-        )}
+          {session.is_completed ? (
+
+            // RESUME WORKOUT BUTTON
+            <Button className="btn-link w-full sm:w-auto" onClick={handleResumeSession} disabled={isUpdatingStatus}>
+              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              {isUpdatingStatus ? "Resuming..." : "Resume Workout"}
+            </Button>
+          ) : session.is_current && (session.started_at || session.resumed_at) ? (
+
+            // FINISH WORKOUT BUTTON
+            <Button className="btn-blue w-full sm:w-auto" onClick={handleCompleteSession} disabled={isUpdatingStatus}>
+              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
+              {isUpdatingStatus ? "Saving..." : "Finish Workout"}
+            </Button>
+          ) : (
+
+            // START BUTTON
+            <Button className="btn-blue w-full sm:w-auto" onClick={handleStartSession} disabled={isUpdatingStatus}>
+              {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {isUpdatingStatus ? "Starting..." : "Start Workout"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* REVIEW SESSION MODAL */}
@@ -1477,6 +1892,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         onClose={handleReviewSkip}
         onSubmit={handleReviewSubmit}
         isSaving={isUpdatingStatus}
+        initialReview={session?.review}
       />
 
       {/* DELETE SESSION MODAL */}
@@ -1497,11 +1913,63 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         isResetting={isResettingSession}
       />
 
+      {/* PRE-WORKOUT MODAL */}
+      <PreWorkoutModal
+        isOpen={isPreWorkoutModalOpen}
+        onClose={() => {
+          setIsPreWorkoutModalOpen(false);
+          setIsStartingViaPreWorkout(false);
+        }}
+        onSaved={(updated) => setPreSurvey(updated)}
+        sessionId={id}
+        mode={isStartingViaPreWorkout ? "start" : "edit"}
+        onContinue={isStartingViaPreWorkout ? handlePreWorkoutContinueToStart : undefined}
+        initialStep={preWorkoutInitialStep}
+        warmupItems={combinedWarmupItems}
+        onAddWarmupSegment={handleAddWarmupSegment}
+        onOpenWarmupSegment={handleOpenSegment}
+        onOpenWarmupTarget={handleOpenTargetSegment}
+        onGenerateExercises={handleGenerateExercises}
+        isGenerating={isGenerating}
+        canGenerate={!!session?.description?.trim()}
+      />
+
+      {/* WORKOUT LOCATION PICKER */}
+      <LocationPickerModal
+        isOpen={isWorkoutPickerOpen}
+        onClose={() => setIsWorkoutPickerOpen(false)}
+        onChanged={() => void handleWorkoutLocationChanged()}
+        target="working"
+        preloadedLocations={locations}
+      />
+
+      {/* WARMUP LOCATION PICKER */}
+      <LocationPickerModal
+        isOpen={isWarmupPickerOpen}
+        onClose={() => setIsWarmupPickerOpen(false)}
+        onChanged={() => void loadLocations()}
+        target="warmup"
+        preloadedLocations={locations}
+      />
+
+      {/* EXERCISE SUGGESTIONS MODAL */}
+      <ExerciseSuggestionsModal
+        isOpen={isSuggestionsModalOpen}
+        onClose={() => {
+          setIsSuggestionsModalOpen(false);
+          setPendingSuggestions([]);
+        }}
+        onAccept={handleAcceptSuggestions}
+        suggestions={pendingSuggestions}
+        isAccepting={isAcceptingSuggestions}
+      />
+
       {/* EDIT SEGMENT MODAL */}
       <EditSegmentModal
         isOpen={isSegmentModalOpen}
         onClose={() => {
           setIsSegmentModalOpen(false);
+          updateSegmentParam(null);
 
           // Apply optimistic update from last saved segment (avoids UI lag)
           const saved = lastSavedSegmentRef.current;
@@ -1527,6 +1995,30 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         isDeleting={isDeletingSegment}
         onExerciseCreated={(exercise) => setExercises((prev) => [...prev, exercise].sort((a, b) => a.name.localeCompare(b.name)))}
         onExerciseUpdated={(exercise) => setExercises((prev) => prev.map((e) => e.id === exercise.id ? exercise : e).sort((a, b) => a.name.localeCompare(b.name)))}
+        navigationSegments={segmentModalData?.is_warmup ? warmupNavSegments : workingNavSegments}
+        onNavigate={(nextSegment) => {
+          // Apply any in-flight optimistic update for the outgoing segment before switching.
+          // Upsert (not just map) so a freshly-logged previously-unlogged segment — e.g. a virtual
+          // segment instantiated from a prescribed target — gets ADDED to loggedSegments rather than
+          // dropped. Otherwise navigating away then back rebuilds it from the empty target and the
+          // logged set disappears.
+          const saved = lastSavedSegmentRef.current;
+          if (saved) {
+            setLoggedSegments((prev) => {
+              const exists = prev.some((s) => s.id === saved.id);
+              return exists
+                ? prev.map((s) => s.id === saved.id ? saved : s)
+                : [...prev, saved];
+            });
+            lastSavedSegmentRef.current = null;
+          }
+          // Look up the latest copy of the target segment from state so we get the freshest data
+          const latest = loggedSegments.find((s) => s.id === nextSegment.id) ?? nextSegment;
+          setSegmentModalData(latest);
+          updateSegmentParam(latest.id);
+        }}
+        distanceUnits={distanceUnits}
+        onSetCompleted={handleStartRestTimer}
       />
 
       {/* ADD SEGMENT EXERCISE PICKER */}
@@ -1539,6 +2031,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         onExerciseUpdated={(exercise) => setExercises((prev) => prev.map((e) => e.id === exercise.id ? exercise : e).sort((a, b) => a.name.localeCompare(b.name)))}
         startOnBrowse
       />
+
+      {/* COMPLETE-SESSION CONFIRM MODAL */}
+      {confirmModal}
     </div>
   );
 }

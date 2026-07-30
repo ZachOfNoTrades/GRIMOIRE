@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, FileText, Pencil } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
   const [selectedPromptTab, setSelectedPromptTab] = useState<PromptTab>("program");
 
   const router = useRouter();
+  const goBack = useGoBack();
 
   // Prompt tab configuration
   const promptTabs: { key: PromptTab; label: string }[] = [
@@ -203,7 +205,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/golem/ui/templates")}
+            onClick={() => goBack("/modules/golem/ui/templates")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />

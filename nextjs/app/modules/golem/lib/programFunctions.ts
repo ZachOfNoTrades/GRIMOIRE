@@ -134,6 +134,13 @@ export async function getProgramById(userId: string, programId: string): Promise
             JOIN workout_sessions ws2 ON se.session_id = ws2.id
             WHERE ws2.week_id = w.id AND ses.is_warmup = 0
           ), 0)             AS week_volume,
+          COALESCE((
+            SELECT SUM(tss.reps * tss.weight)
+            FROM target_session_segment_sets tss
+            JOIN target_session_segments ts ON tss.target_session_segment_id = ts.id
+            JOIN workout_sessions ws_est ON ts.session_id = ws_est.id
+            WHERE ws_est.week_id = w.id AND tss.is_warmup = 0
+          ), 0)             AS week_estimated_volume,
           CAST(CASE WHEN EXISTS (
             SELECT 1
             FROM target_session_segments tse
@@ -148,11 +155,14 @@ export async function getProgramById(userId: string, programId: string): Promise
           ws.resumed_at     AS session_resumed_at,
           ws.duration        AS session_duration,
           ws.is_current     AS session_is_current,
-          ws.is_completed   AS session_is_completed
+          ws.is_completed   AS session_is_completed,
+          ws.day_archetype_id AS session_day_archetype_id,
+          da.name           AS session_day_archetype_name
         FROM programs p
         LEFT JOIN blocks b ON b.program_id = p.id
         LEFT JOIN weeks w ON w.block_id = b.id
         LEFT JOIN workout_sessions ws ON ws.week_id = w.id
+        LEFT JOIN day_archetypes da ON da.id = ws.day_archetype_id
         WHERE p.id = @programId AND p.user_id = @userId
         ORDER BY b.order_index, w.week_number, ws.order_index
       `);
@@ -210,6 +220,7 @@ export async function getProgramById(userId: string, programId: string): Promise
           is_current: row.week_is_current,
           is_completed: row.week_is_completed,
           volume: row.week_volume,
+          estimated_volume: row.week_estimated_volume,
           has_targets: row.week_has_targets,
           sessions: [],
         };
@@ -230,6 +241,8 @@ export async function getProgramById(userId: string, programId: string): Promise
         duration: row.session_duration,
         is_current: row.session_is_current,
         is_completed: row.session_is_completed,
+        day_archetype_id: row.session_day_archetype_id ?? null,
+        day_archetype_name: row.session_day_archetype_name ?? null,
       };
       week.sessions.push(session);
     }
@@ -246,7 +259,7 @@ export async function getProgramById(userId: string, programId: string): Promise
 }
 
 // Clears is_current on a program and all of its blocks, weeks, and sessions.
-async function clearProgramCurrentFlags(transaction: any, userId: string, programId: string): Promise<void> {
+export async function clearProgramCurrentFlags(transaction: any, userId: string, programId: string): Promise<void> {
   // Clear current flags on sessions within the program
   await transaction.request()
     .input('programId', programId)
@@ -421,10 +434,11 @@ export async function createProgram(userId: string, payload: CreateProgramPayloa
               .input('orderIndex', session.order_index)
               .input('name', session.name)
               .input('description', session.description ?? null)
+              .input('dayArchetypeId', session.day_archetype_id ?? null)
               .query(`
-                INSERT INTO workout_sessions (user_id, week_id, order_index, name, description)
+                INSERT INTO workout_sessions (user_id, week_id, order_index, name, description, day_archetype_id)
                 OUTPUT INSERTED.id
-                VALUES (@userId, @weekId, @orderIndex, @name, @description)
+                VALUES (@userId, @weekId, @orderIndex, @name, @description, @dayArchetypeId)
               `);
 
             const sessionId = sessionResult.recordset[0].id;
@@ -537,6 +551,94 @@ export async function getFirstWeekId(userId: string, programId: string): Promise
     if (pool) {
       await closeGolemConnection(pool);
     }
+  }
+}
+
+// Deterministically append a new week to a block by CLONING a source week's session structure — session
+// names + day-archetype assignments + order, but NO exercises/sets (the engine fills those per session).
+// LLM-free counterpart to generateNextWeek (which needs a program template and calls the LLM). The new
+// week is added at the end of the source week's block. Returns the new week id + its (empty) sessions.
+export async function appendWeekFromSource(
+  userId: string,
+  sourceWeekId: string,
+): Promise<{ weekId: string; sessions: { id: string; name: string; day_archetype_id: string | null }[] }> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+    try {
+      // Validate the source week belongs to the user (scoped via blocks → programs.user_id).
+      const weekResult = await transaction.request()
+        .input('userId', userId)
+        .input('weekId', sourceWeekId)
+        .query(`
+          SELECT w.id, w.block_id
+          FROM weeks w
+          JOIN blocks b ON w.block_id = b.id
+          JOIN programs p ON b.program_id = p.id
+          WHERE w.id = @weekId AND p.user_id = @userId
+        `);
+      if (weekResult.recordset.length === 0) {
+        throw new Error(`No week found for id: '${sourceWeekId}'`);
+      }
+      const blockId = weekResult.recordset[0].block_id;
+
+      // Next week_number = max in the block + 1 (append at the end).
+      const maxResult = await transaction.request()
+        .input('blockId', blockId)
+        .query(`SELECT ISNULL(MAX(week_number), 0) AS maxWeek FROM weeks WHERE block_id = @blockId`);
+      const nextWeekNumber = maxResult.recordset[0].maxWeek + 1;
+
+      // Insert the new (unnamed) week.
+      const newWeekResult = await transaction.request()
+        .input('userId', userId)
+        .input('blockId', blockId)
+        .input('weekNumber', nextWeekNumber)
+        .query(`
+          INSERT INTO weeks (user_id, block_id, week_number, name, description)
+          OUTPUT INSERTED.id
+          VALUES (@userId, @blockId, @weekNumber, NULL, NULL)
+        `);
+      const newWeekId = newWeekResult.recordset[0].id;
+
+      // Copy the source week's sessions (structure only — no segments, sets, timing, or status).
+      const sourceSessions = await transaction.request()
+        .input('weekId', sourceWeekId)
+        .query(`
+          SELECT name, description, day_archetype_id, order_index
+          FROM workout_sessions WHERE week_id = @weekId
+          ORDER BY order_index
+        `);
+
+      const sessions: { id: string; name: string; day_archetype_id: string | null }[] = [];
+      for (const s of sourceSessions.recordset) {
+        const inserted = await transaction.request()
+          .input('userId', userId)
+          .input('weekId', newWeekId)
+          .input('name', s.name)
+          .input('description', s.description)
+          .input('dayArchetypeId', s.day_archetype_id)
+          .input('orderIndex', s.order_index)
+          .query(`
+            INSERT INTO workout_sessions (user_id, week_id, name, description, day_archetype_id, order_index)
+            OUTPUT INSERTED.id
+            VALUES (@userId, @weekId, @name, @description, @dayArchetypeId, @orderIndex)
+          `);
+        sessions.push({ id: inserted.recordset[0].id, name: s.name, day_archetype_id: s.day_archetype_id });
+      }
+
+      await transaction.commit();
+      return { weekId: newWeekId, sessions };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error appending week from source:', error);
+    throw error;
+  } finally {
+    if (pool) await closeGolemConnection(pool);
   }
 }
 
@@ -678,6 +780,16 @@ export async function deleteProgram(userId: string, programId: string): Promise<
       `);
       await transaction.request().input('programId', programId).query(`
         DELETE FROM blocks WHERE program_id = @programId
+      `);
+      // Program-specific day archetypes (clone-on-write) reference this program via FK_day_archetypes_program (NO_ACTION).
+      // Their sessions are already deleted above, so drop the cloned archetypes (slots first for the slot FK) before the program.
+      await transaction.request().input('programId', programId).query(`
+        DELETE s FROM day_slots s
+        JOIN day_archetypes da ON s.day_archetype_id = da.id
+        WHERE da.program_id = @programId
+      `);
+      await transaction.request().input('programId', programId).query(`
+        DELETE FROM day_archetypes WHERE program_id = @programId
       `);
       const result = await transaction.request().input('userId', userId).input('programId', programId).query(`
         DELETE FROM programs WHERE id = @programId AND user_id = @userId

@@ -26,6 +26,7 @@ export async function getSegmentsAndTargets(userId: string, sessionId: string): 
           se.is_warmup AS segment_is_warmup,
           e.category AS exercise_category,
           e.is_timed AS exercise_is_timed,
+          e.distance_type AS exercise_distance_type,
           se.notes AS segment_notes,
           se.created_at AS segment_created_at,
           se.modified_at AS segment_modified_at,
@@ -35,6 +36,7 @@ export async function getSegmentsAndTargets(userId: string, sessionId: string): 
           ses.weight,
           ses.rpe,
           ses.time_seconds,
+          ses.distance,
           ses.is_warmup,
           ses.is_completed,
           ses.notes AS set_notes,
@@ -65,6 +67,7 @@ export async function getSegmentsAndTargets(userId: string, sessionId: string): 
           exercise_name: row.exercise_name,
           exercise_category: row.exercise_category,
           exercise_is_timed: row.exercise_is_timed,
+          exercise_distance_type: row.exercise_distance_type ?? null,
           target_id: row.target_id,
           modifier_id: row.modifier_id,
           modifier_name: row.modifier_name,
@@ -90,6 +93,7 @@ export async function getSegmentsAndTargets(userId: string, sessionId: string): 
           weight: row.weight,
           rpe: row.rpe,
           time_seconds: row.time_seconds,
+          distance: row.distance ?? null,
           notes: row.set_notes,
           is_completed: row.is_completed,
           created_at: row.set_created_at,
@@ -110,10 +114,14 @@ export async function getSegmentsAndTargets(userId: string, sessionId: string): 
           e.name AS exercise_name,
           e.category AS exercise_category,
           e.is_timed AS exercise_is_timed,
+          e.distance_type AS exercise_distance_type,
           tse.modifier_id AS target_modifier_id,
           em.name AS target_modifier_name,
           tse.order_index,
           tse.is_warmup AS target_segment_is_warmup,
+          tse.slot_role AS target_slot_role,
+          tse.progression_model AS target_progression_model,
+          tse.day_archetype_id AS target_day_archetype_id,
           tse.created_at AS target_segment_created_at,
           tse.modified_at AS target_segment_modified_at,
           tss.id AS target_set_id,
@@ -124,6 +132,7 @@ export async function getSegmentsAndTargets(userId: string, sessionId: string): 
           tss.weight,
           tss.rpe,
           tss.time_seconds,
+          tss.distance,
           tss.created_at AS target_set_created_at,
           tss.modified_at AS target_set_modified_at
         FROM target_session_segments tse
@@ -151,10 +160,14 @@ export async function getSegmentsAndTargets(userId: string, sessionId: string): 
           exercise_name: row.exercise_name,
           exercise_category: row.exercise_category,
           exercise_is_timed: row.exercise_is_timed,
+          exercise_distance_type: row.exercise_distance_type ?? null,
           modifier_id: row.target_modifier_id,
           modifier_name: row.target_modifier_name,
           order_index: row.order_index,
           is_warmup: row.target_segment_is_warmup,
+          slot_role: row.target_slot_role ?? null,
+          progression_model: row.target_progression_model ?? null,
+          day_archetype_id: row.target_day_archetype_id ?? null,
           created_at: row.target_segment_created_at,
           modified_at: row.target_segment_modified_at,
           sets: [],
@@ -173,6 +186,7 @@ export async function getSegmentsAndTargets(userId: string, sessionId: string): 
           weight: row.weight,
           rpe: row.rpe,
           time_seconds: row.time_seconds,
+          distance: row.distance ?? null,
           created_at: row.target_set_created_at,
           modified_at: row.target_set_modified_at,
         });
@@ -296,6 +310,7 @@ export async function updateSegments(userId: string, sessionId: string, segments
             .input('weight', set.weight)
             .input('rpe', set.rpe)
             .input('timeSeconds', set.time_seconds)
+            .input('distance', set.distance ?? null)
             .input('setNotes', set.notes)
             .input('isCompleted', set.is_completed)
             .query(`
@@ -310,12 +325,13 @@ export async function updateSegments(userId: string, sessionId: string, segments
                   reps = @reps,
                   rpe = @rpe,
                   time_seconds = @timeSeconds,
+                  distance = @distance,
                   notes = @setNotes,
                   is_completed = @isCompleted,
                   modified_at = GETDATE()
               WHEN NOT MATCHED THEN
-                INSERT (id, user_id, session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, notes, is_completed)
-                VALUES (@setId, @userId, @sessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, @setNotes, @isCompleted);
+                INSERT (id, user_id, session_segment_id, set_number, is_warmup, reps, weight, rpe, time_seconds, distance, notes, is_completed)
+                VALUES (@setId, @userId, @sessionSegmentId, @setNumber, @isWarmup, @reps, @weight, @rpe, @timeSeconds, @distance, @setNotes, @isCompleted);
             `);
         }
       }
@@ -484,11 +500,14 @@ export async function createGeneratedTargets(
           .input('modifierId', exercise.modifier_id)
           .input('orderIndex', exercise.order_index)
           .input('isWarmup', exercise.is_warmup ? 1 : 0)
+          .input('slotRole', exercise.slot_role ?? null)
+          .input('progressionModel', exercise.progression_model ?? null)
+          .input('dayArchetypeId', exercise.day_archetype_id ?? null)
           .input('userId', userId)
           .query(`
-            INSERT INTO target_session_segments (user_id, session_id, exercise_id, modifier_id, order_index, is_warmup)
+            INSERT INTO target_session_segments (user_id, session_id, exercise_id, modifier_id, order_index, is_warmup, slot_role, progression_model, day_archetype_id)
             OUTPUT INSERTED.id
-            VALUES (@userId, @sessionId, @exerciseId, @modifierId, @orderIndex, @isWarmup)
+            VALUES (@userId, @sessionId, @exerciseId, @modifierId, @orderIndex, @isWarmup, @slotRole, @progressionModel, @dayArchetypeId)
           `);
         const targetSegmentId = targetSegmentResult.recordset[0].id;
 
@@ -509,6 +528,23 @@ export async function createGeneratedTargets(
             `);
         }
       }
+
+      // Re-adopt logged segments orphaned by a prior deleteAllTargetsForSession (regenerating an
+      // IN-PROGRESS session): relink each logged segment with no target to the freshly-created target for
+      // the same exercise. Without this, a regenerated session shows already-logged exercises twice
+      // (orphaned logged segment + new target). No-op for fresh sessions (no logged segments to adopt);
+      // a logged ad-hoc exercise with no matching target correctly stays unlinked.
+      await transaction.request()
+        .input('sessionId', sessionId)
+        .query(`
+          UPDATE seg SET seg.target_id = ts.id, seg.modified_at = GETDATE()
+          FROM session_segments seg
+          JOIN target_session_segments ts
+            ON ts.session_id = seg.session_id
+           AND ts.exercise_id = seg.exercise_id
+           AND ts.is_warmup = seg.is_warmup
+          WHERE seg.session_id = @sessionId AND seg.target_id IS NULL
+        `);
 
       await transaction.commit();
     } catch (error) {

@@ -16,7 +16,8 @@ System exercises have `user_id = NULL` (shared). User custom exercises have `use
 | description | NVARCHAR(MAX)         |                                                         |
 | category    | NVARCHAR(50)          | 'Strength', 'Cardio', or 'Mobility'                     |
 | is_timed    | BIT                   | 1 = timed exercise (uses time_seconds instead of reps)  |
-| is_disabled | BIT                   | 0 = active, 1 = disabled                                |
+| distance_type | NVARCHAR(10)        | NULL = no distance tracking, 'short' = feet/yards/meters, 'long' = km/mi |
+| is_disabled | BIT                   | LEGACY — no longer used; enabled state is per-location (see `location_exercise_overrides`) |
 | created_at  | DATETIME2             |                                                         |
 | modified_at | DATETIME2             |                                                         |
 
@@ -31,23 +32,39 @@ Per-user overrides for system exercises (custom name, description, disabled stat
 | exercise_id        | UNIQUEIDENTIFIER (FK → exercises) |                                    |
 | custom_name        | NVARCHAR(255)                     | Nullable — overrides exercise name |
 | custom_description | NVARCHAR(MAX)                     | Nullable — overrides description   |
-| is_disabled        | BIT                               | Overrides exercise disabled state  |
+| is_disabled        | BIT                               | LEGACY — no longer used (enabled state is per-location) |
 | created_at         | DATETIME2                         |                                    |
 | modified_at        | DATETIME2                         |                                    |
 
 Unique constraint on (user_id, exercise_id).
 
-**To query exercises with user overrides applied:**
+### location_exercise_overrides
+
+Per-location enabled/disabled state for exercises — this is the source of truth for whether an exercise is enabled. A row with `is_disabled = 1` means the exercise is disabled at that location; **absence of a row means the exercise is enabled** (all exercises enabled by default).
+
+| Column      | Type                              | Notes                                            |
+| ----------- | --------------------------------- | ------------------------------------------------ |
+| id          | UNIQUEIDENTIFIER (PK)             |                                                  |
+| location_id | UNIQUEIDENTIFIER (FK → locations) | The location this override applies to            |
+| exercise_id | UNIQUEIDENTIFIER (FK → exercises) |                                                  |
+| is_disabled | BIT                               | 1 = disabled at this location                    |
+| created_at  | DATETIME2                         |                                                  |
+| modified_at | DATETIME2                         |                                                  |
+
+Unique constraint on (location_id, exercise_id). The relevant `location_id` is the user's active location (`locations.is_active = 1`); it is provided in the prompt's Available Equipment section.
+
+**To query exercises enabled at a given location (with user overrides applied):**
 
 ```sql
 SELECT e.id, COALESCE(o.custom_name, e.name) AS name,
        COALESCE(o.custom_description, e.description) AS description,
-       COALESCE(o.is_disabled, e.is_disabled) AS is_disabled,
+       COALESCE(leo.is_disabled, 0) AS is_disabled,
        e.category, e.is_timed
 FROM exercises e
 LEFT JOIN user_exercise_overrides o ON o.exercise_id = e.id AND o.user_id = @userId
+LEFT JOIN location_exercise_overrides leo ON leo.exercise_id = e.id AND leo.location_id = @locationId
 WHERE (e.user_id IS NULL OR e.user_id = @userId)
-  AND COALESCE(o.is_disabled, e.is_disabled) = 0
+  AND COALESCE(leo.is_disabled, 0) = 0
 ```
 
 ### muscle_groups (shared — no user_id)
@@ -108,8 +125,28 @@ Optional modifiers that can be applied to exercises at the segment level (e.g., 
 | id             | UNIQUEIDENTIFIER (PK) |                              |
 | user_id        | UNIQUEIDENTIFIER      | Required — unique per user   |
 | profile_prompt | NVARCHAR(MAX)         | User profile context for LLM |
+| distance_unit_short | NVARCHAR(10)     | Preferred short-distance display unit: meters/yards/feet (NULL = meters) |
+| distance_unit_long | NVARCHAR(10)      | Preferred long-distance display unit: km/mi (NULL = km) |
 | created_at     | DATETIME2             |                              |
 | modified_at    | DATETIME2             |                              |
+
+**Working sets per muscle group for a given week:**
+
+```sql
+SELECT mg.name AS muscle_group,
+       COUNT(*) AS working_sets
+FROM session_segment_sets sss
+JOIN session_segments ss ON sss.session_segment_id = ss.id
+JOIN workout_sessions ws ON ss.session_id = ws.id
+JOIN exercise_muscle_groups emg ON ss.exercise_id = emg.exercise_id
+JOIN muscle_groups mg ON emg.muscle_group_id = mg.id
+WHERE ws.week_id = '<week_id>'
+  AND ws.user_id = @userId
+  AND sss.is_warmup = 0
+  AND sss.is_completed = 1
+GROUP BY mg.name
+ORDER BY working_sets DESC
+```
 
 ### programs
 
@@ -175,8 +212,23 @@ A block is a training phase within a program (e.g., Hypertrophy, Peaking, Deload
 | is_completed | BIT                           | 1 = finished                                       |
 | review       | NVARCHAR(MAX)                 | User-written post-session review (nullable)        |
 | analysis     | NVARCHAR(MAX)                 | LLM-generated session analysis (nullable)          |
+| pre_survey_notes | NVARCHAR(MAX)             | User-written pre-workout notes (nullable)          |
 | created_at   | DATETIME2                     |                                                    |
 | modified_at  | DATETIME2                     |                                                    |
+
+### session_pre_survey_muscles
+
+Per-muscle fatigue captured before a session begins. Used by exercise generation to bias selection — avoid heavy loading on highly fatigued muscles. Already injected into the generation prompt; query this only when you need raw rows.
+
+| Column          | Type                                     | Notes                                       |
+| --------------- | ---------------------------------------- | ------------------------------------------- |
+| id              | UNIQUEIDENTIFIER (PK)                    |                                             |
+| user_id         | UNIQUEIDENTIFIER                         | Required — filter by `@userId`              |
+| session_id      | UNIQUEIDENTIFIER (FK → workout_sessions) |                                             |
+| muscle_group_id | UNIQUEIDENTIFIER (FK → muscle_groups)    |                                             |
+| fatigue         | INT                                      | 1 = fresh, 2 = sore, 3 = fatigued           |
+| created_at      | DATETIME2                                |                                             |
+| modified_at    | DATETIME2                                |                                             |
 
 ### target_session_segments
 
@@ -209,6 +261,7 @@ Prescribed sets within a target segment.
 | weight                    | DECIMAL(6,1)                                    | Pounds                                |
 | rpe                       | DECIMAL(3,1)                                    | Rate of perceived exertion (nullable) |
 | time_seconds              | INT                                             | For timed exercises (nullable)        |
+| distance                  | DECIMAL(10,3)                                   | Prescribed distance in meters (nullable) |
 | created_at                | DATETIME2                                       |                                       |
 | modified_at               | DATETIME2                                       |                                       |
 
@@ -245,6 +298,7 @@ Actual performed sets.
 | weight             | DECIMAL(6,1)                             | Pounds                         |
 | rpe                | DECIMAL(3,1)                             | Nullable                       |
 | time_seconds       | INT                                      | For timed exercises (nullable) |
+| distance           | DECIMAL(10,3)                            | Logged distance in meters (nullable) |
 | notes              | NVARCHAR(MAX)                            |                                |
 | is_completed       | BIT                                      |                                |
 | created_at         | DATETIME2                                |                                |
@@ -262,7 +316,8 @@ program_templates (user_id)
                       └─ session_segments (user_id) → session_segment_sets (user_id)               (what was done)
 
 exercises (user_id nullable: NULL = system, set = custom)
-  └─ user_exercise_overrides (user_id — per-user customizations of system exercises)
+  ├─ user_exercise_overrides (user_id — per-user custom name/description)
+  └─ location_exercise_overrides (location_id — per-location enabled/disabled state)
 
 muscle_groups (shared)
 exercise_muscle_groups (shared)
@@ -375,8 +430,9 @@ WHERE ws.id = '<session_id>'
 SELECT e.id, COALESCE(o.custom_name, e.name) AS name
 FROM exercises e
 LEFT JOIN user_exercise_overrides o ON o.exercise_id = e.id AND o.user_id = @userId
+LEFT JOIN location_exercise_overrides leo ON leo.exercise_id = e.id AND leo.location_id = @locationId
 WHERE (e.user_id IS NULL OR e.user_id = @userId)
-  AND COALESCE(o.is_disabled, e.is_disabled) = 0
+  AND COALESCE(leo.is_disabled, 0) = 0
   AND e.id NOT IN (
     SELECT DISTINCT ss.exercise_id
     FROM session_segments ss

@@ -1,0 +1,155 @@
+/* Golem settings + home grouped menus — terminal-console control panel.
+   Phosphor-on-black aesthetic: monospace bracketed section labels, hairline
+   grouped cards, bordered icon tiles, and a left "cursor" accent that lights
+   up on hover. Every value resolves to a globals.css design token so the
+   menu tracks the app theme. Shared by the Settings page and the home menu. */
+
+/* ============ PAGE HEADER ============ */
+.gs-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 0.25rem;
+}
+
+.gs-title {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.gs-subtitle {
+  color: var(--color-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ============ SECTION LABEL ============ */
+/* Bracketed, monospace, dim — reads like a terminal section header. */
+.gs-section {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  margin: 1.5rem 0 0.5rem 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gs-section::before {
+  content: "//";
+  color: var(--color-gray);
+}
+
+/* ============ ROW GROUP (rounded card with hairline dividers) ============ */
+.gs-group {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* ============ ROW ============ */
+.gs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  padding: 0.875rem 1rem 0.875rem 0.875rem;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+  position: relative;
+  transition: background-color 130ms ease, border-color 130ms ease;
+}
+
+.gs-row + .gs-row {
+  border-top: 1px solid var(--card-border);
+}
+
+.gs-row:hover {
+  background: var(--hover-bg);
+  border-left-color: var(--color-primary);
+}
+
+.gs-row:focus-visible {
+  outline: none;
+  background: var(--hover-bg);
+  border-left-color: var(--color-primary);
+}
+
+/* ============ ICON TILE ============ */
+.gs-icon {
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  background: var(--solid-background);
+  color: var(--color-primary);
+  transition: border-color 130ms ease, color 130ms ease;
+}
+
+.gs-row:hover .gs-icon,
+.gs-row:focus-visible .gs-icon {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--card-border));
+  color: var(--hover-text);
+}
+
+/* ============ ROW TEXT ============ */
+.gs-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.gs-row-label {
+  font-weight: 600;
+  color: var(--color-primary);
+  line-height: 1.2;
+}
+
+.gs-row-hint {
+  color: var(--color-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+}
+
+.gs-row-chev {
+  flex: 0 0 auto;
+  color: var(--color-gray);
+  transition: transform 130ms ease, color 130ms ease;
+}
+
+.gs-row:hover .gs-row-chev,
+.gs-row:focus-visible .gs-row-chev {
+  color: var(--color-primary);
+  transform: translateX(3px);
+}
+
+/* ============ STAGGERED LOAD-IN ============ */
+@keyframes gs-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.gs-animate {
+  opacity: 0;
+  animation: gs-rise 360ms ease forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-animate { opacity: 1; animation: none; }
+  .gs-row, .gs-icon, .gs-row-chev { transition: none; }
+}

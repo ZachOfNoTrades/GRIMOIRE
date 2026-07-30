@@ -2,9 +2,10 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, History, LayoutList, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { WorkoutSession } from "../../types/workoutSession";
+import { WorkoutSessionHistoryItem } from "../../types/workoutSession";
 import { ProgramSummary } from "../../types/program";
 import { formatDateTimeShort } from "../../utils/format";
 import PaginatedTable, { PaginatedTableHandle } from "../../components/PaginatedTable";
@@ -17,6 +18,7 @@ export default function HistoryPage() {
 
   const sessionsTableRef = useRef<PaginatedTableHandle>(null);
   const router = useRouter();
+  const goBack = useGoBack();
 
 
   return (
@@ -31,7 +33,7 @@ export default function HistoryPage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/golem/ui/home")}
+            onClick={() => goBack("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -96,7 +98,7 @@ export default function HistoryPage() {
             />
           </div>
 
-          {/* STANDALONE SESSIONS CARD */}
+          {/* WORKOUTS CARD */}
           <div className="card">
 
             {/* CARD HEADER */}
@@ -105,18 +107,19 @@ export default function HistoryPage() {
               {/* TITLE */}
               <h2 className="text-card-title">
                 <History className="w-5 h-5" />
-                Sessions
+                Workouts
               </h2>
             </div>
 
-            {/* PAGINATED SESSIONS TABLE */}
-            <PaginatedTable<WorkoutSession>
+            {/* PAGINATED WORKOUTS TABLE */}
+            <PaginatedTable<WorkoutSessionHistoryItem>
               ref={sessionsTableRef}
               fetchUrl={(page, pageSize) => `/modules/golem/api/sessions?page=${page}&pageSize=${pageSize}`}
               dataKey="sessions"
               columns={[
                 { header: "Name" },
-                { header: "Created" },
+                { header: "Program" },
+                { header: "Date" },
               ]}
               renderRow={(session) => (
 
@@ -126,11 +129,31 @@ export default function HistoryPage() {
                   className="table-row-clickable"
                   onClick={() => router.push(`/modules/golem/ui/session/${session.id}`)}
                 >
-                  <td className="table-cell">{session.name}</td>
-                  <td className="table-cell">{formatDateTimeShort(session.created_at)}</td>
+                  {/* NAME */}
+                  <td className="table-cell w-full truncate max-w-0">{session.name}</td>
+
+                  {/* PROGRAM (clickable through to the program; em dash for standalone sessions) */}
+                  <td className="table-cell whitespace-nowrap">
+                    {session.program_id ? (
+                      <span
+                        className="hover:underline cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/modules/golem/ui/programs/${session.program_id}`);
+                        }}
+                      >
+                        {session.program_name}
+                      </span>
+                    ) : (
+                      <span className="text-subtle">—</span>
+                    )}
+                  </td>
+
+                  {/* DATE */}
+                  <td className="table-cell">{formatDateTimeShort(session.started_at ?? session.created_at)}</td>
                 </tr>
               )}
-              emptyMessage="No standalone sessions found"
+              emptyMessage="No workouts found"
             />
           </div>
         </div>

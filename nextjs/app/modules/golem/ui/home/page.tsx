@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { Clock, Dumbbell, Layers, Play, Plus, Zap } from "lucide-react";
+import { Clock, Dumbbell, Layers, Play, Plus, Zap, History, BarChart3, Settings, CalendarDays } from "lucide-react";
 import { Program } from "../../types/program";
 import { WorkoutSession } from "../../types/workoutSession";
 import ProgramDashboard from "../../components/ProgramDashboard";
+import GolemMenu, { type GolemMenuSection } from "../../components/GolemMenu";
+import GolemCalendarWidget from "../../components/GolemCalendarWidget";
+import HelpButton from "@/components/ui/HelpButton";
 
 export default function GolemHomePage() {
 
@@ -86,6 +88,27 @@ export default function GolemHomePage() {
     }
   };
 
+  // CATEGORIZED HOME MENU — quick links to the read surfaces used during/after a
+  // session, plus a single entry into the full settings hub (which carries the
+  // less-frequent library, programming, and account surfaces).
+  const menuSections: GolemMenuSection[] = [
+    {
+      title: "Browse",
+      items: [
+        { icon: Dumbbell, label: "Exercise Library", hint: exerciseCount > 0 ? `${exerciseCount} movements` : "Browse and edit movements", href: "/modules/golem/ui/exercises" },
+        { icon: CalendarDays, label: "Calendar", hint: "Workouts by day", href: "/modules/golem/ui/calendar" },
+        { icon: History, label: "Workout History", hint: "Past sessions and imports", href: "/modules/golem/ui/history" },
+        { icon: BarChart3, label: "Weekly Volume", hint: "Sets per muscle vs. landmarks", href: "/modules/golem/ui/volume" },
+      ],
+    },
+    {
+      title: "Configure",
+      items: [
+        { icon: Settings, label: "Settings", hint: "Locations, templates, archetypes, profile", href: "/modules/golem/ui/settings" },
+      ],
+    },
+  ];
+
   return (
 
     // PAGE
@@ -95,13 +118,23 @@ export default function GolemHomePage() {
       <div className="page-container">
 
         {/* PAGE HEADER */}
-        <div className="mb-8">
+        <div className="mb-8 flex items-center justify-between gap-2">
 
           {/* PAGE TITLE */}
           <h1 className="text-page-title">
             <Dumbbell className="w-8 h-8" />
             Workout Tracker
           </h1>
+
+          {/* HELP */}
+          <HelpButton
+            title="Workout Tracker"
+            sections={[
+              { heading: "Getting started", body: "Tap New Session to log a workout freehand, or Generate Program to build a structured multi-week plan the app fills in for you." },
+              { heading: "During a workout", body: "Open the active session to add exercises and log each set (weight × reps), then mark it complete. The pre-workout view suggests today's targets from your program." },
+              { heading: "Review & configure", body: "Browse the Exercise Library, Calendar, Workout History, and Weekly Volume (sets per muscle vs. landmarks). Locations, templates, archetypes, and your profile live in Settings." },
+            ]}
+          />
         </div>
 
         {/* ACTION BUTTONS */}
@@ -214,37 +247,14 @@ export default function GolemHomePage() {
           </div>
         )}
 
-        {/* NAVIGATION CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          {/* EXERCISES CARD */}
-          <Link href="/modules/golem/ui/exercises">
-            <div className="module-card">
-              <h2 className="text-card-title">Exercise Library</h2>
-            </div>
-          </Link>
-
-          {/* HISTORY CARD */}
-          <Link href="/modules/golem/ui/history">
-            <div className="module-card">
-              <h2 className="text-card-title">Workout History</h2>
-            </div>
-          </Link>
-
-          {/* TEMPLATES CARD */}
-          <Link href="/modules/golem/ui/templates">
-            <div className="module-card">
-              <h2 className="text-card-title">Program Templates</h2>
-            </div>
-          </Link>
-
-          {/* PROFILE CARD */}
-          <Link href="/modules/golem/ui/profile">
-            <div className="module-card">
-              <h2 className="text-card-title">User Profile</h2>
-            </div>
-          </Link>
+        {/* CALENDAR WIDGET CARD — navigable month grid + agenda of the selected day's workouts.
+            Two-pane on wide cards, stacks on mobile (the primary target). */}
+        <div className="card mb-6">
+          <GolemCalendarWidget />
         </div>
+
+        {/* CATEGORIZED NAVIGATION MENU */}
+        <GolemMenu sections={menuSections} startDelayMs={60} />
       </div>
     </div>
   );

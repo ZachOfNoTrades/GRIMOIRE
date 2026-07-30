@@ -1,7 +1,8 @@
 import { getGolemConnection, closeGolemConnection } from './db';
-import { WorkoutSession } from '../types/workoutSession';
+import { WorkoutSession, WorkoutSessionHistoryItem } from '../types/workoutSession';
+import { clearProgramCurrentFlags } from './programFunctions';
 
-export async function getAllWorkoutSessions(userId: string, page?: number, pageSize?: number): Promise<{ sessions: WorkoutSession[]; totalCount: number }> {
+export async function getAllWorkoutSessions(userId: string, page?: number, pageSize?: number, scope: 'all' | 'standalone' = 'all'): Promise<{ sessions: WorkoutSessionHistoryItem[]; totalCount: number }> {
   let pool;
   try {
     pool = await getGolemConnection();
@@ -16,11 +17,26 @@ export async function getAllWorkoutSessions(userId: string, page?: number, pageS
       paginationClause = 'OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY';
     }
 
+    // 'standalone' keeps the legacy behavior (ad-hoc sessions only); 'all' includes program sessions.
+    const scopeClause = scope === 'standalone' ? 'AND ws.week_id IS NULL' : '';
+
+    // LEFT JOIN up the program hierarchy (week -> block -> program) so each session carries its
+    // program context. Standalone sessions (week_id IS NULL) get NULLs for the program columns.
+    // Order by started_at when present (program sessions are batch-generated, so created_at clusters them).
     const query = `
-      SELECT *, COUNT(*) OVER() AS _total_count
-      FROM workout_sessions
-      WHERE week_id IS NULL AND user_id = @userId
-      ORDER BY created_at DESC
+      SELECT
+        ws.*,
+        p.id AS program_id,
+        p.name AS program_name,
+        b.name AS block_name,
+        w.week_number AS week_number,
+        COUNT(*) OVER() AS _total_count
+      FROM workout_sessions ws
+      LEFT JOIN weeks w ON ws.week_id = w.id
+      LEFT JOIN blocks b ON w.block_id = b.id
+      LEFT JOIN programs p ON b.program_id = p.id
+      WHERE ws.user_id = @userId ${scopeClause}
+      ORDER BY COALESCE(ws.started_at, ws.created_at) DESC
       ${paginationClause}
     `;
 
@@ -34,7 +50,7 @@ export async function getAllWorkoutSessions(userId: string, page?: number, pageS
     const totalCount = result.recordset[0]._total_count;
 
     // Strip the _total_count column from each row
-    const sessions = result.recordset.map(({ _total_count, ...session }) => session as WorkoutSession);
+    const sessions = result.recordset.map(({ _total_count, ...session }) => session as WorkoutSessionHistoryItem);
 
     return { sessions, totalCount };
   } catch (error) {
@@ -47,17 +63,24 @@ export async function getAllWorkoutSessions(userId: string, page?: number, pageS
   }
 }
 
-export async function createWorkoutSession(userId: string, name: string): Promise<string> {
+export async function createWorkoutSession(
+  userId: string,
+  name: string,
+  description: string | null = null,
+  dayArchetypeId: string | null = null, // optional engine archetype to generate the session from
+): Promise<string> {
   let pool;
   try {
     pool = await getGolemConnection();
     const result = await pool.request()
       .input('userId', userId)
       .input('name', name)
+      .input('description', description)
+      .input('dayArchetypeId', dayArchetypeId)
       .query(`
-        INSERT INTO workout_sessions (user_id, name)
+        INSERT INTO workout_sessions (user_id, name, description, day_archetype_id)
         OUTPUT INSERTED.id
-        VALUES (@userId, @name)
+        VALUES (@userId, @name, @description, @dayArchetypeId)
       `);
 
     return result.recordset[0].id;
@@ -71,14 +94,98 @@ export async function createWorkoutSession(userId: string, name: string): Promis
   }
 }
 
+// Create a session INSIDE a program week (vs. createWorkoutSession which makes a standalone session).
+// Validates the week belongs to the user (via its program), resolves order_index (append at the end by
+// default, or insert at an explicit position shifting later sessions down), and optionally links a day
+// archetype. New sessions are incomplete/non-current with no started_at (table defaults). Returns the new id.
+export async function createProgramSession(
+  userId: string,
+  weekId: string,
+  input: { name: string; description?: string | null; dayArchetypeId?: string | null; orderIndex?: number | null },
+): Promise<string> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+    try {
+      // Validate the week exists and belongs to this user (scoped via blocks → programs.user_id).
+      const weekCheck = await transaction.request()
+        .input('userId', userId)
+        .input('weekId', weekId)
+        .query(`
+          SELECT w.id FROM weeks w
+          JOIN blocks b ON w.block_id = b.id
+          JOIN programs p ON b.program_id = p.id
+          WHERE w.id = @weekId AND p.user_id = @userId
+        `);
+      if (weekCheck.recordset.length === 0) {
+        throw new Error(`No week found for id: '${weekId}'`);
+      }
+
+      // Resolve order_index: explicit position shifts later siblings down; otherwise append at the end.
+      let orderIndex: number;
+      if (input.orderIndex != null) {
+        orderIndex = input.orderIndex;
+        await transaction.request()
+          .input('weekId', weekId)
+          .input('orderIndex', orderIndex)
+          .query(`UPDATE workout_sessions SET order_index = order_index + 1, modified_at = GETDATE()
+                  WHERE week_id = @weekId AND order_index >= @orderIndex`);
+      } else {
+        const maxResult = await transaction.request()
+          .input('weekId', weekId)
+          .query(`SELECT ISNULL(MAX(order_index), -1) AS maxIdx FROM workout_sessions WHERE week_id = @weekId`);
+        orderIndex = maxResult.recordset[0].maxIdx + 1;
+      }
+
+      const result = await transaction.request()
+        .input('userId', userId)
+        .input('weekId', weekId)
+        .input('orderIndex', orderIndex)
+        .input('name', input.name)
+        .input('description', input.description ?? null)
+        .input('dayArchetypeId', input.dayArchetypeId ?? null)
+        .query(`
+          INSERT INTO workout_sessions (user_id, week_id, order_index, name, description, day_archetype_id)
+          OUTPUT INSERTED.id
+          VALUES (@userId, @weekId, @orderIndex, @name, @description, @dayArchetypeId)
+        `);
+
+      await transaction.commit();
+      return result.recordset[0].id;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error creating program session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
 export async function getCurrentWorkoutSession(userId: string): Promise<WorkoutSession | null> {
   let pool;
   try {
     pool = await getGolemConnection();
+    // Defense in depth: there should only ever be one current session, but if stale flags leave more
+    // than one (see the program-aware clearing in setWorkoutSessionAsCurrent), resolve deterministically —
+    // prefer the session belonging to the current program, then the most recently touched — instead of
+    // returning an arbitrary row.
     const result = await pool.request()
       .input('userId', userId)
       .query(`
-        SELECT * FROM workout_sessions WHERE is_current = 1 AND user_id = @userId
+        SELECT TOP 1 ws.*
+        FROM workout_sessions ws
+        LEFT JOIN weeks w ON ws.week_id = w.id
+        LEFT JOIN blocks b ON w.block_id = b.id
+        LEFT JOIN programs p ON b.program_id = p.id
+        WHERE ws.is_current = 1 AND ws.user_id = @userId
+        ORDER BY CASE WHEN p.is_current = 1 THEN 0 ELSE 1 END, ws.modified_at DESC
       `);
 
     if (result.recordset.length === 0) {
@@ -104,13 +211,44 @@ export async function getWorkoutSessionById(userId: string, id: string): Promise
     const result = await pool.request()
       .input('userId', userId)
       .input('id', id)
-      .query(`SELECT * FROM workout_sessions WHERE id = @id AND user_id = @userId`);
+      .query(`
+        SELECT ws.*, da.name AS day_archetype_name
+        FROM workout_sessions ws
+        LEFT JOIN day_archetypes da ON da.id = ws.day_archetype_id
+        WHERE ws.id = @id AND ws.user_id = @userId
+      `);
 
     if (result.recordset.length === 0) {
       throw new Error(`No workout session found for id: '${id}'`);
     }
 
-    return result.recordset[0];
+    const session = result.recordset[0];
+
+    // Bundle the assigned archetype's slots with the session so the empty-session slot preview renders
+    // immediately with the session details (no follow-up /day-archetypes round trip → no lag). Same query
+    // shape as getDayArchetypeWithSlots so the client can reuse the DaySlot type directly.
+    if (session.day_archetype_id) {
+      const slotsResult = await pool.request()
+        .input('userId', userId)
+        .input('archetypeId', session.day_archetype_id)
+        .query(`
+          SELECT s.id, s.day_archetype_id, s.order_index, s.role, s.target_muscle_group_id,
+                 mg.name AS target_muscle_name, s.category_filter, s.rotation_cadence,
+                 s.pinned_exercise_id, ex.name AS pinned_exercise_name, s.is_optional, s.is_warmup,
+                 s.progression_model, s.rep_low, s.rep_high, s.time_low_seconds, s.time_high_seconds,
+                 s.target_rpe, s.load_step_pct, s.round_to_step, s.set_target
+          FROM day_slots s
+          LEFT JOIN muscle_groups mg ON mg.id = s.target_muscle_group_id
+          LEFT JOIN exercises ex ON ex.id = s.pinned_exercise_id
+          WHERE s.day_archetype_id = @archetypeId AND s.user_id = @userId
+          ORDER BY s.order_index
+        `);
+      session.day_archetype_slots = slotsResult.recordset;
+    } else {
+      session.day_archetype_slots = [];
+    }
+
+    return session;
   } catch (error) {
     console.error('Error fetching workout session:', error);
     throw error;
@@ -400,6 +538,106 @@ export async function updateWorkoutSession(
   }
 }
 
+// Make a workout session the user's current/active session. Reuses the same "becoming current"
+// propagation as updateWorkoutSession (clears is_current on every other session in the program and
+// syncs the parent week/block pointers) without touching the session's name/timer/completion fields.
+export async function setWorkoutSessionAsCurrent(userId: string, id: string): Promise<void> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Get current session state for status propagation diffing
+      const currentResult = await transaction.request()
+        .input('userId', userId)
+        .input('id', id)
+        .query(`SELECT id, week_id, order_index, is_current, is_completed FROM workout_sessions WHERE id = @id AND user_id = @userId`);
+
+      if (currentResult.recordset.length === 0) {
+        throw new Error(`No workout session found for id: '${id}'`);
+      }
+
+      const current = currentResult.recordset[0];
+
+      // Already current — nothing to do
+      if (current.is_current) {
+        await transaction.commit();
+        return;
+      }
+
+      // Resolve the target session's program (null for standalone sessions), so we can make this a
+      // PROGRAM-AWARE switch. updateStatus only clears current flags WITHIN the target's own program;
+      // it never deactivates a different program. Without the block below, selecting a session in
+      // program B while program A is active leaves BOTH programs carrying current flags — two
+      // is_current sessions — which getCurrentWorkoutSession then resolves nondeterministically.
+      const targetProgramResult = await transaction.request()
+        .input('id', id)
+        .query(`
+          SELECT b.program_id
+          FROM workout_sessions ws
+          LEFT JOIN weeks w ON ws.week_id = w.id
+          LEFT JOIN blocks b ON w.block_id = b.id
+          WHERE ws.id = @id
+        `);
+      const targetProgramId: string | null = targetProgramResult.recordset[0]?.program_id ?? null;
+
+      // Deactivate any OTHER program that is still flagged current (clears its session/week/block/program
+      // flags), then activate the target's program. This mirrors the program switch done by activateProgram.
+      const otherCurrentPrograms = await transaction.request()
+        .input('userId', userId)
+        .input('targetProgramId', targetProgramId)
+        .query(`
+          SELECT id FROM programs
+          WHERE is_current = 1 AND user_id = @userId
+            AND (@targetProgramId IS NULL OR id != @targetProgramId)
+        `);
+
+      for (const program of otherCurrentPrograms.recordset) {
+        await clearProgramCurrentFlags(transaction, userId, program.id);
+      }
+
+      // Clear any lingering current flag on standalone sessions (no program) other than the target, so the
+      // single-current-session invariant also holds when switching to/from one-off sessions.
+      await transaction.request()
+        .input('userId', userId)
+        .input('id', id)
+        .query(`
+          UPDATE workout_sessions SET is_current = 0, modified_at = GETDATE()
+          WHERE user_id = @userId AND id != @id AND is_current = 1 AND week_id IS NULL
+        `);
+
+      // Activate the target's program (no-op for standalone sessions)
+      if (targetProgramId) {
+        await transaction.request()
+          .input('programId', targetProgramId)
+          .query(`UPDATE programs SET is_current = 1, modified_at = GETDATE() WHERE id = @programId AND is_current = 0`);
+      }
+
+      // Propagate the become-current change up to the parent week and block (preserve completion state)
+      await updateStatus(transaction, id, current, true, !!current.is_completed);
+
+      // Flag this session as current
+      await transaction.request()
+        .input('id', id)
+        .query(`UPDATE workout_sessions SET is_current = 1, modified_at = GETDATE() WHERE id = @id`);
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error setting workout session as current:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
 export async function deleteWorkoutSession(userId: string, id: string): Promise<void> {
   let pool;
   try {
@@ -522,6 +760,22 @@ export async function resetWorkoutSession(userId: string, id: string): Promise<v
       await transaction.request()
         .input('id', id)
         .query(`DELETE FROM session_segments WHERE session_id = @id`);
+
+      // Also clear the generated target segments (the filled day-archetype slots) so a reset returns the
+      // session to its pre-generation state — not just its logged sets. Logged segments (which FK-reference
+      // these targets via target_id) are already deleted above, so the targets can be removed directly.
+      await transaction.request()
+        .input('id', id)
+        .query(`
+          DELETE FROM target_session_segment_sets
+          WHERE target_session_segment_id IN (
+            SELECT id FROM target_session_segments WHERE session_id = @id
+          )
+        `);
+
+      await transaction.request()
+        .input('id', id)
+        .query(`DELETE FROM target_session_segments WHERE session_id = @id`);
 
       if (!current.week_id) {
         // Standalone session — clear timing and status fields

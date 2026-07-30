@@ -34,6 +34,8 @@ export interface ProgramSession {
   duration: number | null;
   is_current: boolean;
   is_completed: boolean;
+  day_archetype_id?: string | null;   // engine archetype this session generates from (lineage / feedback scope)
+  day_archetype_name?: string | null; // joined for readability (e.g. in MCP program context)
 }
 
 export interface ProgramWeek {
@@ -43,7 +45,8 @@ export interface ProgramWeek {
   description: string | null;
   is_current: boolean;
   is_completed: boolean;
-  volume: number; // total working set volume (reps * weight) for the week
+  volume: number; // total working set volume (reps * weight) for the week (actual, logged sets only)
+  estimated_volume: number; // projected working set volume (reps * weight) from the week's target/planned sets — used to draw bars for future weeks before any sets are logged
   has_targets: boolean; // whether target exercises have been assigned to the week's sessions
   sessions: ProgramSession[];
 }
@@ -95,6 +98,7 @@ export interface CreateProgramSession {
   order_index: number;
   name: string;
   description?: string | null;
+  day_archetype_id?: string | null; // engine-driven sessions link to a day archetype (exercises generated lazily)
   target_exercises: CreateProgramTargetExercise[];
 }
 

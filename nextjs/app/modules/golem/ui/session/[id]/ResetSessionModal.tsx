@@ -47,7 +47,7 @@ export default function ResetSessionModal({
             }
         >
             <p className="text-primary">
-                Are you sure you want to reset <strong>{sessionName}</strong>? This will clear all logged sets, duration, and review data. Target exercises will be preserved.
+                Are you sure you want to reset <strong>{sessionName}</strong>? This will clear all logged sets, generated target exercises, duration, and review data.
             </p>
         </Modal>
     );

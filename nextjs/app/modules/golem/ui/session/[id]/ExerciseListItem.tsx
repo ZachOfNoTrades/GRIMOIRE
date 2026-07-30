@@ -21,7 +21,7 @@ export default function ExerciseListItem({
 }: ExerciseListItemProps) {
   return (
     <div
-      className={`list-item !flex-col !items-stretch ${exercise.is_disabled && "opacity-60"}`}
+      className={`list-item !flex-col !items-stretch ${exercise.is_disabled ? "opacity-60" : ""}`}
       onClick={() => onSelect(exercise)}
     >
 
@@ -37,9 +37,11 @@ export default function ExerciseListItem({
         </span>
 
         {/* DISABLED ICON */}
-        {exercise.is_disabled && (
+        {/* is_disabled arrives from MSSQL as a 0/1 number (COALESCE(...,0) widens BIT to int),
+            so guard with a ternary — a bare `is_disabled && (...)` would render a literal "0". */}
+        {exercise.is_disabled ? (
           <Ban className="w-4 h-4" style={{ color: "var(--alert-red-text)" }} />
-        )}
+        ) : null}
       </div>
 
       {/* DETAILS ROW */}

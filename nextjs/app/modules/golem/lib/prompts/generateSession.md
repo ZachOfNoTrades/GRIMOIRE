@@ -19,8 +19,20 @@ is_warmup: boolean; // true for warmup/mobility exercises (stretches, dynamic wa
 sets: TargetSet[];
 }
 
+interface SuggestedExercise {
+name: string; // Descriptive name for the new exercise
+description: string | null; // Brief description of form/technique
+category: string; // "Strength", "Cardio", or "Mobility"
+is_timed: boolean; // true for duration-based exercises (planks, holds), false for rep-based
+modifier_id: string | null; // Optional UUID from exercise_modifiers table
+order_index: number; // Same rules as TargetExercise.order_index
+is_warmup: boolean; // Same rules as TargetExercise.is_warmup
+sets: TargetSet[];
+}
+
 interface SessionTargets {
-target_exercises: TargetExercise[];
+target_exercises: TargetExercise[]; // Exercises using existing exercise IDs
+suggested_exercises?: SuggestedExercise[]; // New exercises to create (user will approve before adding)
 }
 
 // Your response: SessionTargets (a single object, NOT an array)
@@ -43,13 +55,21 @@ Before generating exercises, use the SQL Query skill to gather relevant context.
 
 ## Rules
 
-1. Every exercise_id MUST be a valid UUID from the exercises table. Use the SQL Query skill to discover available exercises (query by muscle group, name, etc.). **Exclude disabled exercises** — only use exercises where `is_disabled = 0`.
+1. Every exercise_id in `target_exercises` MUST be a valid UUID from the exercises table. Use the SQL Query skill to discover available exercises (query by muscle group, name, etc.). **Only use exercises ENABLED at the governing location** — enabled state is per-location in `location_exercise_overrides`. The equipment section(s) below give the exact location id(s) and the join/filter to apply. **If warmup and working exercises use different locations, the warmup section governs warmup exercises (`is_warmup: true`) and the working section governs working exercises (`is_warmup: false`)** — apply each location's enabled-list filter and equipment to the matching exercise type. If a governing location is bodyweight-only, restrict that exercise type to bodyweight movements.
 2. Include an appropriate quantity of exercises based on the session description. If unsure, use 5 as a fallback.
-3. `order_index` starts at 1 and increments independently for warmup exercises and working exercises.
+3. `order_index` starts at 1 and increments independently for warmup exercises and working exercises. Order indices span across both `target_exercises` and `suggested_exercises` — they share the same sequence.
 4. Warmup exercises (`is_warmup: true`) MUST have all sets with `is_warmup: true`. They should not contain working sets.
 5. set_number starts at 1 and increments independently for warmup sets and working sets within each exercise.
-6. The response must be a single JSON object with a target_exercises array — nothing else.
-7. For timed exercises (`is_timed = 1` in the exercises table), set `reps` to null and use `time_seconds` for the duration. For rep-based exercises (`is_timed = 0`), set `time_seconds` to null and use `reps`. Check the `is_timed` column when querying exercises.
+6. The response must be a single JSON object with `target_exercises` and optionally `suggested_exercises` — nothing else.
+7. For timed exercises (`is_timed = 1` in the exercises table), set `reps` to null and use `time_seconds` for the duration. For rep-based exercises (`is_timed = 0`), set `time_seconds` to null and use `reps`. Check the `is_timed` column when querying exercises. For suggested exercises, set `is_timed` appropriately based on the exercise type.
+8. If volume landmarks are provided, ensure this session's working sets contribute toward (not exceed) the weekly MRV for each targeted muscle group. Use the SQL Query skill to check how many working sets have already been logged or prescribed for each muscle group this week before prescribing additional sets.
+9. **Suggesting new exercises:** If the session description calls for exercises that do not exist in the database (e.g., yoga poses, sport-specific drills, or other movements not in the library), include them in `suggested_exercises`. Only suggest exercises when suitable options genuinely do not exist — always prefer existing exercises. The user will review and approve suggested exercises before they are added.
+
+{{VOLUME_LANDMARKS}}
+
+{{PRE_SURVEY}}
+
+{{LOCATION_EQUIPMENT}}
 
 {{TEMPLATE_CONTEXT}}
 

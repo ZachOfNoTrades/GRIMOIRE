@@ -2,25 +2,41 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, User, Pencil } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { SettingsToggleRow } from "@/components/settings/SettingsList";
 import { UserProfile } from "../../types/userProfile";
+import { DEFAULT_SHORT_UNIT, DEFAULT_LONG_UNIT } from "../../utils/units";
+
+interface CalculatedLandmark {
+  muscle_group_name: string;
+  mev: number;
+  mrv: number;
+}
 
 export default function ProfilePage() {
 
   // DATA
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [landmarks, setLandmarks] = useState<CalculatedLandmark[]>([]);
 
   // INPUT
   const [editedProfilePrompt, setEditedProfilePrompt] = useState("");
+  const [distanceUnitShort, setDistanceUnitShort] = useState<string>(DEFAULT_SHORT_UNIT);
+  const [distanceUnitLong, setDistanceUnitLong] = useState<string>(DEFAULT_LONG_UNIT);
+  const [restTimerEnabled, setRestTimerEnabled] = useState(true);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingUnits, setIsSavingUnits] = useState(false);
+  const [isSavingRestTimer, setIsSavingRestTimer] = useState(false);
 
   const router = useRouter();
+  const goBack = useGoBack();
 
   // LOAD DATA
   useEffect(() => {
@@ -30,12 +46,23 @@ export default function ProfilePage() {
   const fetchProfile = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/modules/golem/api/user-profile");
-      if (!response.ok) {
-        throw new Error("Failed to fetch profile");
+      const [profileResponse, landmarksResponse] = await Promise.all([
+        fetch("/modules/golem/api/user-profile"),
+        fetch("/modules/golem/api/volume/landmarks"),
+      ]);
+
+      if (profileResponse.ok) {
+        const data = await profileResponse.json();
+        setProfile(data);
+        setDistanceUnitShort(data.distance_unit_short ?? DEFAULT_SHORT_UNIT);
+        setDistanceUnitLong(data.distance_unit_long ?? DEFAULT_LONG_UNIT);
+        setRestTimerEnabled(data.rest_timer_enabled ?? true);
       }
-      const data = await response.json();
-      setProfile(data);
+
+      if (landmarksResponse.ok) {
+        const data = await landmarksResponse.json();
+        setLandmarks(data);
+      }
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
@@ -83,6 +110,72 @@ export default function ProfilePage() {
     }
   };
 
+  // Persist a distance-unit change immediately (auto-save on select). Optimistically applies the new value
+  // and reverts on failure.
+  const handleDistanceUnitChange = async (band: "short" | "long", value: string) => {
+    const prevShort = distanceUnitShort;
+    const prevLong = distanceUnitLong;
+    if (band === "short") setDistanceUnitShort(value);
+    else setDistanceUnitLong(value);
+
+    setIsSavingUnits(true);
+    try {
+      const response = await fetch("/modules/golem/api/user-profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          band === "short" ? { distance_unit_short: value } : { distance_unit_long: value }
+        ),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update distance units");
+      }
+
+      const updatedProfile = await response.json();
+      setProfile(updatedProfile);
+      toast.success("Distance units saved");
+    } catch (error) {
+      // Revert on failure
+      setDistanceUnitShort(prevShort);
+      setDistanceUnitLong(prevLong);
+      toast.error("Failed to update distance units");
+      console.error("Error saving distance units:", error);
+    } finally {
+      setIsSavingUnits(false);
+    }
+  };
+
+  // Persist the rest-timer toggle immediately. Optimistically applies the new value and reverts on failure.
+  const handleRestTimerEnabledChange = async (next: boolean) => {
+    const previous = restTimerEnabled;
+    setRestTimerEnabled(next);
+
+    setIsSavingRestTimer(true);
+    try {
+      const response = await fetch("/modules/golem/api/user-profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rest_timer_enabled: next }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update rest timer setting");
+      }
+
+      const updatedProfile = await response.json();
+      setProfile(updatedProfile);
+      toast.success(next ? "Rest timer enabled" : "Rest timer disabled");
+    } catch (error) {
+      // Revert on failure
+      setRestTimerEnabled(previous);
+      toast.error("Failed to update rest timer setting");
+      console.error("Error saving rest timer setting:", error);
+    } finally {
+      setIsSavingRestTimer(false);
+    }
+  };
+
   // LOADING PLACEHOLDER
   if (isLoading) {
     return (
@@ -110,7 +203,7 @@ export default function ProfilePage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/golem/ui/home")}
+            onClick={() => goBack("/modules/golem/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -195,6 +288,135 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+
+        {/* DISTANCE UNITS CARD */}
+        <div className="card mt-6">
+
+          {/* CARD HEADER */}
+          <div className="card-header">
+
+            {/* TITLE */}
+            <div>
+              <h2 className="text-card-title">Distance Units</h2>
+              <p className="text-secondary text-sm">Preferred display units for distance-tracking exercises (values are stored in meters and converted for display)</p>
+            </div>
+          </div>
+
+          {/* CARD CONTENT */}
+          <div className="card-content flex flex-col gap-4">
+
+            {/* SHORT DISTANCE UNIT */}
+            <div className="flex flex-col gap-1">
+              <label className="text-label">Short distance</label>
+              <select
+                value={distanceUnitShort}
+                onChange={(e) => handleDistanceUnitChange("short", e.target.value)}
+                disabled={isSavingUnits}
+                className="input-field !w-auto"
+              >
+                <option value="meters">Meters (m)</option>
+                <option value="yards">Yards (yd)</option>
+                <option value="feet">Feet (ft)</option>
+              </select>
+            </div>
+
+            {/* LONG DISTANCE UNIT */}
+            <div className="flex flex-col gap-1">
+              <label className="text-label">Long distance</label>
+              <select
+                value={distanceUnitLong}
+                onChange={(e) => handleDistanceUnitChange("long", e.target.value)}
+                disabled={isSavingUnits}
+                className="input-field !w-auto"
+              >
+                <option value="km">Kilometers (km)</option>
+                <option value="mi">Miles (mi)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* REST TIMER CARD */}
+        <div className="card mt-6">
+
+          {/* CARD HEADER */}
+          <div className="card-header">
+
+            {/* TITLE */}
+            <div>
+              <h2 className="text-card-title">Rest Timer</h2>
+              <p className="text-secondary text-sm">Countdown shown after each working set is marked complete</p>
+            </div>
+          </div>
+
+          {/* CARD CONTENT */}
+          <div className="card-content">
+
+            {/* TOGGLE GROUP */}
+            <div className="settings-group">
+              <SettingsToggleRow
+                label="Show rest timer"
+                hint="Vibrates when the rest period elapses"
+                checked={restTimerEnabled}
+                disabled={isSavingRestTimer}
+                onChange={handleRestTimerEnabledChange}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* VOLUME LANDMARKS CARD */}
+        <div className="card mt-6">
+
+          {/* CARD HEADER */}
+          <div className="card-header">
+
+            {/* TITLE */}
+            <div>
+              <h2 className="text-card-title">Volume Landmarks</h2>
+              <p className="text-secondary text-sm">Working sets per muscle group per week, derived from your last 8 completed weeks</p>
+            </div>
+          </div>
+
+          {/* CARD CONTENT */}
+          <div className="card-content">
+            {landmarks.length === 0 ? (
+
+              // EMPTY STATE
+              <p className="text-secondary text-center py-8">
+                Complete at least 2 weeks of training to calculate your volume landmarks
+              </p>
+            ) : (
+
+              // LANDMARKS TABLE
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="text-left">Muscle Group</th>
+                    <th className="text-center w-24">MEV</th>
+                    <th className="text-center w-24">MRV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {landmarks.map((landmark) => (
+                    <tr key={landmark.muscle_group_name}>
+
+                      {/* MUSCLE GROUP NAME */}
+                      <td className="text-primary">{landmark.muscle_group_name}</td>
+
+                      {/* MEV */}
+                      <td className="text-center text-primary">{landmark.mev}</td>
+
+                      {/* MRV */}
+                      <td className="text-center text-primary">{landmark.mrv}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
       </main>
     </div>
   );

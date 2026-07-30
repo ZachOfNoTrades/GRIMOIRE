@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
+import ExerciseEquipmentPicker from "./ExerciseEquipmentPicker";
 
 interface AddExerciseModalProps {
   isOpen: boolean;
@@ -21,6 +22,8 @@ export default function AddExerciseModal({
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Strength");
   const [isTimed, setIsTimed] = useState(false);
+  const [distanceType, setDistanceType] = useState(""); // "" = none, "short", "long"
+  const [equipment, setEquipment] = useState<string[]>([]); // equipment ids required by this exercise
 
   // STATE
   const [isSaving, setIsSaving] = useState(false);
@@ -33,6 +36,8 @@ export default function AddExerciseModal({
       setDescription("");
       setCategory("Strength");
       setIsTimed(false);
+      setDistanceType("");
+      setEquipment([]);
       setError(null);
     }
   }, [isOpen]);
@@ -55,6 +60,7 @@ export default function AddExerciseModal({
           description: description.trim() || null,
           category,
           isTimed,
+          distanceType: distanceType || null,
         }),
       });
 
@@ -65,6 +71,23 @@ export default function AddExerciseModal({
 
       if (!response.ok) {
         throw new Error("Failed to create exercise");
+      }
+
+      // Assign equipment if any were selected (create route doesn't take it)
+      if (equipment.length > 0) {
+        const created = await response.json();
+        await fetch(`/modules/golem/api/exercises/${created.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            description: description.trim() || null,
+            category,
+            isTimed,
+            distanceType: distanceType || null,
+            equipment,
+          }),
+        });
       }
 
       onSaved();
@@ -156,6 +179,26 @@ export default function AddExerciseModal({
         <label htmlFor="is-timed-add" className="text-label cursor-pointer">
           Timed Exercise
         </label>
+      </div>
+
+      {/* DISTANCE TRACKING SELECT */}
+      <div className="flex flex-col gap-1">
+        <label className="text-label">Distance Tracking</label>
+        <select
+          value={distanceType}
+          onChange={(e) => setDistanceType(e.target.value)}
+          className="input-field"
+        >
+          <option value="">None</option>
+          <option value="short">Short (m / yd / ft)</option>
+          <option value="long">Long (km / mi)</option>
+        </select>
+      </div>
+
+      {/* EQUIPMENT PICKER */}
+      <div className="flex flex-col gap-1">
+        <label className="text-label">Equipment</label>
+        <ExerciseEquipmentPicker selectedIds={equipment} onChange={setEquipment} />
       </div>
 
       {/* ERROR MESSAGE */}

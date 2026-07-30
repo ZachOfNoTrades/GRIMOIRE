@@ -32,6 +32,9 @@ Before designing sessions, use the SQL Query skill to gather relevant context. T
 5. The response must be a JSON array of SessionPlan objects — nothing else.
 6. **Disabled exercises are strictly off-limits.** Before writing any session name or description, query the exercises table and filter out rows where `is_disabled = 1`. Never mention a disabled exercise by name — not in session names, descriptions, or as suggested alternatives. Only reference exercises you have confirmed are enabled.
 7. **Maintain prescribed volume and scope.** Do not reduce the number of exercises, sets, or session scope based on session duration, skipped exercises, or perceived adherence issues. Do not assume that incomplete or skipped segments mean the user ran out of time — exercises may be skipped for any reason. Do not reorder, front-load, or deprioritize exercises based on completion patterns. Only reduce scope when there is an explicit injury or pain concern. When in doubt, keep volume consistent with the program's established pattern.
+8. If volume landmarks are provided, distribute working sets across the week's sessions so that each muscle group falls within its MEV-MRV range by the end of the week.
+
+{{VOLUME_LANDMARKS}}
 
 {{TEMPLATE_CONTEXT}}
 

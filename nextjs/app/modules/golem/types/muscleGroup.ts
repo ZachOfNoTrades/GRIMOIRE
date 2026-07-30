@@ -16,4 +16,5 @@ export interface ExerciseMuscleGroup {
 // Used by the exercise detail page (extends the base Exercise type)
 export interface ExerciseWithMuscleGroups extends Exercise {
   muscleGroups: ExerciseMuscleGroup[];
+  equipment?: string[]; // equipment ids required by this exercise (exercise_equipment)
 }

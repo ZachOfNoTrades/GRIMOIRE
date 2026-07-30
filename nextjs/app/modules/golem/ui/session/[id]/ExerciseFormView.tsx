@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ExerciseSummary } from "../../../types/exercise";
 import { MuscleGroup } from "../../../types/muscleGroup";
+import ExerciseEquipmentPicker from "../../exercises/ExerciseEquipmentPicker";
 
 interface ExerciseFormViewProps {
   exercise?: ExerciseSummary;
@@ -25,7 +26,9 @@ export default function ExerciseFormView({
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Strength");
   const [isTimed, setIsTimed] = useState(false);
+  const [distanceType, setDistanceType] = useState(""); // "" = none, "short", "long"
   const [assignments, setAssignments] = useState<Map<string, "primary" | "secondary">>(new Map());
+  const [equipment, setEquipment] = useState<string[]>([]); // equipment ids required by this exercise
 
   // STATE
   const [loading, setLoading] = useState(true);
@@ -51,12 +54,14 @@ export default function ExerciseFormView({
             setDescription(detail.description ?? "");
             setCategory(detail.category);
             setIsTimed(detail.is_timed ?? false);
+            setDistanceType(detail.distance_type ?? "");
 
             const muscleGroupMap = new Map<string, "primary" | "secondary">();
             for (const muscleGroup of detail.muscleGroups) {
               muscleGroupMap.set(muscleGroup.muscle_group_id, muscleGroup.is_primary ? "primary" : "secondary");
             }
             setAssignments(muscleGroupMap);
+            setEquipment(detail.equipment ?? []);
           }
         }
       } catch (err) {
@@ -122,7 +127,9 @@ export default function ExerciseFormView({
             description: description.trim() || null,
             category,
             isTimed,
+            distanceType: distanceType || null,
             muscleGroups: muscleGroupPayload,
+            equipment,
           }),
         });
 
@@ -141,6 +148,7 @@ export default function ExerciseFormView({
           name: name.trim(),
           category,
           is_timed: isTimed,
+          distance_type: distanceType || null,
           primary_muscles: primaryMuscles,
           secondary_muscles: secondaryMuscles,
         };
@@ -155,6 +163,7 @@ export default function ExerciseFormView({
             description: description.trim() || null,
             category,
             isTimed,
+            distanceType: distanceType || null,
           }),
         });
 
@@ -166,8 +175,8 @@ export default function ExerciseFormView({
 
         const created = await createResponse.json();
 
-        // Assign muscle groups if any were selected
-        if (muscleGroupPayload.length > 0) {
+        // Assign muscle groups / equipment if any were selected (create route doesn't take them)
+        if (muscleGroupPayload.length > 0 || equipment.length > 0) {
           await fetch(`/modules/golem/api/exercises/${created.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -176,7 +185,9 @@ export default function ExerciseFormView({
               description: description.trim() || null,
               category,
               isTimed,
+              distanceType: distanceType || null,
               muscleGroups: muscleGroupPayload,
+              equipment,
             }),
           });
         }
@@ -186,6 +197,7 @@ export default function ExerciseFormView({
           name: created.name,
           category: created.category ?? category,
           is_timed: created.is_timed ?? isTimed,
+          distance_type: created.distance_type ?? (distanceType || null),
           is_disabled: false,
           primary_muscles: primaryMuscles,
           secondary_muscles: secondaryMuscles,
@@ -270,6 +282,20 @@ export default function ExerciseFormView({
           </label>
         </div>
 
+        {/* DISTANCE TRACKING SELECT */}
+        <div className="flex flex-col gap-1">
+          <label className="text-label">Distance Tracking</label>
+          <select
+            value={distanceType}
+            onChange={(e) => setDistanceType(e.target.value)}
+            className="input-field"
+          >
+            <option value="">None</option>
+            <option value="short">Short (m / yd / ft)</option>
+            <option value="long">Long (km / mi)</option>
+          </select>
+        </div>
+
         {/* MUSCLE GROUPS */}
         <div className="flex flex-col gap-2">
           <label className="text-label">Muscle Groups</label>
@@ -292,6 +318,12 @@ export default function ExerciseFormView({
               );
             })}
           </div>
+        </div>
+
+        {/* EQUIPMENT */}
+        <div className="flex flex-col gap-2">
+          <label className="text-label">Equipment</label>
+          <ExerciseEquipmentPicker selectedIds={equipment} onChange={setEquipment} />
         </div>
       </div>
 

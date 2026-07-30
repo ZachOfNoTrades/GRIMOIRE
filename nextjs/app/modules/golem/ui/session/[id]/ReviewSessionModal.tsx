@@ -9,21 +9,23 @@ interface ReviewSessionModalProps {
     onClose: () => void;
     onSubmit: (review: string) => void;
     isSaving: boolean;
+    initialReview?: string | null;
 }
 
 export default function ReviewSessionModal({
     isOpen,
     onClose,
     onSubmit,
-    isSaving
+    isSaving,
+    initialReview,
 }: ReviewSessionModalProps) {
     // INPUT
     const [review, setReview] = useState("");
 
-    // Reset textarea when modal opens
+    // Preload textarea with any existing review (from live-session edits) when the modal opens
     useEffect(() => {
-        if (isOpen) setReview("");
-    }, [isOpen]);
+        if (isOpen) setReview(initialReview || "");
+    }, [isOpen, initialReview]);
 
     return (
         <Modal

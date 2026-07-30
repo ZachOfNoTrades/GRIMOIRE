@@ -11,6 +11,10 @@ Analyze a completed training session and write a post-session review.
 2. Do not include a session recap header (session name, program, duration, date, etc.). Begin directly with the analysis content.
 5. Write your response must be plain text (not JSON, not markdown code fences) — write directly to the output file.
 
+4. If volume landmarks are provided, note whether the week's accumulated working sets per muscle group are tracking toward, below, or above the MEV-MRV range.
+
+{{VOLUME_LANDMARKS}}
+
 {{TEMPLATE_CONTEXT}}
 
 {{PROFILE_CONTEXT}}

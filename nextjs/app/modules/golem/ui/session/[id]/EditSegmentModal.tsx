@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react";
-import { ArrowLeftRight, Pencil, Save, Ban } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { ArrowLeftRight, Pencil, Save, Ban, ChevronLeft, ChevronRight, X, LayoutGrid } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
@@ -12,6 +13,7 @@ import { ExerciseSummary, ExerciseHistoryEntry } from "../../../types/exercise";
 import { ExerciseWithMuscleGroups } from "../../../types/muscleGroup";
 import { generateUUID } from "../../../utils/id";
 import { HistoryRange, getDateRangeParams } from "../../../utils/format";
+import { resolveDistanceUnit, DistanceType } from "../../../utils/units";
 import SetTab from "./SetTab";
 import HistoryTab from "./HistoryTab";
 import StatsTab from "./StatsTab";
@@ -34,6 +36,15 @@ interface EditSegmentModalProps {
   isDeleting: boolean;
   onExerciseCreated: (exercise: ExerciseSummary) => void;
   onExerciseUpdated: (exercise: ExerciseSummary) => void;
+  // Navigation — pass sibling segments to enable swipe/arrow navigation between them.
+  // Pass empty array when opening a new (unsaved) segment to disable navigation.
+  navigationSegments?: SegmentWithSets[];
+  onNavigate?: (nextSegment: SegmentWithSets) => void;
+  // The user's preferred distance display units per band (from their golem profile). Used to render/convert
+  // the per-set distance input for distance-tracking exercises.
+  distanceUnits?: { short: string | null; long: string | null };
+  // Fired when a working set is marked complete, so the page can start the rest timer.
+  onSetCompleted?: () => void;
 }
 
 export default function EditSegmentModal({
@@ -46,6 +57,10 @@ export default function EditSegmentModal({
   isDeleting,
   onExerciseCreated,
   onExerciseUpdated,
+  navigationSegments = [],
+  onNavigate,
+  distanceUnits,
+  onSetCompleted,
 }: EditSegmentModalProps) {
 
   // INPUT
@@ -68,9 +83,19 @@ export default function EditSegmentModal({
   const [isExercisePickerEditMode, setIsExercisePickerEditMode] = useState(false);
   const [isDisableModalOpen, setIsDisableModalOpen] = useState(false);
   const [isTogglingDisable, setIsTogglingDisable] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
+
+  // SWIPE TRACKING
+  const swipeStartXRef = useRef<number | null>(null);
+  const swipeStartYRef = useRef<number | null>(null);
+  const wasOpenRef = useRef(false);
 
   // DERIVED
   const isExerciseDisabled = exerciseDetail?.is_disabled ?? false;
+  const currentNavIndex = segment ? navigationSegments.findIndex((s) => s.id === segment.id) : -1;
+  const canNavigate = currentNavIndex >= 0 && navigationSegments.length > 1;
+  const hasPrev = canNavigate && currentNavIndex > 0;
+  const hasNext = canNavigate && currentNavIndex < navigationSegments.length - 1;
 
   // Disable exercise handler
   const handleDisableExercise = async () => {
@@ -167,12 +192,17 @@ export default function EditSegmentModal({
   useEffect(() => {
     if (isOpen && segment) {
 
-      // Reset to Sets tab and date filter when modal opens
-      setActiveTab("sets");
-      setHighlightSessionId(null);
-      setHistoryRange("6m");
-      setHistoryStartDate("");
-      setHistoryEndDate("");
+      // Only reset tab/filter state on initial open — preserve them during swipe navigation
+      const isInitialOpen = !wasOpenRef.current;
+      wasOpenRef.current = true;
+
+      if (isInitialOpen) {
+        setActiveTab("sets");
+        setHighlightSessionId(null);
+        setHistoryRange("6m");
+        setHistoryStartDate("");
+        setHistoryEndDate("");
+      }
 
       // Fetch exercise data in background on modal open
       const { startDate, endDate } = getDateRangeParams("6m");
@@ -210,6 +240,7 @@ export default function EditSegmentModal({
             weight: 0,
             rpe: null,
             time_seconds: clonedSegment.exercise_is_timed ? 0 : null,
+            distance: null,
             notes: null,
             is_completed: false,
             created_at: new Date(),
@@ -228,6 +259,7 @@ export default function EditSegmentModal({
             weight: 0,
             rpe: null,
             time_seconds: clonedSegment.exercise_is_timed ? 0 : null,
+            distance: null,
             notes: null,
             is_completed: false,
             created_at: new Date(),
@@ -238,7 +270,19 @@ export default function EditSegmentModal({
 
       setEditedSegment(clonedSegment);
     }
+
+    // Reset the "was open" flag when modal closes so next open is treated as initial
+    if (!isOpen) {
+      wasOpenRef.current = false;
+    }
   }, [isOpen, segment]);
+
+  // Clear slide direction after animation completes so a subsequent swipe can retrigger it
+  useEffect(() => {
+    if (slideDirection === null) return;
+    const timer = setTimeout(() => setSlideDirection(null), 260);
+    return () => clearTimeout(timer);
+  }, [slideDirection, activeTab]);
 
   // Re-fetch exercise data when exercise is swapped in the Set tab
   const currentExerciseId = editedSegment?.exercise_id;
@@ -264,6 +308,57 @@ export default function EditSegmentModal({
     onClose();
   };
 
+  // Navigate to the previous/next segment in the navigation list
+  const handleNavigatePrev = () => {
+    if (!hasPrev || !onNavigate || !editedSegment) return;
+    // Flush current edits before switching
+    onSave(editedSegment);
+    onNavigate(navigationSegments[currentNavIndex - 1]);
+  };
+
+  const handleNavigateNext = () => {
+    if (!hasNext || !onNavigate || !editedSegment) return;
+    // Flush current edits before switching
+    onSave(editedSegment);
+    onNavigate(navigationSegments[currentNavIndex + 1]);
+  };
+
+  // TAB SWIPE HANDLERS — horizontal swipe cycles through tabs (Sets → History → Stats → Info)
+  const handleSwipeToTab = (direction: "prev" | "next") => {
+    const currentTabIndex = tabs.findIndex((t) => t.id === activeTab);
+    if (currentTabIndex < 0) return;
+
+    const targetIndex = direction === "next" ? currentTabIndex + 1 : currentTabIndex - 1;
+    if (targetIndex < 0 || targetIndex >= tabs.length) return; // clamp at edges, no wrap
+
+    setSlideDirection(direction === "next" ? "left" : "right");
+    setActiveTab(tabs[targetIndex].id);
+  };
+
+  const handleTouchStart = (event: React.TouchEvent) => {
+    swipeStartXRef.current = event.touches[0].clientX;
+    swipeStartYRef.current = event.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
+
+    const endX = event.changedTouches[0].clientX;
+    const endY = event.changedTouches[0].clientY;
+    const deltaX = endX - swipeStartXRef.current;
+    const deltaY = endY - swipeStartYRef.current;
+
+    swipeStartXRef.current = null;
+    swipeStartYRef.current = null;
+
+    // Require a predominantly horizontal swipe of at least 60px
+    const minSwipeDistance = 60;
+    if (Math.abs(deltaX) < minSwipeDistance) return;
+    if (Math.abs(deltaY) > Math.abs(deltaX)) return; // vertical swipe, ignore
+
+    handleSwipeToTab(deltaX > 0 ? "prev" : "next");
+  };
+
   const handleExerciseChange = (exercise: ExerciseSummary) => {
     const updatedSegment = {
       ...editedSegment,
@@ -271,6 +366,7 @@ export default function EditSegmentModal({
       exercise_name: exercise.name,
       exercise_category: exercise.category,
       exercise_is_timed: exercise.is_timed,
+      exercise_distance_type: exercise.distance_type,
     };
     setEditedSegment(updatedSegment);
     onSave(updatedSegment);
@@ -284,6 +380,7 @@ export default function EditSegmentModal({
         exercise_name: summary.name,
         exercise_category: summary.category,
         exercise_is_timed: summary.is_timed,
+        exercise_distance_type: summary.distance_type,
       };
       setEditedSegment(updatedSegment);
       onSave(updatedSegment);
@@ -313,6 +410,14 @@ export default function EditSegmentModal({
     fetchHistory(editedSegment.exercise_id, startDate, endDate);
   };
 
+  // Resolve the display unit for this exercise's distance band from the user's preferences.
+  const distanceType = (editedSegment.exercise_distance_type === "short" || editedSegment.exercise_distance_type === "long")
+    ? (editedSegment.exercise_distance_type as DistanceType)
+    : null;
+  const resolvedDistanceUnit = distanceType
+    ? resolveDistanceUnit(distanceType, distanceUnits?.short, distanceUnits?.long)
+    : undefined;
+
   // Render the active tab content
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -326,6 +431,9 @@ export default function EditSegmentModal({
             onAutoSave={handleAutoSave}
             exerciseCategory={editedSegment.exercise_category}
             isTimed={editedSegment.exercise_is_timed}
+            distanceType={editedSegment.exercise_distance_type}
+            distanceUnit={resolvedDistanceUnit}
+            onSetCompleted={onSetCompleted}
           />
         );
       case "history":
@@ -340,6 +448,7 @@ export default function EditSegmentModal({
             onCustomDateChange={handleCustomDateChange}
             totalCount={totalHistoryCount}
             highlightSessionId={highlightSessionId ?? undefined}
+            distanceUnit={resolvedDistanceUnit}
           />
         );
       case "stats":
@@ -372,8 +481,43 @@ export default function EditSegmentModal({
         onClose={handleClose}
         fullHeight
         title={
-          <span className="flex items-center gap-2">
-            {editedSegment.exercise_name || "New Exercise"}
+          // EXERCISE NAME (full width, truncates on overflow)
+          <span className="truncate">{editedSegment.exercise_name || "New Exercise"}</span>
+        }
+        modalActions={
+          // CONTROLS ROW — nav + exercise actions + close, all on a single top line
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+
+            {/* SEGMENT NAVIGATION GROUP */}
+            {canNavigate && (
+              <>
+
+                {/* PREV SEGMENT BUTTON */}
+                <Button
+                  onClick={handleNavigatePrev}
+                  disabled={!hasPrev}
+                  className="btn-link"
+                  title="Previous exercise"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+
+                {/* SEGMENT COUNTER */}
+                <span className="text-secondary text-sm tabular-nums px-1">
+                  {currentNavIndex + 1} / {navigationSegments.length}
+                </span>
+
+                {/* NEXT SEGMENT BUTTON */}
+                <Button
+                  onClick={handleNavigateNext}
+                  disabled={!hasNext}
+                  className="btn-link"
+                  title="Next exercise"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+              </>
+            )}
 
             {/* EDIT EXERCISE BUTTON */}
             <Button
@@ -407,7 +551,17 @@ export default function EditSegmentModal({
             >
               <Ban className="w-4 h-4" />
             </Button>
-          </span>
+
+            {/* CLOSE BUTTON */}
+            <Button
+              onClick={handleClose}
+              disabled={isDeleting}
+              className="btn-link"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
         }
         disableClose={isDeleting}
         footer={
@@ -447,9 +601,35 @@ export default function EditSegmentModal({
           ))}
         </nav>
 
-        {/* TAB CONTENT */}
-        <div className="min-h-[60vh]" role="tabpanel" id={`${activeTab}-panel`} aria-labelledby={`${activeTab}-tab`}>
+        {/* TAB CONTENT — flex column so the slot-provenance link sits at the bottom of the
+            existing min-height (uses the empty space rather than adding scroll). */}
+        <div
+          key={`${activeTab}-${slideDirection ?? "stable"}`}
+          className={`min-h-[60vh] flex flex-col ${slideDirection === "left" ? "view-slide-right" : slideDirection === "right" ? "view-slide-left" : ""}`}
+          role="tabpanel"
+          id={`${activeTab}-panel`}
+          aria-labelledby={`${activeTab}-tab`}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           {renderActiveTab()}
+
+          {/* SLOT PROVENANCE — slot role + progression model, linking to the day archetype that generated
+              this exercise. Rendered as an anchor (Link) so middle/cmd-click opens it in a new tab; on a
+              normal click the live-saved edits' in-flight PUT still completes (client nav doesn't abort it). */}
+          {editedSegment.target?.slot_role && editedSegment.target.day_archetype_id && (
+            <Link
+              href={`/modules/golem/ui/archetypes?archetype=${editedSegment.target.day_archetype_id}`}
+              className="btn-link mt-auto pt-3 w-full justify-center text-secondary text-sm gap-1.5"
+              title="Open the day archetype this exercise was generated from"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="capitalize">{editedSegment.target.slot_role}</span>
+              {editedSegment.target.progression_model && (
+                <span>· {editedSegment.target.progression_model.replace(/_/g, " ")}</span>
+              )}
+            </Link>
+          )}
         </div>
       </Modal>
 
