@@ -1,0 +1,62 @@
+/* ============================================================
+   Forage / shared nutrition date-range picker (overview + detail).
+   A full-width segmented control + an optional custom date row.
+   Layout only — color comes from the global .input-field class and
+   the grimoire theme tokens.
+   ============================================================ */
+
+.nutr-range {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Segmented control — equal-width segments share one rounded track. */
+.nutr-range-pills {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--hover-bg);
+}
+.nutr-range-pill {
+  flex: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  padding: 7px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1;
+}
+.nutr-range-pill.is-active {
+  background: var(--card-bg);
+  color: var(--color-primary);
+}
+@media (hover: hover) {
+  .nutr-range-pill:not(.is-active):hover { color: var(--color-primary); }
+}
+
+/* Custom start/end row, revealed only for the "Custom" segment. */
+.nutr-range-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nutr-range-date {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.nutr-range-sep {
+  font-size: 12px;
+  color: var(--color-secondary);
+}

@@ -1,0 +1,35 @@
+/* ============================================================
+   Forage / Create Food (page variant) — page-scoped shell styles.
+
+   Loaded only by the New-Food page (imported from page.tsx). Fixes the
+   "page twitches when you scroll down once" bug (Chrome desktop): the wizard
+   root used minHeight:100dvh, but it renders BELOW the in-flow global navbar
+   (~61px), so the page was navbar + 100dvh = ~61px taller than the viewport.
+   That sliver of overflow plus scroll-anchoring produced a visible jump/twitch.
+
+   Same strategy as home.css: lock html/body to --app-height and let the wizard
+   shell flex into the space left after the navbar — no navbar-height guessing.
+   ============================================================ */
+
+/* PAGE SHELL — lock to the real painted viewport so the wizard's own inner
+   body owns scrolling (single scroll region, no over-tall page). --app-height
+   is pinned by lib/useAppHeight via ForageViewportSync; 100dvh is the
+   pre-hydration fallback. */
+html:has(.forage-create-page),
+body:has(.forage-create-page) {
+  height: var(--app-height, 100dvh);
+  overflow: hidden;
+}
+
+body:has(.forage-create-page) {
+  display: flex;
+  flex-direction: column;
+}
+
+/* WIZARD SHELL — fill exactly the height left after the navbar via flex
+   instead of subtracting a guessed navbar height. min-height:0 lets the inner
+   overflow:auto body shrink and scroll correctly. */
+.forage-create-page {
+  flex: 1 1 auto;
+  min-height: 0;
+}

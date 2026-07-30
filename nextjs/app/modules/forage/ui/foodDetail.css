@@ -1,0 +1,193 @@
+/* ============================================================
+   Forage / Food detail — nutrient-breakdown styles.
+
+   Brings the per-food nutrient breakdown in line with the Nutrition
+   overview page (nutrition.css): the grouped-list idiom — ONE bordered
+   surface per section with hairline-divided rows, a section header with
+   a trailing rule + nutrient count, and the thin centered consumption
+   fill framed by the track. Namespaced `fnb-*` so it's self-contained
+   (no dependency on the `.forage-nutrition` page scope) and can render
+   on the library detail route AND inside the diary detail modal.
+   ============================================================ */
+
+/* ---------- Section ---------- */
+.fnb-section { margin-bottom: 1.25rem; }
+
+/* Section heading — bold label + a trailing rule running to the edge +
+   the nutrient count, so each block reads as a labelled module (matches
+   the nutrition overview's section heads). */
+.fnb-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 2px 10px;
+}
+.fnb-section-head h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-primary);
+  white-space: nowrap;
+  margin: 0;
+}
+.fnb-section-rule {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--card-border);
+  opacity: 0.5;
+}
+.fnb-section-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Grouped list (one surface, divided rows) ---------- */
+.fnb-group {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.fnb-row {
+  padding: 12px 14px;
+}
+.fnb-row + .fnb-row {
+  border-top: 1px solid var(--card-border);
+}
+@media (hover: hover) {
+  .fnb-row:hover { background: color-mix(in srgb, var(--card-border) 16%, transparent); }
+}
+
+/* Top line: name on the left, value/DV + percent on the right. */
+.fnb-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* Name + optional program-target glyph share the left side; the glyph keeps its
+   width and the name ellipsizes into whatever space is left. */
+.fnb-name-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fnb-name {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fnb-figures {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.fnb-value {
+  font-size: 13px;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fnb-value b {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.fnb-pct {
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.fnb-pct[data-bar="true"] { min-width: 44px; }
+
+/* ---------- Staggered load-in (self-contained; mirrors nutr-rise) ---------- */
+@keyframes fnb-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fnb-reveal {
+  opacity: 0;
+  animation: fnb-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fnb-reveal {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* ---------- Frequently-paired strip (diary, above the latest entry) ---------- */
+/* A one-tap row of foods usually logged alongside the latest entry. Pills opt back
+   into a radius (like the dashboard's rounded chips) to read as tappable. */
+.fg-paired-strip {
+  margin: 0.15rem 0 0.55rem;
+  animation: fnb-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.fg-paired-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-gray);
+  margin: 0 0.15rem 0.35rem;
+  letter-spacing: 0.01em;
+}
+.fg-paired-anchor {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.fg-paired-track {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  /* Keep a horizontal flick from chaining into the page's vertical scroll. */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.15rem 0.15rem 0.3rem;
+  scrollbar-width: none;
+}
+.fg-paired-track::-webkit-scrollbar { display: none; }
+.fg-paired-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--color-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.fg-paired-chip:active {
+  transform: scale(0.96);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--card-bg));
+}
+@media (hover: hover) {
+  .fg-paired-chip:hover {
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--card-border));
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--card-bg));
+  }
+}
+.fg-paired-chip-name {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fg-paired-chip-plus {
+  color: var(--color-gray);
+  flex: 0 0 auto;
+}

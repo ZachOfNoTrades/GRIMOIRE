@@ -1,0 +1,143 @@
+/* ============================================================
+   Forage / Shared bottom tab bar — ForageTabBar.tsx.
+
+   Self-contained so the bar renders identically on every forage
+   screen (dashboard shell, food log, strategy, settings) without
+   depending on the `.forage-home` wrapper. Grimoire forces
+   `button { border-radius: 0 !important }` globally, so the FAB
+   opts back into a circle with an !important radius here.
+   ============================================================ */
+
+/* SEARCH PILL — in-flow above the tab bar (shown on dashboard + food log).
+   Self-contained so it renders the same on every page; opens the add modal. */
+.fg-searchpill-slot {
+  flex: 0 0 auto;
+  background: var(--solid-background);
+  padding: 8px 16px;
+}
+.fg-searchpill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-radius: 999px !important;
+  background: var(--hover-bg);
+  transition: background-color 140ms ease;
+}
+@media (hover: hover) {
+  .fg-searchpill:hover { background: var(--card-border); }
+}
+.fg-searchpill-icon { color: var(--color-secondary); flex: 0 0 auto; }
+.fg-searchpill-text {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--color-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0;
+}
+.fg-searchpill-scan {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--color-primary);
+  display: flex;
+}
+
+.fg-tabbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-top: 8px;
+  /* Honor the phone's gesture/home-indicator inset on real devices. */
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  min-height: 60px;
+  background: var(--solid-background);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* TAB ITEM — icon over label; color tracks the active state. */
+.fg-tabbar-item {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  min-width: 60px;
+  cursor: pointer;
+  color: var(--color-secondary);
+  transition: opacity 120ms ease, color 120ms ease;
+}
+.fg-tabbar-item[data-active="true"] {
+  color: var(--color-primary);
+}
+
+/* ICON WRAP — positioning context for the due-badge dot. */
+.fg-tabbar-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* DUE BADGE — small dot pinned to the top-right of a tab icon (Strategy
+   check-in due). Uses the same green as the strategy page's "due" ring and is
+   ringed in the bar background so it stays legible over the icon strokes. */
+.fg-tabbar-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px !important;
+  background: var(--alert-green-text);
+  box-shadow: 0 0 0 2px var(--solid-background);
+  pointer-events: none;
+}
+
+.fg-tabbar-label {
+  font-size: 11px;
+  font-weight: 500;
+}
+.fg-tabbar-item[data-active="true"] .fg-tabbar-label {
+  font-weight: 700;
+}
+
+/* FAB (+) — circular primary action, lifted above the bar like MacroFactor. */
+.fg-tabbar-fab {
+  width: 56px;
+  height: 56px;
+  margin-top: -14px;
+  border: none;
+  border-radius: 999px !important;
+  background: var(--color-primary);
+  color: var(--solid-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+
+/* Press / hover feedback (scoped to the bar so it works off the .forage-home
+   button rules that the dashboard relied on). */
+.fg-tabbar button:active:not(:disabled) {
+  opacity: 0.55;
+}
+.fg-tabbar-fab:active:not(:disabled) {
+  transform: scale(0.94);
+  opacity: 1;
+}
+@media (hover: hover) {
+  .fg-tabbar-fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgb(0 0 0 / 0.5);
+  }
+}

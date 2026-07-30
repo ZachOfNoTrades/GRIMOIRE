@@ -1,0 +1,91 @@
+/* ============================================================
+   Program wizard — "Custom nutrient goals" step. A spreadsheet-
+   style list of every micronutrient with floor/target/ceiling
+   inputs. All color from theme tokens.
+   ============================================================ */
+
+.nutr-goals-group {
+  margin-bottom: 1.25rem;
+}
+
+/* Shared 4-column grid: name (flexible) + 3 fixed marker columns. The heading
+   row and every nutrient row use the same template so columns line up. */
+.nutr-goals-colhead,
+.nutr-goals-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 60px 60px 60px;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+/* Group heading sits in the name column; marker labels caption the 3 inputs. */
+.nutr-goals-colhead {
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--card-border);
+}
+.nutr-goals-heading {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.nutr-goals-collabel {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-gray);
+  text-align: right;
+}
+
+/* Each nutrient = a wrapper holding the input grid + an optional error line. */
+.nutr-goals-rowwrap {
+  padding: 0.4rem 0;
+}
+.nutr-goals-rowwrap + .nutr-goals-rowwrap {
+  border-top: 1px solid var(--card-border);
+}
+
+.nutr-goals-name {
+  font-size: 0.85rem;
+  color: var(--color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nutr-goals-unit {
+  margin-left: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--color-gray);
+}
+
+/* Compact marker input — tighter padding than the global field, right-aligned
+   numerals, no spinners (typed values are short). */
+.nutr-goals-input.input-field {
+  min-width: 0;
+  width: 100%;
+  padding: 0.35rem 0.4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  border-radius: 6px;
+}
+.nutr-goals-input::-webkit-outer-spin-button,
+.nutr-goals-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.nutr-goals-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Invalid marker — out-of-order or negative. Red border holds even unfocused. */
+.nutr-goals-input--invalid.input-field {
+  border-color: var(--alert-red-text);
+  box-shadow: 0 0 0 1px var(--alert-red-text);
+}
+
+/* Inline error message under the offending row. */
+.nutr-goals-error {
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--alert-red-text);
+}

@@ -1,0 +1,189 @@
+/* ============================================================
+   Forage / Nutrition overview — page-scoped styles.
+
+   Brings the per-nutrient breakdown in line with the rest of the
+   forage module: the grimoire terminal-theme tokens (globals.css
+   :root), the monospace body face, and — the key change — the
+   grouped-list idiom used by the dashboard's "More" block and the
+   settings groups (ONE bordered surface per section with hairline-
+   divided rows) instead of a stack of individually-bordered cards.
+   ============================================================ */
+
+/* ---------- Hide the inner scrollbar (matches the dashboard) ----------
+   The shared `.page-with-bottom-bar > .page-scroll` rule reserves a scrollbar
+   lane (`scrollbar-gutter: stable`) AND shows the bar — that's the standard
+   list-page chrome, but the forage dashboard scrolls cleanly with no bar, and
+   this drill-down should match. Override on the SAME element with a higher-
+   specificity selector (…bar.forage-nutrition > .page-scroll beats the 2-class
+   global) so we win the tie regardless of stylesheet load order, and reset the
+   gutter to `auto` — otherwise mobile Gecko keeps the reserved lane (a faint
+   full-height track at the right edge) even with the bar hidden. */
+.page-with-bottom-bar.forage-nutrition > .page-scroll {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}
+.forage-nutrition .page-scroll::-webkit-scrollbar { display: none; }
+
+/* Mobile gutter — .page-container ships 0 horizontal padding on phones, which
+   let the cards run to the screen edge. Match the dashboard's 16px gutter so the
+   grouped surfaces have breathing room (the ≥640px tablet padding already exists). */
+.forage-nutrition .page-container {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* ---------- Page header (eyebrow + title) ---------- */
+.nutr-header {
+  margin-bottom: 14px;
+}
+.nutr-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: var(--color-secondary);
+}
+.nutr-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-primary);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+/* Range selector sits between the header and the nutrient sections. */
+.forage-nutrition .nutr-range {
+  margin-bottom: 16px;
+}
+
+/* Caption under the range selector in range mode: "Daily average over N days". */
+.nutr-avg-note {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--color-secondary);
+  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+/* ---------- Section ---------- */
+.nutr-section { margin-bottom: 22px; }
+
+/* Section heading — sentence-case bold to match the dashboard sections, with a
+   trailing rule that runs to the edge so each block reads as a labelled module
+   rather than a free-floating title (a quietly "terminal" touch). */
+.nutr-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 2px 10px;
+}
+.nutr-section-head h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+.nutr-section-rule {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--card-border);
+  opacity: 0.5;
+}
+.nutr-section-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Grouped list (one surface, divided rows) ---------- */
+.nutr-group {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.nutr-row {
+  padding: 12px 14px;
+}
+/* Navigable rows (real nutrients) drill into the per-nutrient target editor. */
+.nutr-row[data-nav="true"] {
+  cursor: pointer;
+}
+.nutr-row[data-nav="true"]:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: -2px;
+}
+.nutr-row + .nutr-row {
+  border-top: 1px solid var(--card-border);
+}
+@media (hover: hover) {
+  .nutr-row:hover { background: color-mix(in srgb, var(--card-border) 16%, transparent); }
+}
+
+/* Top line: name on the left, value/target + percent on the right. */
+.nutr-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* Name + optional program-target glyph share the left side; the glyph keeps its
+   width and the name ellipsizes into whatever space is left. */
+.nutr-name-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nutr-name {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nutr-figures {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.nutr-value {
+  font-size: 13px;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.nutr-value b {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.nutr-pct {
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.nutr-pct[data-bar="true"] { min-width: 44px; }
+
+/* ---------- Staggered load-in (mirrors the dashboard's fg-reveal) ---------- */
+@keyframes nutr-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.forage-nutrition .nutr-reveal {
+  opacity: 0;
+  animation: nutr-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .forage-nutrition .nutr-reveal {
+    opacity: 1;
+    animation: none;
+  }
+}

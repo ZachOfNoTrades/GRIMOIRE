@@ -1,0 +1,215 @@
+/* ============================================================
+   Forage / Nutrient detail — page-scoped styles for the custom
+   floor/target/ceiling editor. Reuses the settings-group surface
+   idiom; all color comes from the grimoire theme tokens.
+   ============================================================ */
+
+.nutr-detail {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* Source eyebrow under the title — "Custom target · mg" / "FDA default · mg". */
+/* Source note under the band fields — where the values come from. */
+.nutr-detail-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-gray);
+  margin-top: 10px;
+}
+
+/* Inline link to the strategy menu within the source note. */
+.nutr-detail-link {
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* ---------- Band fields (one grouped surface, divided rows) ---------- */
+.nutr-detail-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+}
+.nutr-detail-field + .nutr-detail-field {
+  border-top: 1px solid var(--card-border);
+}
+
+.nutr-detail-field-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.nutr-detail-field-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.nutr-detail-field-help {
+  font-size: 11px;
+  color: var(--color-gray);
+}
+
+/* Read-only value + trailing unit. */
+.nutr-detail-value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+.nutr-detail-unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-secondary);
+}
+
+/* ---------- Foods highest in this nutrient ---------- */
+.nutr-detail-foods {
+  margin-top: 26px;
+}
+
+/* ---------- Daily intake trend chart ---------- */
+.nutr-detail-chart {
+  margin-bottom: 18px;
+}
+
+/* Chart header: "Daily intake" on the left, hovered-bar readout on the right. */
+.nutr-detail-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.nutr-detail-chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-secondary);
+}
+.nutr-detail-chart-readout {
+  font-size: 12px;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.nutr-detail-chart-readout b {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* The SVG fills the column width; height comes from the viewBox aspect ratio.
+   touch-action:none keeps a finger-drag scrubbing the chart, not scrolling. */
+.nutr-detail-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: none;
+}
+
+/* Section header: title on the left, range pills on the right. */
+.nutr-detail-foods-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.nutr-detail-foods-head {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* Average daily intake line, under the section header. Tabular figures keep the
+   bolded amount steady as the range changes. */
+.nutr-detail-avg {
+  font-size: 13px;
+  color: var(--color-secondary);
+  margin-bottom: 12px;
+}
+.nutr-detail-avg b {
+  color: var(--color-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.nutr-detail-foods-empty {
+  font-size: 13px;
+  color: var(--color-gray);
+}
+
+/* One ranked food row: name + relative bar on the left, amount + basis on the right. */
+.nutr-detail-food {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 14px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.nutr-detail-food:hover {
+  background: var(--hover-bg);
+}
+.nutr-detail-food + .nutr-detail-food {
+  border-top: 1px solid var(--card-border);
+}
+
+.nutr-detail-food-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.nutr-detail-food-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nutr-detail-food-brand {
+  font-weight: 400;
+  color: var(--color-secondary);
+}
+
+.nutr-detail-food-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hover-bg);
+  overflow: hidden;
+}
+.nutr-detail-food-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--fg-cal);
+}
+
+.nutr-detail-food-val {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}

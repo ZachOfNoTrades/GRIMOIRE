@@ -1,0 +1,73 @@
+/* ============================================================
+   Forage / Food log — page-scoped styles (imported from page.tsx).
+
+   Loaded only by the food-log route so the rest of the app doesn't
+   parse these rules on every nav. Mirrors the home.css `.forage-shell`
+   pattern: on desktop the whole page (scroll content + the in-flow
+   bottom bar) is capped and centered into a framed lane instead of
+   stretching to the global `.page-container` width (80rem), so the
+   Food Log tab matches the Dashboard tab's framed look. Mobile keeps
+   the full-width behaviour untouched.
+   ============================================================ */
+
+@media (min-width: 768px) {
+  /* DESKTOP SURROUND — vignette behind the centered lane, matching
+     `.forage-home`. Scoped to `.forage-foodlog` so only the food-log
+     route's body picks it up (other `.page-with-bottom-bar` pages are
+     unaffected). */
+  body:has(.forage-foodlog) {
+    background: var(--gradient-background);
+  }
+
+  /* FOOD-LOG SHELL — capped + centered framed lane (64rem, matching the
+     dashboard's `.forage-shell`). `margin-inline: auto` centers it on the
+     body's column cross-axis; the solid background keeps the interior flat
+     against the gradient surround. The inner `.page-container` (max-width
+     80rem) is now bounded by this narrower parent, so its content no longer
+     stretches edge-to-edge on wide desktops.
+     `width: 100%` is required alongside the auto margins: this element is
+     ALSO `.page-with-bottom-bar`, a flex item of `body`'s column flex
+     context. Auto margins on a flex item's cross axis opt it out of the
+     default stretch sizing, so without an explicit width it shrink-to-fits
+     to its content's intrinsic width instead of the 64rem cap — which
+     varied with whatever was mounted (loading skeleton vs. hydrated
+     timeline), producing a visible narrow-then-wide resize on load. */
+  .forage-foodlog {
+    width: 100%;
+    max-width: 64rem;
+    margin-inline: auto;
+    border-left: 1px solid var(--card-border);
+    border-right: 1px solid var(--card-border);
+    background: var(--solid-background);
+  }
+}
+
+/* ============================================================
+   MACRO-BAR LOADING SHIMMER — used by DiaryDashboard's macro bars while a
+   newly-selected day's totals are still loading (stepping into a not-yet-
+   fetched week, or first mount). An indeterminate hue-tinted highlight sweeps
+   across the track so the bar never flashes stale or zero numbers onto the
+   fresh day. `prefers-reduced-motion` falls back to a static dim fill.
+   ============================================================ */
+.fg-macrobar-shimmer {
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  border-radius: 999px;
+  opacity: 0.5;
+  animation: fgMacroBarShimmer 1.1s ease-in-out infinite;
+}
+
+@keyframes fgMacroBarShimmer {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(360%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fg-macrobar-shimmer {
+    position: static;
+    width: 100%;
+    opacity: 0.3;
+    animation: none;
+  }
+}
