@@ -9,14 +9,32 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@infisical/sdk": "^5.0.2",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@tiptap/extension-image": "^3.27.1",
+    "@tiptap/extension-link": "^3.27.1",
+    "@tiptap/extension-placeholder": "^3.27.1",
+    "@tiptap/pm": "^3.27.1",
+    "@tiptap/react": "^3.27.1",
+    "@tiptap/starter-kit": "^3.27.1",
+    "@types/nodemailer": "^8.0.1",
+    "@zxing/browser": "^0.2.0",
+    "@zxing/library": "^0.22.0",
     "lucide-react": "^0.563.0",
+    "mcp-handler": "^1.1.0",
     "mssql": "^11.0.1",
     "next": "~15.5.11",
     "next-auth": "^4.24.13",
+    "nodemailer": "^7.0.13",
     "pdf-parse": "^1.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-hot-toast": "^2.5.2"
+    "react-hot-toast": "^2.5.2",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tiptap-markdown": "^0.9.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -24,6 +42,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "playwright": "^1.60.0",
+    "puppeteer-core": "^25.0.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

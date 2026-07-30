@@ -26,9 +26,16 @@ next-env.d.ts
 # Temp files
 .tmp/
 
+# Locally stored pasted card images (rune rich text editor)
+nextjs/storage/
+
 # Misc
 .DS_Store
 *.pem
 Thumbs.db
 CLAUDE.md
 TODO.md
+
+# Local voice engine binaries + models (RUNE hands-free mode, machine-specific)
+/piper/
+/whisper/
