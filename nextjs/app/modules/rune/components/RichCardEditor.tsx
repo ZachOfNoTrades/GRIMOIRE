@@ -1,0 +1,396 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useEditor, EditorContent, Extension } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import type { EditorView } from "@tiptap/pm/view";
+import { Markdown, MarkdownStorage } from "tiptap-markdown";
+import toast from "react-hot-toast";
+import { Bold, Italic, List, ListOrdered, Link as LinkIcon, ImageOff, Paperclip } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Modal from "@/components/Modal";
+
+declare module "@tiptap/core" {
+  interface Storage {
+    markdown: MarkdownStorage;
+  }
+}
+
+// A video embedded in a card reuses the image node (serialized as `![](url)`);
+// its on-disk extension is what marks it as video. Mirror of isVideoUrl in
+// CardContent so the two render paths agree on what counts as a video.
+function isVideoSrc(src: string): boolean {
+  return /\.(mp4|webm|mov|ogv)(\?.*)?$/i.test(src);
+}
+
+// Extends the Image node with a node view so a video src renders as a real
+// <video> preview in the editor instead of a broken-image icon. Rendering only —
+// the node still serializes to `![](url)` markdown via tiptap-markdown, so the
+// study view (CardContent) and refine pipeline are unaffected.
+const MediaImage = Image.extend({
+  addNodeView() {
+    return ({ node }) => {
+      const src: string = node.attrs.src || "";
+      const dom = document.createElement(isVideoSrc(src) ? "video" : "img");
+      dom.setAttribute("src", src);
+      dom.classList.add("rich-card-editor-media");
+      if (dom instanceof HTMLVideoElement) {
+        dom.controls = true;
+        dom.preload = "metadata";
+      } else if (node.attrs.alt) {
+        dom.setAttribute("alt", node.attrs.alt);
+      }
+      return { dom };
+    };
+  },
+});
+
+interface RichCardEditorProps {
+  value: string;
+  onChange: (markdown: string) => void;
+  placeholder?: string;
+  // Bumping this forces the editor to reload `value` (e.g. switching cards).
+  resetKey: string | number;
+}
+
+// Uploads a pasted/picked image or video file and returns the URL to embed, or
+// null on failure.
+async function uploadMedia(file: File): Promise<string | null> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch("/modules/rune/api/uploads", { method: "POST", body: formData });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    toast.error(body.error || "Failed to upload file");
+    return null;
+  }
+  const { url } = await response.json();
+  return url;
+}
+
+// A media upload can take a noticeable moment (large image/video, slow phone
+// connection). Without feedback the pasted/picked file just silently vanishes
+// until the fetch resolves, which reads as "nothing happened". These decorations
+// render a transient "Uploading…" spinner inline at the insert point while the
+// upload is in flight. They live ONLY as ProseMirror decorations — never as real
+// nodes — so they never enter the document or the serialized markdown; once the
+// upload resolves we swap in the real image node at the placeholder's (mapped)
+// position, or drop the placeholder on failure.
+const uploadPlaceholderKey = new PluginKey<DecorationSet>("rune-upload-placeholder");
+
+// A transaction meta payload that adds or removes a single placeholder by identity.
+interface PlaceholderMeta {
+  add?: { id: object; pos: number };
+  remove?: { id: object };
+}
+
+const uploadPlaceholderPlugin = new Plugin<DecorationSet>({
+  key: uploadPlaceholderKey,
+  state: {
+    init: () => DecorationSet.empty,
+    apply(tr, set) {
+      // Keep existing placeholders anchored across concurrent edits.
+      set = set.map(tr.mapping, tr.doc);
+      const meta = tr.getMeta(uploadPlaceholderKey) as PlaceholderMeta | undefined;
+      if (meta?.add) {
+        // WIDGET — spinner + label rendered at the paste/insert point.
+        const wrapper = document.createElement("span");
+        wrapper.className = "rich-card-editor-upload-placeholder";
+        const spinner = document.createElement("span");
+        spinner.className = "rich-card-editor-upload-spinner";
+        const label = document.createElement("span");
+        label.textContent = "Uploading…";
+        wrapper.append(spinner, label);
+        const deco = Decoration.widget(meta.add.pos, wrapper, { id: meta.add.id });
+        set = set.add(tr.doc, [deco]);
+      } else if (meta?.remove) {
+        const id = meta.remove.id;
+        set = set.remove(set.find(undefined, undefined, (spec) => spec.id === id));
+      }
+      return set;
+    },
+  },
+  props: {
+    decorations(state) {
+      return uploadPlaceholderKey.getState(state);
+    },
+  },
+});
+
+// Tiptap extension wrapper so the placeholder plugin is registered with the editor.
+const UploadPlaceholder = Extension.create({
+  name: "runeUploadPlaceholder",
+  addProseMirrorPlugins() {
+    return [uploadPlaceholderPlugin];
+  },
+});
+
+// Current position of a placeholder widget by identity, or null if it's gone
+// (e.g. the user deleted the surrounding content mid-upload).
+function findPlaceholderPos(view: EditorView, id: object): number | null {
+  const set = uploadPlaceholderKey.getState(view.state);
+  const found = set?.find(undefined, undefined, (spec) => spec.id === id) ?? [];
+  return found.length ? found[0].from : null;
+}
+
+// Inserts a spinner placeholder at the current selection, uploads the file, then
+// swaps the placeholder for the real image node (or removes it on failure).
+// Shared by both the paste handler and the attach-button picker.
+function uploadWithPlaceholder(view: EditorView, file: File) {
+  const id = {};
+  const { from, to } = view.state.selection;
+  // Replace any selected content, then drop the placeholder where the cursor was.
+  let tr = view.state.tr;
+  if (from !== to) tr = tr.delete(from, to);
+  tr = tr.setMeta(uploadPlaceholderKey, { add: { id, pos: from } });
+  view.dispatch(tr);
+
+  uploadMedia(file).then((url) => {
+    const pos = findPlaceholderPos(view, id);
+    const resolveTr = view.state.tr.setMeta(uploadPlaceholderKey, { remove: { id } });
+    if (url && pos !== null) {
+      // Insert at the placeholder's mapped position, letting ProseMirror fit the
+      // (block) image node into the surrounding content — same as a direct paste.
+      const node = view.state.schema.nodes.image.create({ src: url });
+      resolveTr.setSelection(TextSelection.create(resolveTr.doc, pos)).replaceSelectionWith(node);
+    }
+    view.dispatch(resolveTr);
+  });
+}
+
+export default function RichCardEditor({ value, onChange, placeholder, resetKey }: RichCardEditorProps) {
+  // Avoids feeding the editor's own onUpdate output back into itself via the `value` prop.
+  const lastEmitted = useRef(value);
+  // Hidden file input behind the toolbar's attach button — the reliable way to
+  // add an image/video on mobile (Firefox Android), where pasting a media file
+  // into a contenteditable is unreliable.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // STATE
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkUrlInput, setLinkUrlInput] = useState("");
+  // Captured when the Link button is clicked — the modal's input stealing focus
+  // can otherwise leave the editor's selection in a stale/collapsed state.
+  const linkSelectionRange = useRef<{ from: number; to: number } | null>(null);
+
+  const editor = useEditor({
+    immediatelyRender: false,
+    // Tiptap v3 default-disables re-rendering on selection-only transactions (perf
+    // optimization). Without this, editor.isActive(...) in JSX (bold/italic/link/image
+    // toolbar highlighting) reads a stale snapshot on pure clicks/cursor moves — it only
+    // happens to look right after a content-changing edit. This toolbar is tiny, so the
+    // perf cost of always re-rendering is negligible.
+    shouldRerenderOnTransaction: true,
+    extensions: [
+      StarterKit.configure({ heading: { levels: [1, 2] } }),
+      MediaImage,
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: placeholder || "" }),
+      Markdown.configure({ html: false, transformPastedText: true, transformCopiedText: true }),
+      UploadPlaceholder,
+    ],
+    content: value,
+    onUpdate: ({ editor }) => {
+      const markdown = editor.storage.markdown.getMarkdown();
+      lastEmitted.current = markdown;
+      onChange(markdown);
+    },
+    editorProps: {
+      attributes: { class: "rich-card-editor-content" },
+      handlePaste: (view, event) => {
+        const items = Array.from(event.clipboardData?.items || []);
+        const mediaItem = items.find(
+          (item) => item.type.startsWith("image/") || item.type.startsWith("video/")
+        );
+        if (!mediaItem) return false;
+
+        const file = mediaItem.getAsFile();
+        if (!file) return false;
+
+        event.preventDefault();
+        // Show a spinner placeholder immediately, then swap in the media on upload.
+        uploadWithPlaceholder(view, file);
+        return true;
+      },
+    },
+  });
+
+  // Reload content when switching cards (or opening for add vs. edit).
+  useEffect(() => {
+    if (editor && value !== lastEmitted.current) {
+      editor.commands.setContent(value);
+      lastEmitted.current = value;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey, editor]);
+
+  if (!editor) return null;
+
+  // Uploads a picked image/video file, showing a spinner placeholder at the
+  // cursor while it uploads, then inserts it in place.
+  function insertPickedMedia(file: File) {
+    if (!editor) return;
+    editor.chain().focus().run();
+    uploadWithPlaceholder(editor.view, file);
+  }
+
+  return (
+    <div className="rich-card-editor">
+      {/* TOOLBAR */}
+      <div className="rich-card-editor-toolbar">
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          className={editor.isActive("bold") ? "is-active" : ""}
+          title="Bold"
+        >
+          <Bold className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          className={editor.isActive("italic") ? "is-active" : ""}
+          title="Italic"
+        >
+          <Italic className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={editor.isActive("bulletList") ? "is-active" : ""}
+          title="Bullet list"
+        >
+          <List className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          className={editor.isActive("orderedList") ? "is-active" : ""}
+          title="Numbered list"
+        >
+          <ListOrdered className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => {
+            const { from, to } = editor.state.selection;
+            linkSelectionRange.current = { from, to };
+            setLinkUrlInput(editor.getAttributes("link").href || "");
+            setShowLinkModal(true);
+          }}
+          className={editor.isActive("link") ? "is-active" : ""}
+          title="Link"
+        >
+          <LinkIcon className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => fileInputRef.current?.click()}
+          title="Attach image or video"
+        >
+          <Paperclip className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => editor.chain().focus().deleteSelection().run()}
+          disabled={!editor.isActive("image")}
+          className={editor.isActive("image") ? "is-active" : ""}
+          title="Remove selected media (tap an image/video to select it, then tap here)"
+        >
+          <ImageOff className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* HIDDEN MEDIA FILE INPUT — opened by the attach button above */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) insertPickedMedia(file);
+          // Reset so re-picking the same file still fires onChange.
+          e.target.value = "";
+        }}
+      />
+
+
+      {/* EDITABLE CONTENT — paste an image directly to embed it */}
+      <EditorContent editor={editor} />
+
+      {/* INSERT LINK MODAL */}
+      <Modal
+        isOpen={showLinkModal}
+        onClose={() => setShowLinkModal(false)}
+        title="Insert Link"
+        footer={
+          <div className="flex gap-2 justify-end">
+            {/* CANCEL BUTTON */}
+            <Button onClick={() => setShowLinkModal(false)} className="btn-off">
+              Cancel
+            </Button>
+
+            {/* CONFIRM BUTTON */}
+            <Button
+              onClick={() => {
+                const range = linkSelectionRange.current;
+                let chain = editor.chain().focus();
+                if (range) chain = chain.setTextSelection(range);
+                if (linkUrlInput.trim()) {
+                  chain.extendMarkRange("link").setLink({ href: linkUrlInput.trim() }).run();
+                } else {
+                  chain.unsetLink().run();
+                }
+                setShowLinkModal(false);
+              }}
+              className="btn-blue"
+            >
+              {linkUrlInput.trim() ? "Save" : "Remove Link"}
+            </Button>
+          </div>
+        }
+      >
+        {/* URL FIELD */}
+        <input
+          type="url"
+          className="input-field w-full"
+          placeholder="https://example.com"
+          value={linkUrlInput}
+          onChange={(e) => setLinkUrlInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const range = linkSelectionRange.current;
+              if (linkUrlInput.trim()) {
+                let chain = editor.chain().focus();
+                if (range) chain = chain.setTextSelection(range);
+                chain.extendMarkRange("link").setLink({ href: linkUrlInput.trim() }).run();
+              }
+              setShowLinkModal(false);
+            }
+          }}
+          autoFocus
+        />
+      </Modal>
+    </div>
+  );
+}

@@ -4,6 +4,7 @@ export class TextToSpeechService {
 
   /** Fetch and cache audio for a given text without playing it. */
   async preload(text: string): Promise<void> {
+    if (!text || !text.trim()) return; // Nothing to synthesize (e.g. blank Easy explanation)
     if (this.audioCache.has(text)) return;
 
     const audioData = await this.fetchAudio(text);
@@ -18,6 +19,9 @@ export class TextToSpeechService {
     text: string,
     audioElement: HTMLAudioElement
   ): Promise<void> {
+    // No-op on blank text (e.g. Easy answers get an empty explanation — the chime is the feedback)
+    if (!text || !text.trim()) return;
+
     // Stop any current playback
     this.stop(audioElement);
 

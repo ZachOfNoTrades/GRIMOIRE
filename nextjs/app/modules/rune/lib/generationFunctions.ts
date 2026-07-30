@@ -28,8 +28,8 @@ export async function generateDeckFromNotion(
   }, 15000);
 
   try {
-    // Create the deck
-    const deck = await createDeck(userId, deckName, deckDescription);
+    // Create the deck (store Notion URL as source)
+    const deck = await createDeck(userId, deckName, deckDescription, notionUrl);
     const deckId = deck.id;
 
     // Fetch Notion page content

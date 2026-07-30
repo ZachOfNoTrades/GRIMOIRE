@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, Loader2, Zap } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export default function GenerateCardsPage() {
   const [result, setResult] = useState<{ cardsGenerated: number; deckId: string; notionPageTitle: string; source: string } | null>(null);
 
   const router = useRouter();
+  const goBack = useGoBack();
 
   // GENERATION JOB HOOK
   const { startPolling: startGeneratePolling } = useGenerationJob({
@@ -28,6 +30,7 @@ export default function GenerateCardsPage() {
       setResult(data);
       toast.success(`Generated ${data.cardsGenerated} cards`);
       setIsGenerating(false);
+      router.push(`/modules/rune/ui/decks/${data.deckId}`);
     },
     onError: (error) => {
       toast.error(error);
@@ -90,7 +93,7 @@ export default function GenerateCardsPage() {
 
           {/* BACK BUTTON */}
           <Button
-            onClick={() => router.push("/modules/rune/ui/home")}
+            onClick={() => goBack("/modules/rune/ui/home")}
             className="btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />

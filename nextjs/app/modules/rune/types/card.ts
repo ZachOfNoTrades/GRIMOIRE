@@ -4,10 +4,12 @@ export interface CardWithProgress {
   front: string;
   back: string;
   notes: string | null;
+  category: string | null;
   source: string | null;
   source_id: string | null;
   order_index: number;
   is_disabled: boolean;
+  is_draft: boolean;
   created_at: Date;
   modified_at: Date;
   ease_factor: number | null;
@@ -15,4 +17,8 @@ export interface CardWithProgress {
   repetitions: number | null;
   next_review_at: Date | null;
   last_reviewed_at: Date | null;
+  last_rating: number | null;
+  // Only populated by the collection card fetch, where a card can come from any
+  // member deck — undefined for a single-deck fetch.
+  deck_name?: string | null;
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedSession } from '@/lib/permissions';
+import { getAuthorizedUser } from '@/lib/permissions';
 import { getCardsByDeckId, insertCard, updateCard, deleteCard } from '../../../../lib/cardFunctions';
 import { getDeckById } from '../../../../lib/deckFunctions';
 
@@ -8,7 +8,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -32,7 +32,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -44,7 +44,7 @@ export async function POST(
     await getDeckById(userId!, id);
 
     const body = await request.json();
-    const { front, back, notes } = body;
+    const { front, back, notes, category, is_draft } = body;
 
     if (!front || !back) {
       return NextResponse.json(
@@ -53,7 +53,7 @@ export async function POST(
       );
     }
 
-    const card = await insertCard(userId!, id, front, back, notes || null);
+    const card = await insertCard(userId!, id, front, back, notes || null, category || null, !!is_draft);
     return NextResponse.json(card);
 
   } catch (error) {
@@ -77,7 +77,7 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -89,7 +89,7 @@ export async function PUT(
     await getDeckById(userId!, id);
 
     const body = await request.json();
-    const { cardId, front, back, notes } = body;
+    const { cardId, front, back, notes, category, is_draft } = body;
 
     if (!cardId || !front || !back) {
       return NextResponse.json(
@@ -98,7 +98,17 @@ export async function PUT(
       );
     }
 
-    await updateCard(userId!, cardId, front, back, notes || null);
+    // category and is_draft are omitted (undefined) when the caller didn't send them —
+    // updateCard treats that as "leave unchanged" rather than clearing the value.
+    await updateCard(
+      userId!,
+      cardId,
+      front,
+      back,
+      notes || null,
+      'category' in body ? (category || null) : undefined,
+      'is_draft' in body ? !!is_draft : undefined
+    );
     return NextResponse.json({ success: true });
 
   } catch (error) {
@@ -130,7 +140,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

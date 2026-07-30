@@ -1,5 +1,28 @@
 import { getRuneConnection, closeRuneConnection } from './db';
 
+// Anki-style interval fuzz: spreads intervals by a small random amount so cards
+// learned together in one session don't all resurface on the exact same day
+// (the "clustering pileup"). Ported from Anki's _fuzzIvlRange. Intervals of 0 or
+// 1 day (same-day relearn / first step) are left exact — only mature intervals
+// cluster, and jittering the short steps would just be noise.
+function applyFuzz(intervalDays: number): number {
+  if (intervalDays < 2) return intervalDays;
+
+  let fuzz: number;
+  if (intervalDays < 7) {
+    fuzz = Math.floor(intervalDays * 0.25);
+  } else if (intervalDays < 30) {
+    fuzz = Math.max(2, Math.floor(intervalDays * 0.15));
+  } else {
+    fuzz = Math.max(4, Math.floor(intervalDays * 0.05));
+  }
+  fuzz = Math.max(1, fuzz);
+
+  // Uniform random integer in [interval - fuzz, interval + fuzz].
+  const span = 2 * fuzz + 1;
+  return (intervalDays - fuzz) + Math.floor(Math.random() * span);
+}
+
 // SM-2 algorithm: calculates next review state based on rating (1-4)
 // 1=Again, 2=Hard, 3=Good, 4=Easy
 export function calculateNextReview(
@@ -12,24 +35,32 @@ export function calculateNextReview(
   let intervalDays: number;
   let repetitions: number;
 
-  if (rating < 3) {
-    // Failed: reset repetitions, short interval
+  if (rating === 1) {
+    // Again = lapse: reset the streak, relearn the same day, drop ease.
     repetitions = 0;
-    intervalDays = rating === 1 ? 0 : 1; // Again=same day, Hard=1 day
+    intervalDays = 0;
     easeFactor = Math.max(1.30, easeFactor - 0.20);
   } else {
-    // Passed: advance repetitions
+    // Hard (2), Good (3), Easy (4) are all passes — they advance the streak.
+    // Hard is a pass (per standard SM-2/Anki), not a lapse: it keeps the card
+    // in review and grows the interval slowly rather than resetting to 1 day.
     repetitions = currentRepetitions + 1;
 
     if (repetitions === 1) {
-      intervalDays = 1;
+      // First pass. Hard/Good start at 1 day; Easy at 3 (not 1) so the bonus
+      // below actually differentiates it — 1 * 1.3 rounds back down to 1.
+      intervalDays = rating === 4 ? 3 : 1;
     } else if (repetitions === 2) {
-      intervalDays = 6;
+      // Second pass: Hard graduates slower (3 days) than Good/Easy (6).
+      intervalDays = rating === 2 ? 3 : 6;
     } else {
-      intervalDays = Math.round(currentInterval * easeFactor);
+      // Mature card. Good/Easy multiply by ease; Hard uses a gentler fixed 1.2
+      // factor so a persistently-Hard card still grows, just slowly.
+      const factor = rating === 2 ? 1.2 : easeFactor;
+      intervalDays = Math.round(currentInterval * factor);
     }
 
-    // Adjust ease factor
+    // Adjust ease factor: Hard -0.06, Good +0.02, Easy +0.10 (floored at 1.30).
     const adjustment = 0.1 - (4 - rating) * 0.08;
     easeFactor = Math.max(1.30, easeFactor + adjustment);
 
@@ -38,6 +69,9 @@ export function calculateNextReview(
       intervalDays = Math.round(intervalDays * 1.3);
     }
   }
+
+  // Decluster: jitter the computed interval so same-session batches spread out.
+  intervalDays = applyFuzz(intervalDays);
 
   return { easeFactor, intervalDays, repetitions };
 }
@@ -59,6 +93,33 @@ export async function createStudySession(userId: string, deckId: string): Promis
     return result.recordset[0].id;
   } catch (error) {
     console.error('Error creating study session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Creates a collection-scoped study session and returns its ID. Same row shape as a
+// deck session, but scoped by collection_id (deck_id stays NULL) because the session
+// spans every deck in the collection.
+export async function createCollectionStudySession(userId: string, collectionId: string): Promise<string> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('collectionId', collectionId)
+      .query(`
+        INSERT INTO study_sessions (user_id, collection_id)
+        OUTPUT INSERTED.id
+        VALUES (@userId, @collectionId)
+      `);
+
+    return result.recordset[0].id;
+  } catch (error) {
+    console.error('Error creating collection study session:', error);
     throw error;
   } finally {
     if (pool) {
