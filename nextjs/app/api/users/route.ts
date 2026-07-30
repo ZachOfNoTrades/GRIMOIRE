@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthorizedSession, isAdmin } from "@/lib/permissions";
+import { getAuthorizedUser, isAdmin } from "@/lib/permissions";
 import { getAllUsers, createUser } from "@/lib/users";
 import { isValidEmail } from "@/lib/format";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     // Auth guard
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -36,7 +36,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     // Auth guard
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json(
         { error: "Unauthorized" },
