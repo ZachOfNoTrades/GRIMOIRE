@@ -13,83 +13,88 @@
   * 5xl   3rem      48px
   */
 
-/* LIGHT MODE COLORS */
+/* LAYOUT */
 :root {
-  --solid-background: #ffffff;
-  --solid-foreground: #171717;
-  --gradient-background: linear-gradient(to bottom right, rgb(248 250 252), rgb(241 245 249));
+  --solid-background: #f5f5f0;
+  --solid-foreground: #1a1a1a;
+  --gradient-background: radial-gradient(ellipse at center, #f5f5f0 0%, #e8e8e0 100%);
   --card-bg: #ffffff;
-  --card-border: rgb(226 232 240); /* slate-200 */
-  --color-primary: rgb(15 23 42); /* slate-900 */
-  --color-secondary: rgb(71 85 105); /* slate-600 */
-  --color-gray: rgb(100 116 139); /* slate-500 */
-  --hover-bg: rgb(248 250 252); /* slate-50 */
+  --card-border: #1a1a1a;
+  --color-primary: #0a0a0a;
+  --color-secondary: #4a4a4a;
+  --color-gray: #888888;
+  --hover-bg: #ebebe5;
 
-  --input-border: rgb(203 213 225); /* slate-300 */
+  --input-border: #1a1a1a;
   --input-bg: #ffffff;
-  --input-disabled-bg: rgb(248 250 252); /* slate-50 */
-  --input-disabled-border: rgb(226 232 240); /* slate-200 */
-  --input-disabled-text: rgb(100 116 139); /* slate-500 */
+  --input-disabled-bg: #ebebe5;
+  --input-disabled-border: #b8b8b0;
+  --input-disabled-text: #888888;
 
   /* Additional variables */
-  --hover-text: rgb(15 23 42); /* slate-900 */
+  --hover-text: #000000;
 
   /* Alert colors */
-  --alert-green-bg: rgb(240 253 244); /* green-50 */
-  --alert-green-border: rgb(187 247 208); /* green-200 */
-  --alert-green-text: rgb(21 128 61); /* green-700 */
-  --alert-yellow-bg: rgb(254 252 232); /* yellow-50 */
-  --alert-yellow-border: rgb(250 204 21); /* yellow-400 */
-  --alert-yellow-text: rgb(133 77 14); /* yellow-800 */
-  --alert-red-bg: rgb(254 242 242); /* red-50 */
-  --alert-red-border: rgb(254 202 202); /* red-200 */
-  --alert-red-text: rgb(185 28 28); /* red-700 */
-  --alert-blue-bg: rgb(239 246 255); /* blue-50 */
-  --alert-blue-border: rgb(191 219 254); /* blue-200 */
-  --alert-blue-text: rgb(30 64 175); /* blue-800 */
+  --alert-green-bg: #e6f2e9;
+  --alert-green-border: #0a5c1a;
+  --alert-green-text: #0a5c1a;
+  --alert-yellow-bg: #faf2d9;
+  --alert-yellow-border: #7a5a00;
+  --alert-yellow-text: #7a5a00;
+  --alert-red-bg: #f7e3e3;
+  --alert-red-border: #8a1a1a;
+  --alert-red-text: #8a1a1a;
+  --alert-blue-bg: #e3ecf7;
+  --alert-blue-border: #0a3a6a;
+  --alert-blue-text: #0a3a6a;
 
   /* Button colors */
-  --btn-blue-bg: rgb(37 99 235); /* blue-600 */
-  --btn-blue-hover: rgb(29 78 216); /* blue-700 */
-  --btn-green-bg: rgb(22 163 74); /* green-600 */
-  --btn-green-hover: rgb(21 128 61); /* green-700 */
-  --btn-disabled-bg: rgb(203 213 225); /* slate-300 */
-  --btn-disabled-text: rgb(100 116 139); /* slate-500 */
-  --btn-off-bg: rgb(241 245 249); /* slate-100 */
-  --btn-off-text: rgb(51 65 85); /* slate-700 */
-  --btn-off-hover: rgb(226 232 240); /* slate-200 */
-  --btn-link-text: rgb(71 85 105); /* slate-600 */
-  --btn-link-hover: rgb(31 41 55); /* gray-800 */
-  --btn-red-bg: rgb(220 38 38); /* red-600 */
-  --btn-red-hover: rgb(185 28 28); /* red-700 */
+  --btn-blue-bg: #0a3a6a;
+  --btn-blue-hover: #062448;
+  --btn-green-bg: #0a5c1a;
+  --btn-green-hover: #053e12;
+  --btn-disabled-bg: #ebebe5;
+  --btn-disabled-text: #888888;
+  --btn-off-bg: #ffffff;
+  --btn-off-text: #4a4a4a;
+  --btn-off-hover: #ebebe5;
+  --btn-link-text: #4a4a4a;
+  --btn-link-hover: #0a0a0a;
+  --btn-red-bg: #8a1a1a;
+  --btn-red-hover: #5e1010;
+  /* Dark-filled buttons get light text in light mode (fills are dark in both
+     modes; the default near-black --color-primary was illegible on them). */
+  --btn-blue-text: #ffffff;
+  --btn-green-text: #ffffff;
+  --btn-red-text: #ffffff;
 
   /* Table colors */
-  --table-header-bg: rgb(248 250 252); /* slate-50 */
-  --table-row-hover-bg: rgb(248 250 252); /* slate-50 */
-  --table-row-border: rgb(241 245 249); /* slate-100 */
+  --table-header-bg: #ebebe5;
+  --table-row-hover-bg: #ebebe5;
+  --table-row-border: #d8d8d0;
 
   /* Badge colors */
-  --badge-green-bg: rgb(220 252 231); /* green-100 */
-  --badge-green-text: rgb(22 101 52); /* green-800 */
-  --badge-yellow-bg: rgb(254 243 199); /* yellow-100 */
-  --badge-yellow-text: rgb(133 77 14); /* yellow-800 */
-  --badge-red-bg: rgb(254 226 226); /* red-100 */
-  --badge-red-text: rgb(153 27 27); /* red-800 */
-  --badge-red-border: rgb(254 202 202); /* red-200 */
-  --badge-blue-bg: rgb(219 234 254); /* blue-100 */
-  --badge-blue-text: rgb(30 64 175); /* blue-800 */
+  --badge-green-bg: #e6f2e9;
+  --badge-green-text: #0a5c1a;
+  --badge-yellow-bg: #faf2d9;
+  --badge-yellow-text: #7a5a00;
+  --badge-red-bg: #f7e3e3;
+  --badge-red-text: #8a1a1a;
+  --badge-red-border: #8a1a1a;
+  --badge-blue-bg: #e3ecf7;
+  --badge-blue-text: #0a3a6a;
 
   /* Progress bar colors */
-  --progress-bar-bg: rgb(226 232 240); /* slate-200 */
-  --progress-bar-fill-blue-start: rgb(147 197 253); /* blue-300 */
-  --progress-bar-fill-blue-end: rgb(37 99 235); /* blue-600 */
-  --progress-bar-fill-yellow-start: rgb(253 224 71); /* yellow-300 */
-  --progress-bar-fill-yellow-end: rgb(202 138 4); /* yellow-600 */
-  --progress-bar-fill-red-start: rgb(252 165 165); /* red-300 */
-  --progress-bar-fill-red-end: rgb(220 38 38); /* red-600 */
+  --progress-bar-bg: #ebebe5;
+  --progress-bar-fill-blue-start: #6a8fc9;
+  --progress-bar-fill-blue-end: #0a3a6a;
+  --progress-bar-fill-yellow-start: #d4b85a;
+  --progress-bar-fill-yellow-end: #7a5a00;
+  --progress-bar-fill-red-start: #c97a7a;
+  --progress-bar-fill-red-end: #8a1a1a;
 
   /* Stat section background */
-  --stat-section-bg: rgb(248 250 252); /* slate-50 */
+  --stat-section-bg: #ebebe5;
 
   /* Modal */
   --modal-backdrop: rgb(0 0 0 / 0.5);
@@ -98,80 +103,88 @@
 /* DARK MODE COLORS */
 @media (prefers-color-scheme: dark) {
   :root {
-    --solid-background: #0a0a0a;
-    --solid-foreground: #ededed;
-    --gradient-background: linear-gradient(to bottom right, rgb(17 24 39), rgb(3 7 18));
-    --card-bg: rgb(31 41 55); /* gray-800 */
-    --card-border: rgb(55 65 81); /* gray-700 */
-    --color-primary: rgb(243 244 246); /* gray-100 */
-    --color-secondary: rgb(156 163 175); /* gray-400 */
-    --color-gray: rgb(156 163 175); /* gray-400 */
-    --hover-bg: rgb(55 65 81); /* gray-700 */
+    --solid-background: #000000;
+    --solid-foreground: #e6e6e6;
+    --gradient-background: radial-gradient(ellipse at center, #0a0a0a 0%, #000000 100%);
+    --card-bg: #080808;
+    --card-border: #333333;
+    --color-primary: #f0f0f0;
+    --color-secondary: #bcbcbc;
+    --color-gray: #555555;
+    --hover-bg: #141414;
 
-    --input-border: rgb(75 85 99); /* gray-600 */
-    --input-bg: rgb(55 65 81); /* gray-700 */
-    --input-disabled-bg: rgb(17 24 39); /* gray-900 */
-    --input-disabled-border: rgb(55 65 81); /* gray-700 */
-    --input-disabled-text: rgb(107 114 128); /* gray-500 */
+    --input-border: #555555;
+    --input-bg: #050505;
+    --input-disabled-bg: #0a0a0a;
+    --input-disabled-border: #222222;
+    --input-disabled-text: #555555;
 
     /* Additional dark mode values */
-    --hover-text: rgb(243 244 246); /* gray-100 */
+    --hover-text: #ffffff;
 
     /* Alert colors - dark mode */
-    --alert-green-bg: rgb(20 83 45 / 0.2); /* green-900/20 */
-    --alert-green-border: rgb(22 101 52); /* green-800 */
-    --alert-green-text: rgb(74 222 128); /* green-400 */
-    --alert-yellow-bg: rgb(113 63 18 / 0.2); /* yellow-900/20 */
-    --alert-yellow-border: rgb(234 179 8); /* yellow-500 */
-    --alert-yellow-text: rgb(253 224 71); /* yellow-300 */
-    --alert-red-bg: rgb(127 29 29 / 0.2); /* red-900/20 */
-    --alert-red-border: rgb(153 27 27); /* red-800 */
-    --alert-red-text: rgb(248 113 113); /* red-400 */
-    --alert-blue-bg: rgb(30 58 138 / 0.2); /* blue-900/20 */
-    --alert-blue-border: rgb(30 64 175); /* blue-800 */
-    --alert-blue-text: rgb(147 197 253); /* blue-300 */
+    --alert-green-bg: #031a05;
+    --alert-green-border: #1f5a2a;
+    --alert-green-text: #33ff66;
+    --alert-yellow-bg: #1a1400;
+    --alert-yellow-border: #665200;
+    --alert-yellow-text: #ffcc00;
+    --alert-red-bg: #1a0505;
+    --alert-red-border: #661a1a;
+    --alert-red-text: #ff3344;
+    --alert-blue-bg: #031318;
+    --alert-blue-border: #1a4d66;
+    --alert-blue-text: #33ccff;
 
     /* Button colors - dark mode */
-    --btn-disabled-bg: rgb(55 65 81); /* gray-700 */
-    --btn-disabled-text: rgb(107 114 128); /* gray-600 */
-    --btn-off-bg: rgb(31 41 55); /* gray-800 */
-    --btn-off-text: rgb(209 213 219); /* gray-300 */
-    --btn-off-hover: rgb(55 65 81); /* gray-700 */
-    --btn-link-text: rgb(156 163 175); /* gray-400 */
-    --btn-link-hover: rgb(248 250 252); /* slate-50 */
-    --btn-red-bg: rgb(220 38 38); /* red-600 */
-    --btn-red-hover: rgb(185 28 28); /* red-700 */
+    --btn-blue-bg: #0a2d3a;
+    --btn-blue-hover: #1a4d66;
+    --btn-green-bg: #053e12;
+    --btn-green-hover: #0a6622;
+    --btn-disabled-bg: #141414;
+    --btn-disabled-text: #555555;
+    --btn-off-bg: #0a0a0a;
+    --btn-off-text: #bcbcbc;
+    --btn-off-hover: #141414;
+    --btn-link-text: #bcbcbc;
+    --btn-link-hover: #f0f0f0;
+    --btn-red-bg: #3a0a0a;
+    --btn-red-hover: #661a1a;
+    /* Dark mode already had legible bright text on the dark fills — keep it. */
+    --btn-blue-text: var(--color-primary);
+    --btn-green-text: var(--color-primary);
+    --btn-red-text: var(--alert-red-text);
 
     /* Table colors - dark mode */
-    --table-header-bg: rgb(17 24 39); /* gray-900 */
-    --table-row-hover-bg: rgb(55 65 81); /* gray-700 */
-    --table-row-border: rgb(31 41 55); /* gray-800 */
+    --table-header-bg: #141414;
+    --table-row-hover-bg: #141414;
+    --table-row-border: #222222;
 
     /* Badge colors - dark mode */
-    --badge-green-bg: rgb(20 83 45 / 0.3); /* green-900/30 */
-    --badge-green-text: rgb(134 239 172); /* green-300 */
-    --badge-yellow-bg: rgb(113 63 18 / 0.3); /* yellow-900/30 */
-    --badge-yellow-text: rgb(253 224 71); /* yellow-300 */
-    --badge-red-bg: rgb(127 29 29 / 0.3); /* red-900/30 */
-    --badge-red-text: rgb(252 165 165); /* red-300 */
-    --badge-red-border: rgb(153 27 27); /* red-800 */
-    --badge-blue-bg: rgb(30 58 138 / 0.3); /* blue-900/30 */
-    --badge-blue-text: rgb(147 197 253); /* blue-300 */
+    --badge-green-bg: #031a05;
+    --badge-green-text: #33ff66;
+    --badge-yellow-bg: #1a1400;
+    --badge-yellow-text: #ffcc00;
+    --badge-red-bg: #1a0505;
+    --badge-red-text: #ff3344;
+    --badge-red-border: #661a1a;
+    --badge-blue-bg: #031318;
+    --badge-blue-text: #33ccff;
 
     /* Progress bar colors - dark mode */
-    --progress-bar-bg: rgb(55 65 81); /* gray-700 */
-    --progress-bar-fill-blue-start: rgb(147 197 253); /* blue-300 */
-    --progress-bar-fill-blue-end: rgb(37 99 235); /* blue-600 */
-    --progress-bar-fill-yellow-start: rgb(253 224 71); /* yellow-300 */
-    --progress-bar-fill-yellow-end: rgb(202 138 4); /* yellow-600 */
-    --progress-bar-fill-red-start: rgb(252 165 165); /* red-300 */
-    --progress-bar-fill-red-end: rgb(220 38 38); /* red-600 */
+    --progress-bar-bg: #141414;
+    --progress-bar-fill-blue-start: #1a4d66;
+    --progress-bar-fill-blue-end: #33ccff;
+    --progress-bar-fill-yellow-start: #665200;
+    --progress-bar-fill-yellow-end: #ffcc00;
+    --progress-bar-fill-red-start: #661a1a;
+    --progress-bar-fill-red-end: #ff3344;
 
     /* Stat section background - dark mode */
-    --stat-section-bg: rgb(31 41 55); /* gray-800 */
+    --stat-section-bg: #080808;
 
     /* Modal */
-    --modal-backdrop: rgb(0 0 0 / 0.7);
+    --modal-backdrop: rgb(0 0 0 / 0.85);
   }
 }
 
@@ -195,7 +208,8 @@ html {
 body {
   background: var(--solid-background);
   color: var(--solid-foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-feature-settings: "zero" 1, "ss01" 1;
 }
 
 /* ========================================
@@ -217,6 +231,7 @@ body {
   font-weight: medium;
   color: var(--color-secondary);
   font-style: italic;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 .text-h1 {
@@ -251,6 +266,7 @@ body {
   display: flex;
   align-items: center;
   flex: 1;
+  min-width: 0; /* allow flex children to shrink below content size (required for truncation) */
   gap: 0.5rem;
 }
 
@@ -269,6 +285,19 @@ body {
   color: var(--color-gray);
 }
 
+/* INLINE CODE — token-based so it stays legible in both light and dark mode
+   (was a hardcoded bg-gray-800, which rendered dark-on-dark in light mode). */
+.code-inline {
+  padding: 0.1rem 0.35rem;
+  margin: 0 0.25rem;
+  border-radius: 0.25rem;
+  background: var(--stat-section-bg);
+  border: 1px solid var(--card-border);
+  color: var(--color-primary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.85em;
+}
+
 .text-subtle {
   color: var(--color-gray);
   font-size: 0.875rem;
@@ -278,12 +307,6 @@ body {
   color: var(--color-gray);
   font-size: 0.875rem;
   font-style: italic;
-}
-
-.text-intense {
-  color: var(--alert-blue-text);
-  font-size: 1.25rem;
-  font-weight: bold;
 }
 
 .text-yellow {
@@ -343,7 +366,8 @@ body {
 
 .navbar {
   background: var(--solid-background);
-  border: 1px solid var(--card-border);
+  border: none;
+  border-bottom: 1px solid var(--color-primary);
 }
 
 .bottom-action-bar {
@@ -355,29 +379,172 @@ body {
   justify-content: center;
 }
 
-.page {
-  height: 100dvh;
-  background: var(--gradient-background);
+/* REST TIMER — floating countdown pill shown above the session UI (and above the
+   open segment modal, whose backdrop is z-index 50) while resting between sets, so
+   it stays visible the whole time the user is logging. */
+.rest-timer-pill {
+  position: fixed;
+  top: max(0.5rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.75rem;
+  background: var(--solid-background);
+  border: 1px solid var(--card-border);
+  border-radius: 9999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  font-variant-numeric: tabular-nums;
 }
 
-/* An extension class of .page, modifying view to accommodate action bar */
+/* Time readout — primary while counting, green once rest is up. */
+.rest-timer-time {
+  font-family: var(--font-mono), monospace;
+  font-weight: 600;
+  color: var(--color-primary);
+  min-width: 3.2rem;
+  text-align: center;
+}
+.rest-timer-pill-done {
+  border-color: var(--alert-green-text);
+}
+.rest-timer-pill-done .rest-timer-time {
+  color: var(--alert-green-text);
+}
+
+/* Lock html+body to the painted viewport and let `.page` flex into the height
+   left after the in-flow navbar (and any module subnav), exactly like
+   `.page-with-bottom-bar` below. The previous `.page { height: var(--app-height) }`
+   sized the wrapper to the FULL viewport while it sits BELOW the ~61px in-flow
+   navbar, so the document ran ~61px past the viewport — a sliver of overflow that
+   scroll-anchoring turned into a visible "twitch" on the first wheel-scroll
+   (Chrome desktop) and a dead band on Firefox Android. Flexing into the leftover
+   space is navbar-height-agnostic, so there's nothing to overflow. `.page` now
+   owns its own scroll instead of the window. */
+html:has(.page),
+body:has(.page) {
+  height: var(--app-height, 100dvh);
+  overflow: hidden;
+}
+body:has(.page) {
+  display: flex;
+  flex-direction: column;
+  /* Lift the in-flow navbar out from behind the Firefox-Android URL bar. A locked
+     overflow:hidden 100lvh body is anchored to the LARGE layout viewport, whose
+     top sits (lvh - dvh) px above the visible area while the URL bar is shown — so
+     the navbar (top flex child) renders off-screen with no scroll to recover it,
+     and only navigating to a normal-flow page brings it back. Pad the shell down
+     by that exact clip. --nav-safe-top is calc(100lvh - 100dvh) on Firefox and 0px
+     elsewhere (set by layout.tsx pre-paint + lib/useAppHeight); box-sizing is
+     border-box, so this eats into the shell height rather than overflowing it. */
+  padding-top: var(--nav-safe-top, 0px);
+}
+body:has(.page) > .page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  /* The autohiding navbar (components/Navbar.tsx) slides up by animating its
+     margin-top, which resizes this locked flex column — and therefore this
+     scroller — every frame. With default scroll-anchoring, a fast fling to the
+     bottom makes the anchor counter that resize, which fires another scroll
+     event, which re-triggers the navbar, looping into a visible twitch. Opting
+     out of anchoring lets the scroll settle to the clamped bottom smoothly while
+     the navbar still slides away normally. */
+  overflow-anchor: none;
+  /* This inner scroller is the only thing that scrolls (html+body are locked
+     overflow:hidden above). On Firefox Android (Gecko) a scroller paints a
+     rubber-band/stretch overscroll affordance at its top/bottom edges by
+     default; with the window locked there's nothing for that bounce to chain
+     into, so it just reads as the page rubber-banding. `none` suppresses the
+     affordance entirely (and any chaining) — the app-shell equivalent of the
+     `overscroll-behavior: contain` the modals/drawers already set. */
+  overscroll-behavior: none;
+}
+.page {
+  background: var(--solid-background);
+}
+
+/* An extension class of .page for pages carrying a text input the soft keyboard
+   must not cover (the bagel guess field). The base .page shell is locked to
+   --app-height, which on Firefox Android is pinned to 100lvh (the large,
+   keyboard-hidden viewport) and never shrinks when the keyboard opens — so a
+   short page has no scroll room to lift the focused input above the keyboard,
+   leaving it (and what you type) hidden behind it. Sizing the locked shell to
+   --visible-vh instead (keyboard-aware: 100lvh closed, visualViewport.height
+   open — set by lib/useAppHeight) shrinks it the moment the keyboard appears,
+   giving the inner .page scroller room to bring the input into view. Placed
+   AFTER the .page height rules so this wins for pages carrying both classes;
+   closed-keyboard --visible-vh equals the 100lvh painted height, so there's no
+   dead-band regression. */
+html:has(.page-keyboard-aware),
+body:has(.page-keyboard-aware) {
+  height: var(--visible-vh, var(--app-height, 100dvh));
+}
+
+/* An extension class of .page. When a page-with-bottom-bar is on the document,
+   we lock html+body so the window never scrolls — the only scrollable region is
+   the inner `.page-container`. This stops mobile browsers from shrinking/growing
+   the URL bar mid-scroll, which is what makes the bottom bar jitter when it's
+   `position: fixed`.
+
+   Because the window is locked, the URL bar never collapses, which trips a
+   Firefox Android paint bug that leaves a dead band below the bottom bar. Pages
+   that mount lib/useAppHeight set --app-height to the real painted height
+   (100lvh on Firefox); 100dvh is the pre-hydration / opt-out fallback. */
+html:has(.page-with-bottom-bar),
+body:has(.page-with-bottom-bar) {
+  height: var(--app-height, 100dvh);
+  overflow: hidden;
+}
+body:has(.page-with-bottom-bar) {
+  display: flex;
+  flex-direction: column;
+  /* Same Firefox-Android locked-shell navbar clip as body:has(.page) above — pad
+     the shell down by --nav-safe-top (calc(100lvh - 100dvh) on Firefox, else 0)
+     so the navbar isn't stranded behind the URL bar. */
+  padding-top: var(--nav-safe-top, 0px);
+}
+/* Page wrapper takes the remaining height after sibling chrome (navbar,
+   module subnav) has been laid out. */
+body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .page-with-bottom-bar {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* Modifies page container to accommodate modified page */
-.page-with-bottom-bar > .page-container {
-  flex: 1;
+/* Inner scroll region — the only scrollable container in this layout.
+   Sits BETWEEN `.page-with-bottom-bar` and `.page-container` so the
+   scrollbar gutter lives outside the canonical content padding box —
+   keeps left/right content padding symmetric instead of asymmetric
+   (32px L vs 32+gutter R). */
+.page-with-bottom-bar > .page-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  /* Same autohiding-navbar vs scroll-anchoring twitch as `.page` above — opt
+     out of anchoring so a fast fling to the bottom settles instead of looping. */
+  overflow-anchor: none;
+  /* Kill the Firefox-Android rubber-band/stretch overscroll affordance at the
+     scroll boundaries (same rationale as `.page` above — the window is locked,
+     so the bounce has nowhere to chain and just reads as the page bouncing). */
+  overscroll-behavior: none;
+  /* No flex/grid here — let `.page-container` behave as a normal block so
+     its `margin: 0 auto` + `max-width: 80rem` centers correctly. */
 }
 
 .page-container {
   max-width: 80rem;
   margin-left: auto;
   margin-right: auto;
-  padding: 2rem 1rem; /* Mobile */
+  padding: 2rem 0; /* Mobile */
 }
 
 @media (min-width: 640px) {
@@ -398,9 +565,18 @@ body {
   flex-direction: column;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  padding: 1.5rem;
+  padding: 1.5rem 0.75rem; /* Mobile */
+  /* Skip layout/paint when card is offscreen. The Coached Program card on
+     the strategy page contains a dense 21-brick MacroRibbon — without this,
+     the card's pixel-heavy contents repaint as it crosses the viewport edge. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+@media (min-width: 640px) {
+  .card {
+    padding: 1.5rem;
+  }
 }
 
 .card-header {
@@ -435,15 +611,18 @@ body {
 .module-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   cursor: pointer;
-  transition: all 200ms;
-  padding: 1.5rem;
+  transition: background-color 200ms, border-color 200ms, color 200ms, box-shadow 200ms;
+  padding: 1.5rem 0.75rem; /* Mobile */
+}
+
+@media (min-width: 640px) {
+  .module-card {
+    padding: 1.5rem;
+  }
 }
 
 .module-card:hover {
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   border-color: var(--input-border);
 }
 
@@ -452,7 +631,6 @@ body {
   display: flex;
   align-items: center;
   background: var(--hover-bg);
-  border-radius: 0.5rem;
   padding: 0.625rem 0.75rem;
   cursor: pointer;
   transition: background 150ms ease-in-out;
@@ -475,17 +653,20 @@ body {
   flex-direction: column;
   background: var(--hover-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.5rem;
-  padding: 1rem;
+  padding: 1rem 0.625rem; /* Mobile */
   transition: all 200ms ease-in-out;
+}
+
+@media (min-width: 640px) {
+  .sub-card {
+    padding: 1rem;
+  }
 }
 
 /* Using @media fixes stuck hover state on mobile */
 @media (hover: hover) {
   .sub-card:hover {
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.1);
     border-color: var(--input-border);
-    transform: translateY(-2px);
   }
 }
 
@@ -517,7 +698,7 @@ body {
 .expandable-card-content {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
   animation: expandOpen 250ms ease-out forwards;
 }
 
@@ -556,15 +737,18 @@ body {
 .module-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   transition: all 200ms ease-in-out;
   cursor: pointer;
-  padding: 1.5rem;
+  padding: 1rem 0.875rem; /* Mobile — tighter for the 2-up grid */
+}
+
+@media (min-width: 640px) {
+  .module-card {
+    padding: 1.5rem;
+  }
 }
 
 .module-card:hover {
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   border-color: var(--input-border);
 }
 
@@ -573,7 +757,6 @@ body {
 }
 
 .module-card.module-card-disabled:hover {
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   border-color: var(--card-border);
 }
 
@@ -582,7 +765,6 @@ body {
   inset: 0;
   background-color: var(--hover-bg);
   opacity: 0.975;
-  border-radius: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -600,10 +782,6 @@ body {
   border-color: var(--card-border);
 }
 
-.border-t-card {
-  border-top-color: var(--card-border);
-}
-
 /* MODALS */
 @keyframes modal-backdrop-in {
   from { opacity: 0; }
@@ -615,26 +793,67 @@ body {
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+/* Quest "short rest" dice — tumble loops while the d20 is rolling, settle pops it on the result.
+   Applied to the die wrapper in the gamble-for-health overlay (quest home page). */
+@keyframes quest-dice-tumble {
+  0%   { transform: rotate(0deg) scale(1); }
+  25%  { transform: rotate(160deg) scale(1.12); }
+  50%  { transform: rotate(300deg) scale(0.94); }
+  75%  { transform: rotate(520deg) scale(1.1); }
+  100% { transform: rotate(720deg) scale(1); }
+}
+
+.quest-dice-rolling {
+  animation: quest-dice-tumble 0.6s linear infinite;
+}
+
+@keyframes quest-dice-settle {
+  0%   { transform: scale(0.55) rotate(-12deg); }
+  60%  { transform: scale(1.25) rotate(6deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.quest-dice-settle {
+  animation: quest-dice-settle 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
+  /* Constrain the centering box to the REAL visible viewport. inset:0 alone
+     resolves to the layout viewport on Firefox Android (taller than what's on
+     screen when the toolbar shows), which shifts the centered card down and
+     hides its footer behind the toolbar. --visible-vh (set from
+     visualViewport.height by lib/useAppHeight) is the on-screen height; height
+     wins over the over-constrained inset bottom. Unlike the page shells' 100lvh
+     token, it never overshoots, so the modal footer stays on screen — including
+     riding above the soft keyboard. 100dvh is only the fallback. */
+  height: var(--visible-vh, var(--app-height, 100dvh));
   background-color: var(--modal-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
   z-index: 50;
+  /* Make the full-viewport overlay a scroll boundary: overflow:hidden turns it
+     into a (non-scrolling, since the card fits) scroll container, and
+     overscroll-behavior:contain stops wheel/touch overscroll from chaining to
+     the page behind. The page shells scroll an inner `.page-scroll` container —
+     NOT the window — so the Modal's html/body overflow:hidden lock alone doesn't
+     cover them; this does. */
+  overflow: hidden;
+  overscroll-behavior: contain;
   animation: modal-backdrop-in 200ms ease-out;
 }
 
 .modal-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   padding: 1rem;
   max-width: 600px;
-  max-height: 85vh;
+  /* 85% of the real visible viewport — vh resolves to the layout viewport on
+     Firefox Android, overshooting the screen. Falls back to dvh. */
+  max-height: calc(var(--visible-vh, var(--app-height, 100dvh)) * 0.85);
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -642,14 +861,132 @@ body {
 }
 
 .modal-card-full {
-  height: 85vh;
+  height: calc(var(--visible-vh, var(--app-height, 100dvh)) * 0.85);
   max-height: none;
+}
+
+/* Wider centered card for desktop two-column dialogs (e.g. the rune card editor).
+   Stays at the standard full-width/600px cap on mobile so narrow layouts are
+   untouched; only widens once there's room at the md breakpoint. */
+@media (min-width: 768px) {
+  .modal-card-wide {
+    max-width: 880px;
+  }
+}
+
+/* Full-screen variant — the card becomes an edge-to-edge surface that fills the
+   whole visible viewport. The backdrop drops its centering padding so there's no
+   frame; the card sheds its border, max-width and radius. Used by the food
+   logger so the search field can sit flush above the soft keyboard. */
+.modal-backdrop-screen {
+  padding: 0;
+  align-items: stretch;
+}
+.modal-card-screen {
+  height: var(--visible-vh, var(--app-height, 100dvh));
+  max-height: none;
+  max-width: none;
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  /* Keep header/footer clear of notches + home indicators on full-bleed devices. */
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  animation: modal-sheet-in 250ms ease-out;
+}
+
+/* Mobile: the full-screen logger is tight on vertical space, worst with the soft
+   keyboard open. Trim the chrome (card floor, header gap, body padding, section
+   heading) so more of the food list stays visible above the keyboard. Scoped to
+   .modal-card-screen — only the immersive food logger uses it. */
+@media (max-width: 639px) {
+  .modal-card-screen {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+  .modal-card-screen .modal-header {
+    padding-bottom: 0.5rem;
+  }
+  /* Minimal top padding — pulls the first record up tight under the search bar. */
+  .modal-card-screen .modal-body {
+    padding-top: 0.125rem;
+    padding-bottom: 0.625rem;
+    gap: 0.5rem;
+  }
+  .modal-card-screen .section-heading {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  /* Compress food rows — shrink the avatar, tighten padding/leading and drop the
+     text a notch so at least ~3 whole records stay in view above the keyboard. */
+  .modal-card-screen .list-row {
+    padding-top: 0.3125rem;
+    padding-bottom: 0.3125rem;
+    gap: 0.5rem;
+  }
+  .modal-card-screen .list-row-avatar {
+    width: 1.625rem;
+    height: 1.625rem;
+  }
+  .modal-card-screen .list-row-title {
+    font-size: 0.8125rem;
+    line-height: 1.2;
+  }
+  .modal-card-screen .list-row-meta {
+    font-size: 0.6875rem;
+    line-height: 1.15;
+    margin-top: 0.0625rem;
+  }
+  .modal-card-screen .bordered-list {
+    gap: 0.125rem;
+    margin-top: 0;
+  }
+}
+
+/* Mobile-only full-screen — full-bleed immersive cover under 640px, normal
+   centered dialog at >=640px. The base .modal-backdrop/.modal-card classes
+   (still applied) supply the desktop centered layout; these overrides only
+   kick in on small screens. Used by the food DETAIL modal so desktop gets a
+   constrained card while phones keep the edge-to-edge sheet. (The food LOGGER
+   uses the unconditional .modal-card-screen instead — it stays full-screen
+   everywhere so its search field sits flush above the soft keyboard.) */
+@media (max-width: 639px) {
+  .modal-backdrop-screen-mobile {
+    padding: 0;
+    align-items: stretch;
+  }
+  .modal-card-screen-mobile {
+    height: var(--visible-vh, var(--app-height, 100dvh));
+    max-height: none;
+    max-width: none;
+    width: 100%;
+    border: none;
+    border-radius: 0;
+    /* Keep header/footer clear of notches + home indicators on full-bleed devices. */
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+    animation: modal-sheet-in 250ms ease-out;
+  }
 }
 
 .modal-header {
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
   padding-bottom: 1rem;
+  min-width: 0;
+}
+
+/* Title fills the row; truncates if too long */
+.modal-header > .text-modal-title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Close / custom actions sit on the right, fixed size */
+.modal-header > *:not(.text-modal-title) {
+  flex: 0 0 auto;
 }
 
 .modal-body {
@@ -661,6 +998,7 @@ body {
   border-bottom: 1px solid var(--card-border);
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain; /* don't chain scroll to the page behind the modal */
   min-height: 0;
 }
 
@@ -670,11 +1008,68 @@ body {
   }
 }
 
+/* HELP DOC — in-app help/tooltip content shown by <HelpButton> inside a Modal. */
+.help-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.help-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-secondary);
+}
+
+.help-body {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--color-primary);
+}
+
+.help-body ul {
+  list-style: disc;
+  margin: 0.4rem 0 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.help-body strong {
+  font-weight: 600;
+}
+
 .modal-footer {
   display: flex;
   justify-content: end;
-  padding-top: 1.5rem;
+  padding-top: 1rem;
   gap: 1rem;
+}
+
+/* Bottom-sheet variant — anchors the card to the bottom edge (mobile action-sheet style). */
+@keyframes modal-sheet-in {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.modal-backdrop-sheet {
+  align-items: flex-end;
+  padding: 0;
+}
+.modal-card-sheet {
+  max-width: 640px;
+  width: 100%;
+  border-radius: 1rem 1rem 0 0;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  animation: modal-sheet-in 250ms ease-out;
 }
 
 /* View slide animations — used for internal view transitions within a single modal */
@@ -732,7 +1127,6 @@ body {
   --alert-border-color: var(--alert-green-border);
   background: var(--alert-green-bg);
   border: 1px solid var(--alert-green-border);
-  border-radius: 0.75rem;
   color: var(--alert-green-text);
   padding: 0.75rem;
 }
@@ -741,7 +1135,6 @@ body {
   --alert-border-color: var(--alert-yellow-border);
   background: var(--alert-yellow-bg);
   border: 1px solid var(--alert-yellow-border);
-  border-radius: 0.75rem;
   color: var(--alert-yellow-text);
   padding: 0.75rem;
 }
@@ -750,7 +1143,6 @@ body {
   --alert-border-color: var(--alert-red-border);
   background: var(--alert-red-bg);
   border: 1px solid var(--alert-red-border);
-  border-radius: 0.75rem;
   color: var(--alert-red-text);
   padding: 0.75rem;
 }
@@ -759,22 +1151,8 @@ body {
   --alert-border-color: var(--alert-blue-border);
   background: var(--alert-blue-bg);
   border: 1px solid var(--alert-blue-border);
-  border-radius: 0.75rem;
   color: var(--alert-blue-text);
   padding: 0.75rem;
-}
-
-.alert-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.alert-divider {
-  border: none;
-  border-top: 1px solid var(--alert-border-color);
-  margin: 0.75rem 0;
 }
 
 /* ========================================
@@ -784,9 +1162,7 @@ body {
 /* Input Fields */
 .input-field {
   background: var(--input-bg);
-  box-shadow: 0 1px px 0 rgb(0 0 0 / 0.05);
   border: 1px solid var(--input-border);
-  border-radius: 0.5rem;
   color: var(--color-primary);
   width: 100%;
   min-width: 120px;
@@ -817,9 +1193,7 @@ body {
 /* Dropdown Fields */
 .dropdown-field {
   background: var(--input-bg);
-  box-shadow: 0 1px px 0 rgb(0 0 0 / 0.05);
   border: 1px solid var(--input-border);
-  border-radius: 0.5rem;
   color: var(--color-primary);
   width: 100%;
   min-width: 120px;
@@ -859,8 +1233,6 @@ body {
   width: 10rem;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.375rem;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   padding: 0.25rem 0;
   z-index: 50;
   overflow-anchor: none;
@@ -882,7 +1254,7 @@ body {
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   color: var(--color-primary);
-  transition: all 150ms;
+  transition: background-color 150ms, border-color 150ms, color 150ms, box-shadow 150ms;
 }
 
 @media (hover: hover) {
@@ -890,6 +1262,123 @@ body {
     background: var(--hover-bg);
     color: var(--hover-text);
   }
+}
+
+/* ============================================================
+   Global nav drawer — backdrop + slide-in panel + item rows
+   (styles shared by components/MainNavDrawer.tsx)
+   ============================================================ */
+
+/* Backdrop covers content BELOW the navbar — navbar stays interactive
+   while the drawer is open (per UI choice: standard-drawer feel). */
+.forage-drawer-backdrop {
+  position: fixed;
+  top: var(--navbar-height, 3.625rem);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--modal-backdrop);
+  z-index: 35;
+  /* Scroll boundary: stop wheel/touch overscroll over the drawer from chaining
+     to the page behind. App-shell pages scroll an inner `.page-scroll` container
+     (not the window), so this containment — not a JS html/body lock — is what
+     covers them. Matches the .modal-backdrop treatment. */
+  overflow: hidden;
+  overscroll-behavior: contain;
+  animation: modal-backdrop-in 200ms ease-out;
+}
+
+/* Left-anchored slide-in panel. Sits BELOW the navbar so the user
+   never loses GRIMOIRE branding / user menu during a section switch. */
+.forage-drawer-panel {
+  position: fixed;
+  top: var(--navbar-height, 3.625rem);
+  left: 0;
+  bottom: 0;
+  width: 16rem;
+  max-width: 85vw;
+  background: var(--card-bg);
+  border-right: 1px solid var(--card-border);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 36;
+  /* The panel is position:fixed, so it escapes the backdrop's overflow clip;
+     contain overscroll here too so scrolling over the panel (whether or not its
+     body scrolls) never reaches the page behind. */
+  overscroll-behavior: contain;
+  animation: forage-drawer-in 200ms ease-out;
+}
+/* drawer scroll-boundary applied above */
+@keyframes forage-drawer-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.forage-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--card-border);
+}
+.forage-drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+}
+.forage-drawer-item {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+/* Global nav drawer — scrollable body so the full module list fits below the
+   fixed header, and a per-module section label above each page group. */
+.main-nav-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain; /* don't chain scroll to the page/window behind */
+  scrollbar-width: none;
+  padding-bottom: 0.5rem;
+}
+.main-nav-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font-size: 1.05rem;
+  font-weight: bold;
+  letter-spacing: 0.01em;
+  color: var(--color-primary);
+  border: none;
+  border-top: 1px solid var(--card-border);
+  margin-top: 0.25rem;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: color 150ms, background 150ms;
+}
+.main-nav-section:hover {
+  color: var(--color-primary);
+  background: var(--hover-bg);
+}
+/* Page rows sit visually subordinate to the large module header — small text. */
+.main-nav-body .forage-drawer-item {
+  font-size: 0.78rem;
+}
+/* Module name takes the row; chevron is pushed to the trailing edge. */
+.main-nav-section-label {
+  flex: 1;
+  min-width: 0;
+}
+.main-nav-chevron {
+  flex-shrink: 0;
+  transition: transform 200ms ease;
+}
+.main-nav-chevron.is-open {
+  transform: rotate(180deg);
 }
 
 /* Indicator Bar */
@@ -914,6 +1403,17 @@ body {
   height: 6px;
   border-radius: 9999px;
   background: var(--badge-blue-text);
+  flex-shrink: 0;
+}
+
+/* Muted amber indicator dot — a subtle, wordless "draft/unfinished" marker.
+   inline-block so it renders as a dot even outside a flex row. */
+.dot-yellow {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--badge-yellow-text);
   flex-shrink: 0;
 }
 
@@ -977,8 +1477,6 @@ body {
   max-width: 20rem;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   z-index: 9999;
   overflow: hidden;
 }
@@ -1038,11 +1536,10 @@ body {
   width: 1rem;
   height: 1rem;
   border: 1px solid var(--input-border);
-  border-radius: 0.25rem;
   background: var(--input-bg);
   cursor: pointer;
   position: relative;
-  transition: all 150ms;
+  transition: background-color 150ms, border-color 150ms, color 150ms, box-shadow 150ms;
 }
 
 .checkbox:hover:not(:disabled) {
@@ -1085,7 +1582,6 @@ body {
   gap: 0.5rem;
   padding: 0.5rem 1rem;
   font-weight: 500;
-  border-radius: 0.375rem;
   transition: all 200ms;
   border: none;
   cursor: pointer;
@@ -1094,7 +1590,8 @@ body {
 
 .btn-blue {
   background: var(--btn-blue-bg);
-  color: white;
+  border: 1px solid var(--color-primary);
+  color: var(--btn-blue-text);
 }
 
 .btn-blue:hover:not(:disabled) {
@@ -1103,7 +1600,8 @@ body {
 
 .btn-green {
   background: var(--btn-green-bg);
-  color: white;
+  border: 1px solid var(--color-primary);
+  color: var(--btn-green-text);
 }
 
 .btn-green:hover:not(:disabled) {
@@ -1112,7 +1610,8 @@ body {
 
 .btn-red {
   background: var(--btn-red-bg);
-  color: white;
+  border: 1px solid var(--alert-red-text);
+  color: var(--btn-red-text);
 }
 
 .btn-red:hover:not(:disabled) {
@@ -1128,12 +1627,29 @@ body {
   background: var(--btn-off-hover);
 }
 
+/* Pill trigger — rounded chip used for inline selectors (e.g. location). */
+.btn-pill {
+  background: var(--btn-off-bg);
+  color: var(--color-secondary);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+}
+
+.btn-pill:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--card-border));
+}
+
 .btn-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
+  /* Floor of 36×36 so icon-only btn-link buttons (menu / chevrons / kebab
+     swap / add-to-collection) clear the mobile tap-target minimum. Text
+     buttons grow naturally past the min-width. */
+  min-width: 2.25rem;
+  min-height: 2.25rem;
   transition: all 200ms;
   cursor: pointer;
   color: var(--btn-link-text);
@@ -1153,10 +1669,6 @@ body {
   color: var(--alert-red-text);
 }
 
-.btn-link-blue {
-  color: var(--btn-blue-bg);
-}
-
 .btn-link-green {
   color: var(--btn-green-bg);
 }
@@ -1164,6 +1676,7 @@ body {
 .btn:disabled {
   background: var(--btn-disabled-bg);
   color: var(--btn-disabled-text);
+  border-color: var(--btn-disabled-text);
   cursor: not-allowed;
 }
 
@@ -1178,7 +1691,6 @@ body {
   font-weight: 500;
   font-size: 0.875rem;
   line-height: 1.25rem;
-  border-radius: 0.375rem;
   cursor: pointer;
   transition: background 200ms;
   background: #ffffff;
@@ -1219,8 +1731,8 @@ body {
   border-bottom: 2px solid transparent;
   font-weight: 500;
   font-size: 0.875rem;
-  color: var(--color-gray);
-  transition: all 200ms;
+  color: var(--color-secondary);
+  transition: background-color 200ms, border-color 200ms, color 200ms, box-shadow 200ms;
   cursor: pointer;
   background: transparent;
   border-top: none;
@@ -1232,15 +1744,24 @@ body {
 }
 
 .tab-button:hover:not(.tab-button-active) {
-  color: var(--color-secondary);
+  color: var(--color-primary);
   border-bottom-color: var(--input-border);
 }
 
 .tab-button-active {
-  color: var(--btn-blue-bg);
-  border-bottom-color: var(--btn-blue-bg);
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
   background: var(--hover-bg);
-  border-radius: 0.375rem 0.375rem 0 0;
+}
+
+/* Food logger tabs run shorter on mobile — the full-screen modal is tight on
+   vertical space, so trim the tab-button height (only the logger's tabs, only
+   on phones; the desktop / app-wide tabs keep the roomier default). */
+@media (max-width: 639px) {
+  .fg-logger-tabs .tab-button {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
 }
 
 /* ========================================
@@ -1251,7 +1772,6 @@ body {
 .table-container {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.5rem;
   overflow: auto;
 }
 
@@ -1316,19 +1836,6 @@ body {
   color: var(--color-gray);
 }
 
-/* Cell Highlights */
-.cell-green {
-  background: var(--alert-green-bg);
-}
-
-.cell-yellow {
-  background: var(--alert-yellow-bg);
-}
-
-.cell-red {
-  background: var(--alert-red-bg);
-}
-
 /* ========================================
    BADGES
    ======================================== */
@@ -1338,13 +1845,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--badge-green-bg);
-  border-color: var(--badge-green-border);
   color: var(--badge-green-text);
 }
 
@@ -1354,13 +1861,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--table-header-bg);
-  border-color: var(--card-border);
   color: var(--color-gray);
 }
 
@@ -1369,13 +1876,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--badge-red-bg);
-  border-color: var(--badge-red-border);
   color: var(--badge-red-text);
 }
 
@@ -1384,13 +1891,13 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--badge-yellow-bg);
-  border-color: var(--badge-yellow-border);
   color: var(--badge-yellow-text);
 }
 
@@ -1399,20 +1906,38 @@ body {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   background: var(--badge-blue-bg);
-  border-color: var(--badge-blue-border);
   color: var(--badge-blue-text);
 }
 
-.badge-icon {
-  height: 0.875rem;
-  width: 0.875rem;
-  flex-shrink: 0;
+/* DASHBOARD MODULE-CARD BADGES — "what's due in this module" pills on the homepage cards.
+   Composed with .badge-<tone> for color; these rules only resize and constrain them.
+   The homepage grid is 2-up on mobile with no page-container side padding, so a card is
+   ~125px wide at 320px: the pills must wrap to their own lines and any long label (a workout
+   name) must ellipsis rather than run off the card. Overriding the .badge-* inline-flex to
+   block is what makes text-overflow apply. */
+.module-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.625rem;
+  min-width: 0;
+}
+
+.module-card-badge {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
 }
 
 .notification-count-red {
@@ -1435,18 +1960,28 @@ body {
 
 /* Typography */
 
+/* `.stat-card` shrinks below its content width (see its `min-width: 0`), so the
+   label/value have to be allowed to break — otherwise a single unbreakable word
+   ("REVIEWED", "Yesterday") keeps its intrinsic width and paints straight out
+   through the card's border on a phone. This is the floor that guarantees text
+   stays inside the box at ANY width; the ≤640px wrap below is what keeps it
+   from having to break in the first place. */
 .stat-label {
   font-size: 0.75rem;
   font-weight: medium;
   color: var(--color-gray);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .stat-value {
   font-size: 1.25rem;
   font-weight: bold;
   color: var(--color-primary);
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 /* Containers */
@@ -1464,15 +1999,33 @@ body {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   padding: 1rem;
-  border-radius: 0.5rem;
   width: 100%;
+  /* Let the card shrink below its content's intrinsic width inside the
+     `.stat-section` flex row — without this, a long label word (e.g. "REVIEWED")
+     floors each card's min-width and a 3-up row overflows the viewport on mobile. */
+  min-width: 0;
+}
+
+/* FOUR-UP STAT ROWS GO 2×2 ON PHONES — four cards across a ~410px screen leaves
+   ~50px of content width per card, which nothing longer than a short number
+   fits: rune's "Last Studied · Yesterday" painted its value straight out of the
+   card. Halving the columns gives ~165px of content, so relative dates ("3
+   months ago") sit inside the box without breaking. Scoped with `:has()` to
+   rows of four or more so 2- and 3-up rows (which do fit) are untouched. */
+@media (max-width: 640px) {
+  .stat-section:has(> :nth-child(4)) {
+    flex-wrap: wrap;
+  }
+
+  .stat-section:has(> :nth-child(4)) > * {
+    flex: 1 1 calc(50% - 0.5rem);
+  }
 }
 
 .stat-card-green {
   background: var(--alert-green-bg);
   border: 1px solid var(--alert-green-border);
   padding: 1rem;
-  border-radius: 0.5rem;
   width: 100%;
 }
 
@@ -1480,7 +2033,6 @@ body {
   background: var(--alert-yellow-bg);
   border: 1px solid var(--alert-yellow-border);
   padding: 1rem;
-  border-radius: 0.5rem;
   width: 100%;
 }
 
@@ -1488,8 +2040,128 @@ body {
   background: var(--alert-red-bg);
   border: 1px solid var(--alert-red-border);
   padding: 1rem;
-  border-radius: 0.5rem;
   width: 100%;
+}
+
+/* RUNE DECK (pre-session) MOBILE COMPACTION — on a phone the deck header (large
+   title + three full-size stat cards + hands-free + full-width Start button)
+   buried the card list far below the fold. Shrink that chrome at ≤640px so the
+   list and a tapped card's content are reachable without a long scroll. Scoped
+   to `.rune-deck-container` (the pre-session <main>) so desktop and other pages
+   are untouched. The compound selectors out-specify the utility/base rules they
+   override, so no !important is needed. */
+@media (max-width: 640px) {
+  /* SMALLER TITLE — 2rem wrapped a two-word deck name onto two tall lines */
+  .rune-deck-container .text-page-title {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  /* TIGHTER STAT ROW — smaller cards + gap reclaim vertical space above the list */
+  .rune-deck-container .stat-section {
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .rune-deck-container .stat-card {
+    padding: 0.625rem 0.75rem;
+  }
+
+  .rune-deck-container .stat-label {
+    font-size: 0.625rem;
+    letter-spacing: 0.03em;
+  }
+
+  .rune-deck-container .stat-value {
+    font-size: 1.125rem;
+  }
+}
+
+/* RUNE STUDY (in-session) MOBILE RUNOFF — `.page-container` carries no
+   horizontal padding on phones, so every row of the study chrome rendered
+   edge-to-edge with zero slack. On real Firefox-Android that clipped text off
+   the right edge: the four-way rating tally lost the end of "again", and a deck
+   name longer than the row pushed the hands-free toggle out of view. Give the
+   study column a gutter so nothing is glued to the screen edge, then let the
+   two header rows shrink/wrap so they can never overflow it. Scoped to
+   `.rune-study-container` so the pre-session deck page and other modules keep
+   their full-bleed layout. */
+@media (max-width: 640px) {
+  .rune-study-container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* HEADER ROWS — wrap instead of clipping when both sides can't share a line */
+  .rune-study-meta {
+    flex-wrap: wrap;
+    gap: 0 0.75rem;
+  }
+
+  /* DECK NAME — `min-width: 0` on the flex item lets the name shrink below its
+     text width so it ellipses rather than shoving the quit button off-screen */
+  .rune-study-header-main {
+    min-width: 0;
+  }
+
+  .rune-study-deck-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rune-study-handsfree {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* RATING TALLY — the row that actually ran off. Wrapping drops its min-content
+     to a single counter, so the flex row can shrink it instead of overflowing;
+     the tighter gap keeps it on one line at typical phone widths. */
+  .rune-study-tally {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.125rem 0.5rem;
+  }
+
+  /* SOURCE DECK BADGE — a deck name is user-supplied and can be arbitrarily long,
+     so on a phone the badge gets a tighter gutter alongside the shorter face
+     badge it sits next to. Truncation itself is not mobile-only (see below). */
+  .rune-study-card-deck {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .rune-study-face-badges {
+    gap: 0.375rem 0.5rem;
+  }
+}
+
+/* CARD FACE BADGE ROW — same wrap-don't-clip treatment as the study header rows
+   above. Sharing one line with QUESTION/ANSWER (and the speak/edit buttons)
+   leaves a phone barely 100px for the deck name, which ellipses a real name like
+   "Deer Park Mapping" down to noise. Wrapping lets the badge drop to its own
+   full-width line only when it genuinely doesn't fit, so a short name stays
+   inline and costs no vertical space. */
+.rune-study-face-badges {
+  flex-wrap: wrap;
+}
+
+/* SOURCE DECK BADGE — shown on both card faces during a COLLECTION study session
+   so the card on screen names the deck it came from. The badge shrinks and its
+   label ellipses rather than pushing the speak/edit buttons off the card, at any
+   width: `badge-*` sets `white-space: nowrap`, which alone would overflow. Casing
+   is left to the global badge style (uppercase terminal tag) — a deck name is a
+   tag here like QUESTION/ANSWER beside it, not body text. */
+.rune-study-card-deck {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.rune-study-card-deck-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 
@@ -1503,7 +2175,6 @@ body {
   flex-direction: column;
   align-items: center;
   border: 2px dashed var(--card-border);
-  border-radius: 0.5rem;
   padding: 2rem;
   text-align: center;
   transition: all 200ms ease-in-out;
@@ -1522,13 +2193,11 @@ body {
   background: var(--progress-bar-bg);
   margin-top: 0.5rem;
   width: auto;
-  border-radius: 9999px;
   height: 0.4rem;
 }
 
 .progress-bar-fill {
   height: 100%;
-  border-radius: 9999px;
 }
 
 .progress-bar-fill-blue {
@@ -1554,7 +2223,7 @@ body {
   width: 2rem;
   height: 2rem;
   border: 3px solid var(--card-border);
-  border-top-color: var(--color-secondary);
+  border-top-color: var(--color-primary);
   border-radius: 9999px;
   animation: spinner-spin 0.7s linear infinite;
 }
@@ -1585,7 +2254,6 @@ body {
 .flashcard-container {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.75rem;
   padding: 2rem 1.75rem;
   cursor: pointer;
   user-select: none;
@@ -1601,11 +2269,48 @@ body {
   }
 }
 
+/* Desktop: the study column is a fixed-height flex layout so the card auto-sizes
+   to whatever space is left after the header/progress chrome above and the
+   answer-field/rating/nav controls below — those always stay on screen, and only
+   the card's own question/answer text scrolls internally if it doesn't fit.
+   Mobile keeps the simpler page-grows-and-scrolls behavior (desktop-only per
+   product decision — an inner scroll region is a worse fit for a thumb than
+   just scrolling the page). */
+@media (min-width: 640px) {
+  .rune-study-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* Every direct child keeps its natural height — the answer field, evaluate
+     button, rating buttons, and nav never stretch or shrink. */
+  .rune-study-container > * {
+    flex-shrink: 0;
+  }
+  /* ...except the card, the only flex-shrink item. It keeps the original
+     min-height: 16rem floor (never shrinks below that, even if content below
+     would technically need more room) and autofits to its content above
+     that — up to a max of whatever space is left after the other elements'
+     natural heights (i.e. the flex-shrink itself), so it only scrolls
+     internally once content exceeds that ceiling. Since front/back render
+     different DOM (only one face is mounted at a time), the card's natural
+     height already differs correctly between question and answer mode. */
+  .rune-study-container > .flashcard-container {
+    flex: 0 1 auto;
+    overflow: hidden;
+  }
+  .rune-study-container .flashcard-face-scroll {
+    min-height: 0;
+    overflow-y: auto;
+    cursor: auto;
+  }
+}
+
 /* Segmented progress bar */
 .flashcard-progress-bar {
   display: flex;
   height: 4px;
-  border-radius: 2px;
   overflow: hidden;
   background: var(--progress-bar-bg);
   gap: 1px;
@@ -1656,5 +2361,3261 @@ body {
   background: currentColor;
   opacity: 0.2;
   border-radius: inherit;
-  animation: countdown-fill 5s linear forwards;
+  /* Duration is overridable per-element via --countdown-fill-duration so the
+     visual fill matches the configurable auto-advance delay (defaults to 5s). */
+  animation: countdown-fill var(--countdown-fill-duration, 5s) linear forwards;
+}
+
+/* ================================================
+   TERMINAL THEME — visual overrides
+   ================================================
+   Applied after all component classes so these rules
+   win without touching the individual definitions.
+*/
+
+/* Sharp corners everywhere — no more rounded modern UI */
+.card,
+.module-card,
+.sub-card,
+.list-item,
+.modal-card,
+.btn,
+.btn-link,
+.btn-google,
+.input-field,
+.badge,
+[class^="badge-"],
+[class*=" badge-"],
+.alert,
+[class^="alert-"],
+[class*=" alert-"],
+.tab-button,
+.navbar,
+.bottom-action-bar,
+.stat-card,
+.stat-section,
+.table,
+.table th,
+.table td,
+select,
+input,
+textarea,
+button {
+  border-radius: 0 !important;
+}
+
+/* Segmented pill toggle (components/ui/SegmentedToggle). A grey track holds N
+   equal-width options; a single filled indicator slides to the active one (the
+   pills themselves are transparent). The grey background makes the inactive side
+   read as unselected. Rounded corners are an intentional exception to the
+   sharp-corner button reset above, so they carry matching !important weight. */
+.segmented-toggle {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;      /* equal-width slots regardless of label length */
+  width: fit-content;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--hover-bg); /* grey track */
+}
+.segmented-toggle-indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.segmented-toggle-pill {
+  position: relative;          /* sit above the sliding indicator */
+  z-index: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
+  border-radius: 999px !important;
+  padding: 5px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: none;
+  cursor: pointer;
+  color: var(--color-secondary);
+  transition: color 0.22s ease;
+}
+.segmented-toggle-pill[aria-selected="true"] {
+  color: var(--solid-background);
+}
+
+/* Remove soft drop shadows — terminals don't have depth */
+.card,
+.module-card,
+.sub-card,
+.modal-card,
+.navbar {
+  box-shadow: none;
+}
+
+/* Sub-card hover: subtle white glow instead of lift */
+@media (hover: hover) {
+  .sub-card:hover,
+  .module-card:hover {
+    box-shadow: 0 0 8px rgba(240, 240, 240, 0.25);
+    transform: none;
+    border-color: var(--color-primary);
+  }
+}
+
+/* CRT visual effects (scanline overlay, vignette, text-shadow glow on titles
+   and buttons, navbar glow, blinking title cursor) were removed 2026-05-22
+   for paint perf. The terminal palette and uppercase / letter-spaced titles
+   are kept; the always-on overlays are not. */
+
+/* Primary buttons: stark border + dim fill. Glow / text-shadow removed.
+   Scoped to :not(:disabled) so a disabled button falls back to .btn:disabled's
+   neutral border/color instead of these colored ones re-overriding it (they
+   come after .btn:disabled in the cascade with equal specificity). */
+.btn-blue:not(:disabled) {
+  border: 1px solid var(--color-primary);
+  color: var(--btn-blue-text);
+}
+
+.btn-green:not(:disabled) {
+  border: 1px solid var(--color-primary);
+  color: var(--btn-green-text);
+}
+
+.btn-red:not(:disabled) {
+  border: 1px solid var(--alert-red-text);
+  color: var(--btn-red-text);
+}
+
+/* Inputs: stark green underline feel */
+.input-field,
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--color-primary);
+  caret-color: var(--color-primary);
+}
+
+.input-field:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Date picker icon — invert so it's visible against dark inputs */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+/* Badges: bracketed terminal tag style */
+[class^="badge-"],
+[class*=" badge-"] {
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+}
+
+/* Navbar bottom border as a monotone line (glow dropped) */
+.navbar {
+  border: none;
+  border-bottom: 1px solid var(--color-primary);
+}
+
+/* Loading spinner tint */
+.loading-spinner {
+  border-color: var(--card-border);
+  border-top-color: var(--color-primary);
+}
+
+/* terminal-blink cursor + @keyframes removed for paint perf. */
+/* ============================================================
+   Empty State (non-table) — heading + body inside any container
+   ============================================================ */
+.empty-state {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--color-secondary);
+}
+.empty-state-title {
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.3;
+  color: var(--color-primary);
+  margin-bottom: 0.25rem;
+}
+.empty-state-body {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   Section Heading — uppercase divider above a list/group
+   ============================================================ */
+.section-heading {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-gray);
+  padding: 0.75rem 0.25rem 0.375rem;
+}
+
+/* ============================================================
+   Day Archetype Slot — terminal "spec readout" row
+   (golem deterministic-generation config surface). An ordered
+   left rail reinforces that the engine walks slots in sequence;
+   the role is syntax-highlighted by training tier so a day's
+   shape is scannable at a glance.
+   ============================================================ */
+.slot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--solid-background);
+  border: 1px solid var(--card-border);
+  border-left-width: 2px; /* the ordered "rail" — lights up on hover */
+  transition: border-color 150ms ease;
+}
+@media (hover: hover) {
+  .slot-row:hover {
+    border-left-color: var(--color-primary);
+  }
+}
+
+/* Role tag — bold, uppercase, colored by training tier:
+   primary=anchor lift (green), secondary/unilateral=accessory
+   compound (blue), isolation=muted, core/carry/conditioning=effort
+   (yellow). Unknown/seeded roles fall back to primary text. */
+.slot-role {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8125rem;
+}
+.slot-role--primary { color: var(--alert-green-text); }
+.slot-role--secondary,
+.slot-role--unilateral { color: var(--alert-blue-text); }
+.slot-role--isolation { color: var(--color-secondary); }
+.slot-role--core,
+.slot-role--carry,
+.slot-role--conditioning { color: var(--alert-yellow-text); }
+.slot-role--default { color: var(--color-primary); }
+
+/* Spec readout — a wrapping row of labeled micro-stats
+   (exercise · dose · RPE · model) in the aligned, columnar
+   style of a terminal data table. */
+.slot-spec {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1.5rem;
+  margin-top: 0.5rem;
+}
+.slot-spec-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+.slot-spec-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-gray);
+}
+.slot-spec-value {
+  font-size: 0.875rem;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+.slot-spec-value--muted { color: var(--color-secondary); }
+
+/* ============================================================
+   Program Filter Bar — a wrapping row of selectable pill chips used to
+   scope the day-archetype list to a single program (or the unassigned
+   bucket). Idle chips read as muted terminal tokens; the active chip
+   lights up in the blue accent. Each chip carries a tabular count badge.
+   ============================================================ */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px dashed var(--card-border);
+}
+.filter-bar-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-gray);
+  margin-right: 0.25rem;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-secondary);
+  background: var(--table-header-bg);
+  border: 1px solid var(--card-border);
+  cursor: pointer;
+  transition: color 160ms, background-color 160ms, border-color 160ms;
+}
+.filter-chip:hover {
+  color: var(--color-primary);
+  border-color: var(--input-border);
+}
+.filter-chip--active {
+  color: var(--badge-blue-text);
+  background: var(--badge-blue-bg);
+  border-color: var(--badge-blue-border);
+}
+/* Count badge nested in a chip — tabular so widths don't jitter as the
+   filter changes. Dims on idle chips, inherits the accent when active. */
+.filter-chip-count {
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-gray);
+  opacity: 0.85;
+}
+.filter-chip--active .filter-chip-count {
+  color: var(--badge-blue-text);
+  opacity: 1;
+}
+
+/* ============================================================
+   Tag Pill — small inline-flex chip with optional colored dot
+   ============================================================ */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+  background: var(--card-bg);
+  color: var(--color-secondary);
+  border: 1px solid var(--card-border);
+}
+.tag-pill-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--color-secondary);
+}
+
+/* ============================================================
+   Input With Leading Icon — relative wrapper for an icon overlapping
+   the left edge of an .input-field
+   ============================================================ */
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.input-with-icon-leading {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-gray);
+  pointer-events: none;
+}
+.input-with-icon .input-field {
+  padding-left: 2.25rem;
+}
+
+/* ============================================================
+   Floating Action Bar — fixed-position toolbar above the viewport bottom
+   ============================================================ */
+.floating-action-bar {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  margin: 0 auto;
+  max-width: 40rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--solid-background) 60%, transparent);
+  z-index: 25;
+}
+.floating-action-bar-spacer {
+  height: 4.5rem;
+  pointer-events: none;
+}
+
+/* ============================================================
+   Timeline Bucket — hour/group header above a list of timeline items
+   ============================================================ */
+.timeline-bucket-head {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 1rem 1.5rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-gray);
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+.timeline-bucket-head > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--color-primary);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.timeline-bucket-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--card-border);
+}
+.timeline-bucket[data-empty="true"] .timeline-bucket-head {
+  opacity: 0.45;
+  padding-top: 0.5rem;
+  padding-bottom: 0.25rem;
+}
+.timeline-bucket[data-empty="true"] .timeline-bucket-head > span:first-child {
+  background: transparent;
+  color: var(--color-gray);
+  border-color: transparent;
+}
+
+/* ============================================================
+   Timeline Chip — clickable pill-card representing one timeline item
+   ============================================================ */
+.timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  /* Left padding kept tight — the per-row selection checkbox already supplies
+     the visual indent under the hour pill, so a large left inset just wasted
+     horizontal room on mobile. */
+  padding: 0 1rem 0.75rem 1rem;
+}
+.timeline-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  color: var(--color-primary);
+  transition: background 120ms ease, transform 80ms ease;
+}
+.timeline-chip:hover {
+  background: color-mix(in srgb, var(--card-bg) 80%, var(--color-primary) 6%);
+}
+.timeline-chip:active { transform: scale(0.99); }
+/* Editing variant — responsive. Mobile (default): a single column of three rows —
+   name/brand, then macros, then the editor. Desktop (≥640px, below): two columns —
+   a left column with name/brand over macros, and the editor as the right column.
+   No hover/scale feedback since it now hosts inputs, not a button. */
+.timeline-chip-editing {
+  gap: 0.5rem;
+  cursor: default;
+}
+.timeline-chip-editing:hover { background: var(--card-bg); }
+.timeline-chip-editing:active { transform: none; }
+/* MAIN — name/brand over macros (rows 1-2 on mobile; the left column on desktop).
+   Reserve the same right inset the non-editing chip leaves for the ⋮ menu button
+   (2.75rem effective − 0.75rem base = 2rem) so the name keeps the exact same width
+   and doesn't reflow when toggling into edit mode. Reset on desktop (2-column). */
+.timeline-edit-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+  padding-right: 2rem;
+}
+/* NAME + BRAND */
+.timeline-edit-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+/* MACROS — plain colored numbers on one inline row (kcal/P/F/C), wrapping if needed. */
+.timeline-edit-macros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--color-secondary);
+}
+
+/* OPENING ANIMATION — the macros + editor fade/slide in below the (stationary) name
+   when a chip enters edit mode. */
+@keyframes timelineEditIn {
+  from { opacity: 0; transform: translateY(-0.4rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.timeline-edit-macros,
+.timeline-edit-controls {
+  animation: timelineEditIn 190ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .timeline-edit-macros,
+  .timeline-edit-controls { animation: none; }
+}
+/* EDITOR — amount/unit + cancel + save (save on the far right). Mobile: a full-width
+   bottom row where the unit grows to fill and the buttons hug the right. */
+.timeline-edit-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.timeline-edit-controls .fg-inline-unit { flex: 1; width: auto; max-width: none; min-width: 0; }
+.timeline-edit-controls .fg-row-icon { width: 1.9rem; height: 1.9rem; }
+
+/* Desktop — two columns: left column (name/brand over macros) + editor on the right. */
+@media (min-width: 640px) {
+  .timeline-chip-editing {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .timeline-edit-main { flex: 1; padding-right: 0; }
+  .timeline-edit-controls { flex: 0 0 auto; }
+  /* Compact unit again (not stretched) in the right column. */
+  .timeline-edit-controls .fg-inline-unit { flex: 0 0 auto; width: 4.5rem; max-width: 4.5rem; }
+  .timeline-edit-controls .fg-row-icon { width: 1.7rem; height: 1.7rem; }
+}
+.timeline-chip-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+/* ============================================================
+   Time pill — MacroFactor-style terse time selector inside Add modal
+   ============================================================ */
+.time-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2.5rem;
+  padding: 0 0.875rem;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--color-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.time-pill:hover { background: color-mix(in srgb, var(--card-bg) 80%, var(--color-primary) 6%); }
+.time-pill > svg { color: var(--color-secondary); }
+
+/* ============================================================
+   Bottom action bar — sits in normal flow as the last child of
+   `.page-with-bottom-bar` (a flex column with `.page-container` taking
+   `flex: 1; overflow-y: auto`). Avoids `position: fixed` so the bar
+   doesn't jitter on iOS Safari / mobile Chrome when the URL bar
+   collapses or expands during scroll.
+   ============================================================ */
+.bottom-action-bar {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--solid-background) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--card-border);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Lock height so the bar doesn't jump when its contents swap between the
+     search pill (default) and the bulk-select controls (when entries are
+     selected). 2.75rem inner + 0.5rem top/bottom padding = 3.75rem total,
+     plus the iOS safe-area inset on devices that report one. */
+  min-height: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+}
+.bottom-action-bar-pill {
+  width: 100%;
+  max-width: 40rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  color: var(--color-secondary);
+  text-align: left;
+  cursor: text;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.bottom-action-bar-pill:hover { border-color: var(--color-primary); }
+.bottom-action-bar-pill-icon { color: var(--color-secondary); flex: 0 0 auto; }
+.bottom-action-bar-pill-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9375rem;
+  color: var(--color-secondary);
+}
+.bottom-action-bar-pill-scan {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.bottom-action-bar-pill-scan:hover {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.timeline-chip-brand {
+  margin-top: 0.125rem;
+  color: var(--color-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.timeline-chip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  font-weight: 500;
+  color: var(--color-secondary);
+}
+.timeline-chip-qty {
+  color: var(--color-gray);
+}
+
+/* ============================================================
+   List Row with avatar — generic icon + title + meta + trailing action
+   ============================================================ */
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-primary);
+}
+.list-row:hover {
+  background: color-mix(in srgb, var(--card-bg) 80%, var(--color-primary) 4%);
+}
+.list-row-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-secondary);
+  flex-shrink: 0;
+}
+.list-row-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--color-primary);
+  /* Allow long product names to wrap to a second line instead of getting
+     truncated at ~190px on mobile. Cap at 2 lines so the row stays scannable. */
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+.list-row-meta {
+  font-size: 0.75rem;
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--color-secondary);
+  margin-top: 0.125rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+/* Picker-row wrapper — carries the on-plate accent (green bar + tint) around the
+   row. The amount editor lives inline in the row, not beneath it. */
+.list-row-wrap {
+  display: flex;
+  flex-direction: column;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+/* On-plate state — green accent bar + faint tint so "committed" is unmistakable
+   at a glance, not a fleeting panel. The bar rides the wrapper's left edge. */
+.list-row-wrap.on-plate {
+  position: relative;
+  background: color-mix(in srgb, var(--fg-carb) 7%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--fg-carb) 34%, var(--card-border));
+}
+.list-row-wrap.on-plate::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10%;
+  bottom: 10%;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--fg-carb);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--fg-carb) 55%, transparent);
+}
+/* On the plate the meta is just the live macros (no serving label) — keep them on
+   one line so they don't wrap against the now-narrower body beside the editor. */
+.list-row-wrap.on-plate .list-row-meta {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+/* Trailing icon buttons (ⓘ details, + add) — fixed compact footprint so they hug
+   the row edge instead of floating with the default btn-link padding. */
+.fg-row-icon {
+  flex: 0 0 auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  min-width: 0;
+  padding: 0;
+}
+
+/* Reclaim horizontal room on picker rows — the inline editor + ⋮ are tight, so
+   shrink the inter-column gap (the global .list-row gap is roomier). */
+.list-row-wrap .list-row {
+  gap: 0.4rem;
+}
+
+/* ROW ACTIONS MENU — the popover behind a food row's ⋮ (View/Edit food or
+   recipe). Portalled to <body> and positioned with fixed coords from the
+   trigger rect, so the scrolling logger body can neither clip it nor grow a
+   scrollbar for it; z-index clears the modal backdrop (50). */
+.fg-row-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 10rem;
+  padding: 0.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--solid-background) 60%, transparent);
+}
+
+/* MENU ITEM — full-width tap target, matching the timeline entry menu. */
+.fg-row-menu-item {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* INLINE AMOUNT EDITOR — replaces the + button in place once on the plate:
+   − / amount / + / unit, all on the row itself (no expansion row). Compact so it
+   shares the row with the title + live macros; fades in where the + was. */
+.fg-inline-qty {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  animation: fgInlineIn 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes fgInlineIn {
+  from { opacity: 0; transform: translateX(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fg-inline-qty { animation: none; }
+}
+/* Typeable amount field — no stepper buttons; tap to edit. */
+.fg-inline-amt {
+  flex: 0 0 auto;
+  width: 3.4rem;
+  min-width: 0;            /* override .input-field's 120px floor */
+  height: 1.8rem;
+  padding: 0 0.3rem;
+  text-align: center;
+  font-size: 0.82rem;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: none;
+}
+.fg-inline-amt::-webkit-outer-spin-button,
+.fg-inline-amt::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.fg-inline-unit {
+  flex: 0 1 auto;
+  width: 5rem;
+  min-width: 0;            /* override .input-field's 120px floor */
+  max-width: 5.5rem;
+  height: 1.8rem;
+  padding: 0 0.3rem;
+  font-size: 0.76rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Quantity stepper row — − / amount / + / unit. Now used only by the details
+   sheet's amount editor (the picker row edits inline; see .fg-inline-qty). */
+.list-row-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.625rem;
+  margin-top: 0.125rem;
+  border-top: 1px dashed var(--card-border);
+}
+
+/* The details-sheet amount editor is standalone (no row above it), so drop the
+   divider and give it breathing room. */
+.fg-sheet-qty {
+  border-top: none;
+  padding: 0.25rem 0 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Square − / + stepper buttons. */
+.qty-stepper-btn {
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  background: var(--hover-bg);
+  color: var(--color-primary);
+}
+.qty-stepper-btn:hover {
+  background: color-mix(in srgb, var(--hover-bg) 70%, var(--color-primary) 10%);
+}
+
+/* ============================================================
+   FORAGE RECIPE — INGREDIENT ROW
+   Name-first layout: the food name owns a full-width top tier and
+   wraps freely (no mid-name truncation) for maximum readability,
+   echoing the .list-row / .timeline-chip name treatment. The derived
+   macros and the qty/unit editor sit on tiers beneath so they never
+   steal horizontal room from the title.
+   ============================================================ */
+.fg-ing { gap: 0.55rem; padding: 0.7rem 0.75rem; }
+
+/* NAME TIER — icon + name span the full row width; the title wraps
+   instead of clipping so long product names stay fully legible. */
+.fg-ing-head { display: flex; align-items: flex-start; gap: 0.5rem; }
+.fg-ing-icon {
+  flex: 0 0 auto;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 0.1rem;
+  color: var(--color-secondary);
+}
+.fg-ing-titles { flex: 1 1 auto; min-width: 0; }
+.fg-ing-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-primary);
+  overflow-wrap: anywhere;   /* wrap long unbroken names rather than clip */
+}
+.fg-ing-brand {
+  margin-top: 0.0625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--color-secondary);
+}
+
+/* MACRO TIER — quiet derived summary; coloured P/F/C tokens match the
+   food-picker meta so the numbers read at a glance. */
+.fg-ing-macros {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-secondary);
+}
+.fg-ing-p { color: var(--fg-protein); }
+.fg-ing-f { color: var(--fg-fat); }
+.fg-ing-c { color: var(--fg-carb); }
+
+/* CONTROL TIER — qty/unit editor on the left, row actions on the right. */
+.fg-ing-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.fg-ing-qty { display: flex; align-items: center; gap: 0.3rem; flex: 0 1 auto; min-width: 0; }
+.fg-ing-amt {
+  flex: 0 0 auto;
+  width: 4.25rem;
+  min-width: 0;              /* override .input-field's 120px floor */
+  height: 1.95rem;
+  padding: 0 0.45rem;
+  text-align: right;
+  font-size: 0.85rem;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: none;
+}
+.fg-ing-amt::-webkit-outer-spin-button,
+.fg-ing-amt::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.fg-ing-unit {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 3.25rem;       /* override .input-field's 120px floor */
+  max-width: 7rem;
+  height: 1.95rem;
+  padding: 0 0.35rem;
+  font-size: 0.78rem;
+}
+.fg-ing-unit-static { font-size: 0.78rem; color: var(--color-secondary); }
+.fg-ing-actions { display: flex; align-items: center; gap: 0.2rem; flex: 0 0 auto; }
+
+/* VIEW ROW — read-only ingredient laid out as one tappable row
+   (icon · name/macros · amount + chevron) that opens the food's detail
+   page. Overrides the editable card's stacked column layout. */
+.fg-ing-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.fg-ing-row:disabled { cursor: default; }
+.fg-ing-row .fg-ing-icon { margin-top: 0; }    /* centre the icon in the single row */
+.fg-ing-trail {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+.fg-ing-qty-view {
+  font-size: 0.8125rem;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fg-ing-chev { width: 1rem; height: 1rem; flex: 0 0 auto; color: var(--color-secondary); }
+@media (hover: hover) {
+  .fg-ing-row:not(:disabled):hover { border-color: var(--input-border); }
+}
+.fg-ing-row:not(:disabled):active { opacity: 0.7; }
+
+/* STATIC VIEW ROW — a read-only ingredient row used inside the logger /
+   detail sheet, where tapping must NOT navigate (it would drop the draft).
+   Drops the tappable affordances (pointer cursor, hover border, active dim). */
+.fg-ing-row-static { cursor: default; }
+@media (hover: hover) {
+  .fg-ing-row-static:hover { border-color: var(--card-border); }
+}
+.fg-ing-row-static:active { opacity: 1; }
+
+/* ============================================================
+   QUICK ADD — three tidy method groups (Describe / USDA / Manual),
+   each a subtle card with a label, full-width controls + commit button.
+   ============================================================ */
+.fg-quick { display: flex; flex-direction: column; gap: 0.9rem; }
+
+/* A method group — faintly carded so the three read as distinct blocks. */
+.fg-quick-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border: 1px solid var(--card-border);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--card-bg) 55%, transparent);
+}
+.fg-quick-group-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--color-secondary);
+}
+
+/* A labelled field (label stacked above its input). */
+.fg-quick-field { display: flex; flex-direction: column; gap: 0.25rem; }
+
+/* Manual macro grids. */
+.fg-quick-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.fg-quick-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+/* Grid inputs must shrink below .input-field's 120px floor. */
+.fg-quick-grid2 .input-field,
+.fg-quick-grid3 .input-field { min-width: 0; }
+
+/* Full-width commit button — keep the label on one line. */
+.fg-quick-cta {
+  width: 100%;
+  justify-content: center;
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
+/* Strip native number spinners inside the quick groups. */
+.fg-quick input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.fg-quick input[type="number"]::-webkit-outer-spin-button,
+.fg-quick input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ============================================================
+   Bordered List — vertical stack inside a card-like container with a
+   subtle background, used as a scrolling picker of list-rows
+   ============================================================ */
+.bordered-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  /* No inner scroll — the surrounding `.modal-body` is the canonical scroll
+     surface. Capping at 20rem with overflow-y:auto stacked a second scrollbar
+     inside the modal and made the staged-drawer sit oddly above the footer. */
+  margin-top: 0.5rem;
+  padding: 0.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+}
+
+/* Full-screen logger: drop the card framing around the record list so the rows
+   read as a flat list flush with the modal (no boxed border/background). */
+.modal-card-screen .bordered-list {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* Drop the divider line between the search bar (subHeader) and the record list. */
+.modal-card-screen .modal-body {
+  border-top: none;
+}
+
+/* Compact footer — the default 1rem top padding left the Cancel/Log Foods band
+   bottom-heavy (16px above the buttons vs the 0.5rem card padding below). Halve
+   it so the buttons sit snug and the list keeps the reclaimed height. */
+.modal-card-screen .modal-footer {
+  padding-top: 0.5rem;
+}
+
+/* ============================================================
+   Modal Drawer — secondary block pinned at the bottom of a modal body.
+   Uses sticky positioning so it stays glued to the bottom edge of the
+   scrolling modal body, releasing back into flow when scrolled to it.
+   ============================================================ */
+.modal-drawer {
+  /* margin-top: auto pushes the drawer to the bottom of the modal-body's flex
+     column even when the upper content (search list, etc.) is short. sticky +
+     bottom: 0 then keeps it visible if the surrounding content scrolls.
+     margin-bottom matches modal-body's vertical padding so the drawer hugs the
+     bottom divider flush instead of leaving whitespace between it and the
+     modal footer. */
+  position: sticky;
+  bottom: -1.5rem;
+  margin-top: auto;
+  margin-left: -0.25rem;
+  margin-right: -0.25rem;
+  margin-bottom: -1.5rem;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--card-bg) 96%, transparent);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--card-border);
+  z-index: 1;
+}
+@media (min-width: 640px) {
+  .modal-drawer { margin-left: -0.5rem; margin-right: -0.5rem; }
+}
+.modal-drawer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.modal-drawer-scroller {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.125rem 0 0.625rem;
+  scrollbar-width: thin;
+}
+.modal-drawer-head {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+
+/* ============================================================
+   Compact Edit Table — small 3-column amount/unit/remove editor
+   ============================================================ */
+.compact-edit-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.compact-edit-table tbody td {
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: middle;
+}
+.compact-edit-table tbody tr:last-child td { border-bottom: none; }
+.compact-edit-table tbody td:nth-child(2) { width: 7rem; }
+.compact-edit-table tbody td:last-child { width: 2.5rem; text-align: center; }
+.compact-edit-table .input-field,
+.compact-edit-table .dropdown-field {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.compact-edit-table tbody td:first-child .input-field {
+  min-width: 5rem;
+}
+
+/* ============================================================
+   Macro Color Tokens — chart/pill colors for the four macros.
+   Kept at :root so any module charting per-macro values can reach them.
+   ============================================================ */
+:root {
+  --fg-cal:     #215cda; /* calories  — blue   */
+  --fg-protein: #ce5400; /* protein   — orange */
+  --fg-fat:     #a101c9; /* fat       — purple */
+  --fg-carb:    #08c343; /* carbs     — green  */
+  /* Micronutrient card families — swatch colors for vitamin/mineral/other
+     cards on the customizable dashboard, where there's no macro hue to borrow. */
+  --fg-vitamin: #0a9b8a; /* vitamins  — teal   */
+  --fg-mineral: #5b6cc4; /* minerals  — indigo */
+  --fg-other:   #8a6d3b; /* other     — bronze */
+}
+
+.tag-pill-dot[data-kind="cal"]     { background: var(--fg-cal); }
+.tag-pill-dot[data-kind="protein"] { background: var(--fg-protein); }
+.tag-pill-dot[data-kind="fat"]     { background: var(--fg-fat); }
+.tag-pill-dot[data-kind="carb"]    { background: var(--fg-carb); }
+
+/* ============================================================
+   Food Usage — "Usage" card on the food detail page: all-time headline
+   stats plus a trailing weekly logging-frequency bar chart. Bars borrow the
+   calorie hue (--fg-cal) as a neutral "data" accent.
+   ============================================================ */
+.fg-usage-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  text-align: center;
+}
+.fg-usage-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.fg-usage-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-primary);
+}
+.fg-usage-stat-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-gray);
+}
+.fg-usage-chart-wrap {
+  margin-top: 1rem;
+}
+.fg-usage-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 64px;
+  margin-top: 0.25rem;
+}
+.fg-usage-bar-track {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+}
+.fg-usage-bar-fill {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--fg-cal);
+  transition: height 0.25s ease;
+}
+/* Empty weeks render as a faint baseline tick so the timeline stays legible. */
+.fg-usage-bar-fill[data-empty="true"] {
+  background: color-mix(in srgb, var(--color-gray) 45%, transparent);
+}
+
+/* ============================================================
+   Wizard Chrome — multi-step modal/page progress + selectable
+   option cards used in onboarding-style flows.
+   ============================================================ */
+.wizard-progress {
+  display: flex;
+  gap: 0.25rem;
+  width: 100%;
+}
+.wizard-progress > span {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--card-border);
+}
+.wizard-progress > span[data-filled="true"] {
+  background: var(--btn-blue-bg);
+}
+
+.option-card {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.1s ease, background-color 0.1s ease;
+}
+.option-card:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--card-border));
+}
+.option-card[aria-pressed="true"] {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--btn-blue-bg) 8%, var(--card-bg));
+}
+.option-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.option-card-title {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.option-card-desc {
+  color: var(--color-gray);
+  font-size: 0.8125rem;
+}
+.option-card-icon {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+.option-card-radio {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--card-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.option-card[aria-pressed="true"] .option-card-radio {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+.option-card[aria-pressed="true"] .option-card-radio::after {
+  content: "";
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 999px;
+  background: var(--solid-background);
+}
+/* Select area inside an .option-card row that also carries a separate edit action
+   (nested <button>s aren't valid, so the row becomes a div with two buttons inside). */
+.option-card-select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.option-card-edit {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
+  border: none;
+  background: none;
+  color: var(--color-gray);
+  cursor: pointer;
+  transition: color 0.1s ease, background-color 0.1s ease;
+}
+.option-card-edit:hover {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+/* checkin-ring, macro-ribbon, stat-cluster moved to
+   app/modules/forage/ui/strategy/strategy.css (page-scoped). */
+
+/* ============================================================
+   Numbered Step List — used in the "How was your program
+   designed?" explanation at the end of the program wizard.
+   ============================================================ */
+.step-list { display: flex; flex-direction: column; gap: 1.25rem; position: relative; }
+.step-list::before {
+  content: "";
+  position: absolute;
+  left: 0.875rem;
+  top: 0.875rem;
+  bottom: 0.875rem;
+  width: 1px;
+  background: var(--card-border);
+}
+.step-list-item {
+  display: flex;
+  gap: 0.875rem;
+  align-items: flex-start;
+  position: relative;
+}
+.step-list-num {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--color-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  z-index: 1;
+}
+.step-list-body { flex: 1; min-width: 0; }
+.step-list-title {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.step-list-value {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.0625rem;
+}
+.step-list-value[data-kind="cal"]     { color: var(--fg-cal); }
+.step-list-value[data-kind="protein"] { color: var(--fg-protein); }
+.step-list-value[data-kind="diet"]    { color: var(--alert-yellow-text); }
+.step-list-desc {
+  color: var(--color-secondary);
+  font-size: 0.8125rem;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   Preview Pill — small inline-stat pill used at top of the
+   goal wizard summary (e.g. "2250 kcal initial daily budget").
+   ============================================================ */
+.preview-pill-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+.preview-pill {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.preview-pill[data-kind="kcal"] {
+  background: color-mix(in srgb, var(--fg-cal) 22%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--fg-cal) 50%, var(--card-border));
+}
+.preview-pill[data-kind="date"] {
+  background: var(--card-bg);
+}
+.preview-pill-value {
+  color: var(--color-primary);
+  font-size: 1.125rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-pill-label {
+  color: var(--color-secondary);
+  font-size: 0.75rem;
+  line-height: 1.1;
+}
+
+/* ============================================================
+   Weight Ruler — horizontal drag-to-scroll lbs picker used in
+   the goal wizard. Centered indicator line, tick marks below.
+   ============================================================ */
+.weight-ruler {
+  position: relative;
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+}
+.weight-ruler-value {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.625rem;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+.weight-ruler-value-input {
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  width: 4ch;
+  padding: 0 0.125rem;
+  cursor: text;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 120ms ease;
+}
+.weight-ruler-value-input:hover { border-bottom-color: var(--color-gray); }
+.weight-ruler-value-input:focus { border-bottom-color: var(--fg-carb); }
+.weight-ruler-value-unit {
+  color: var(--color-secondary);
+  font-size: 1rem;
+  font-weight: 500;
+}
+.weight-ruler-track {
+  position: relative;
+  height: 4rem;
+  overflow: hidden;
+  cursor: ew-resize;
+}
+/* Green-tinted overlay on the right half (past the cursor) */
+.weight-ruler-track::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 50%;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--fg-carb) 25%, transparent) 0%,
+    color-mix(in srgb, var(--fg-carb) 0%, transparent) 100%
+  );
+  pointer-events: none;
+}
+.weight-ruler-ticks {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  will-change: transform;
+}
+.weight-ruler-tick {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  height: 100%;
+}
+.weight-ruler-tick-bar {
+  width: 1px;
+  background: var(--color-gray);
+}
+.weight-ruler-tick[data-major="true"] .weight-ruler-tick-bar {
+  width: 1.5px;
+  background: var(--color-secondary);
+  height: 1.25rem;
+}
+.weight-ruler-tick:not([data-major="true"]) .weight-ruler-tick-bar {
+  height: 0.625rem;
+}
+.weight-ruler-tick-label {
+  position: absolute;
+  top: 0;
+  font-size: 0.75rem;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.weight-ruler-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: var(--fg-carb);
+  transform: translateX(-1px);
+  pointer-events: none;
+  border-radius: 1px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--fg-carb) 60%, transparent);
+}
+
+/* ============================================================
+   Rate Groups — stacked Per Week / Per Month sections, each
+   with a label and two side-by-side editable cells.
+   ============================================================ */
+.rate-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+.rate-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.rate-group-label {
+  color: var(--color-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.rate-group-cells {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+.rate-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: text;
+  min-width: 0;
+  overflow: hidden;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.rate-cell:focus-within {
+  border-color: var(--fg-carb);
+  box-shadow: 0 0 0 1px var(--fg-carb);
+}
+.rate-cell-sign {
+  flex-shrink: 0;
+  color: var(--color-secondary);
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.rate-cell-input {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--color-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+  padding: 0;
+  text-align: left;
+}
+.rate-cell-input::-webkit-outer-spin-button,
+.rate-cell-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.rate-cell-unit {
+  flex-shrink: 0;
+  color: var(--color-gray);
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+}
+
+/* ============================================================
+   Recommended Badge — green pill used above the rate slider.
+   ============================================================ */
+.recommended-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.625rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg-carb) 22%, var(--card-bg));
+  border: 1px solid color-mix(in srgb, var(--fg-carb) 50%, var(--card-border));
+  color: var(--color-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* ============================================================
+   Rate Slider — native range input with a recommended-range
+   band painted into the track via CSS variables.
+   Set --band-start and --band-end on the element (0..100%).
+   ============================================================ */
+.rate-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2rem;
+  background: transparent;
+  outline: none;
+  margin: 0;
+}
+.rate-slider::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--input-border) 0%,
+    var(--input-border) var(--band-start, 0%),
+    color-mix(in srgb, var(--fg-carb) 65%, transparent) var(--band-start, 0%),
+    color-mix(in srgb, var(--fg-carb) 65%, transparent) var(--band-end, 100%),
+    var(--input-border) var(--band-end, 100%),
+    var(--input-border) 100%
+  );
+  border: 1px solid var(--card-border);
+}
+.rate-slider::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--input-border) 0%,
+    var(--input-border) var(--band-start, 0%),
+    color-mix(in srgb, var(--fg-carb) 65%, transparent) var(--band-start, 0%),
+    color-mix(in srgb, var(--fg-carb) 65%, transparent) var(--band-end, 100%),
+    var(--input-border) var(--band-end, 100%),
+    var(--input-border) 100%
+  );
+  border: 1px solid var(--card-border);
+}
+.rate-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  border: 2px solid var(--solid-background);
+  box-shadow: 0 0 0 1px var(--card-border);
+  cursor: pointer;
+  margin-top: -0.5rem;
+}
+.rate-slider::-moz-range-thumb {
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  border: 2px solid var(--solid-background);
+  box-shadow: 0 0 0 1px var(--card-border);
+  cursor: pointer;
+}
+
+/* Range legend (min/recommended/max) shown beneath the slider */
+.rate-legend {
+  position: relative;
+  width: 100%;
+  height: 0.875rem;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.rate-legend > span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.rate-legend > span[data-recommended="true"] {
+  color: var(--fg-carb);
+  font-weight: 600;
+}
+.rate-legend > span[data-edge="left"] { transform: translateX(0); }
+.rate-legend > span[data-edge="right"] { transform: translateX(-100%); }
+
+/* ========================================
+   BAGEL (Pico Fermi Bagel) MODULE
+   ======================================== */
+
+/* A single guess-digit cell — monospaced CRT tile. */
+.bagel-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  background: var(--input-bg);
+  color: var(--color-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Row of guess tiles + its clue badges in the history list. */
+.bagel-guess-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--table-row-border);
+}
+
+/* The fixed-width sequence-number prefix on each history row. */
+.bagel-guess-seq {
+  width: 1.75rem;
+  flex-shrink: 0;
+  color: var(--color-gray);
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+/* ========================================
+   QUEST — HABIT TAP BUTTONS
+   ======================================== */
+
+/* The round +/− taps beside each habit. Color/border only — sizing and shape
+   stay as Tailwind utilities in the JSX. The variant carries the enabled
+   treatment; the shared :disabled rule (direction not allowed for this habit)
+   overrides it. Everything is keyed to the alert + input-disabled tokens so
+   the reward (gold) and damage (red) states stay legible in BOTH light and
+   dark mode — the old raw `text-yellow-400`/`text-red-400` were tuned for dark
+   and washed out to near-invisible on the light card. */
+.habit-tap {
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* REWARD — coin-granting (positive) direction, enabled */
+.habit-tap-reward {
+  border-color: color-mix(in srgb, var(--alert-yellow-border) 45%, transparent);
+  background: var(--alert-yellow-bg);
+  color: var(--alert-yellow-text);
+}
+.habit-tap-reward:hover:not(:disabled) {
+  border-color: var(--alert-yellow-border);
+  background: color-mix(in srgb, var(--alert-yellow-border) 18%, var(--alert-yellow-bg));
+}
+
+/* DAMAGE — health-docking (negative) direction, enabled */
+.habit-tap-damage {
+  border-color: color-mix(in srgb, var(--alert-red-border) 45%, transparent);
+  background: var(--alert-red-bg);
+  color: var(--alert-red-text);
+}
+.habit-tap-damage:hover:not(:disabled) {
+  border-color: var(--alert-red-border);
+  background: color-mix(in srgb, var(--alert-red-border) 18%, var(--alert-red-bg));
+}
+
+/* DISABLED — this direction isn't allowed for the habit; muted, no fill */
+.habit-tap:disabled {
+  border-color: var(--input-disabled-border);
+  background: transparent;
+  color: var(--input-disabled-text);
+}
+
+/* ============================================================================
+   GOLEM CALENDAR — month grid of workout sessions (mirrors the quest calendar
+   surface). Colours come from existing design-system tokens so the JSX stays
+   free of hardcoded colour utilities.
+   ========================================================================== */
+
+/* GRID — 7 equal columns for the weekday header row and the day cells. */
+.gcal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+/* WEEKDAY LABEL — muted column header above the grid. */
+.gcal-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-secondary);
+  padding: 4px 0;
+}
+
+/* DAY CELL — one calendar day; a button so the whole cell opens the day detail. */
+.gcal-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 4.75rem;
+  padding: 4px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.gcal-cell:hover {
+  border-color: var(--color-secondary);
+}
+
+/* ADJACENT-MONTH DAY — dimmed padding day from the previous/next month. */
+.gcal-cell--out {
+  opacity: 0.45;
+}
+
+/* TODAY — accent ring so the current day stands out in the grid. */
+.gcal-cell--today {
+  border-color: var(--alert-blue-border);
+  box-shadow: inset 0 0 0 1px var(--alert-blue-border);
+}
+
+/* DAY NUMBER — the date numeral in the cell's top-left. */
+.gcal-daynum {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.gcal-cell--out .gcal-daynum {
+  color: var(--color-secondary);
+}
+
+/* SESSION CHIP — a single workout on that day; colour encodes its state. */
+.gcal-chip {
+  display: block;
+  width: 100%;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  padding: 2px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid transparent;
+}
+.gcal-chip--done {
+  background: var(--badge-green-bg);
+  color: var(--badge-green-text);
+}
+.gcal-chip--current {
+  background: var(--badge-blue-bg);
+  color: var(--badge-blue-text);
+}
+.gcal-chip--other {
+  border-color: var(--card-border);
+  color: var(--color-secondary);
+}
+
+/* OVERFLOW COUNT — "+N more" when a day has more sessions than the cell shows. */
+.gcal-more {
+  font-size: 0.62rem;
+  color: var(--color-secondary);
+  padding-left: 2px;
+}
+
+/* Roomier cells on tablet/desktop where there's vertical space to spare. */
+@media (min-width: 640px) {
+  .gcal-cell {
+    min-height: 6.25rem;
+  }
+}
+
+/* ============================================================================
+   CALENDAR MONTH WIDGET — shared chrome for the home-page mini calendars
+   (components/CalendarMonthWidget.tsx). Structure + neutral colours only; each
+   module supplies its own coloured day cells via the renderDay render-prop.
+   ========================================================================== */
+
+/* HEADER — title on the left, "Open" affordance on the right. */
+.calw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+/* OPEN BUTTON — muted pill that jumps to the full calendar page. */
+.calw-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--card-border);
+  color: var(--color-secondary);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.calw-open:hover {
+  background: color-mix(in srgb, var(--color-secondary) 14%, transparent);
+  color: var(--color-primary);
+}
+
+/* MONTH LABEL — centered month + year above the grid. */
+.calw-month {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 0.25rem;
+}
+
+/* WEEKDAY ROW — single-letter column headers. */
+.calw-weekday-row {
+  margin-bottom: 0.25rem;
+}
+.calw-weekday {
+  text-align: center;
+  font-size: 0.625rem;
+  color: var(--color-secondary);
+}
+
+/* GRID — a vertical stack of week rows, each a 7-column row. */
+.calw-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.calw-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+/* DAY CELL — square tappable cell; consumers add a status dot / accent inside. */
+.calw-day {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.calw-day:hover {
+  background: color-mix(in srgb, var(--color-secondary) 12%, transparent);
+}
+.calw-day--out {
+  opacity: 0.3;
+}
+
+/* TODAY — accent ring; --calw-accent lets a module retint it (defaults to blue). */
+.calw-day--today {
+  box-shadow: inset 0 0 0 1px var(--calw-accent, var(--alert-blue-border));
+  background: color-mix(in srgb, var(--calw-accent, var(--alert-blue-border)) 12%, transparent);
+}
+.calw-day--today:hover {
+  background: color-mix(in srgb, var(--calw-accent, var(--alert-blue-border)) 18%, transparent);
+}
+
+/* DAY NUMBER — small numeral; today reads in the accent colour. */
+.calw-daynum {
+  font-size: 0.6875rem;
+  line-height: 1;
+  color: var(--color-primary);
+}
+.calw-day--today .calw-daynum {
+  color: var(--calw-accent, var(--alert-blue-border));
+  font-weight: 600;
+}
+
+/* STATUS MARKER — one small square per day (and in the legend); state variants map to tokens. */
+.calw-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 0;
+  display: inline-block;
+}
+.calw-dot--empty { background: transparent; }
+.calw-dot--done { background: var(--alert-green-text); }
+.calw-dot--current { background: var(--alert-blue-text); }
+.calw-dot--logged { background: var(--color-secondary); }
+
+/* TODAY COUNT — tiny numeric badge shown on today instead of a plain dot. */
+.calw-today-count {
+  font-size: 0.5625rem;
+  line-height: 1;
+  color: var(--calw-accent, var(--alert-blue-border));
+  font-variant-numeric: tabular-nums;
+}
+
+/* LEGEND — wrapped row of tiny dot + label pairs under the grid. */
+.calw-legend {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.625rem;
+  color: var(--color-secondary);
+}
+.calw-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ROOT — layout-neutral by default (compact widget renders as before). */
+.calw-root {
+  flex: 1 1 360px; /* inert in a block parent (quest); makes it a flex child in a .calw-shell */
+  min-width: 0;
+}
+
+/* ---- Navigable header (month label + prev/Today/next) ---------------------------------------- */
+
+/* MONTH LABEL — icon + "Month Year" on the header's left. */
+.calw-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5625rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* NAV — the prev / Today / next cluster on the header's right. */
+.calw-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.calw-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.12s ease;
+}
+.calw-nav-today {
+  background: none;
+  border: none;
+  color: var(--color-secondary);
+  cursor: pointer;
+  padding: 0.3rem 0.4rem;
+  font-family: inherit;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 0.12s ease;
+}
+.calw-nav-btn:hover,
+.calw-nav-today:hover {
+  color: var(--color-primary);
+}
+
+/* ---- GRID VARIANT — gridded, taller cells with dots pinned to the bottom --------------------- */
+
+/* The calendar "section" becomes a flex column; the flex gap replaces per-child margins.
+   The vivid accent (bright in dark theme) drives the today ring/number and selected cell. */
+.calw--grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  --calw-accent: var(--alert-blue-text);
+  flex: 2 1 22rem; /* calendar is the wider pane; agenda takes the remaining ~third */
+}
+
+/* WEEKDAY ROW (grid) — semibold, spaced, uppercase, muted; matches the supplied design. */
+.calw--grid .calw-weekday {
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+
+/* LEGEND (grid) — uppercase, spaced, roomier gaps like the design. */
+.calw--grid .calw-legend {
+  text-transform: uppercase;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  gap: 0.375rem 1rem;
+}
+.calw--grid .calw-header,
+.calw--grid .calw-weekday-row,
+.calw--grid .calw-grid,
+.calw--grid .calw-legend {
+  margin: 0;
+}
+
+/* WEEKDAY ROW — underlined header row in the grid variant. */
+.calw--grid .calw-weekday-row {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+/* GRID — 1px gaps over a border-coloured backing paint clean gridlines both directions. */
+.calw--grid .calw-grid {
+  gap: 1px;
+  background: var(--card-border);
+  border: 1px solid var(--card-border);
+}
+.calw--grid .calw-week {
+  gap: 1px;
+  background: var(--card-border);
+}
+
+/* DAY CELL — square-ish, day number top-left, dots pushed to the bottom. */
+.calw--grid .calw-day {
+  aspect-ratio: auto;
+  min-height: 3.25rem;
+  border-radius: 0;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0.3rem 0.35rem;
+  background: var(--card-bg);
+}
+.calw--grid .calw-day:hover {
+  background: var(--hover-bg);
+}
+/* Out-of-month cells stay opaque (opacity would reveal the dark gridline backing); just fade the
+   number so the current month reads as the foreground. */
+.calw--grid .calw-day--out {
+  opacity: 1;
+}
+.calw--grid .calw-day--out .calw-daynum {
+  color: var(--color-gray);
+  opacity: 0.55;
+}
+.calw--grid .calw-day--today {
+  box-shadow: none;
+  background: color-mix(in srgb, var(--calw-accent, var(--alert-blue-border)) 12%, var(--card-bg));
+}
+.calw--grid .calw-day--today:hover {
+  background: color-mix(in srgb, var(--calw-accent, var(--alert-blue-border)) 18%, var(--card-bg));
+}
+.calw--grid .calw-day--selected {
+  box-shadow: inset 0 0 0 1px var(--calw-accent, var(--alert-blue-border));
+  background: color-mix(in srgb, var(--calw-accent, var(--alert-blue-border)) 16%, var(--card-bg));
+}
+.calw--grid .calw-daynum {
+  font-size: 0.72rem;
+}
+/* Current day's number reads in the (vivid) accent colour, bold. */
+.calw--grid .calw-day--today .calw-daynum {
+  color: var(--calw-accent);
+  font-weight: 700;
+}
+
+/* DOTS ROW — bottom of each cell; a status dot per session + a "+N" overflow. */
+.calw-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.1875rem;
+  margin-top: auto;
+  min-height: 0.4375rem;
+}
+.calw-more {
+  font-size: 0.56rem;
+  color: var(--color-gray);
+  margin-left: 0.0625rem;
+}
+
+/* ---- SHELL + AGENDA PANEL -------------------------------------------------------------------- */
+
+/* SHELL — wraps the calendar section + agenda side by side; wraps to stacked when narrow. */
+.calw-shell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+/* AGENDA — the selected day's entries. */
+.calw-agenda {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+.calw-agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--card-border);
+}
+.calw-agenda-head-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.calw-agenda-kicker {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+.calw-agenda-date {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.calw-agenda-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.calw-agenda-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  max-height: 20rem;
+  min-height: 8rem;
+}
+
+/* AGENDA ITEM — coloured bar + title + module badge + time; clickable. */
+.calw-agenda-item {
+  display: flex;
+  gap: 0.625rem;
+  background: var(--hover-bg);
+  padding: 0.625rem 0.6875rem;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.calw-agenda-item:hover {
+  background: color-mix(in srgb, var(--color-secondary) 14%, var(--hover-bg));
+}
+.calw-agenda-bar {
+  width: 3px;
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+.calw-agenda-bar--done { background: var(--alert-green-text); }
+.calw-agenda-bar--current { background: var(--alert-blue-text); }
+.calw-agenda-bar--logged { background: var(--color-secondary); }
+.calw-agenda-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  flex: 1;
+  min-width: 0;
+}
+.calw-agenda-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.calw-agenda-title {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  line-height: 1.3;
+}
+.calw-agenda-time {
+  font-size: 0.68rem;
+  color: var(--color-gray);
+  letter-spacing: 0.03em;
+}
+
+/* MODULE BADGE — small uppercase pill tinted by the entry's state. */
+.calw-badge {
+  flex: 0 0 auto;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.3rem;
+  white-space: nowrap;
+}
+.calw-badge--done { background: var(--badge-green-bg); color: var(--badge-green-text); }
+.calw-badge--current { background: var(--badge-blue-bg); color: var(--badge-blue-text); }
+.calw-badge--logged { color: var(--color-gray); border: 1px solid var(--card-border); }
+
+/* AGENDA EMPTY STATE — centered icon + note when the selected day has nothing. */
+.calw-agenda-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 0.75rem;
+  text-align: center;
+  color: var(--color-gray);
+}
+.calw-agenda-empty span {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--color-gray);
+}
+
+/* ========================================
+   RUNE CARD CONTENT — markdown/LaTeX/image rendering for flashcard text
+   ======================================== */
+
+/* Wraps rendered card front/back/notes markdown. Resets block-level spacing
+   so a single-line answer doesn't gain extra margins from the markdown tags. */
+.card-content-markdown p {
+  margin: 0 0 0.5rem 0;
+}
+.card-content-markdown p:last-child {
+  margin-bottom: 0;
+}
+.card-content-markdown ul,
+.card-content-markdown ol {
+  margin: 0 0 0.5rem 1.25rem;
+}
+.card-content-markdown ul {
+  list-style: disc;
+}
+.card-content-markdown ol {
+  list-style: decimal;
+}
+.card-content-markdown code {
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  background: var(--stat-section-bg);
+  border: 1px solid var(--card-border);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.85em;
+}
+.card-content-markdown pre {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  background: var(--stat-section-bg);
+  border: 1px solid var(--card-border);
+  overflow-x: auto;
+}
+.card-content-markdown pre code {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.card-content-markdown a {
+  color: var(--alert-blue-text);
+  text-decoration: underline;
+}
+.card-content-markdown table {
+  border-collapse: collapse;
+  margin-bottom: 0.5rem;
+}
+.card-content-markdown th,
+.card-content-markdown td {
+  border: 1px solid var(--card-border);
+  padding: 0.25rem 0.5rem;
+}
+
+/* IMAGE — capped so a pasted full-resolution photo doesn't blow out the card. */
+.card-content-image {
+  max-width: 100%;
+  max-height: 16rem;
+  border-radius: 0.375rem;
+  margin: 0.5rem 0;
+}
+
+/* VIDEO — inline clip player, capped like the image so it doesn't dominate the card. */
+.card-content-video {
+  display: block;
+  max-width: 100%;
+  max-height: 20rem;
+  border-radius: 0.375rem;
+  margin: 0.5rem 0;
+}
+
+/* IMAGE PLACEHOLDER — reserves space while the image preloads fully off-screen
+   (see MarkdownImage in CardContent.tsx), so nothing pops in mid-download.
+   Must be a <span>, not a <div> — markdown wraps a standalone image in a
+   <p>, which only permits inline content. */
+.card-content-image-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 8rem;
+  margin: 0.5rem 0;
+  border-radius: 0.375rem;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--color-gray);
+}
+
+.card-content-image-spinner {
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--card-border);
+  border-top-color: var(--color-primary);
+  border-radius: 9999px;
+  animation: spinner-spin 0.7s linear infinite;
+}
+
+/* RICH CARD EDITOR — Tiptap-based WYSIWYG for card front/back/notes. Paste an
+   image directly to embed it; content round-trips through markdown so the
+   study view (CardContent) and LLM refine pipeline are unaffected. */
+.rich-card-editor {
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+}
+
+.rich-card-editor-toolbar {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-bottom: 1px solid var(--input-border);
+}
+
+.rich-card-editor-toolbar button {
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  color: var(--color-secondary);
+}
+
+.rich-card-editor-toolbar button:hover {
+  background: var(--hover-bg);
+  color: var(--color-primary);
+}
+
+.rich-card-editor-toolbar button.is-active {
+  background: var(--stat-section-bg);
+  color: var(--color-primary);
+}
+
+.rich-card-editor-toolbar button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.rich-card-editor-toolbar button:disabled:hover {
+  background: none;
+  color: var(--color-secondary);
+}
+
+.rich-card-editor-content {
+  min-height: 10rem;
+  max-height: 28rem;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+}
+
+.rich-card-editor-content p {
+  margin: 0 0 0.5rem 0;
+}
+.rich-card-editor-content p:last-child {
+  margin-bottom: 0;
+}
+.rich-card-editor-content ul,
+.rich-card-editor-content ol {
+  margin: 0 0 0.5rem 1.25rem;
+}
+.rich-card-editor-content ul {
+  list-style: disc;
+}
+.rich-card-editor-content ol {
+  list-style: decimal;
+}
+.rich-card-editor-content img,
+.rich-card-editor-content video.rich-card-editor-media {
+  max-width: 100%;
+  max-height: 12rem;
+  border-radius: 0.375rem;
+}
+.rich-card-editor-content video.rich-card-editor-media {
+  display: block;
+}
+.rich-card-editor-content .ProseMirror-selectednode {
+  outline: 2px solid var(--alert-blue-text);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+.rich-card-editor-content a {
+  color: var(--alert-blue-text);
+  text-decoration: underline;
+}
+
+/* Transient inline "Uploading…" chip shown while a pasted/picked media file
+   uploads. Rendered as a ProseMirror widget decoration, never a real node. */
+.rich-card-editor-upload-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--input-border);
+  border-radius: 0.375rem;
+  background: var(--stat-section-bg);
+  color: var(--color-secondary);
+  font-size: 0.8125rem;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.rich-card-editor-upload-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--card-border);
+  border-top-color: var(--color-primary);
+  border-radius: 9999px;
+  animation: spinner-spin 0.7s linear infinite;
+}
+
+/* Tiptap's placeholder extension renders this on the first empty node. */
+.rich-card-editor-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--color-gray);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ============================================================
+   EXPANDABLE ROW LIST — shared master/detail row component
+   (components/ExpandableRowList.tsx). Desktop: two-pane split,
+   list + detail visible together. Mobile (<=640px): collapses to
+   one column, selecting a row drills into a full-width detail
+   view with a back control instead of squeezing both panes.
+   ============================================================ */
+.erow-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 20rem) 1px minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+.erow-divider {
+  background: var(--card-border);
+  align-self: stretch;
+}
+
+/* ============ SEARCH + FILTER ROW (optional, via `searchable`/`getFilterValue`) ====
+   Holds the search box and/or the single-value filter <select>, stacked. They
+   used to sit side by side, but the list column is only ~20rem wide and a
+   filter <select> auto-widths to its LONGEST option (e.g. a long category
+   name) — that starved the search box down to a few truncated characters and
+   both controls ended up crammed onto one unreadable row. Stacking gives each
+   its own full-width line; native <select> truncation handles long options. */
+.erow-search-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.erow-search {
+  position: relative;
+  width: 100%;
+}
+.erow-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-gray);
+  pointer-events: none;
+}
+.erow-search .input-field {
+  padding-left: 2.25rem;
+}
+/* Full-width on its own line; `width:100%` (from `.input-field`) keeps the
+   dropdown from ballooning to its longest option's width. */
+.erow-filter-select {
+  width: 100%;
+}
+.erow-search-empty {
+  text-align: center;
+  color: var(--color-gray);
+  font-size: 0.8125rem;
+  padding: 1.5rem 0.5rem;
+}
+
+/* ============ SECTION LABEL (optional grouping) ============ */
+.erow-section {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  margin: 1.5rem 0 0.5rem 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.erow-section::before {
+  content: "//";
+  color: var(--color-gray);
+}
+.erow-section:first-child {
+  margin-top: 0;
+}
+
+/* ============ ROW GROUP (rounded card with hairline dividers) ============ */
+.erow-group {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* ============ ROW ============ */
+.erow-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  /* Left inset trimmed a bit (was 0.875rem) so row content sits closer to
+     the card edge — reclaims some of the width the scroll gutter above
+     reserves on the right, instead of the row text getting squeezed. */
+  padding: 0.875rem 1rem 0.875rem 0.625rem;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+  transition: border-color 130ms ease, background-color 130ms ease;
+}
+.erow-row + .erow-row {
+  border-top: 1px solid var(--card-border);
+}
+.erow-row:hover,
+.erow-row:focus-visible {
+  outline: none;
+  background: var(--hover-bg);
+  border-left-color: var(--color-primary);
+}
+.erow-row.is-selected {
+  border-left-color: var(--color-primary);
+  background: var(--hover-bg);
+}
+
+.erow-icon {
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  background: var(--solid-background);
+  color: var(--color-primary);
+  transition: border-color 130ms ease, color 130ms ease;
+}
+.erow-row:hover .erow-icon,
+.erow-row:focus-visible .erow-icon {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--card-border));
+  color: var(--hover-text);
+}
+/* In selection mode the same slot holds a checkbox instead of the icon —
+   strip the tile chrome (border/bg) since a checkbox doesn't need a frame
+   around it, just the icon's footprint so row spacing doesn't shift. */
+.erow-icon--checkbox {
+  border: none;
+  background: transparent;
+}
+
+.erow-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+.erow-row-label {
+  font-weight: 600;
+  color: var(--color-primary);
+  line-height: 1.2;
+  /* The marquee wrapper inside handles its own clipping; this just keeps
+     the label's own box from growing past one line first. */
+  overflow: hidden;
+}
+/* ============ WRAPPED LABEL (opt-in via labelLines) ============
+   Long free-text labels (e.g. flashcard fronts) read better wrapped over a
+   few lines than truncated + marquee-scrolled — smaller font since a
+   wrapped line reads dense either way. -webkit-line-clamp count comes from
+   the labelLines prop via inline style. */
+.erow-row-label--wrap {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+/* Rows with a wrapped, multi-line label align their icon/chevron to the
+   top instead of the row's vertical center. */
+.erow-row--wrap {
+  align-items: flex-start;
+}
+.erow-row--wrap .erow-icon,
+.erow-row--wrap .erow-row-chev {
+  margin-top: 0.125rem;
+}
+
+/* Narrow leading-marker slot (e.g. a status dot). Fixed width so the reserved
+   empty slot on unmarked rows keeps every label aligned; centered contents. */
+.erow-marker {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Align the marker with the first line of a wrapped label rather than the
+   row's vertical center. */
+.erow-row--wrap .erow-marker {
+  margin-top: 0.375rem;
+}
+
+.erow-row-hint {
+  color: var(--color-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.erow-row-chev {
+  flex: 0 0 auto;
+  color: var(--color-gray);
+  transition: transform 130ms ease, color 130ms ease;
+}
+.erow-row:hover .erow-row-chev,
+.erow-row:focus-visible .erow-row-chev {
+  color: var(--color-primary);
+}
+
+/* Leading slot (e.g. a bulk-select checkbox) sits before the icon; the
+   component stops its clicks from also opening the row. */
+/* ============ GROUP-BY TOGGLE ROW (optional, via `groupToggleLabel`) ======= */
+.erow-toggle-row {
+  margin-bottom: 0.75rem;
+}
+
+/* ============ ROW SCROLL CONTAINER (optional cap, via `maxItemsInView`) ====
+   max-height is set inline (JS-measured from actual row heights); this just
+   supplies the scroll behavior once that inline height is present.
+   overscroll-behavior is left at its default (auto, not contain) — reaching
+   either end of the internal list hands scrolling off to the page behind it
+   instead of trapping it, in both directions. Reserves a stable gutter + a
+   little breathing room so the scrollbar doesn't render flush against the
+   row group's rounded border/corner (and doesn't cause a layout shift when
+   the list crosses the maxItemsInView threshold). */
+.erow-scroll {
+  scrollbar-gutter: stable;
+  padding-right: 0.5rem;
+}
+
+/* ============ SELECT BAR (optional bulk-selection mode) ============
+   "Select" gates the feature; entering it reveals per-row checkboxes (in
+   the icon slot — see .erow-icon--checkbox) plus "select all"/"Cancel". */
+.erow-select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.25rem 0.5rem;
+}
+.erow-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-secondary);
+  cursor: pointer;
+}
+
+/* ============ DETAIL PANE ============ */
+.erow-detail {
+  min-height: 20rem;
+  padding: 0.25rem 0 0.25rem 0.25rem;
+}
+.erow-detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20rem;
+  color: var(--color-gray);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875rem;
+  border: 1px dashed var(--card-border);
+}
+.erow-back {
+  display: none;
+}
+
+/* Content fade+rise, replayed on every selection change (keyed by id). */
+@keyframes erow-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.erow-open-anim {
+  animation: erow-rise 260ms cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ============ MOBILE (<=640px) — collapse to one column ============ */
+@media (max-width: 640px) {
+  .erow-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .erow-divider { display: none; }
+  .erow-detail { display: none; }
+  .erow-back { display: inline-flex; margin-bottom: 0.5rem; }
+
+  /* Slightly larger wrapped row labels on mobile — the 13px desktop size reads
+     cramped on a phone where each front is the primary way to scan the list. */
+  .erow-row-label--wrap { font-size: 0.875rem; }
+
+  .erow-layout.erow-detail-active .erow-list { display: none; }
+  .erow-layout.erow-detail-active .erow-detail { display: block; }
+
+  /* A browser replays a `display:none -> block` element's animation, so
+     switching which pane is visible doubles as the "open"/"close"
+     transition — detail arrives from the right, the list returns from
+     the left. No JS timing needed since only one pane is ever mounted. */
+  .erow-layout.erow-detail-active .erow-detail {
+    animation: erow-slide-in-right 260ms cubic-bezier(.2, .8, .2, 1);
+  }
+  .erow-layout:not(.erow-detail-active) .erow-list {
+    animation: erow-slide-in-left 220ms cubic-bezier(.2, .8, .2, 1);
+  }
+}
+@keyframes erow-slide-in-right {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes erow-slide-in-left {
+  from { opacity: 0; transform: translateX(-18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .erow-open-anim,
+  .erow-layout.erow-detail-active .erow-detail,
+  .erow-layout:not(.erow-detail-active) .erow-list {
+    animation: none;
+  }
+}
+
+/* ============ MARQUEE-ON-HOVER (truncated row label) ============
+   Driven entirely from JS (ExpandableRowList's MarqueeText, Web Animations
+   API) — a fixed-ms hold once fully scrolled, regardless of text length,
+   isn't expressible as a fixed set of CSS keyframe percentages once the
+   scroll segment's own duration varies per element. */
+.erow-marquee {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.erow-marquee-inner {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* ============ TOGGLE SWITCH (e.g. a "group by" control) ============
+   Off = neutral track + gray thumb; on = filled green track + light thumb. */
+.erow-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--color-secondary);
+}
+.erow-toggle.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.erow-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.erow-toggle-track {
+  position: relative;
+  /* Declared size is 2px (1px/side border) over the intended 44x24 content
+     box — Tailwind preflight makes this border-box, so without the pad the
+     thumb's inset would come out uneven on two sides. */
+  width: 2.875rem;
+  height: 1.625rem;
+  flex-shrink: 0;
+  border: 1px solid var(--card-border);
+  background: var(--solid-background);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.erow-toggle-thumb {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 1rem;
+  height: 1rem;
+  background: var(--color-gray);
+  transition: transform 150ms ease, background-color 150ms ease;
+}
+.erow-toggle input:checked ~ .erow-toggle-track {
+  background: var(--btn-green-bg);
+  border-color: var(--btn-green-bg);
+}
+.erow-toggle input:checked ~ .erow-toggle-track .erow-toggle-thumb {
+  transform: translateX(1.25rem);
+  background: var(--btn-green-text);
+}
+.erow-toggle input:focus-visible ~ .erow-toggle-track {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .erow-toggle-track, .erow-toggle-thumb { transition: none; }
+}
+
+/* ============================================================
+   SETTINGS LIST — shared grouped-row pattern for module settings/
+   preferences pages (components/settings/SettingsList.tsx). Reference
+   implementation is Forage's Settings tab; Rune and Quest were migrated
+   onto it too. Distinct from EXPANDABLE ROW LIST above (.erow-*), which
+   is for master/detail explorers (deck lists, archetype pickers), not
+   settings screens.
+   ============================================================ */
+.settings-title {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 800;
+  margin-bottom: 1.25rem;
+}
+
+/* ============ BACK LINK ============ */
+.settings-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: transparent;
+  border: none;
+  color: var(--color-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 0 0 0.75rem;
+}
+.settings-back-link:hover {
+  color: var(--color-primary);
+}
+
+/* ============ SECTION TITLE ============ */
+.settings-section-title {
+  text-transform: none;
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--color-primary);
+  margin: 1.25rem 0 0.625rem;
+}
+
+/* ============ ROW GROUP (rounded card with dividers) ============ */
+.settings-group {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.settings-row,
+.unit-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+  position: relative;
+}
+
+.settings-row + .settings-row,
+.unit-option + .unit-option {
+  border-top: 1px solid var(--card-border);
+}
+
+.settings-row:hover,
+.unit-option:not([aria-disabled="true"]):hover {
+  background: color-mix(in srgb, var(--card-border) 30%, transparent);
+}
+
+.settings-row:focus-visible,
+.unit-option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.settings-row-icon {
+  flex: 0 0 auto;
+  color: var(--color-primary);
+}
+
+.settings-row-label,
+.unit-option-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.settings-row-hint {
+  color: var(--color-secondary);
+  font-size: 0.875rem;
+}
+
+.settings-row-chev {
+  flex: 0 0 auto;
+  color: var(--color-secondary);
+}
+
+/* ============ UNIT OPTION (radio row) ============ */
+.unit-option[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.unit-option-radio {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 2px solid var(--color-secondary);
+  flex: 0 0 auto;
+  position: relative;
+  background: transparent;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.unit-option[aria-checked="true"] .unit-option-radio {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.unit-option[aria-checked="true"] .unit-option-radio::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 9999px;
+  background: var(--solid-background);
+}
+
+/* ============ TOGGLE ROW (switch on the right) ============ */
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.settings-toggle-row[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.settings-toggle-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.settings-toggle-label {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.settings-toggle-hint {
+  color: var(--color-secondary);
+  font-size: 0.8125rem;
+}
+
+/* Switch track + knob, driven by aria-checked on the row button. */
+.settings-switch {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 26px;
+  border-radius: 9999px;
+  background: var(--color-secondary);
+  position: relative;
+  transition: background-color 140ms ease;
+}
+
+.settings-toggle-row[aria-checked="true"] .settings-switch {
+  background: var(--color-primary);
+}
+
+.settings-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--solid-background);
+  transition: transform 140ms ease;
+}
+
+.settings-toggle-row[aria-checked="true"] .settings-switch::after {
+  transform: translateX(18px);
+}
+
+/* ============ TIME ROW (label + native time input) ============ */
+.settings-time-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+}
+
+.settings-time-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.settings-time-input {
+  flex: 0 0 auto;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  color: var(--color-primary);
+  padding: 0.375rem 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.settings-time-input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+/* Helper copy under a group. */
+.settings-group-note {
+  color: var(--color-secondary);
+  font-size: 0.8125rem;
+  margin: 0.5rem 0.25rem 0;
 }

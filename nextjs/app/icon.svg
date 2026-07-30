@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <title>Grimoire</title>
+  <style>
+    svg { stroke: #111; }
+    @media (prefers-color-scheme: dark) { svg { stroke: #f0f0f0; } }
+  </style>
+
+  <!-- ARCANE RING -->
+  <circle cx="64" cy="64" r="58" opacity="0.35"/>
+  <circle cx="64" cy="64" r="52"/>
+
+  <!-- TICK MARKS -->
+  <line x1="64" y1="12" x2="64" y2="20" opacity="0.6"/>
+  <line x1="64" y1="108" x2="64" y2="116" opacity="0.6"/>
+  <line x1="12" y1="64" x2="20" y2="64" opacity="0.6"/>
+  <line x1="108" y1="64" x2="116" y2="64" opacity="0.6"/>
+
+  <!-- OPEN BOOK -->
+  <path d="M28 78 Q46 66 62 72 L62 92 Q46 86 28 96 Z"/>
+  <path d="M100 78 Q82 66 66 72 L66 92 Q82 86 100 96 Z"/>
+  <line x1="64" y1="72" x2="64" y2="92"/>
+
+  <!-- RUNE GLYPH (G) -->
+  <path d="M54 36 L54 60 L74 60 L74 50 L66 50"/>
+
+  <!-- SPARKLES -->
+  <path d="M30 38 l3 3 M36 32 l-3 3" opacity="0.7"/>
+  <path d="M98 38 l-3 3 M92 32 l3 3" opacity="0.7"/>
+</svg>
