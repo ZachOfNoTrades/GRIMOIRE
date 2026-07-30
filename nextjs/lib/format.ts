@@ -5,7 +5,10 @@ export function formatRelativePast(date: Date | null): string {
   const d = new Date(date);
   const diffMs = now.getTime() - d.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return "Today";
+  // Clamp future-dated timestamps (client clock lagging the server that stamped last_reviewed_at
+  // via GETDATE()) to "Today" — a past-review time can never legitimately be in the future, and an
+  // un-clamped negative diff rendered as "-1d ago". diffDays <= 0 covers today + any future skew.
+  if (diffDays <= 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays}d ago`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
