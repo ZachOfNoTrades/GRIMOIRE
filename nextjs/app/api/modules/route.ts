@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getAuthorizedSession } from "@/lib/permissions";
-import { getAllModules } from "@/lib/modules";
+import { getAuthorizedUser } from "@/lib/permissions";
+import { getModulesForUser } from "@/lib/moduleAccess";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     // Auth guard
-    const session = await getAuthorizedSession();
+    const session = await getAuthorizedUser(request);
     if (!session) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -13,7 +13,11 @@ export async function GET() {
       );
     }
 
-    const modules = await getAllModules();
+    // Only the modules this user may access (admins + unconfigured users get all).
+    const modules = await getModulesForUser(
+      session.user.id,
+      session.user.globalAdmin
+    );
     return NextResponse.json(modules);
   } catch (error) {
     console.error("Error in GET /api/modules:", error);
