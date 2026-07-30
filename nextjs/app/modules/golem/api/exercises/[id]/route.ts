@@ -17,7 +17,7 @@ export async function GET(
     const { id } = await context.params;
 
     const exercise = await getExerciseById(userId!, id);
-    const muscleGroups = await getExerciseMuscleGroups(userId!, id);
+    const muscleGroups = await getExerciseMuscleGroups(id);
     return NextResponse.json({ ...exercise, muscleGroups });
 
   } catch (error) {
@@ -70,12 +70,12 @@ export async function PUT(
 
     // Update muscle groups if provided
     if (muscleGroups !== undefined) {
-      await updateExerciseMuscleGroups(userId!, id, muscleGroups);
+      await updateExerciseMuscleGroups(id, muscleGroups);
     }
 
     // Re-fetch exercise with muscle groups
     const updatedExercise = await getExerciseById(userId!, id);
-    const updatedMuscleGroups = await getExerciseMuscleGroups(userId!, id);
+    const updatedMuscleGroups = await getExerciseMuscleGroups(id);
     return NextResponse.json({ ...updatedExercise, muscleGroups: updatedMuscleGroups });
 
   } catch (error: any) {
