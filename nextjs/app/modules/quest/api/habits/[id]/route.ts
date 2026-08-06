@@ -3,6 +3,14 @@ import { getAuthorizedUser } from '@/lib/permissions';
 import { updateHabit, deleteHabit } from '../../../lib/habitFunctions';
 import { Difficulty, DIFFICULTY_ORDER } from '../../../types/task';
 
+// Coerce a request value into a manual reward override: null/undefined/empty/invalid -> null (no
+// override); a finite, non-negative number -> that number.
+function parseManualReward(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getAuthorizedUser(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -20,7 +28,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!allowPositive && !allowNegative) {
       return NextResponse.json({ error: 'Habit must allow at least one direction' }, { status: 400 });
     }
-    const habit = await updateHabit(session.user.id!, id, { title, difficulty, allowPositive, allowNegative });
+    // Manual reward override: null/absent/empty/invalid -> clears the override.
+    const manualReward = parseManualReward(body.manual_reward_override);
+    const habit = await updateHabit(session.user.id!, id, {
+      title,
+      difficulty,
+      allowPositive,
+      allowNegative,
+      manualRewardOverride: manualReward,
+    });
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(habit);
   } catch (error) {
