@@ -161,6 +161,17 @@ export interface ExpandableRowListProps<T> {
 const FILTER_ALL = '__erow_all__';
 const FILTER_UNCATEGORIZED = '__erow_uncategorized__';
 
+// The filter dropdown's "All …" option reads as a plural ("All Categories", not
+// "All Category"), while filterLabel itself stays singular for the aria-label
+// ("Filter by Category"). Callers pass short noun labels, so the regular English
+// rules cover every case in use; anything already plural is left alone.
+function pluralizeFilterLabel(label: string) {
+  if (/s$/i.test(label)) return label;
+  if (/[^aeiou]y$/i.test(label)) return `${label.slice(0, -1)}ies`;
+  if (/(ch|sh|x|z)$/i.test(label)) return `${label}es`;
+  return `${label}s`;
+}
+
 export default function ExpandableRowList<T>({
   items, getId, selectedId, onToggle, renderIcon, renderLabel, renderHint, renderMarker, labelLines, getSectionLabel,
   backLabel, detailEmptyMessage, renderDetailHeader, renderDetail,
@@ -324,7 +335,7 @@ export default function ExpandableRowList<T>({
                 onChange={(e) => setFilterValue(e.target.value)}
                 aria-label={filterLabel ? `Filter by ${filterLabel}` : 'Filter'}
               >
-                <option value={FILTER_ALL}>All{filterLabel ? ` ${filterLabel}` : ''}</option>
+                <option value={FILTER_ALL}>All{filterLabel ? ` ${pluralizeFilterLabel(filterLabel)}` : ''}</option>
                 {filterOptions.map((value) => (
                   <option key={value} value={value}>{value}</option>
                 ))}
