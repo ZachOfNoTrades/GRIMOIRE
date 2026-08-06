@@ -16,24 +16,46 @@ function readGit(command: string): string {
   }
 }
 
-// Build number = commits on the current branch. Self-bumping (every commit is a
-// new build), strictly increasing, and directly comparable — which is what a
-// hand-maintained semver stops being once the app revs on each requested change.
-// package.json's `version` is deliberately NOT the displayed version; it stays
-// put as npm metadata.
-const buildNumber = readGit("git rev-list --count HEAD");
-
 // Release channel shown on the tag. Named here rather than derived from the git
 // branch: the branch is a working name that gets renamed, while the channel is
 // what the tag promises about the build. Override per-deploy with
 // NEXT_PUBLIC_APP_CHANNEL.
-const RELEASE_CHANNEL = "ymir";
+const RELEASE_CHANNEL = "unstable";
 
 const gitCommit = readGit("git rev-parse --short HEAD");
 // A dirty working tree means the running code is NOT the commit sha alone, so
 // mark it — otherwise the badge claims a precision it doesn't have on a dev box
 // where everything is uncommitted.
 const gitDirty = readGit("git status --porcelain") !== "";
+
+// Build number = the date the running code is from, `YYYY.MM.DD`. It replaces
+// the old commit-count number, which said nothing about freshness — the useful
+// question about a build is "how old is this?", not "how many commits deep".
+// Still strictly increasing and directly comparable, and unlike a
+// hand-maintained semver it needs no bumping once the app revs on each
+// requested change. package.json's `version` is deliberately NOT the displayed
+// version; it stays put as npm metadata.
+//
+// Which date depends on whether the tree is clean:
+//   clean  -> HEAD's commit date, so rebuilding an old commit reproduces its
+//             build number instead of stamping it with today.
+//   dirty  -> now, because the running code is newer than the last commit (the
+//             normal state on this dev box, where nothing is committed) and
+//             HEAD's date would report the app as stale for as long as work
+//             stays uncommitted.
+// Both are local dates — the badge is read by a human in this timezone, not
+// diffed across regions. `format-local:` makes git honour that too; without it
+// git formats in the commit's own recorded offset.
+function localDate(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join(".");
+}
+
+const committedDate = gitDirty ? "" : readGit('git log -1 --format=%cd --date=format-local:%Y.%m.%d');
+const buildNumber = committedDate || localDate(new Date());
 
 const nextConfig: NextConfig = {
   // Exposed to the client (NEXT_PUBLIC_ prefix) so the nav-drawer footer can
@@ -62,6 +84,15 @@ const nextConfig: NextConfig = {
   // drive headless Chromium; like the DB drivers it must stay a runtime require
   // rather than be bundled.
   serverExternalPackages: ["mssql", "tedious", "@infisical/sdk", "puppeteer-core"],
+
+  // The `next dev` tools badge (the floating Next logo button) is fixed at
+  // z-index 2147483647, so it lands on top of the app chrome — on a phone
+  // viewport it sits directly over the header avatar and swallows the tap.
+  // This box runs `next dev` as its canonical instance (see ~/.claude/CLAUDE.md),
+  // so the badge is on screen during normal use, not just while debugging.
+  // `false` is the supported way to turn it off in Next 15.3+; the old
+  // buildActivity/appIsrStatus sub-options are deprecated.
+  devIndicators: false,
 
   // Default request-body cap is 10MB; the rune rich-text card editor lets users
   // paste/attach an image or short video straight in, and both can exceed that —
