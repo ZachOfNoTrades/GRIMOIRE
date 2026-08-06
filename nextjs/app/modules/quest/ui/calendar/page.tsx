@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
+import { BackLink } from "@/components/BackLink";
 import toast, { Toaster } from "react-hot-toast";
 import {
   CalendarDays,
@@ -54,6 +53,8 @@ interface Completion {
 }
 
 type CalendarView = "week" | "month";
+// Chip colour variants — mirrors QuestCalendarWidget so both calendars read the same.
+type EntryKind = "daily" | "weekly" | "monthly" | "yearly" | "todo";
 type DayState = "done" | "missed" | "pending" | "upcoming" | "frozen";
 
 interface DayDaily {
@@ -70,7 +71,9 @@ interface CellChip {
   id: string;
   title: string;
   state: DayState;
-  rare: boolean;
+  // Chip colour = the task's cadence (matches the home page's calendar); completion state only
+  // strikes it through / underlines it.
+  kind: EntryKind;
   period: number;
   movedTo: string | null; // migrated OFF this (frozen) day → shown struck/arrowed, not "missed"
   carriedHere: boolean; // carried INTO this day from a frozen day → snowflake
@@ -118,6 +121,35 @@ function buildWeek(anchorYMD: string, weekStart: number): string[] {
   });
 }
 
+// The home page's saved view preferences (see ui/home/page.tsx). This page only touches the one
+// field it shares — "hide daily tasks" — and leaves the rest of the bag untouched.
+const QUEST_VIEW_PREFERENCES_KEY = "quest_view_prefs";
+
+function readHideDailyPreference(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = window.localStorage.getItem(QUEST_VIEW_PREFERENCES_KEY);
+    if (!raw) return true;
+    const saved = JSON.parse(raw) as { hideDailyTasksInCalendar?: unknown };
+    return typeof saved.hideDailyTasksInCalendar === "boolean" ? saved.hideDailyTasksInCalendar : true;
+  } catch {
+    return true; // unreadable/invalid preferences fall back to the default
+  }
+}
+
+function writeHideDailyPreference(value: boolean) {
+  try {
+    const raw = window.localStorage.getItem(QUEST_VIEW_PREFERENCES_KEY);
+    const saved = raw ? JSON.parse(raw) : {};
+    window.localStorage.setItem(
+      QUEST_VIEW_PREFERENCES_KEY,
+      JSON.stringify({ ...saved, hideDailyTasksInCalendar: value }),
+    );
+  } catch {
+    // ignore — a full/blocked localStorage just means the choice isn't remembered
+  }
+}
+
 const WEEK_START_OPTIONS = [
   { value: 1, label: "Monday" },
   { value: 0, label: "Sunday" },
@@ -138,55 +170,33 @@ function periodDays(t: Task): number {
   return n; // every_n days
 }
 
-// "Rare" = monthly-or-rarer cadence (≈ 4 weeks between occurrences) — gets the ★ marker.
-function isRareTask(t: Task): boolean {
-  return periodDays(t) >= 28;
+// The chip variant for a task: its repeat frequency, or "todo" for a one-off.
+function entryKind(t: Task): EntryKind {
+  return t.kind === "todo" ? "todo" : t.frequency;
 }
 
-// A "non-daily" recurring task in the user's sense: a daily-type task whose FREQUENCY isn't daily
-// (weekly / monthly / yearly). These are the agenda candidates.
-function isNonDailyRecurring(t: Task): boolean {
-  return t.kind === "daily" && t.frequency !== "daily";
+// What the chip's decoration means, spelled out for its tooltip.
+function chipStateNote(chip: CellChip): string {
+  if (chip.movedTo) return "carried to another day";
+  if (chip.state === "done") return "done";
+  if (chip.state === "frozen") return "excused (frozen day)";
+  if (chip.state === "missed") return "missed — its completion window closed";
+  if (chip.state === "upcoming") return "upcoming";
+  return "due";
 }
 
-function freqLabel(t: Task): string {
-  const n = Math.max(1, t.every_n || 1);
-  if (t.frequency === "weekly") return n > 1 ? `Every ${n} weeks` : "Weekly";
-  if (t.frequency === "monthly") return n > 1 ? `Every ${n} months` : "Monthly";
-  if (t.frequency === "yearly") return n > 1 ? `Every ${n} years` : "Yearly";
-  if (t.days_of_week) return "Weekly days";
-  return n > 1 ? `Every ${n} days` : "Daily";
-}
-
-// The earliest occurrence start whose grace window still covers `today` or lies ahead, within
-// [today-back, today+fwd]. Captures a currently-due (possibly in-grace) occurrence as well as the
-// next upcoming one. Null if none in range.
-function nextRelevantOccurrence(t: Task, today: string, back = 31, fwd = 60): string | null {
-  for (let i = -back; i <= fwd; i++) {
-    const d = addDays(today, i);
-    if (activeOccurrenceStart(t, d) !== d) continue; // only the occurrence's start day
-    const we = occurrenceWindowEnd(t, d) ?? d;
-    if (we < today) continue; // window already fully past
-    return d;
-  }
-  return null;
-}
-
-function dayDelta(fromYMD: string, toYMD: string): number {
-  return Math.round((parseYMD(toYMD).getTime() - parseYMD(fromYMD).getTime()) / 86400000);
-}
-
-function relativeLabel(today: string, date: string): string {
-  const d = dayDelta(today, date);
-  if (d < 0) return "due now";
-  if (d === 0) return "today";
-  if (d === 1) return "tomorrow";
-  return `in ${d}d`;
+// Chip classes: the frequency variant carries the colour, the state only mutes / marks it.
+function chipClass(chip: CellChip): string {
+  const settled = chip.state === "done" || chip.state === "frozen" || chip.movedTo !== null;
+  return [
+    "qcal-chip",
+    `qcal-chip--${chip.kind}`,
+    settled ? "qcal-chip--settled" : "",
+    chip.state === "missed" ? "qcal-chip--missed" : "",
+  ].filter(Boolean).join(" ");
 }
 
 export default function QuestCalendarPage() {
-  const router = useRouter();
-  const goBack = useGoBack();
 
   // DATA
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -205,6 +215,8 @@ export default function QuestCalendarPage() {
   // First day of week for WEEK view only (month view stays Sunday-first). Default Monday;
   // persisted locally since it's a display-only preference.
   const [weekStart, setWeekStart] = useState<number>(1);
+  // Drop every-day tasks from the day cells so the weekly/monthly ones stand out (default on).
+  const [hideDailyTasks, setHideDailyTasks] = useState<boolean>(true);
 
   // STATE
   const [loading, setLoading] = useState<boolean>(true);
@@ -241,6 +253,16 @@ export default function QuestCalendarPage() {
       // localStorage unavailable — keep the Monday default
     }
   }, []);
+
+  // Restore the shared "hide daily tasks" preference on mount.
+  useEffect(() => {
+    setHideDailyTasks(readHideDailyPreference());
+  }, []);
+
+  function changeHideDailyTasks(value: boolean) {
+    setHideDailyTasks(value);
+    writeHideDailyPreference(value);
+  }
 
   function changeWeekStart(n: number) {
     setWeekStart(n);
@@ -377,37 +399,21 @@ export default function QuestCalendarPage() {
   const cellChips = useCallback(
     (day: string): CellChip[] => {
       return dailiesForDay(day)
+        // "Daily" = the task's Repeats setting, matching the task modal's wording.
+        .filter((i) => !hideDailyTasks || i.task.frequency !== "daily")
         .map((i) => ({
           id: i.task.id,
           title: i.task.title,
           state: i.state,
-          rare: isRareTask(i.task),
+          kind: entryKind(i.task),
           period: periodDays(i.task),
           movedTo: i.movedTo,
           carriedHere: i.carriedHere,
         }))
         .sort((a, b) => b.period - a.period || a.title.localeCompare(b.title));
     },
-    [dailiesForDay],
+    [dailiesForDay, hideDailyTasks],
   );
-
-  // Agenda — the next occurrence of every NON-daily-frequency recurring task (weekly/monthly/yearly),
-  // sorted soonest-first (rarer breaks ties). This is the "don't let me miss the monthly one" list.
-  const agenda = useMemo(() => {
-    if (!today) return [] as { task: Task; date: string; rare: boolean; done: boolean }[];
-    const out: { task: Task; date: string; rare: boolean; period: number; done: boolean }[] = [];
-    for (const t of tasks) {
-      if (!isNonDailyRecurring(t)) continue;
-      const date = nextRelevantOccurrence(t, today);
-      if (!date) continue;
-      const windowEnd = occurrenceWindowEnd(t, date) ?? date;
-      const recs = completionsByTask.get(t.id) ?? [];
-      const done = recs.some((c) => c.completed_on >= date && c.completed_on <= windowEnd);
-      out.push({ task: t, date, rare: isRareTask(t), period: periodDays(t), done });
-    }
-    out.sort((a, b) => a.date.localeCompare(b.date) || b.period - a.period);
-    return out;
-  }, [tasks, today, completionsByTask]);
 
   const withinLookback = useCallback(
     (day: string) => !!today && day >= addDays(today, -retroLookbackDays),
@@ -629,134 +635,110 @@ export default function QuestCalendarPage() {
   return (
     <div className="page">
       <Toaster position="bottom-center" />
-      <div className="page-container">
-
-        {/* HEADER */}
-        <div className="mb-6 flex items-center justify-between gap-2">
-          <h1 className="text-page-title flex items-center gap-2 truncate">
-            <CalendarDays className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
-            <span>Calendar</span>
-          </h1>
-          <div className="flex items-stretch gap-2 sm:gap-3">
-
-            {/* COIN BALANCE */}
-            <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 p-1.5 sm:p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-              <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500 shrink-0" />
-              <span className="text-xs sm:text-sm font-semibold text-yellow-500 tabular-nums">{Number(balance).toFixed(2)}</span>
-            </div>
-
-            {/* BACK TO QUEST */}
-            <button
-              onClick={() => goBack("/modules/quest/ui/home")}
-              title="Back to Quest"
-              className="p-1.5 sm:p-2 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-          </div>
-        </div>
+      <div className="page-container quest-cal-page">
 
         {error && (
-          <div className="mb-4 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500">
+          <div className="mb-4 mx-3 sm:mx-4 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500">
             {error}
           </div>
         )}
 
-        {/* TOOLBAR — view toggle + date navigation */}
-        <div className="mb-4 flex items-center justify-between gap-2 flex-wrap">
+        {/* TOOLBAR — the page's only chrome: back, the centered view toggle, date nav and the
+            day-detail filter. There is deliberately no page title / icon / balance row; the month
+            grid gets that height. Three grid columns from sm up so the view toggle sits dead
+            centre regardless of how wide the side groups are; wraps centred on a phone. */}
+        <div className="mb-3 px-3 sm:px-4 shrink-0 flex flex-wrap items-center justify-center gap-2 sm:grid sm:grid-cols-[1fr_auto_1fr]">
 
-          <div className="flex items-center gap-2">
+          {/* LEFT — back, week-start, filter */}
+          <div className="flex items-center gap-2 flex-wrap sm:justify-self-start">
 
-            {/* VIEW TOGGLE */}
-            <div className="flex rounded border border-gray-700 overflow-hidden">
-              {(["week", "month"] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={`px-3 py-1.5 text-sm capitalize cursor-pointer ${
-                    view === v ? "bg-blue-600 text-white" : "text-secondary hover:bg-gray-700"
-                  }`}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
+            {/* BACK TO QUEST */}
+            <BackLink
+              fallback="/modules/quest/ui/home"
+              title="Back to Quest"
+              className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </BackLink>
 
-            {/* WEEK-START SELECTOR (week view only) */}
-            {view === "week" && (
-              <select
-                value={weekStart}
-                onChange={(e) => changeWeekStart(Number(e.target.value))}
-                title="First day of week"
-                className="h-9 px-2 rounded border border-gray-600 bg-transparent text-sm text-secondary cursor-pointer"
-              >
-                {WEEK_START_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>Starts {o.label}</option>
-                ))}
-              </select>
-            )}
+            {/* HIDE DAILY TASKS — shares the home page's saved view preference. */}
+            <label className="flex items-center gap-1.5 text-xs text-secondary cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={hideDailyTasks}
+                onChange={(e) => changeHideDailyTasks(e.target.checked)}
+                className="cursor-pointer"
+              />
+              Hide daily
+            </label>
           </div>
 
-          {/* DATE NAV */}
-          <div className="flex items-center gap-2">
+          {/* VIEW TOGGLE — centred. The active fill is one element that slides between the two
+              halves (equal-width buttons keep the 50% travel honest) rather than jumping. */}
+          <div className="relative flex rounded border border-gray-700 overflow-hidden sm:justify-self-center">
+
+            {/* SLIDING FILL */}
+            <span
+              aria-hidden
+              className="absolute inset-y-0 left-0 w-1/2 bg-blue-600 transition-transform duration-200 ease-out"
+              style={{ transform: view === "month" ? "translateX(100%)" : "translateX(0)" }}
+            />
+
+            {(["week", "month"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`relative z-10 w-[4.5rem] py-1.5 text-sm capitalize cursor-pointer transition-colors ${
+                  view === v ? "text-white" : "text-secondary hover:text-primary"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+
+          {/* DATE NAV — no separate Today button; the label itself jumps back to today. */}
+          <div className="flex items-center gap-2 sm:justify-self-end">
             <button onClick={() => shiftAnchor(-1)} className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer" title="Previous">
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm font-semibold min-w-[10rem] text-center tabular-nums">{headingLabel}</span>
-            <button onClick={() => shiftAnchor(1)} className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer" title="Next">
-              <ChevronRight className="w-4 h-4" />
-            </button>
+
             <button
               onClick={() => today && setAnchor(today)}
-              className="px-3 py-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary text-sm cursor-pointer"
+              title="Jump to today"
+              className="text-sm font-semibold min-w-[6.5rem] sm:min-w-[10rem] text-center tabular-nums cursor-pointer hover:text-primary"
             >
-              Today
+              {headingLabel}
+            </button>
+
+            <button onClick={() => shiftAnchor(1)} className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer" title="Next">
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* UPCOMING AGENDA — next occurrence of every non-daily-frequency recurring task, soonest
-            first. Surfaces the easy-to-miss weekly/monthly/yearly tasks. */}
-        {agenda.length > 0 && (
-          <section className="card mb-4">
-            <h2 className="text-card-title mb-2">
-              <CalendarDays className="w-5 h-5" />
-              Upcoming
-            </h2>
-            <div className="flex flex-col divide-y divide-gray-800 max-h-56 overflow-y-auto" style={{ overscrollBehavior: "contain" }}>
-              {agenda.map(({ task, date, rare, done }) => {
-                const delta = today ? dayDelta(today, date) : 99;
-                const relClass = done ? "text-green-500" : delta <= 0 ? "text-amber-400" : delta === 1 ? "text-primary" : "text-secondary";
-                return (
-                  <button
-                    key={task.id}
-                    onClick={() => setSelectedDate(date)}
-                    className="flex items-center justify-between gap-2 py-2 text-left hover:bg-gray-800/40 cursor-pointer"
-                  >
-                    {/* TASK + CADENCE */}
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      {rare && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />}
-                      <span className={`truncate text-sm ${done ? "text-secondary line-through" : ""}`}>{task.title}</span>
-                      <span className="text-xs text-secondary shrink-0">· {freqLabel(task)}</span>
-                    </span>
-
-                    {/* DATE + RELATIVE */}
-                    <span className="flex items-center gap-2 shrink-0 text-xs tabular-nums">
-                      <span className="text-secondary">{shortDate(date)}</span>
-                      {done ? <Check className="w-4 h-4 text-green-500" /> : <span className={`${relClass} w-14 text-right`}>{relativeLabel(today!, date)}</span>}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+        {/* WEEK-START SELECTOR (week view only) — on its own row so switching views never shifts
+            the toolbar's controls out from under the cursor. */}
+        {view === "week" && (
+          <div className="mb-3 px-3 sm:px-4 shrink-0">
+            <select
+              value={weekStart}
+              onChange={(e) => changeWeekStart(Number(e.target.value))}
+              title="First day of week"
+              className="h-8 px-2 rounded border border-gray-600 bg-transparent text-xs text-secondary cursor-pointer"
+            >
+              {WEEK_START_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>Starts {o.label}</option>
+              ))}
+            </select>
+          </div>
         )}
 
         {/* CALENDAR GRID */}
-        <section className="card">
+        <section className="card quest-cal-grid-card">
 
           {/* WEEKDAY HEADER ROW */}
-          <div className="grid grid-cols-7 gap-1 mb-1">
+          <div className="grid grid-cols-7 gap-px mb-1 shrink-0">
             {headerLabels.map((w, i) => (
               <div key={`${w}-${i}`} className="text-center text-xs font-semibold text-secondary py-1">{w}</div>
             ))}
@@ -764,9 +746,9 @@ export default function QuestCalendarPage() {
 
           {/* MONTH VIEW */}
           {view === "month" && (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col quest-cal-weeks">
               {monthWeeks.map((week, wi) => (
-                <div key={wi} className="grid grid-cols-7 gap-1">
+                <div key={wi} className="grid grid-cols-7">
                   {week.map((cell) => (
                     <DayCell
                       key={cell.date}
@@ -786,7 +768,7 @@ export default function QuestCalendarPage() {
 
           {/* WEEK VIEW */}
           {view === "week" && (
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 quest-cal-weeks quest-cal-weeks--single">
               {weekDays.map((d) => (
                 <DayCell
                   key={d}
@@ -802,14 +784,6 @@ export default function QuestCalendarPage() {
             </div>
           )}
 
-          {/* LEGEND */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-secondary">
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" /> Done</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Missed</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" /> Due</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-600 inline-block" /> Upcoming</span>
-            <span className="flex items-center gap-1"><Snowflake className="w-3 h-3 text-cyan-400" /> Frozen</span>
-          </div>
         </section>
 
       </div>
@@ -933,17 +907,6 @@ function StateDot({ state }: { state: DayState }) {
   return <span className={`w-2.5 h-2.5 rounded-full inline-block shrink-0 ${color}`} />;
 }
 
-// Per-chip text color by occurrence state. NOTE: color-only utilities (no design-system
-// .text-primary/.text-secondary, which also set font-size and would override the chip's text-[10px]).
-function chipStateClass(state: DayState): string {
-  if (state === "done") return "text-gray-500 line-through";
-  if (state === "missed") return "text-red-400";
-  // Frozen = the day is excused → strike it through so it never reads as an open/missed task.
-  if (state === "frozen") return "text-cyan-400 line-through";
-  if (state === "upcoming") return "text-gray-500";
-  return "text-gray-100"; // pending / due
-}
-
 function DayCell({
   date,
   dimmed,
@@ -967,37 +930,35 @@ function DayCell({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-stretch text-left rounded border p-1 cursor-pointer transition-colors min-h-[5rem] sm:min-h-[6.5rem] overflow-hidden ${
+      className={`quest-cal-cell flex flex-col items-stretch text-left border cursor-pointer transition-colors overflow-hidden ${
         frozen ? "border-cyan-500/50 bg-cyan-500/10"
           : isToday ? "border-blue-500 bg-blue-500/5"
           : "border-gray-700 hover:bg-gray-800"
       } ${dimmed ? "opacity-40" : ""}`}
     >
       {/* DATE NUMBER */}
-      <div className="flex items-center justify-between shrink-0">
+      <div className="flex items-center justify-between shrink-0 leading-none">
         <span className={`text-xs tabular-nums ${isToday ? "text-blue-400 font-semibold" : "text-gray-400"}`}>{dayNum}</span>
         {frozen && <Snowflake className="w-3 h-3 text-cyan-400 shrink-0" />}
       </div>
 
-      {/* TASK CHIPS — rarest first; ★ = infrequent (monthly+); ❄ = carried in; → = migrated out. */}
+      {/* TASK CHIPS — rarest first, coloured by repeat frequency; ❄ = carried in, → = migrated out. */}
       {chips.length > 0 && (
-        <div className="mt-0.5 flex flex-col gap-px min-w-0">
+        <div className="qcal-chips mt-0.5">
           {shown.map((c) => (
-            <span
-              key={c.id}
-              className={`flex items-center gap-0.5 text-[10px] leading-tight min-w-0 ${
-                c.movedTo ? "text-gray-500" : chipStateClass(c.state)
-              }`}
-            >
-              {c.rare && <Star className="w-2.5 h-2.5 text-amber-400 shrink-0 fill-amber-400" />}
-              {c.carriedHere && <Snowflake className="w-2.5 h-2.5 text-cyan-400 shrink-0" />}
-              <span className="truncate">{c.title}</span>
+            <span key={c.id} className={chipClass(c)} title={`${c.title} — ${chipStateNote(c)}`}>
+              {c.carriedHere && <Snowflake className="w-2.5 h-2.5 shrink-0" />}
+              <span className="qcal-chip-title">{c.title}</span>
               {/* Migrated off this day → arrow so it reads "moved", not "missed/incomplete". */}
-              {c.movedTo && <ArrowRight className="w-2.5 h-2.5 text-cyan-400 shrink-0" />}
+              {c.movedTo && <ArrowRight className="w-2.5 h-2.5 shrink-0" />}
             </span>
           ))}
-          {overflow > 0 && <span className="text-[10px] leading-tight text-gray-500">+{overflow} more</span>}
         </div>
+      )}
+
+      {/* OVERFLOW — outside the clipped list so the cell below can never cut it off */}
+      {overflow > 0 && (
+        <span className="qcal-more" title={`${overflow} more`}>+{overflow}<span className="hidden sm:inline"> more</span></span>
       )}
     </button>
   );

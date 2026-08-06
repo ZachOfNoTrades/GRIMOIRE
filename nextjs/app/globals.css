@@ -4648,6 +4648,15 @@ button.list-row:disabled {
   color: var(--color-primary);
 }
 
+/* MONTH-IN-STEPPER — wide enough that stepping months doesn't shuffle the arrows. */
+.calw-nav-month {
+  min-width: 9rem;
+  text-align: center;
+  color: var(--color-primary);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- GRID VARIANT — gridded, taller cells with dots pinned to the bottom --------------------- */
 
 /* The calendar "section" becomes a flex column; the flex gap replaces per-child margins.
@@ -4890,6 +4899,249 @@ button.list-row:disabled {
   font-size: 0.78rem;
   font-style: italic;
   color: var(--color-gray);
+}
+
+/* QUEST HOME CONTAINER — this page's full-width calendar wants the horizontal room, so on desktop
+   it opts out of the app-wide 80rem content box and trims the container padding. Scoped to the
+   quest home page; every other page keeps the standard measure. */
+@media (min-width: 1024px) {
+  .page-container.quest-home-container {
+    max-width: 110rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* ============================================================================
+   QUEST CALENDAR PAGE — the dedicated /modules/quest/ui/calendar screen. It is
+   the ONLY calendar on a phone (the home page's calendar tab navigates here),
+   and it's the same idea as the home widget on desktop: the month grid claims
+   98vh and the day cells grow with it instead of sitting at a fixed height.
+   ========================================================================== */
+
+.quest-cal-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 98vh;
+  /* Edge to edge: the month grid IS the page, so it gets the container's side padding back. The
+     toolbar re-adds its own inset so its controls aren't flush against the screen edge. */
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* GRID CARD — takes everything the header + toolbar don't, and drops .card's frame so the cells
+   run to the viewport edges instead of sitting inside a bordered, padded box. */
+.quest-cal-page > .quest-cal-grid-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  /* .card's content-visibility: auto would skip layout while offscreen and fight the flex sizing. */
+  content-visibility: visible;
+}
+
+/* The grid's own hairline frame is the only border left; drop its side edges so the cells really do
+   reach the edge. */
+.quest-cal-weeks {
+  border-left: none;
+  border-right: none;
+}
+
+/* WEEK ROWS — share the card's leftover height evenly, and the cells fill their row. */
+.quest-cal-weeks {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.quest-cal-weeks:not(.quest-cal-weeks--single) > * {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.quest-cal-weeks--single {
+  align-items: stretch;
+}
+/* CELLS — no margin between them: the 1px gap over a border-coloured backing paints a single
+   hairline grid, and the cell itself keeps only enough padding for the day number. */
+.quest-cal-weeks,
+.quest-cal-weeks > * {
+  gap: 1px;
+  background: var(--card-border);
+}
+.quest-cal-weeks {
+  border: 1px solid var(--card-border);
+}
+.quest-cal-cell {
+  min-height: 0;
+  height: 100%;
+  border-radius: 0;
+  padding: 0.125rem;
+}
+
+/* Phones give the grid the rest of the screen too — just with tighter page padding, plus a bottom
+   gutter: Firefox Android paints the large (URL-bar-hidden) viewport while reporting the small one,
+   so a grid sized to 98vh has its last week row sitting under the browser chrome. The padding is
+   inside the 98vh (border-box), so it shortens the grid rather than overflowing the page. */
+@media (max-width: 1023px) {
+  .quest-cal-page {
+    padding-top: 1rem;
+    padding-bottom: 4rem;
+  }
+}
+
+/* ============================================================================
+   QUEST HOME CALENDAR — the full-width month row on the quest home page
+   (components/QuestCalendarWidget.tsx). Day cells list named entries, so this
+   block owns the entry chips and the stretch-to-fill sizing.
+   ========================================================================== */
+
+/* ENTRY CHIP PALETTE — chips are coloured by the task's REPEAT FREQUENCY (not by
+   done/missed), so a glance at the month reads "what kind of cadence lands here".
+   Completion state is carried by the strikethrough + dimming instead. */
+:root {
+  --qcal-daily-text: #4a5560;
+  --qcal-daily-bg: #ecedf0;
+  --qcal-weekly-text: var(--alert-blue-text);
+  --qcal-weekly-bg: var(--alert-blue-bg);
+  --qcal-monthly-text: #5a2a8a;
+  --qcal-monthly-bg: #f0e8fa;
+  --qcal-yearly-text: var(--alert-yellow-text);
+  --qcal-yearly-bg: var(--alert-yellow-bg);
+  --qcal-todo-text: var(--alert-green-text);
+  --qcal-todo-bg: var(--alert-green-bg);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --qcal-daily-text: #9aa7b4;
+    --qcal-daily-bg: #12161a;
+    --qcal-monthly-text: #c08cff;
+    --qcal-monthly-bg: #150a24;
+  }
+}
+
+/* CHIP — a tinted band of the cadence's colour. No leading indicator bar and almost no padding:
+   the title should start as close to the cell edge as it can. */
+.qcal-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.1875rem;
+  min-width: 0;
+  padding: 1px 2px;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+.qcal-chip:hover {
+  filter: brightness(1.15) saturate(1.1);
+}
+.qcal-chip-time {
+  flex: 0 0 auto;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.qcal-chip-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* CHIP LIST — clips whole chips as the cell shrinks... */
+.qcal-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ...while the "+N more" line is pinned to the bottom of the cell, so it can never be the thing
+   that gets cut off by the cell below. */
+.qcal-more {
+  margin-top: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  padding-left: 2px;
+  color: var(--color-gray);
+}
+
+/* FREQUENCY VARIANTS */
+.qcal-chip--daily { background: var(--qcal-daily-bg); color: var(--qcal-daily-text); }
+.qcal-chip--weekly { background: var(--qcal-weekly-bg); color: var(--qcal-weekly-text); }
+.qcal-chip--monthly { background: var(--qcal-monthly-bg); color: var(--qcal-monthly-text); }
+.qcal-chip--yearly { background: var(--qcal-yearly-bg); color: var(--qcal-yearly-text); }
+.qcal-chip--todo { background: var(--qcal-todo-bg); color: var(--qcal-todo-text); }
+
+/* STATE MODIFIERS — settled work (done / excused / carried away) reads as struck
+   and faded; a missed occurrence keeps its colour but gains a dotted underline so
+   it still stands out without stealing the frequency hue. */
+.qcal-chip--settled {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.qcal-chip--missed {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+/* LEGEND SWATCH — a small block of the chip's fill, outlined in its text colour. */
+.qcal-swatch {
+  width: 0.6rem;
+  height: 0.6rem;
+  display: inline-block;
+  border: 1px solid;
+}
+.qcal-swatch--daily { border-color: var(--qcal-daily-text); background: var(--qcal-daily-bg); }
+.qcal-swatch--weekly { border-color: var(--qcal-weekly-text); background: var(--qcal-weekly-bg); }
+.qcal-swatch--monthly { border-color: var(--qcal-monthly-text); background: var(--qcal-monthly-bg); }
+.qcal-swatch--yearly { border-color: var(--qcal-yearly-text); background: var(--qcal-yearly-bg); }
+.qcal-swatch--todo { border-color: var(--qcal-todo-text); background: var(--qcal-todo-bg); }
+
+/* STRETCH — on desktop the calendar owns a 95vh row of its own, and the month grid
+   grows to fill it so every week row is a full-height Outlook-style band. Below lg
+   the card is the compact mobile widget again, sized by its content. */
+@media (min-width: 1024px) {
+  .quest-cal-shell {
+    height: 95vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Type scale — the full-width calendar has the room, so the weekday header and legend read at
+     normal UI sizes instead of the compact widget's tiny ones. */
+  .quest-cal-shell .calw-weekday {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  .quest-cal-shell .calw-legend {
+    font-size: 0.75rem;
+  }
+  .quest-cal-shell .calw-root {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .quest-cal-shell .calw-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  /* Only the week rows INSIDE the grid stretch — .calw-weekday-row carries .calw-week too and must
+     stay its natural height. */
+  .quest-cal-shell .calw-grid .calw-week {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  /* Day cells fill their week row rather than sitting at its top; the row height governs, so the
+     cell's own min-height floor steps aside. */
+  .quest-cal-shell .calw-grid .calw-week > * {
+    height: 100%;
+    min-height: 0;
+  }
 }
 
 /* ========================================

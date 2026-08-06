@@ -83,6 +83,7 @@ export default function CalendarMonthWidget({
   onMonthChange,
   variant = "compact",
   weekdayLabels = WEEKDAY_INITIALS,
+  navMonthLabel = false,
 }: {
   today: string; // YYYY-MM-DD anchoring "today"
   title?: string; // header label (compact mode only)
@@ -94,6 +95,9 @@ export default function CalendarMonthWidget({
   onMonthChange?: (anchorYMD: string) => void; // fires with the first-of-visible-month on nav
   variant?: "compact" | "grid"; // "grid" = gridded, taller cells (dots pinned to the bottom)
   weekdayLabels?: string[]; // 7 column headers (default single letters; grid usage passes 3-letter)
+  // Navigable mode only: put the visible month INSIDE the prev/next stepper (so it reads
+  // "< August 2026 >") and leave `title` on the header's left. Clicking it still jumps to today.
+  navMonthLabel?: boolean;
 }) {
   // In navigable mode the widget owns the visible month; otherwise it's fixed to monthAnchor/today.
   const [viewAnchor, setViewAnchor] = useState<string>(monthAnchor ?? today);
@@ -126,10 +130,10 @@ export default function CalendarMonthWidget({
           // NAVIGABLE HEADER — month label on the left, prev/Today/next on the right
           <>
 
-            {/* MONTH LABEL */}
+            {/* HEADER LABEL — the visible month, or the plain title when the month rides in the nav */}
             <div className="calw-title">
               <CalendarDays className="w-5 h-5" />
-              <span className="tabular-nums">{monthLabel}</span>
+              <span className="tabular-nums">{navMonthLabel ? title : monthLabel}</span>
             </div>
 
             {/* MONTH NAV */}
@@ -140,9 +144,14 @@ export default function CalendarMonthWidget({
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              {/* TODAY */}
-              <button type="button" className="calw-nav-today" onClick={() => setViewAnchor(today)}>
-                Today
+              {/* TODAY / MONTH — label depends on navMonthLabel; the action is "jump to today" either way */}
+              <button
+                type="button"
+                className={`calw-nav-today${navMonthLabel ? " calw-nav-month" : ""}`}
+                title="Jump to today"
+                onClick={() => setViewAnchor(today)}
+              >
+                {navMonthLabel ? monthLabel : "Today"}
               </button>
 
               {/* NEXT MONTH */}

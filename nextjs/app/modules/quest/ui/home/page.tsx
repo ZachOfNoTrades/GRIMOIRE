@@ -39,6 +39,8 @@ import {
   TaskKind,
   Frequency,
   FREQUENCIES,
+  RepeatMode,
+  repeatModeApplies,
   WEEKDAY_LETTERS,
   WEEKDAY_KEYS,
 } from "../../types/task";
@@ -88,6 +90,8 @@ interface Task {
   days_of_week: string | null;
   every_n: number;
   start_date: string | null;
+  // Monthly / yearly calendar anchor. null = 'day_of_month' (every pre-existing task).
+  repeat_mode: RepeatMode | null;
   // Completion grace window in days (1 = scheduled day only); applies to any frequency.
   window_days: number;
   deferred_to_date: string | null;
@@ -206,6 +210,57 @@ const FREQ_LABELS: Record<Frequency, string> = {
 
 type TaskFilter = "all" | "daily" | "todo";
 
+// User view preferences for the task list — which filter chip is selected and how the
+// view-options popover toggles are set. Persisted per browser in localStorage so the list comes
+// back the way the user left it instead of resetting to the "Dailies" default on every visit.
+const QUEST_VIEW_PREFERENCES_KEY = "quest_view_prefs";
+
+interface QuestViewPreferences {
+  filter: TaskFilter;
+  showCompletedDailies: boolean;
+  showCompletedTodos: boolean;
+  showAllDailies: boolean;
+  moveCompletedToBottom: boolean;
+  // Calendar: drop every-day tasks from the day cells so the weekly/monthly/yearly ones stand out.
+  hideDailyTasksInCalendar: boolean;
+}
+
+const DEFAULT_VIEW_PREFERENCES: QuestViewPreferences = {
+  filter: "daily",
+  showCompletedDailies: true,
+  showCompletedTodos: false,
+  showAllDailies: false,
+  moveCompletedToBottom: true,
+  hideDailyTasksInCalendar: true,
+};
+
+// Read the saved preferences, falling back to the defaults for anything missing or malformed.
+// Returns the defaults unchanged on the server (no localStorage) — the page renders its loading
+// placeholder until the client has mounted, so this never causes a hydration mismatch.
+function readViewPreferences(): QuestViewPreferences {
+  if (typeof window === "undefined") return { ...DEFAULT_VIEW_PREFERENCES };
+  try {
+    const raw = window.localStorage.getItem(QUEST_VIEW_PREFERENCES_KEY);
+    if (!raw) return { ...DEFAULT_VIEW_PREFERENCES };
+    const saved = JSON.parse(raw) as Partial<QuestViewPreferences>;
+    const isValidFilter = (value: unknown): value is TaskFilter =>
+      value === "all" || value === "daily" || value === "todo";
+    const booleanOrDefault = (value: unknown, fallback: boolean) =>
+      typeof value === "boolean" ? value : fallback;
+    return {
+      filter: isValidFilter(saved.filter) ? saved.filter : DEFAULT_VIEW_PREFERENCES.filter,
+      showCompletedDailies: booleanOrDefault(saved.showCompletedDailies, DEFAULT_VIEW_PREFERENCES.showCompletedDailies),
+      showCompletedTodos: booleanOrDefault(saved.showCompletedTodos, DEFAULT_VIEW_PREFERENCES.showCompletedTodos),
+      showAllDailies: booleanOrDefault(saved.showAllDailies, DEFAULT_VIEW_PREFERENCES.showAllDailies),
+      moveCompletedToBottom: booleanOrDefault(saved.moveCompletedToBottom, DEFAULT_VIEW_PREFERENCES.moveCompletedToBottom),
+      hideDailyTasksInCalendar: booleanOrDefault(saved.hideDailyTasksInCalendar, DEFAULT_VIEW_PREFERENCES.hideDailyTasksInCalendar),
+    };
+  } catch {
+    // ignore — invalid JSON just falls back to the defaults
+    return { ...DEFAULT_VIEW_PREFERENCES };
+  }
+}
+
 interface DraftSubtask {
   id: string;
   title: string;
@@ -220,6 +275,7 @@ interface TaskFormState {
   description: string;
   difficulty: Difficulty;
   frequency: Frequency;
+  repeat_mode: RepeatMode;
   every_n: string;
   days_of_week: string[];
   start_date: string;
@@ -345,6 +401,15 @@ function occurrenceWindowEndingOnClient(t: Task, ymd: string): string | null {
   return isOccurrenceRawClient(t, s) ? s : null;
 }
 
+// sortRewards — mirrors listRewards()'s `ORDER BY cost ASC, name ASC`. The rewards list renders in
+// array order, so an optimistic stand-in has to be inserted in the same slot the server row will
+// occupy or the row visibly jumps when the background sync reconciles it.
+function sortRewards(list: Reward[]): Reward[] {
+  return [...list].sort(
+    (a, b) => a.cost - b.cost || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
 function blankTaskForm(kind: TaskKind): TaskFormState {
   return {
     kind,
@@ -352,6 +417,7 @@ function blankTaskForm(kind: TaskKind): TaskFormState {
     description: "",
     difficulty: "easy",
     frequency: kind === "daily" ? "daily" : "daily",
+    repeat_mode: "day_of_month",
     every_n: "1",
     days_of_week: [],
     start_date: "",
@@ -364,6 +430,53 @@ function blankTaskForm(kind: TaskKind): TaskFormState {
   };
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth"];
+
+// "3rd", "21st" — for the day-of-month label.
+function ordinalNumber(n: number): string {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
+  const suffix = ["th", "st", "nd", "rd"][n % 10] ?? "th";
+  return `${n}${n % 10 <= 3 ? suffix : "th"}`;
+}
+
+// Plain-English labels for the two calendar anchors, derived from the chosen start date so the
+// options read as the actual schedule ("Repeats on the first Monday of every month") rather than
+// abstract modes. Null start date = nothing to anchor to yet.
+function repeatModeLabels(frequency: Frequency, startYMD: string): { day_of_month: string; nth_weekday: string } | null {
+  if (!startYMD) return null;
+  const d = new Date(`${startYMD}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const nth = ORDINAL_WORDS[Math.ceil(d.getDate() / 7) - 1] ?? "last";
+  const weekday = WEEKDAY_NAMES[d.getDay()];
+  if (frequency === "yearly") {
+    const month = MONTH_NAMES[d.getMonth()];
+    return {
+      day_of_month: `On ${month} ${d.getDate()} every year`,
+      nth_weekday: `On the ${nth} ${weekday} of ${month} every year`,
+    };
+  }
+  return {
+    day_of_month: `On the ${ordinalNumber(d.getDate())} of every month`,
+    nth_weekday: `On the ${nth} ${weekday} of every month`,
+  };
+}
+
+// Coin amounts are always shown to 2 decimals — typing "0.10" must not settle back to "0.1" when
+// the field is re-rendered from state. Empty / unparseable input is left alone so the user can keep
+// editing (and an emptied field still means "no override").
+function normalizeCoinInput(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "") return "";
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n >= 0 ? n.toFixed(2) : value;
+}
+
 function taskToForm(t: Task): TaskFormState {
   return {
     kind: t.kind,
@@ -371,11 +484,12 @@ function taskToForm(t: Task): TaskFormState {
     description: t.description ?? "",
     difficulty: t.difficulty,
     frequency: t.frequency,
+    repeat_mode: t.repeat_mode ?? "day_of_month",
     every_n: String(t.every_n ?? 1),
     days_of_week: t.days_of_week ? t.days_of_week.split(",").filter(Boolean) : [],
     start_date: t.start_date ?? "",
     window_days: String(t.window_days ?? 1),
-    reward_override: t.manual_reward_override != null ? String(t.manual_reward_override) : "",
+    reward_override: t.manual_reward_override != null ? t.manual_reward_override.toFixed(2) : "",
     subtasksDraft: t.subtasks.map((s) => ({ id: s.id, title: s.title, done: s.done })),
     originalSubtasks: t.subtasks.map((s) => ({ id: s.id, done: s.done })),
     newSubtaskInput: "",
@@ -419,12 +533,14 @@ export default function QuestHomePage() {
   const [retroLookbackDays, setRetroLookbackDays] = useState<number>(14);
   const [state, setState] = useState<UserState>({ health: 50, max_health: 50, last_damage_check_date: null });
 
-  // INPUT
-  const [filter, setFilter] = useState<TaskFilter>("daily");
-  const [showCompletedDailies, setShowCompletedDailies] = useState(true);
-  const [showCompletedTodos, setShowCompletedTodos] = useState(false);
-  const [showAllDailies, setShowAllDailies] = useState(false);
-  const [moveCompletedToBottom, setMoveCompletedToBottom] = useState(true);
+  // INPUT — the task-list view preferences seed from localStorage on first render (see
+  // readViewPreferences) so the user's last selection is already applied before the first paint.
+  const [filter, setFilter] = useState<TaskFilter>(() => readViewPreferences().filter);
+  const [showCompletedDailies, setShowCompletedDailies] = useState(() => readViewPreferences().showCompletedDailies);
+  const [showCompletedTodos, setShowCompletedTodos] = useState(() => readViewPreferences().showCompletedTodos);
+  const [showAllDailies, setShowAllDailies] = useState(() => readViewPreferences().showAllDailies);
+  const [moveCompletedToBottom, setMoveCompletedToBottom] = useState(() => readViewPreferences().moveCompletedToBottom);
+  const [hideDailyTasksInCalendar, setHideDailyTasksInCalendar] = useState(() => readViewPreferences().hideDailyTasksInCalendar);
   const [taskForm, setTaskForm] = useState<TaskFormState | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   // Whether the task modal's collapsible "Advanced" scheduling section is expanded.
@@ -440,6 +556,8 @@ export default function QuestHomePage() {
   const [habitDifficulty, setHabitDifficulty] = useState<Difficulty>("easy");
   const [habitAllowPositive, setHabitAllowPositive] = useState(true);
   const [habitAllowNegative, setHabitAllowNegative] = useState(true);
+  // Manual reward override as a string for the input. Empty string = no override (use difficulty).
+  const [habitRewardOverride, setHabitRewardOverride] = useState("");
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
 
   // STATE
@@ -448,7 +566,7 @@ export default function QuestHomePage() {
   const [error, setError] = useState<string | null>(null);
   const [deathInfo, setDeathInfo] = useState<{ reason: string; coins_lost: number } | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const [mobileTab, setMobileTab] = useState<"tasks" | "habits" | "rewards" | "calendar">("tasks");
+  const [mobileTab, setMobileTab] = useState<"tasks" | "habits" | "rewards">("tasks");
   const [taskModalClosing, setTaskModalClosing] = useState(false);
   const [habitModalClosing, setHabitModalClosing] = useState(false);
   const [deathModalClosing, setDeathModalClosing] = useState(false);
@@ -468,6 +586,10 @@ export default function QuestHomePage() {
   const gambleCycleRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [rewardTipHoverId, setRewardTipHoverId] = useState<string | null>(null);
   const [rewardTipPinnedId, setRewardTipPinnedId] = useState<string | null>(null);
+  // Sum of costs for reward spends that are in flight (request sent, response not yet back).
+  // A ref because it must be read synchronously inside spendReward, ahead of the next render —
+  // the `disabled` prop alone can't stop two clicks fired before React re-renders in between.
+  const pendingRewardSpendRef = useRef<number>(0);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   // DAY NAVIGATION (forage-timeline-style) — the date the Tasks card is showing. null == follow
   // today; an explicit YYYY-MM-DD pins the day-view. Stepping off today swaps the live task list
@@ -644,6 +766,24 @@ export default function QuestHomePage() {
       // ignore — invalid JSON just starts empty
     }
   }, []);
+
+  // Persist the task-list view preferences whenever the user changes a filter chip or a
+  // view-options toggle, so the next visit restores the same selection.
+  useEffect(() => {
+    try {
+      const preferences: QuestViewPreferences = {
+        filter,
+        showCompletedDailies,
+        showCompletedTodos,
+        showAllDailies,
+        moveCompletedToBottom,
+        hideDailyTasksInCalendar,
+      };
+      localStorage.setItem(QUEST_VIEW_PREFERENCES_KEY, JSON.stringify(preferences));
+    } catch {
+      // ignore — a full/blocked localStorage just means preferences aren't remembered
+    }
+  }, [filter, showCompletedDailies, showCompletedTodos, showAllDailies, moveCompletedToBottom, hideDailyTasksInCalendar]);
 
   // Effective visual streak for a habit: shows the stored count only if the stored date is today.
   // Anything older renders as 0 — the count is a within-day tally that clears on the next day.
@@ -1080,6 +1220,24 @@ export default function QuestHomePage() {
     setTaskForm(taskToForm(t));
   }
 
+  // Blank task form scheduled on a calendar day (double-click on a day cell). Opens as a daily —
+  // the modal's kind toggle switches it to a todo, which keeps the same start date as its scheduled
+  // day rather than a cadence.
+  function openCreateTaskModalOnDate(date: string) {
+    setError(null);
+    setEditingTaskId(null);
+    setTaskAdvancedOpen(false);
+    setTaskForm({ ...blankTaskForm("daily"), start_date: date });
+  }
+
+  // Same edit modal as the Tasks card, addressed by id — the calendar hands back a task id from a
+  // day cell rather than the task object.
+  function openEditTaskModalById(taskId: string) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    openEditTaskModal(task);
+  }
+
   function closeTaskModal() {
     animateCloseTaskModal();
   }
@@ -1196,6 +1354,8 @@ export default function QuestHomePage() {
       every_n: Number(taskForm.every_n) || 1,
       days_of_week: taskForm.days_of_week.length > 0 ? taskForm.days_of_week.join(",") : null,
       start_date: taskForm.start_date || null,
+      // Only monthly / yearly carry a calendar anchor; the API stores NULL for the rest.
+      repeat_mode: repeatModeApplies(taskForm.frequency) ? taskForm.repeat_mode : null,
       window_days: windowDays,
       manual_reward_override: manualReward,
       reminders: taskForm.reminders,
@@ -1229,6 +1389,7 @@ export default function QuestHomePage() {
                 every_n: Number(taskForm.every_n) || 1,
                 days_of_week: payload.days_of_week as string | null,
                 start_date: (payload.start_date as string | null) ?? null,
+                repeat_mode: payload.repeat_mode as RepeatMode | null,
                 window_days: windowDays,
                 manual_reward_override: manualReward,
                 reward_value: reward,
@@ -1347,6 +1508,7 @@ export default function QuestHomePage() {
       days_of_week: payload.days_of_week as string | null,
       every_n: Number(taskForm.every_n) || 1,
       start_date: (payload.start_date as string | null) ?? null,
+      repeat_mode: payload.repeat_mode as RepeatMode | null,
       window_days: windowDays,
       deferred_to_date: null,
       subtasks: optimisticSubtasks,
@@ -1716,6 +1878,16 @@ export default function QuestHomePage() {
         body: JSON.stringify({ done: willBeDone }),
       });
       if (!res.ok) throw new Error();
+      // The server refuses to check a subtask back on once its parent daily is already complete
+      // (that completion zeroed the subtasks for the next cycle). That's the losing side of a
+      // rapid tick-then-complete race, so reconcile: undo the optimistic tick and the coins.
+      const data = await res.json().catch(() => null);
+      if (data?.subtask && data.subtask.done !== willBeDone) {
+        patchTaskSubtasks(taskId, (subs) =>
+          subs.map((s) => (s.id === subId ? { ...s, ...data.subtask } : s)),
+        );
+        if (optimisticDelta !== 0) setBalance((b) => b - optimisticDelta);
+      }
     } catch {
       refresh();
     }
@@ -1758,23 +1930,39 @@ export default function QuestHomePage() {
 
   async function addReward() {
     setError(null);
+    const name = newRewardName.trim();
     const cost = Number(newRewardCost);
-    if (!newRewardName.trim() || !Number.isInteger(cost) || cost <= 0) {
+    if (!name || !Number.isInteger(cost) || cost <= 0) {
       setError("Reward needs a name and positive integer cost");
       return;
     }
-    const res = await fetch("/modules/quest/api/rewards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newRewardName, cost }),
-    });
-    if (res.ok) {
-      setNewRewardName("");
-      setNewRewardCost("");
+
+    // OPTIMISTIC CREATE — paint the reward row and clear the form now, POST in the background.
+    // Mirrors submitTaskForm: a `tmp-` row stands in until the server row replaces it, and a
+    // failed POST pulls the row back out with a loud toast (see the background sync below).
+    const tempId = `tmp-${Date.now()}-${Math.random()}`;
+    const optimisticReward: Reward = { id: tempId, name, cost };
+    setRewards((prev) => sortRewards([...prev, optimisticReward]));
+    setNewRewardName("");
+    setNewRewardCost("");
+
+    // BACKGROUND SYNC — swap the stand-in for the server row, or roll it back on failure.
+    try {
+      const res = await fetch("/modules/quest/api/rewards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, cost }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? "Failed to add reward");
+      }
+      const created: Reward = await res.json();
+      setRewards((prev) => sortRewards(prev.map((r) => (r.id === tempId ? created : r))));
+    } catch (e) {
+      setRewards((prev) => prev.filter((r) => r.id !== tempId));
+      toast.error(e instanceof Error && e.message ? e.message : "Failed to add reward");
       refresh();
-    } else {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "Failed to add reward");
     }
   }
 
@@ -1782,14 +1970,28 @@ export default function QuestHomePage() {
     setError(null);
     const r = rewards.find((x) => x.id === id);
     if (!r) return;
+    // Guard against a double-tap / two-tab race: two clicks fired before React re-renders the
+    // disabled state would otherwise both pass the (now stale) canAfford check. Check against
+    // balance minus what's already been optimistically committed but not yet confirmed.
+    if (balance - pendingRewardSpendRef.current < r.cost) {
+      toast.error("Insufficient balance");
+      return;
+    }
+    pendingRewardSpendRef.current += r.cost;
     // OPTIMISTIC
     setBalance((b) => b - r.cost);
     toast(`−${r.cost} coins · ${r.name}`, { icon: "🎁" });
     try {
       const res = await fetch(`/modules/quest/api/rewards/${id}/spend`, { method: "POST" });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error ?? "Could not spend on reward");
+        throw new Error();
+      }
     } catch {
       refresh();
+    } finally {
+      pendingRewardSpendRef.current -= r.cost;
     }
   }
 
@@ -1975,6 +2177,7 @@ export default function QuestHomePage() {
     setHabitDifficulty("easy");
     setHabitAllowPositive(true);
     setHabitAllowNegative(true);
+    setHabitRewardOverride("");
     setHabitModalOpen(true);
   }
 
@@ -1984,6 +2187,7 @@ export default function QuestHomePage() {
     setHabitDifficulty(h.difficulty);
     setHabitAllowPositive(h.allow_positive);
     setHabitAllowNegative(h.allow_negative);
+    setHabitRewardOverride(h.manual_reward_override != null ? h.manual_reward_override.toFixed(2) : "");
     setHabitModalOpen(true);
   }
 
@@ -1996,11 +2200,17 @@ export default function QuestHomePage() {
     }
     setSubmitting(true);
     try {
+      // Manual reward override: empty input = null (use difficulty); a finite >=0 number sets it.
+      const overrideTrimmed = habitRewardOverride.trim();
+      const overrideNum = overrideTrimmed === "" ? null : Number(overrideTrimmed);
+      const manualReward =
+        overrideNum != null && Number.isFinite(overrideNum) && overrideNum >= 0 ? overrideNum : null;
       const payload = {
         title,
         difficulty: habitDifficulty,
         allow_positive: habitAllowPositive,
         allow_negative: habitAllowNegative,
+        manual_reward_override: manualReward,
       };
       const url = editingHabitId
         ? `/modules/quest/api/habits/${editingHabitId}`
@@ -2037,7 +2247,12 @@ export default function QuestHomePage() {
   async function tapHabit(id: string, direction: "positive" | "negative") {
     const h = habits.find((x) => x.id === id);
     if (h) {
-      const mag = computedReward(h.difficulty, "habit");
+      // A manual override replaces the difficulty-derived reward on the positive tap only; the
+      // negative tap's coin damage stays difficulty-driven (mirrors lib/habitFunctions tapHabit).
+      const mag =
+        direction === "positive" && h.manual_reward_override != null
+          ? Math.max(0, h.manual_reward_override)
+          : computedReward(h.difficulty, "habit");
       if (direction === "positive" && h.allow_positive) {
         setBalance((b) => b + mag);
         // Bump the visual-only streak. Within today: each positive tap increments. Stale (any
@@ -2121,7 +2336,9 @@ export default function QuestHomePage() {
           style={{ zIndex: 40, cursor: "grabbing", background: "transparent" }}
         />
       )}
-      <div className="page-container">
+      {/* quest-home-container: wider measure + trimmed padding on desktop so the full-width
+          calendar row gets the horizontal room (see globals.css). */}
+      <div className="page-container quest-home-container">
 
         {/* HEADER */}
         <div className="mb-6 flex items-center justify-between gap-2">
@@ -2206,9 +2423,11 @@ export default function QuestHomePage() {
           </div>
         )}
 
-        {/* MOBILE TAB BAR */}
+        {/* MOBILE TAB BAR — "calendar" isn't a tab: a phone can't show a month grid AND this page's
+            chrome usefully, so it navigates to the dedicated calendar page, which owns the whole
+            viewport. The other three switch cards in place as before. */}
         <div className="lg:hidden flex border-b border-gray-700 mb-4">
-          {(["tasks", "habits", "rewards", "calendar"] as const).map((t) => (
+          {(["tasks", "habits", "rewards"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setMobileTab(t)}
@@ -2219,9 +2438,20 @@ export default function QuestHomePage() {
               {t}
             </button>
           ))}
+
+          {/* CALENDAR — navigates instead of switching */}
+          <button
+            onClick={() => router.push("/modules/quest/ui/calendar")}
+            className="flex-1 py-2 text-sm font-semibold capitalize cursor-pointer border-b-2 border-transparent text-secondary flex items-center justify-center gap-1"
+          >
+            calendar
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* CARD GRID — one row of three on desktop (tasks / habits / spending) with the calendar
+            spanning the full width beneath them. One column, tab-switched, on mobile. */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
           {/* TASKS CARD */}
           <section className={`card ${mobileTab === "tasks" ? "" : "!hidden"} lg:!block`}>
@@ -2916,14 +3146,14 @@ export default function QuestHomePage() {
                 Rewards
               </h3>
 
-              {/* REWARD CREATE FORM */}
-              <div className="flex flex-col sm:flex-row gap-2 mb-3">
+              {/* REWARD CREATE FORM — wraps rather than squeezing the name field in a narrow column */}
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 mb-3">
                 <input
                   type="text"
                   placeholder="Reward name"
                   value={newRewardName}
                   onChange={(e) => setNewRewardName(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <input
@@ -2932,12 +3162,12 @@ export default function QuestHomePage() {
                   min={1}
                   value={newRewardCost}
                   onChange={(e) => setNewRewardCost(e.target.value)}
-                  className="w-24 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <button
                   onClick={addReward}
-                  className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 cursor-pointer"
+                  className="shrink-0 px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   Add
@@ -2950,10 +3180,14 @@ export default function QuestHomePage() {
                   <li className="text-secondary text-sm">No rewards yet — define what you spend coins on.</li>
                 )}
                 {rewards.map((r) => {
-                  const canAfford = balance >= r.cost;
+                  // A `tmp-` id means the optimistic stand-in is still awaiting its server row —
+                  // spend/delete would address an id the API has never seen, so hold them until
+                  // the background sync swaps the real row in.
+                  const isPending = r.id.startsWith("tmp-");
+                  const canAfford = balance >= r.cost && !isPending;
                   return (
                     <li key={r.id} className="flex items-center gap-2 p-3 rounded border border-gray-600">
-                      <span className="flex-1">{r.name}</span>
+                      <span className="flex-1 min-w-0 truncate" title={r.name}>{r.name}</span>
 
                       <span className="text-yellow-500 flex items-center gap-1 tabular-nums">
                         <Coins className="w-4 h-4" />
@@ -2974,7 +3208,8 @@ export default function QuestHomePage() {
 
                       <button
                         onClick={() => deleteReward(r.id)}
-                        className="p-1.5 rounded hover:bg-red-500/20 text-red-500 cursor-pointer"
+                        disabled={isPending}
+                        className="p-1.5 rounded hover:bg-red-500/20 text-red-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -2992,14 +3227,14 @@ export default function QuestHomePage() {
                 Debts
               </h3>
 
-              {/* DEBT CREATE FORM */}
-              <div className="flex flex-col sm:flex-row gap-2 mb-3">
+              {/* DEBT CREATE FORM — wraps rather than squeezing the name field in a narrow column */}
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 mb-3">
                 <input
                   type="text"
                   placeholder="Debt name"
                   value={newDebtName}
                   onChange={(e) => setNewDebtName(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <input
@@ -3008,12 +3243,12 @@ export default function QuestHomePage() {
                   min={1}
                   value={newDebtAmount}
                   onChange={(e) => setNewDebtAmount(e.target.value)}
-                  className="w-24 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <button
                   onClick={addDebt}
-                  className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 cursor-pointer"
+                  className="shrink-0 px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   Add
@@ -3029,7 +3264,7 @@ export default function QuestHomePage() {
                   const canPay = balance > 0;
                   return (
                     <li key={d.id} className="flex items-center gap-2 p-3 rounded border border-gray-600">
-                      <span className="flex-1">{d.name}</span>
+                      <span className="flex-1 min-w-0 truncate" title={d.name}>{d.name}</span>
 
                       {/* REMAINING AMOUNT */}
                       <span className="text-red-400 flex items-center gap-1 tabular-nums">
@@ -3075,14 +3310,14 @@ export default function QuestHomePage() {
                 Deduct coins for IRL purchases that aren&apos;t on the menu.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
                 <input
                   type="number"
                   placeholder="Amount"
                   min={1}
                   value={adhocAmount}
                   onChange={(e) => setAdhocAmount(e.target.value)}
-                  className="w-28 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <input
@@ -3090,12 +3325,12 @@ export default function QuestHomePage() {
                   placeholder="What did you buy?"
                   value={adhocNote}
                   onChange={(e) => setAdhocNote(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <button
                   onClick={spendAdhoc}
-                  className="px-4 py-2 rounded bg-yellow-600 hover:bg-yellow-700 text-white cursor-pointer"
+                  className="shrink-0 px-4 py-2 rounded bg-yellow-600 hover:bg-yellow-700 text-white cursor-pointer"
                 >
                   Spend
                 </button>
@@ -3103,9 +3338,32 @@ export default function QuestHomePage() {
             </div>
           </section>
 
-          {/* CALENDAR WIDGET CARD — bottom-right cell on desktop; "calendar" tab on mobile. */}
-          <section className={`card ${mobileTab === "calendar" ? "" : "!hidden"} lg:!block`}>
-            <QuestCalendarWidget tasks={tasks} today={simulationDate ?? localTodayYMD()} />
+          {/* CALENDAR WIDGET CARD — full-width row under the three cards on desktop (the width is
+              what earns the per-day task detail); "calendar" tab on mobile. */}
+          {/* CALENDAR — desktop only (mobile's calendar tab navigates to the full page instead).
+              lg:!flex, not !block: the shell is a flex column so the month grid can stretch to the
+              card's 95vh height. */}
+          <section className="card quest-cal-shell lg:col-span-3 !hidden lg:!flex">
+            <QuestCalendarWidget
+              tasks={tasks}
+              today={simulationDate ?? localTodayYMD()}
+              hideDailyTasks={hideDailyTasksInCalendar}
+              onSelectTask={openEditTaskModalById}
+              onCreateTask={openCreateTaskModalOnDate}
+            />
+
+            {/* DAY-DETAIL FILTER — every-day tasks fill every cell and bury the weekly/monthly ones,
+                so they're dropped from the day detail by default. Persisted with the other view
+                preferences. Only meaningful where the day detail renders (lg and up). */}
+            <label className="hidden lg:flex items-center gap-2 mt-3 text-xs text-secondary cursor-pointer w-fit">
+              <input
+                type="checkbox"
+                checked={hideDailyTasksInCalendar}
+                onChange={(e) => setHideDailyTasksInCalendar(e.target.checked)}
+                className="cursor-pointer"
+              />
+              Hide daily tasks
+            </label>
           </section>
 
         </div>
@@ -3168,6 +3426,46 @@ export default function QuestHomePage() {
 
             {/* MODAL BODY */}
             <div className="px-5 py-5 space-y-5">
+
+              {/* KIND TOGGLE — creating only. Two cards rather than a bare segmented control: the
+                  choice changes which fields exist below, so each option says what it means. A todo
+                  keeps the Start Date (its scheduled day) but drops the cadence fields; switching
+                  kind mid-form keeps everything else typed. */}
+              {!editingTaskId && (
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { kind: "daily", label: "Daily", hint: "Repeats on a schedule", Icon: Repeat },
+                    { kind: "todo", label: "Todo", hint: "One-off, on a set day", Icon: ListTodo },
+                  ] as const).map(({ kind, label, hint, Icon }) => {
+                    const active = taskForm.kind === kind;
+                    return (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() => setTaskForm({ ...taskForm, kind })}
+                        className={`relative flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-left cursor-pointer transition-colors ${
+                          active
+                            ? "border-blue-500 bg-blue-500/15"
+                            : "border-gray-700 hover:border-gray-500 hover:bg-gray-800/60"
+                        }`}
+                      >
+
+                        {/* LABEL */}
+                        <span className={`flex items-center gap-1.5 text-sm font-semibold ${active ? "text-blue-400" : "text-gray-300"}`}>
+                          <Icon className="w-4 h-4" />
+                          {label}
+                        </span>
+
+                        {/* HINT */}
+                        <span className="text-[11px] leading-tight text-gray-400">{hint}</span>
+
+                        {/* SELECTED TICK */}
+                        {active && <Check className="w-3.5 h-3.5 text-blue-400 absolute top-2 right-2" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* TITLE */}
               <label className="block">
@@ -3261,6 +3559,7 @@ export default function QuestHomePage() {
                         step="0.01"
                         value={taskForm.reward_override}
                         onChange={(e) => setTaskForm({ ...taskForm, reward_override: e.target.value })}
+                        onBlur={(e) => setTaskForm({ ...taskForm, reward_override: normalizeCoinInput(e.target.value) })}
                         className="mt-0 w-full pl-9 pr-3 py-2 rounded border border-gray-600 bg-transparent tabular-nums"
                       />
                     </div>
@@ -3279,7 +3578,9 @@ export default function QuestHomePage() {
                 <span className="text-sm text-secondary block">Scheduling</span>
 
                 <label className="block">
-                  <span className="text-xs text-secondary">Start Date</span>
+                  <span className="text-xs text-secondary">
+                    {taskForm.kind === "daily" ? "Start Date" : "Scheduled Date"}
+                  </span>
                   <input
                     type="date"
                     value={taskForm.start_date}
@@ -3322,6 +3623,41 @@ export default function QuestHomePage() {
                         />
                       </label>
                     </div>
+
+                    {/* REPEAT MODE — monthly / yearly only. Both options are derived from the start
+                        date, so they read as the real schedule instead of abstract modes. */}
+                    {repeatModeApplies(taskForm.frequency) && (() => {
+                      const labels = repeatModeLabels(taskForm.frequency, taskForm.start_date);
+                      if (!labels) {
+                        return (
+                          <p className="text-xs text-secondary">
+                            Pick a start date to choose how this repeats.
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="flex flex-col gap-1.5">
+                          {(["day_of_month", "nth_weekday"] as const).map((mode) => {
+                            const active = taskForm.repeat_mode === mode;
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setTaskForm({ ...taskForm, repeat_mode: mode })}
+                                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs cursor-pointer transition-colors ${
+                                  active
+                                    ? "border-blue-500 bg-blue-500/15 text-blue-400"
+                                    : "border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800/60"
+                                }`}
+                              >
+                                <span className={`w-3 h-3 rounded-full border shrink-0 ${active ? "border-blue-400 bg-blue-500" : "border-gray-500"}`} />
+                                {labels[mode]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
 
                     {/* DAYS OF WEEK (each selected day is independently required) */}
                     {taskForm.frequency === "daily" && (
@@ -3607,6 +3943,7 @@ export default function QuestHomePage() {
                   className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
               </label>
+              {/* DIFFICULTY */}
               <div>
                 <span className="text-sm text-secondary block mb-2">Difficulty</span>
                 <div className="grid grid-cols-4 gap-2">
@@ -3618,7 +3955,7 @@ export default function QuestHomePage() {
                         onClick={() => setHabitDifficulty(d)}
                         className={`flex flex-col items-center gap-1 py-3 rounded border cursor-pointer ${
                           selected
-                            ? "bg-blue-600/30 border-blue-500"
+                            ? "bg-blue-600/30 border-blue-500 text-primary"
                             : "border-gray-600 text-secondary hover:bg-gray-800"
                         }`}
                       >
@@ -3628,11 +3965,61 @@ export default function QuestHomePage() {
                           ))}
                         </span>
                         <span className="text-xs font-semibold">{DIFF_LABELS[d]}</span>
+                        <span className="text-xs text-yellow-500 flex items-center gap-0.5 tabular-nums">
+                          <Coins className="w-3 h-3" />
+                          {computedReward(d, "habit").toFixed(2)}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
               </div>
+
+              {/* CUSTOM REWARD OVERRIDE */}
+              <div>
+                {/* OVERRIDE TOGGLE */}
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={habitRewardOverride.trim() !== ""}
+                    onChange={(e) =>
+                      setHabitRewardOverride(
+                        e.target.checked ? computedReward(habitDifficulty, "habit").toFixed(2) : ""
+                      )
+                    }
+                    className="w-4 h-4 accent-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm text-secondary">Custom reward override</span>
+                </label>
+
+                {/* OVERRIDE INPUT — only when enabled */}
+                {habitRewardOverride.trim() !== "" && (
+                  <div className="mt-2">
+                    {/* COINS INPUT */}
+                    <div className="relative">
+                      <Coins className="w-4 h-4 text-yellow-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={habitRewardOverride}
+                        onChange={(e) => setHabitRewardOverride(e.target.value)}
+                        onBlur={(e) => setHabitRewardOverride(normalizeCoinInput(e.target.value))}
+                        className="mt-0 w-full pl-9 pr-3 py-2 rounded border border-gray-600 bg-transparent tabular-nums"
+                      />
+                    </div>
+
+                    {/* OVERRIDE HELP TEXT */}
+                    <p className="text-xs text-secondary mt-1">
+                      Replaces the difficulty-based coin reward on a (+) tap for this habit. The (−)
+                      tap&apos;s coin and HP damage stay difficulty-based.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* DIRECTIONS */}
               <div>
                 <span className="text-sm text-secondary block mb-2">Directions</span>
                 <div className="flex gap-2">
