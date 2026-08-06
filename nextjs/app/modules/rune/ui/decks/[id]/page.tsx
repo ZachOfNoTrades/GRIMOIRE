@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo, use } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
-import { ArrowLeft, Plus, Pencil, Trash2, Sparkles } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Sparkles, History } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import ExpandableRowList from "@/components/ExpandableRowList";
@@ -17,6 +17,7 @@ import StudySession, { StudyPreferences } from "../../../components/StudySession
 import ManageCardModal from "./cards/ManageCardModal";
 import DeleteCardModal from "./cards/DeleteCardModal";
 import RefineCardModal from "./cards/RefineCardModal";
+import CardHistoryModal from "./cards/CardHistoryModal";
 import RefineDeckModal from "./RefineDeckModal";
 import EditDeckModal from "./EditDeckModal";
 import DeleteDeckModal from "./DeleteDeckModal";
@@ -24,7 +25,6 @@ import DeleteDeckModal from "./DeleteDeckModal";
 export default function DeckDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const goBack = useGoBack();
 
   // DATA
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -53,6 +53,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [showEditDeck, setShowEditDeck] = useState(false);
   const [showDeleteDeck, setShowDeleteDeck] = useState(false);
   const [refiningCard, setRefiningCard] = useState<CardWithProgress | null>(null);
+  const [historyCard, setHistoryCard] = useState<CardWithProgress | null>(null); // card whose rating history is open
   const [showRefineDeck, setShowRefineDeck] = useState(false);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null); // which card's detail (front+back) is open in the row list
 
@@ -349,13 +350,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
       <div className="page">
         <main className="page-container">
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/rune/ui/decks")}
-            className="btn-link !pl-0 mb-4"
+          <BackLink
+            fallback="/modules/rune/ui/decks"
+            className="btn btn-link !pl-0 mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* NOT FOUND MESSAGE */}
           <div className="card">
@@ -377,13 +378,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
             <div className="flex items-center justify-between mb-4">
               <div>
                 {/* BACK BUTTON */}
-                <Button
-                  onClick={() => goBack("/modules/rune/ui/decks")}
-                  className="btn-link !pl-0"
+                <BackLink
+                  fallback="/modules/rune/ui/decks"
+                  className="btn btn-link !pl-0"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
-                </Button>
+                </BackLink>
 
                 {/* TITLE */}
                 <h1 className="text-page-title">{deck.name}</h1>
@@ -572,6 +573,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                       <>
                         <h3 className="text-card-title flex-1 min-w-0">{card.front}</h3>
                         <div className="flex items-center gap-1 shrink-0">
+                          <Button className="btn-link" aria-label="Rating history" title="Rating history" onClick={() => setHistoryCard(card)}>
+                            <History className="w-4 h-4" />
+                          </Button>
                           <Button className="btn-link" aria-label="Edit card" onClick={() => setEditingCard(card)}>
                             <Pencil className="w-4 h-4" />
                           </Button>
@@ -662,6 +666,13 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               deckId={id}
               onClose={() => setRefiningCard(null)}
               onRefined={handleCardRefined}
+            />
+
+            {/* CARD RATING HISTORY MODAL */}
+            <CardHistoryModal
+              card={historyCard}
+              deckId={id}
+              onClose={() => setHistoryCard(null)}
             />
 
             {/* EDIT DECK MODAL */}

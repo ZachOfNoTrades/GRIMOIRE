@@ -22,3 +22,13 @@ export interface CardWithProgress {
   // member deck — undefined for a single-deck fetch.
   deck_name?: string | null;
 }
+
+// One past rating of a card, straight out of card_reviews — the raw history
+// behind the SRS state on CardWithProgress.
+export interface CardReview {
+  id: string;
+  rating: number;
+  response_time_ms: number | null;
+  created_at: Date;
+  study_session_id: string;
+}

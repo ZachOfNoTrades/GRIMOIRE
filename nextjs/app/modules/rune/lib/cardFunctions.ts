@@ -1,5 +1,5 @@
 import { getRuneConnection, closeRuneConnection } from './db';
-import { CardWithProgress } from '../types/card';
+import { CardWithProgress, CardReview } from '../types/card';
 import { GeneratedCard, RefinedCard } from '../types/generation';
 
 export async function getCardsByDeckId(userId: string, deckId: string): Promise<CardWithProgress[]> {
@@ -55,6 +55,38 @@ export async function getCardById(userId: string, id: string): Promise<CardWithP
     return result.recordset[0] as CardWithProgress;
   } catch (error) {
     console.error('Error fetching card:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Every rating ever submitted for one card, newest first. The card row itself
+// only carries the latest rating + the current SRS state — this is the raw log
+// behind it, so a card's difficulty over time can be read directly.
+export async function getCardReviewHistory(userId: string, cardId: string): Promise<CardReview[]> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('cardId', cardId)
+      .query(`
+        SELECT cr.id, cr.rating, cr.response_time_ms, cr.created_at, cr.study_session_id
+        FROM card_reviews cr
+        WHERE cr.card_id = @cardId AND cr.user_id = @userId
+        ORDER BY cr.created_at DESC
+      `);
+
+    if (result.recordset.length === 0) {
+      console.warn(`No card reviews found for card id: '${cardId}'`);
+    }
+
+    return result.recordset as CardReview[];
+  } catch (error) {
+    console.error('Error fetching card review history:', error);
     throw error;
   } finally {
     if (pool) {
