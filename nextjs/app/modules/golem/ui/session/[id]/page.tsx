@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, use } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -185,7 +185,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   ].sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
 
   const router = useRouter();
-  const goBack = useGoBack();
   const searchParams = useSearchParams();
   const isNewSession = searchParams.get("new") === "true";
 
@@ -373,7 +372,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setEditedSessionDescription(session.description || "");
     setEditedSessionReview(session.review || "");
     if (session.started_at) {
-      setEditedStartDate(new Date(session.started_at).toISOString().split("T")[0]);
+      // Local Y-M-D, not toISOString's UTC day -- must match the local-timezone
+      // write in handleSaveSession's setFullYear() below, or editing near local
+      // midnight silently shifts started_at by a day.
+      const startedAt = new Date(session.started_at);
+      const localYmd = `${startedAt.getFullYear()}-${String(startedAt.getMonth() + 1).padStart(2, "0")}-${String(startedAt.getDate()).padStart(2, "0")}`;
+      setEditedStartDate(localYmd);
     }
     if (session.duration != null) {
       setEditedDuration(secondsToHHMMSS(session.duration));
@@ -951,10 +955,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
 
           {/* BACK BUTTON */}
-          <Button className="btn-link self-start sm:self-auto mb-2 sm:mb-0" onClick={() => goBack("/modules/golem/ui/home")}>
+          <BackLink fallback="/modules/golem/ui/home" className="btn btn-link self-start sm:self-auto mb-2 sm:mb-0">
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <h1 className="text-page-title !mb-0">{session.name}</h1>
