@@ -1,5 +1,6 @@
 import sql from 'mssql';
 import { getFoodConnection, closeFoodConnection } from './db';
+import { escapeLike } from './foodFunctions';
 import { Recipe, RecipeIngredient, RecipeIngredientInput, CreateRecipeInput } from '../types/recipe';
 import { FoodNutrient, FoodServing } from '../types/food';
 
@@ -192,8 +193,18 @@ export async function listRecipes(
     const req = pool.request().input('userId', sql.UniqueIdentifier, userId);
     let where = `f.user_id = @userId AND f.is_archived = 0 AND f.source = 'recipe'`;
     if (search) {
-      req.input('q', sql.NVarChar(255), `%${search}%`);
-      where += ' AND f.name LIKE @q';
+      // Token-based search, identical to listFoods: trim the query, split it on
+      // whitespace and require EVERY token to appear in the name. Trimming matters
+      // because the logger's search box is shared between the Search and Recipes
+      // tabs, and a mobile keyboard readily appends a trailing space — a raw
+      // `LIKE '%shake %'` then matched nothing while the foods tab still found
+      // "Shake". Tokens also let "protein shake" match "Shake, protein".
+      const tokens = search.trim().split(/\s+/).filter(Boolean);
+      tokens.forEach((token, index) => {
+        const param = `q${index}`;
+        req.input(param, sql.NVarChar(255), `%${escapeLike(token)}%`);
+        where += ` AND f.name LIKE @${param} ESCAPE '\\'`;
+      });
     }
     // Always join each recipe's most-recent log time (MAX ts_logged over this
     // user's entries) so every row carries `last_used` — the picker sorts the

@@ -156,6 +156,31 @@ export default function ForageRecipesPage() {
           </div>
         </div>
 
+        {/* SEARCH — pinned under the header rather than at the shell's bottom edge.
+            The locked full-height shell is sized to --app-height, which on Firefox
+            Android is 100lvh (the LARGE viewport); when that shell is anchored flush
+            to the layout-viewport top, its bottom ~(lvh - dvh) px hang below the
+            visible area, and nothing scrolls them back into view (the container is
+            height:100% and the list owns the only scroll). A 42px input parked there
+            was left all but invisible — reported as "too far down". Anchoring to the
+            top instead sidesteps the whole lvh/dvh question, and matches the sibling
+            food-library page's filter placement. */}
+        <div className="flex flex-col gap-1" style={{ marginBottom: "0.75rem" }}>
+          <div style={{ position: "relative" }}>
+            <Search className="w-4 h-4" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--color-gray)", pointerEvents: "none" }} />
+            <input
+              id="recipes-search"
+              type="search"
+              className="input-field"
+              placeholder="Filter recipes"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoCapitalize="words"
+              style={{ paddingLeft: "2.25rem" }}
+            />
+          </div>
+        </div>
+
         {/* RECIPE LIST */}
         <div className="flex flex-col" style={{ flex: 1, overflowY: "auto" }}>
 
@@ -219,23 +244,6 @@ export default function ForageRecipesPage() {
               </button>
             );
           })}
-        </div>
-
-        {/* BOTTOM SEARCH BAR */}
-        <div style={{ position: "sticky", bottom: 0, paddingTop: "0.5rem", paddingBottom: "0.5rem" }}>
-          <div style={{ position: "relative" }}>
-            <Search className="w-4 h-4" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--color-gray)", pointerEvents: "none" }} />
-            <input
-              id="recipes-search"
-              type="search"
-              className="input-field"
-              placeholder="Filter recipes"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoCapitalize="words"
-              style={{ paddingLeft: "2.25rem" }}
-            />
-          </div>
         </div>
 
         {/* TOAST */}
