@@ -6,6 +6,7 @@ import { ImageOff } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { preloadImage, getCachedImageDimensions, type ImageDimensions } from "../lib/imagePreload";
+import ImageLightbox from "./ImageLightbox";
 
 interface CardContentProps {
   text: string;
@@ -40,6 +41,8 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   // (which already preloaded + measured the image) reserves the right box on the
   // very first paint — no fixed-placeholder → image size jump.
   const [dimensions, setDimensions] = useState<ImageDimensions | undefined>(() => getCachedImageDimensions(src));
+  // Whether the full-screen preview is open for this image.
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     if (!src) { setStatus("error"); return; }
@@ -60,8 +63,38 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   }, [src]);
 
   if (status === "loaded") {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={alt || ""} className="card-content-image" />;
+    // Cards cap an inline image at 16rem tall, which is often too small to read —
+    // clicking/tapping it opens the full-screen preview. stopPropagation keeps the
+    // click off the surrounding surface: on a study card's front face, a bare click
+    // anywhere is "tap to reveal", and we don't want the card flipping underneath
+    // the preview. role/tabIndex/Enter+Space keep it reachable from the keyboard.
+    return (
+      <>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt || ""}
+          className="card-content-image"
+          role="button"
+          tabIndex={0}
+          title="Click to view full screen"
+          onClick={(e) => { e.stopPropagation(); setShowPreview(true); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowPreview(true);
+            }
+          }}
+        />
+
+        {/* FULL-SCREEN IMAGE PREVIEW — portals to <body>, so nesting inside the
+            markdown <p> is fine */}
+        {showPreview && src && (
+          <ImageLightbox src={src} alt={alt} onClose={() => setShowPreview(false)} />
+        )}
+      </>
+    );
   }
 
   // When we know the image's natural size, reserve a box with the same aspect

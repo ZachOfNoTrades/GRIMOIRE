@@ -5200,12 +5200,57 @@ button.list-row:disabled {
   padding: 0.25rem 0.5rem;
 }
 
-/* IMAGE — capped so a pasted full-resolution photo doesn't blow out the card. */
+/* IMAGE — capped so a pasted full-resolution photo doesn't blow out the card.
+   Clicking it opens the full-screen preview below, hence the zoom cursor. */
 .card-content-image {
   max-width: 100%;
   max-height: 16rem;
   border-radius: 0.375rem;
   margin: 0.5rem 0;
+  cursor: zoom-in;
+}
+
+/* FULL-SCREEN IMAGE PREVIEW — opened by clicking an image in a rendered card
+   (see ImageLightbox.tsx). Sits above the modal layer (z-index 50) because a
+   card's content is also rendered inside modals (refine/edit card).
+   --visible-vh is the REAL on-screen height (see lib/useAppHeight); Firefox
+   Android reports a viewport it doesn't paint, so plain 100dvh is only a
+   fallback. overscroll-behavior stops wheel/touch from chaining to the page
+   behind, which the app shells' inner .page-scroll container would otherwise do. */
+.card-image-lightbox {
+  position: fixed;
+  inset: 0;
+  height: var(--visible-vh, var(--app-height, 100dvh));
+  background-color: var(--modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 70;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  cursor: zoom-out;
+  animation: modal-backdrop-in 200ms ease-out;
+}
+
+/* PREVIEW IMAGE — scaled to fit the overlay, never upscaled past its own size. */
+.card-image-lightbox-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: default;
+}
+
+/* PREVIEW CLOSE BUTTON — floats over the top-right corner of the overlay. It sits
+   on the dark backdrop rather than a surface, so it carries its own card-coloured
+   chip; the bare btn-link ink is near-invisible against the backdrop in light mode. */
+.card-image-lightbox-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
 }
 
 /* VIDEO — inline clip player, capped like the image so it doesn't dominate the card. */
