@@ -11,6 +11,7 @@ import {
   FAT_BREAKDOWN_CODES,
   CARB_BREAKDOWN_CODES,
   PROTEIN_BREAKDOWN_CODES,
+  nutrientColorForCategory,
 } from "../../utils/nutrientGroups";
 import { MACROS, byNutrientOrder } from "../../utils/nutrientLedger";
 
@@ -40,13 +41,10 @@ const MACRO_META: Record<string, { label: string; subtitle: string; unit: string
 
 // Swatch color for a nutrient card, grouped by macro family / category so the
 // dashboard reads coherently (sugars green with carbs, sat fat purple with fat).
+// Delegates to the shared code+category resolver so the dashboard tile and the
+// check-in wizard's dashboard review can never drift on color.
 export function nutrientCardColor(n: Nutrient): string {
-  if (FAT_BREAKDOWN_CODES.has(n.code)) return "var(--fg-fat)";
-  if (CARB_BREAKDOWN_CODES.has(n.code)) return "var(--fg-carb)";
-  if (PROTEIN_BREAKDOWN_CODES.has(n.code)) return "var(--fg-protein)";
-  if (n.category === "vitamin") return "var(--fg-vitamin)";
-  if (n.category === "mineral") return "var(--fg-mineral)";
-  return "var(--fg-other)";
+  return nutrientColorForCategory(n.code, n.category);
 }
 
 const macroTotal = (key: string, totals: DailyTotals): number => {

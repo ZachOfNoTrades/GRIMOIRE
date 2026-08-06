@@ -15,8 +15,10 @@ import { DailyTotals } from "../../types/entry";
 import { MacroTarget } from "../../types/target";
 import { WeightEntry } from "../../types/weight";
 import { Nutrient, ResolvedNutrientTarget } from "../../types/food";
+import { ExpenditureSummary } from "../../types/expenditure";
 import { DEFAULT_NUTRITION_CARDS } from "../../types/dashboard";
 import { resolveNutritionCard, ResolvedCard } from "./nutritionCards";
+import { weightTrendSummary, normalizedDomain, WEIGHT_CHART_MIN_SPAN_LB } from "./weightTrend";
 import { NutrientMeter, NutrientBand, bandDisplay, ProgramTargetMark } from "../nutrition/nutrientMeter";
 import HelpButton from "@/components/ui/HelpButton";
 import {
@@ -102,6 +104,10 @@ export default function ForageHomeClient({
   const [weekData, setWeekData] = useState<Record<string, DailyTotals>>(initialWeekData ?? {});
   const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
   const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
+  // Adaptive expenditure (TDEE) from the server's energy-balance model. The
+  // dashboard used to label average INTAKE as "Expenditure", which is a
+  // different number entirely — this is the real one.
+  const [expenditure, setExpenditure] = useState<ExpenditureSummary | null>(null);
   // Nutrient reference + resolved bands power the customizable Nutrition cards
   // (micronutrient cards need a label/unit/color and a target). Day-independent.
   const [nutrients, setNutrients] = useState<Nutrient[]>(initialNutrients ?? []);
@@ -166,9 +172,10 @@ export default function ForageHomeClient({
   async function fetchHistory() {
     const since = shiftDate(todayIso(), -29);
     try {
-      const [wRes, aRes] = await Promise.all([
+      const [wRes, aRes, xRes] = await Promise.all([
         fetch(`/modules/forage/api/weight?since=${since}`),
         fetch(`/modules/forage/api/entries/active-dates?since=${since}`),
+        fetch(`/modules/forage/api/expenditure`),
       ]);
       if (wRes.ok) {
         const w = await wRes.json();
@@ -177,6 +184,14 @@ export default function ForageHomeClient({
       if (aRes.ok) {
         const a = await aRes.json();
         setActiveDates(new Set(Array.isArray(a) ? a : []));
+      }
+      // Fetched alongside the weigh-ins because it's derived from them — a new
+      // weigh-in (onWeighIn → fetchHistory) can move the estimate. A single
+      // food entry can't meaningfully move a 28-day mean, so logging doesn't
+      // trigger a refetch.
+      if (xRes.ok) {
+        const x = await xRes.json();
+        if (x && Number.isFinite(x.expenditure_kcal)) setExpenditure(x as ExpenditureSummary);
       }
     } catch {
       // non-critical
@@ -279,6 +294,7 @@ export default function ForageHomeClient({
               weekData={weekData}
               target={target}
               totals={totals}
+              expenditure={expenditure}
               onPick={setDate}
             />
           </div>
@@ -296,7 +312,7 @@ export default function ForageHomeClient({
             <>
               {/* INSIGHTS & ANALYTICS */}
               <div className="fg-reveal" style={{ animationDelay: "60ms" }}>
-                <InsightsSection weekData={weekData} target={target} weightHistory={weightHistory} totals={totals} />
+                <InsightsSection weekData={weekData} target={target} weightHistory={weightHistory} totals={totals} expenditure={expenditure} />
               </div>
 
               {/* HABITS */}
@@ -438,12 +454,14 @@ function WeeklyNutritionPager({
   weekData,
   target,
   totals,
+  expenditure,
   onPick,
 }: {
   activeIso: string;
   weekData: Record<string, DailyTotals>;
   target: MacroTarget | null;
   totals: DailyTotals;
+  expenditure: ExpenditureSummary | null;
   onPick: (iso: string) => void;
 }) {
   const [page, setPage] = useState(0);
@@ -487,7 +505,7 @@ function WeeklyNutritionPager({
 
         {/* PAGE 2 — ENERGY BALANCE */}
         <div style={{ flex: "0 0 100%", scrollSnapAlign: "start" }}>
-          <EnergyBalancePage weekData={weekData} target={target} />
+          <EnergyBalancePage weekData={weekData} target={target} expenditure={expenditure} />
         </div>
 
         {/* PAGE 3 — DAILY NUTRITION DONUT */}
@@ -816,18 +834,27 @@ function isDayLogged(t: DailyTotals | undefined): boolean {
   return !!t && (t.kcal > 0 || t.protein_g > 0 || t.carbs_g > 0 || t.fat_g > 0);
 }
 
-function EnergyBalancePage({ weekData, target }: { weekData: Record<string, DailyTotals>; target: MacroTarget | null }) {
+function EnergyBalancePage({ weekData, target, expenditure }: { weekData: Record<string, DailyTotals>; target: MacroTarget | null; expenditure: ExpenditureSummary | null }) {
   const [mode, setMode] = useState<"expenditure" | "targets">("targets");
+  // The mode pills pick what intake is measured AGAINST: the coached daily
+  // target, or real expenditure (TDEE). The pills used to only restyle
+  // themselves — both readings rendered the target — so "Expenditure" showed a
+  // balance against a number it had nothing to do with. Expenditure falls back
+  // to the target when the estimate hasn't loaded (or failed) so the panel
+  // never renders a zero baseline.
   const dailyTarget = target?.kcal ?? 0;
-  // Only the days actually logged feed the Nutrition − Targets balance, so skipped
+  const dailyExpenditure = expenditure?.expenditure_kcal ?? dailyTarget;
+  const dailyBaseline = mode === "expenditure" ? dailyExpenditure : dailyTarget;
+  const baselineLabel = mode === "expenditure" ? "Expenditure" : "Targets";
+  // Only the days actually logged feed the Nutrition − baseline balance, so skipped
   // days stay neutral instead of reading as a phantom full-target deficit.
   const loggedDays = Object.keys(weekData).filter((d) => isDayLogged(weekData[d]));
   const loggedCount = loggedDays.length;
   const weekTotalKcal = loggedDays.reduce((s, d) => s + (weekData[d]?.kcal ?? 0), 0);
   // Aggregate week-level
   const nutritionWeek = Math.round(weekTotalKcal);
-  const targetWeek = dailyTarget * loggedCount;
-  const difference = nutritionWeek - targetWeek;
+  const baselineWeek = Math.round(dailyBaseline * loggedCount);
+  const difference = nutritionWeek - baselineWeek;
 
   return (
     /* ENERGY BALANCE PAGE */
@@ -838,7 +865,7 @@ function EnergyBalancePage({ weekData, target }: { weekData: Record<string, Dail
          band above it. The target reference line gives the remaining headroom
          meaning (distance to target) instead of reading as dead space. */}
       <div style={{ height: 64, padding: "4px 0", display: "flex", alignItems: "flex-end" }}>
-        <DashedLine values={Object.keys(weekData).sort().map((d) => weekData[d]?.kcal ?? 0)} target={dailyTarget} showTarget />
+        <DashedLine values={Object.keys(weekData).sort().map((d) => weekData[d]?.kcal ?? 0)} target={dailyBaseline} showTarget />
       </div>
 
       {/* LAST 30 DAYS LABEL */}
@@ -853,8 +880,8 @@ function EnergyBalancePage({ weekData, target }: { weekData: Record<string, Dail
         {/* MINUS */}
         <div style={{ color: C.textMuted, fontSize: 22, fontWeight: 300 }}>−</div>
 
-        {/* TARGETS */}
-        <SumCell value={targetWeek.toLocaleString()} label="Targets" icon={<CheckIcon color={C.orange} />} />
+        {/* BASELINE — targets or expenditure, per the mode pills */}
+        <SumCell value={baselineWeek.toLocaleString()} label={baselineLabel} icon={mode === "expenditure" ? <Flame size={11} style={{ color: C.orange }} /> : <CheckIcon color={C.orange} />} />
 
         {/* EQUALS */}
         <div style={{ color: C.textMuted, fontSize: 22, fontWeight: 300 }}>=</div>
@@ -1105,16 +1132,16 @@ function InsightsSection({
   target,
   weightHistory,
   totals,
+  expenditure,
 }: {
   weekData: Record<string, DailyTotals>;
   target: MacroTarget | null;
   weightHistory: WeightEntry[];
   totals: DailyTotals;
+  expenditure: ExpenditureSummary | null;
 }) {
   const weekDays = Object.keys(weekData).sort();
   const weekVals = weekDays.map((d) => weekData[d]?.kcal ?? 0);
-  const last7Weights = [...weightHistory].sort((a, b) => a.log_date.localeCompare(b.log_date)).slice(-7);
-  const lastWeight = last7Weights[last7Weights.length - 1];
 
   // Only days with something logged count toward the average / energy balance —
   // skipped days are excluded so they don't skew the figures (see isDayLogged).
@@ -1122,9 +1149,34 @@ function InsightsSection({
   const loggedCount = loggedDays.length;
   const loggedKcalTotal = loggedDays.reduce((s, d) => s + (weekData[d]?.kcal ?? 0), 0);
   const loggedLabel = `${loggedCount}/7 days logged`;
+  // Intake sparkline plots the logged days only — a skipped day is a missing
+  // reading, not a zero-calorie one, and plotting it as 0 collapses the scale.
+  const loggedVals = loggedDays.map((d) => weekData[d]?.kcal ?? 0);
 
-  // Average daily intake across ONLY the days actually logged (not a flat / 7).
-  const avgKcal = loggedCount > 0 ? Math.round(loggedKcalTotal / loggedCount) : null;
+  // EXPENDITURE — the server's adaptive TDEE (logged intake vs weight trend).
+  // This card used to show average daily INTAKE under the "Expenditure" title,
+  // which is a different quantity: intake is what went in, expenditure is what
+  // was burned, and the gap between them is the whole point of the diary.
+  const expenditureKcal = expenditure?.expenditure_kcal ?? null;
+  // Subtitles stay short enough to hold one line in a half-width card at 320px
+  // — a wrapped subtitle eats the sparkline's height on the narrowest phones.
+  const expenditureLabel =
+    expenditure == null
+      ? "Estimating…"
+      : expenditure.method === "adaptive"
+        ? `${expenditure.window_days}-day balance`
+        : "Bodyweight only";
+
+  // WEIGHT TREND — smoothed and tolerance-normalized, so scale noise doesn't
+  // read as a move. See ./weightTrend for the reasoning.
+  const weightTrend = weightTrendSummary(weightHistory, 7);
+  const weightTrendLabel =
+    weightTrend.change == null
+      ? "Last 7 days"
+      : weightTrend.isSteady
+        ? "7 days · steady"
+        : `7 days · ${weightTrend.change > 0 ? "+" : "−"}${Math.abs(weightTrend.change).toFixed(1)} lb`;
+
   // Energy balance compares logged intake against the target for those same logged
   // days only, so skipped days stay neutral rather than reading as a phantom deficit.
   const energyDiff = loggedCount > 0 && target ? loggedKcalTotal - target.kcal * loggedCount : null; // negative = deficit
@@ -1146,14 +1198,16 @@ function InsightsSection({
          widths, so the rows never look mismatched. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "1fr", gap: 10 }}>
 
-        {/* EXPENDITURE */}
-        <InsightCard title="Expenditure" subtitle={loggedLabel} value={avgKcal != null ? avgKcal.toLocaleString() : "—"} valueUnit={avgKcal != null ? "kcal" : ""}>
-          <SquareLine values={weekVals} color={C.orange} />
+        {/* EXPENDITURE — value is the TDEE estimate; the sparkline is this
+           week's intake against it, so the card reads as "what I burn vs what
+           I ate" rather than one number with no reference. */}
+        <InsightCard title="Expenditure" subtitle={expenditureLabel} value={expenditureKcal != null ? expenditureKcal.toLocaleString() : "—"} valueUnit={expenditureKcal != null ? "kcal" : ""}>
+          <SquareLine values={loggedVals} color={C.orange} reference={expenditureKcal} />
         </InsightCard>
 
         {/* WEIGHT TREND */}
-        <InsightCard title="Weight Trend" subtitle="Last 7 Days" value={lastWeight ? lastWeight.weight_lb.toFixed(1) : "—"} valueUnit={lastWeight ? "lbs" : ""}>
-          <DotLine values={last7Weights.map((w) => w.weight_lb)} color={C.purple} />
+        <InsightCard title="Weight Trend" subtitle={weightTrendLabel} value={weightTrend.current != null ? weightTrend.current.toFixed(1) : "—"} valueUnit={weightTrend.current != null ? "lbs" : ""}>
+          <DotLine values={weightTrend.series} color={C.purple} minSpan={WEIGHT_CHART_MIN_SPAN_LB} />
         </InsightCard>
 
         {/* ENERGY BALANCE */}
@@ -1211,22 +1265,37 @@ function InsightCard({
   );
 }
 
-function SquareLine({ values, color }: { values: number[]; color: string }) {
+function SquareLine({ values, color, reference }: { values: number[]; color: string; reference?: number | null }) {
   // Expenditure card: line graph (SVG) + square nodes (HTML divs so they stay square)
   if (values.length === 0) return <EmptyViz />;
   const PAD_PCT = 6;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  // A reference line only means anything if it's inside the plotted range, so
+  // it joins the domain rather than being clipped to an edge. The domain is
+  // then padded 8% so a reference above (or below) every value doesn't sit
+  // flush against the plot border, where it reads as a card divider.
+  const domainVals = reference != null ? [...values, reference] : values;
+  const bounds = normalizedDomain(domainVals);
+  const pad = reference != null ? (bounds.max - bounds.min || 1) * 0.08 : 0;
+  const min = bounds.min - pad;
+  const max = bounds.max + pad;
   const range = max - min || 1;
+  const yPctFor = (v: number) => PAD_PCT + (1 - (v - min) / range) * (100 - PAD_PCT * 2);
   const pts = values.map((v, i) => ({
     xPct: values.length > 1 ? PAD_PCT + (i / (values.length - 1)) * (100 - PAD_PCT * 2) : 50,
-    yPct: PAD_PCT + (1 - (v - min) / range) * (100 - PAD_PCT * 2),
+    yPct: yPctFor(v),
   }));
   const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.xPct.toFixed(2)},${p.yPct.toFixed(2)}`).join(" ");
   return (
     /* SQUARE LINE — line in SVG, square nodes overlaid as HTML so they aren't stretched */
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0 }}>
+
+        {/* REFERENCE LINE — expenditure level, so the intake line reads as
+           above/below maintenance instead of as a bare shape. */}
+        {reference != null && (
+          <line x1="0" y1={yPctFor(reference).toFixed(2)} x2="100" y2={yPctFor(reference).toFixed(2)} stroke={C.textDim} strokeWidth="1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
+        )}
+
         <path d={path} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       {pts.map((p, i) => (
@@ -1248,12 +1317,13 @@ function SquareLine({ values, color }: { values: number[]; color: string }) {
   );
 }
 
-function DotLine({ values, color }: { values: number[]; color: string }) {
+function DotLine({ values, color, minSpan }: { values: number[]; color: string; minSpan?: number }) {
   // Weight Trend / Body Metrics: line graph (SVG) + circle nodes (HTML so they stay round)
   if (values.length === 0) return <EmptyViz />;
   const PAD_PCT = 6;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  // minSpan floors the y-domain so a sub-tolerance wobble renders flat instead
+  // of being stretched to the full card height (see ./weightTrend).
+  const { min, max } = normalizedDomain(values, minSpan);
   const range = max - min || 1;
   const pts = values.map((v, i) => ({
     xPct: values.length > 1 ? PAD_PCT + (i / (values.length - 1)) * (100 - PAD_PCT * 2) : 50,
@@ -1591,7 +1661,7 @@ function BodyMetricsSection({ weightHistory, onSeeAll }: { weightHistory: Weight
 
       {/* 2-CARD GRID */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <BodyMetricCard title="Scale Weight" values={last7.map((w) => w.weight_lb)} value={lastWeight ? lastWeight.weight_lb.toFixed(1) : "—"} unit="lbs" />
+        <BodyMetricCard title="Scale Weight" values={last7.map((w) => w.weight_lb)} value={lastWeight ? lastWeight.weight_lb.toFixed(1) : "—"} unit="lbs" minSpan={WEIGHT_CHART_MIN_SPAN_LB} />
         <BodyMetricCard title="Visual Body Fat" values={last7BF.map((w) => w.body_fat_pct ?? 0)} value={lastBF?.body_fat_pct != null ? lastBF.body_fat_pct.toFixed(1) : "—"} unit="%" />
       </div>
     </div>
@@ -1603,11 +1673,16 @@ function BodyMetricCard({
   values,
   value,
   unit,
+  minSpan,
 }: {
   title: string;
   values: number[];
   value: string;
   unit: string;
+  // Y-domain floor for the sparkline — set on weight so scale noise doesn't get
+  // drawn at full height. Scale Weight stays RAW (unsmoothed) on purpose; it's
+  // the counterpart to the smoothed Weight Trend card.
+  minSpan?: number;
 }) {
   return (
     /* BODY METRIC CARD */
@@ -1621,7 +1696,7 @@ function BodyMetricCard({
 
       {/* SPARKLINE */}
       <div style={{ height: 38, marginTop: 6 }}>
-        <DotLine values={values} color={C.green} />
+        <DotLine values={values} color={C.green} minSpan={minSpan} />
       </div>
 
       {/* DIVIDER + VALUE */}

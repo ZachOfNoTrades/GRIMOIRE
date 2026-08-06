@@ -5,9 +5,11 @@ import { getActiveProgram } from '../../lib/programFunctions';
 import { estimateExpenditure } from '../../lib/expenditure';
 import { FLOOR_MIN_KCAL } from '../../lib/program';
 import { TrainingKind } from '../../types/program';
+import { ExpenditureSummary } from '../../types/expenditure';
 
 // Read-only expenditure estimate for the goal wizard's live "initial daily
-// budget" preview. The wizard runs BEFORE the program step, so it has no
+// budget" preview and for the dashboard's Expenditure card. The wizard runs
+// BEFORE the program step, so it has no
 // training_kind / floor_kind of its own — we borrow them from the active
 // program if one exists (else safe defaults). The adaptive estimate already
 // reflects real activity, so the training multiplier only matters for the
@@ -29,7 +31,7 @@ export async function GET(request: NextRequest) {
       latestWeightLb: weightLb,
     });
 
-    return NextResponse.json({
+    const summary: ExpenditureSummary = {
       expenditure_kcal: expenditure.expenditure_kcal,
       method: expenditure.method,
       floor_kcal: floorKcal,
@@ -41,7 +43,9 @@ export async function GET(request: NextRequest) {
       window_days: expenditure.window_days,
       balance_start_date: expenditure.balance_start_date,
       balance_end_date: expenditure.balance_end_date,
-    });
+    };
+
+    return NextResponse.json(summary);
   } catch (error) {
     console.error('Error in GET /forage/api/expenditure:', error);
     return NextResponse.json({ error: 'Failed to estimate expenditure' }, { status: 500 });

@@ -7,8 +7,11 @@ import { computeTargets, isCheckInDue, todayIsoUtc, todayIsoLocal } from './prog
 import { listWeights, getLatestWeightLb } from './weightFunctions';
 import { estimateExpenditure } from './expenditure';
 import { getActiveTarget, setTargetFromProgram } from './targetFunctions';
-import { getNutrientOverrides } from './nutrientTargetFunctions';
-import { listEntries, computeTotals } from './entryFunctions';
+import { getNutrientOverrides, getResolvedNutrientTargets } from './nutrientTargetFunctions';
+import { listEntries, computeTotals, getRangeTotals } from './entryFunctions';
+import { getDashboardCards } from './dashboardFunctions';
+import { listNutrients } from './nutrientFunctions';
+import { MACROS } from '../utils/nutrientLedger';
 
 // Everything below powers the check-in wizard: a read-only preview (which
 // slides apply, and their content) plus the explicit confirm/apply action
@@ -21,20 +24,37 @@ function shiftDate(iso: string, deltaDays: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
 }
 
+// How many of the trailing 7 days need a weigh-in before the wizard stops
+// prompting for one. The estimator regresses a weight trend over the week, so
+// what it actually needs is enough points across the week — a single reading
+// on the check-in day itself tells it nothing about the trend.
+export const MIN_WEIGH_INS_PER_WEEK = 3;
+
 export interface WeighInStats {
   weighInsThisWeek: number;
   hasTodayWeighIn: boolean;
+  minPerWeek: number;
+  needsWeighIn: boolean;
 }
 
 // Distinct weigh-in days in the trailing 7 days (today included), and whether
 // today specifically has one. weight_log is unique per (user_id, log_date), so
 // a plain count of rows in range is the distinct-day count.
+//
+// `needsWeighIn` is the prompt rule itself, decided here rather than in the
+// wizard: it keys off the WEEK's coverage, never off "is today covered". Those
+// disagree in both directions — six weigh-ins Mon–Sat but none on check-in day
+// used to nag about data it already had, while a lone same-day weigh-in
+// silenced the prompt on an otherwise empty week.
 export async function getWeighInStats(userId: string, todayIso: string): Promise<WeighInStats> {
   const sinceIso = shiftDate(todayIso, -6);
   const weights = await listWeights(userId, sinceIso);
+  const weighInsThisWeek = weights.length;
   return {
-    weighInsThisWeek: weights.length,
+    weighInsThisWeek,
     hasTodayWeighIn: weights.some((w) => w.log_date === todayIso),
+    minPerWeek: MIN_WEIGH_INS_PER_WEEK,
+    needsWeighIn: weighInsThisWeek < MIN_WEIGH_INS_PER_WEEK,
   };
 }
 
@@ -135,6 +155,117 @@ export async function computeMacroDiff(userId: string, program: Program, goal: G
   };
 }
 
+// One card of the dashboard's Nutrition section, averaged over the week the
+// check-in covers. Same key space as forage_dashboard_cards: a synthetic macro
+// key ('kcal','protein','fat','carbs') or a nutrients.code micro. `category` is
+// null for the macro cards (they aren't rows in `nutrients`); the wizard uses it
+// to resolve the same swatch color the dashboard tile draws.
+export interface DashboardNutrientSummary {
+  key: string;
+  label: string;
+  unit: string;
+  category: string | null;
+  avgPerDay: number;
+  floor: number | null;
+  target: number | null;
+  ceiling: number | null;
+  isCustom: boolean;
+}
+
+export interface DashboardNutrientReview {
+  startDate: string;
+  endDate: string;
+  loggedDays: number;
+  cards: DashboardNutrientSummary[];
+}
+
+// Length of the review window, in fully-elapsed days before today.
+const DASHBOARD_REVIEW_DAYS = 7;
+
+// Macro card key -> the field it reads on BOTH DailyTotals and MacroTarget
+// (the two share these names), plus its ledger metadata for label/unit.
+const MACRO_CARD_FIELD: Record<string, 'kcal' | 'protein_g' | 'carbs_g' | 'fat_g'> = {
+  kcal: 'kcal',
+  protein: 'protein_g',
+  carbs: 'carbs_g',
+  fat: 'fat_g',
+};
+const MACRO_CARD_META = new Map(MACROS.map((m) => [m.key as string, m]));
+
+// The nutrients the user actually watches — their customized dashboard Nutrition
+// section — averaged across the logged days of the week just finished, each with
+// the same floor/target/ceiling band the dashboard tile plots. Powers the
+// wizard's week-in-review slide, so a check-in shows how the tracked nutrients
+// went before it asks about targets.
+//
+// Averaged over LOGGED days (getRangeTotals' divisor), not calendar days, so an
+// unlogged day doesn't read as a day of zero intake. Today is excluded — it's
+// still in progress and would drag every average down (same reason
+// findPartialLogDays skips it).
+export async function buildDashboardNutrientReview(
+  userId: string,
+  todayIso: string,
+): Promise<DashboardNutrientReview> {
+  const endDate = shiftDate(todayIso, -1);
+  const startDate = shiftDate(todayIso, -DASHBOARD_REVIEW_DAYS);
+
+  const [cardKeys, range, nutrients, bands, macroTarget] = await Promise.all([
+    getDashboardCards(userId, 'nutrition'),
+    getRangeTotals(userId, startDate, endDate),
+    listNutrients(),
+    getResolvedNutrientTargets(userId),
+    getActiveTarget(userId),
+  ]);
+
+  const nutrientByCode = new Map(nutrients.map((n) => [n.code, n]));
+  const bandByCode = new Map(bands.map((b) => [b.code, b]));
+
+  const cards: DashboardNutrientSummary[] = [];
+  for (const key of cardKeys) {
+    const macro = MACRO_CARD_META.get(key);
+    if (macro) {
+      const field = MACRO_CARD_FIELD[key];
+      cards.push({
+        key,
+        label: macro.label,
+        unit: macro.unit,
+        category: null,
+        avgPerDay: Math.round(range.totals[field]),
+        // Macros carry a single goal (no floor/ceiling band) — the meter draws a
+        // lone target caret, matching the dashboard tile.
+        floor: null,
+        target: macroTarget ? macroTarget[field] : null,
+        ceiling: null,
+        isCustom: false,
+      });
+      continue;
+    }
+
+    // Micro card. An unknown code (nutrient since deactivated) is skipped rather
+    // than rendered blank — the same thing getDashboardCards does on read.
+    const nutrient = nutrientByCode.get(key);
+    if (!nutrient) continue;
+    const band = bandByCode.get(key);
+    const consumed = range.totals.micros?.[key] ?? 0;
+    cards.push({
+      key,
+      label: nutrient.name,
+      unit: nutrient.unit,
+      category: nutrient.category,
+      // Whole numbers for mg/mcg, one decimal for grams so trace amounts survive.
+      avgPerDay: nutrient.unit === 'g' ? Math.round(consumed * 10) / 10 : Math.round(consumed),
+      // Each marker stays independent so a ceiling-only nutrient doesn't draw a
+      // target at its cap.
+      floor: band?.floor ?? null,
+      target: band?.target ?? null,
+      ceiling: band?.ceiling ?? null,
+      isCustom: band?.source === 'manual',
+    });
+  }
+
+  return { startDate, endDate, loggedDays: range.loggedDays, cards };
+}
+
 export type CheckInIneligibleReason = 'no_program' | 'not_coached' | 'no_goal' | 'not_due';
 
 export interface CheckInPreview {
@@ -144,13 +275,20 @@ export interface CheckInPreview {
   weighIns: WeighInStats;
   partialLogDays: PartialLogDay[];
   macroDiff: MacroDiff | null;
+  dashboardNutrients: DashboardNutrientReview;
   nutrientOverrides: { nutrient_id: string; code: string; floor: number | null; target: number | null; ceiling: number | null }[];
 }
 
-const EMPTY_WEIGH_INS: WeighInStats = { weighInsThisWeek: 0, hasTodayWeighIn: false };
+// Only ever paired with eligible:false, where the wizard renders a message
+// instead of slides — so needsWeighIn stays false rather than implying a prompt.
+const EMPTY_WEIGH_INS: WeighInStats = { weighInsThisWeek: 0, hasTodayWeighIn: false, minPerWeek: MIN_WEIGH_INS_PER_WEEK, needsWeighIn: false };
+
+// Likewise never rendered — an empty card list is what keeps the review slide
+// out of the deck, so the dates don't need to describe a real window.
+const EMPTY_DASHBOARD_REVIEW: DashboardNutrientReview = { startDate: '', endDate: '', loggedDays: 0, cards: [] };
 
 function ineligiblePreview(reason: CheckInIneligibleReason, weekday: number | null = null): CheckInPreview {
-  return { eligible: false, reason, weekday, weighIns: EMPTY_WEIGH_INS, partialLogDays: [], macroDiff: null, nutrientOverrides: [] };
+  return { eligible: false, reason, weekday, weighIns: EMPTY_WEIGH_INS, partialLogDays: [], macroDiff: null, dashboardNutrients: EMPTY_DASHBOARD_REVIEW, nutrientOverrides: [] };
 }
 
 // Read-only — assembles everything the wizard needs to decide which slides to
@@ -170,10 +308,11 @@ export async function assembleCheckInPreview(userId: string): Promise<CheckInPre
 
   // Local, not UTC — weigh-ins/food entries are dated by local calendar day.
   const todayLocal = todayIsoLocal();
-  const [weighIns, partialLogDays, macroDiff, nutrientOverrides] = await Promise.all([
+  const [weighIns, partialLogDays, macroDiff, dashboardNutrients, nutrientOverrides] = await Promise.all([
     getWeighInStats(userId, todayLocal),
     findPartialLogDays(userId, todayLocal),
     computeMacroDiff(userId, program, goal),
+    buildDashboardNutrientReview(userId, todayLocal),
     getNutrientOverrides(userId),
   ]);
 
@@ -184,6 +323,7 @@ export async function assembleCheckInPreview(userId: string): Promise<CheckInPre
     weighIns,
     partialLogDays,
     macroDiff,
+    dashboardNutrients,
     nutrientOverrides,
   };
 }

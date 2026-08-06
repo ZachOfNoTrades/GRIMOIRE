@@ -8,27 +8,50 @@ import { Button } from "@/components/ui/button";
 import { selectOnFocus, blurOnEnter } from "@/lib/inputBehavior";
 import { lbInUnit, toLb, unitLabel } from "../../utils/units";
 import { useWeightUnit } from "../../utils/useWeightUnit";
+import { MACROS } from "../../utils/nutrientLedger";
+import { nutrientColorForCategory } from "../../utils/nutrientGroups";
+import { NutrientMeter, bandDisplay, fmtNutrient, ProgramTargetMark } from "../nutrition/nutrientMeter";
 
 function todayIso(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
 }
 
-interface WeighInStats { weighInsThisWeek: number; hasTodayWeighIn: boolean; }
+interface WeighInStats { weighInsThisWeek: number; hasTodayWeighIn: boolean; minPerWeek: number; needsWeighIn: boolean; }
 interface PartialLogDay { date: string; loggedKcal: number; targetKcal: number; pctOfTarget: number; }
 interface MacroValues { kcal: number; protein_g: number; carbs_g: number; fat_g: number; }
 interface MacroDiff { current: MacroValues | null; proposed: MacroValues; latestWeightLb: number | null; }
 interface NutrientOverride { nutrient_id: string; code: string; floor: number | null; target: number | null; ceiling: number | null; }
+// One card of the user's customized dashboard Nutrition section, averaged over
+// the week the check-in covers. `category` is null for the synthetic macro cards.
+interface DashboardNutrientSummary {
+  key: string;
+  label: string;
+  unit: string;
+  category: string | null;
+  avgPerDay: number;
+  floor: number | null;
+  target: number | null;
+  ceiling: number | null;
+  isCustom: boolean;
+}
+interface DashboardNutrientReview {
+  startDate: string;
+  endDate: string;
+  loggedDays: number;
+  cards: DashboardNutrientSummary[];
+}
 interface CheckInPreview {
   eligible: boolean;
   reason: "no_program" | "not_coached" | "no_goal" | "not_due" | null;
   weighIns: WeighInStats;
   partialLogDays: PartialLogDay[];
   macroDiff: MacroDiff | null;
+  dashboardNutrients: DashboardNutrientReview;
   nutrientOverrides: NutrientOverride[];
 }
 
-type Slide = "weighIn" | "partialLog" | "macros" | "nutrients";
+type Slide = "weighIn" | "partialLog" | "macros" | "dashboardNutrients" | "nutrients";
 
 const REASON_LABEL: Record<string, string> = {
   no_program: "You don't have an active program yet.",
@@ -48,13 +71,54 @@ function sameMacros(a: MacroValues, b: MacroValues): boolean {
 function slidesFor(preview: CheckInPreview): Slide[] {
   if (!preview.eligible) return [];
   const slides: Slide[] = [];
-  // Today's weigh-in (if any) is always enough to skip the prompt — the weekly
-  // count is informational only, never a reason to nag once today is covered.
-  if (!preview.weighIns.hasTodayWeighIn) slides.push("weighIn");
+  // The weigh-in prompt keys off the WEEK's coverage (server-side
+  // `needsWeighIn`, i.e. fewer than `minPerWeek` of the trailing 7 days), never
+  // off whether today specifically has one — a full week of weigh-ins with a
+  // bare check-in day is well-covered, and a lone same-day weigh-in is not.
+  if (preview.weighIns.needsWeighIn) slides.push("weighIn");
   if (preview.partialLogDays.length > 0) slides.push("partialLog");
   slides.push("macros");
+  // Week-in-review of the nutrients the user actually watches, immediately
+  // before the custom-goals slide — you see how the tracked nutrients went, then
+  // what their goals are. Omitted with nothing logged in the window, where every
+  // row would read zero and say nothing.
+  if (preview.dashboardNutrients.loggedDays > 0 && preview.dashboardNutrients.cards.length > 0) {
+    slides.push("dashboardNutrients");
+  }
   if (preview.nutrientOverrides.length > 0) slides.push("nutrients");
   return slides;
+}
+
+// Swatch for a dashboard card — macro cards take their ledger color, micros the
+// shared category resolver, so the row matches its dashboard tile exactly.
+const MACRO_CARD_COLOR: Record<string, string> = Object.fromEntries(MACROS.map((m) => [m.key as string, m.color]));
+
+function cardColor(card: DashboardNutrientSummary): string {
+  return MACRO_CARD_COLOR[card.key] ?? nutrientColorForCategory(card.key, card.category ?? "other");
+}
+
+// Lead copy for the dashboard-review slide. States the divisor outright, since
+// the numbers are per-LOGGED-day averages, not per-calendar-day.
+function dashboardReviewLead(review: DashboardNutrientReview): string {
+  const days = review.loggedDays;
+  return days === 1
+    ? "Your dashboard nutrients — the one day you logged this past week."
+    : `Your dashboard nutrients — daily average across the ${days} days you logged this past week.`;
+}
+
+// Lead copy for the weigh-in slide. States the week's actual coverage — the
+// thing that put the slide here — instead of the old "no weigh-in today",
+// which no longer describes why it's showing. When today is already logged the
+// date field would overwrite it, so point at the gaps instead.
+function weighInLead(stats: WeighInStats): string {
+  if (stats.weighInsThisWeek === 0) {
+    return `No weigh-ins in the last 7 days. Log one for a more accurate recompute, or skip.`;
+  }
+  const verb = stats.weighInsThisWeek === 1 ? "has" : "have";
+  const coverage = `Only ${stats.weighInsThisWeek} of the last 7 days ${verb} a weigh-in — ${stats.minPerWeek} or more keeps the recompute accurate.`;
+  return stats.hasTodayWeighIn
+    ? `${coverage} Today's is already logged; pick another date to fill a gap, or skip.`
+    : `${coverage} Log one, or skip.`;
 }
 
 export default function CheckInWizard({
@@ -257,6 +321,18 @@ export default function CheckInWizard({
         </Button>
       );
     }
+    // Review-only slides — advance, or confirm when nothing follows them.
+    if (currentSlide === "dashboardNutrients") {
+      return (
+        <Button
+          className="btn-blue"
+          disabled={isConfirming}
+          onClick={isLastStep ? handleConfirm : () => setStep((s) => s + 1)}
+        >
+          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged)}
+        </Button>
+      );
+    }
     if (currentSlide === "nutrients") {
       return (
         <Button className="btn-blue" disabled={isConfirming} onClick={handleConfirm}>
@@ -309,7 +385,7 @@ export default function CheckInWizard({
             /* WEIGH-IN SLIDE */
             <div className="s-checkin-wizard-slide">
               <p className="s-checkin-wizard-lead">
-                No weigh-in logged today. Log one for a more accurate recompute, or skip.
+                {weighInLead(preview.weighIns)}
               </p>
 
               {/* DATE */}
@@ -378,6 +454,20 @@ export default function CheckInWizard({
             </div>
           )}
 
+          {currentSlide === "dashboardNutrients" && (
+            /* DASHBOARD NUTRIENT REVIEW SLIDE */
+            <div className="s-checkin-wizard-slide">
+              <p className="s-checkin-wizard-lead">{dashboardReviewLead(preview.dashboardNutrients)}</p>
+
+              {/* NUTRIENT REVIEW LIST */}
+              <div className="s-checkin-nutrient-list">
+                {preview.dashboardNutrients.cards.map((c) => (
+                  <DashboardNutrientRow key={c.key} card={c} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {currentSlide === "nutrients" && (
             /* CUSTOM NUTRIENT GOALS SLIDE */
             <div className="s-checkin-wizard-slide">
@@ -410,6 +500,45 @@ export default function CheckInWizard({
         </div>
       )}
     </Modal>
+  );
+}
+
+// One dashboard card's week in review: name (bullseye when its band is a program
+// override), the logged-day average against the band, and the same
+// floor/target/ceiling meter the Nutrition page and the dashboard tile draw — so
+// the review reads in the grammar the user already knows.
+function DashboardNutrientRow({ card }: { card: DashboardNutrientSummary }) {
+  const band = { value: card.avgPerDay, floor: card.floor, target: card.target, ceiling: card.ceiling };
+  const display = bandDisplay(band, card.unit);
+  const color = cardColor(card);
+
+  return (
+    /* NUTRIENT REVIEW ROW */
+    <div className="s-checkin-nutrient-row">
+
+      {/* HEAD — name + figures */}
+      <div className="s-checkin-nutrient-head">
+
+        {/* NAME + PROGRAM-TARGET GLYPH — the swatch and glyph hold their width;
+            only the label ellipsizes into whatever space is left */}
+        <span className="s-checkin-nutrient-name">
+          <span className="tag-pill-dot" style={{ background: color }} />
+          <span className="s-checkin-nutrient-label">{card.label}</span>
+          {card.isCustom && <ProgramTargetMark />}
+        </span>
+
+        {/* VALUE + PERCENT */}
+        <span className="s-checkin-nutrient-figures">
+          <span className="s-checkin-nutrient-value">
+            <b>{fmtNutrient(card.avgPerDay)}</b>{display.targetText}
+          </span>
+          <span className="s-checkin-nutrient-pct" style={{ color: display.pctColor }}>{display.pctText}</span>
+        </span>
+      </div>
+
+      {/* METER */}
+      {display.showBar && <NutrientMeter band={band} fillColor={color} />}
+    </div>
   );
 }
 

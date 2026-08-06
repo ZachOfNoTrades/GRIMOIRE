@@ -237,6 +237,58 @@
 
 .s-checkin-wizard-diff-nochange { font-size: 0.75rem; color: var(--color-secondary); }
 
+/* Dashboard nutrient review — the week-in-review slide. Rows are read-only
+   (no tap target, unlike the custom-goals list), so they're plain bordered
+   cards carrying the shared NutrientMeter rather than .s-checkin-wizard-row.
+   Tighter padding than that list because each row is two lines high. */
+.s-checkin-nutrient-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.s-checkin-nutrient-row {
+  padding: 0.5rem 0.625rem 0.625rem;
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  background: var(--card-bg);
+}
+.s-checkin-nutrient-head { display: flex; align-items: center; gap: 0.5rem; }
+.s-checkin-nutrient-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+/* The swatch keeps its width — without this it's the flex item that collapses
+   when a long name runs out of room, and the row loses its color cue. */
+.s-checkin-nutrient-name > .tag-pill-dot { flex-shrink: 0; }
+/* Long nutrient names (Pantothenic acid) ellipsize rather than pushing the
+   figures out of the card; the swatch and program-target glyph survive. */
+.s-checkin-nutrient-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-checkin-nutrient-figures { display: flex; align-items: baseline; gap: 0.5rem; flex-shrink: 0; }
+.s-checkin-nutrient-value {
+  font-size: 0.8125rem;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.s-checkin-nutrient-value b { color: var(--color-primary); }
+.s-checkin-nutrient-pct { font-weight: 700; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+/* Under ~360px the modal's own padding leaves the head too tight for the widest
+   figure string ("803 / 2,642 kcal" + percent) beside a full name — Calories
+   ellipsized at 320px. Give the numbers back ~15px so the name fits whole
+   instead; the figures never wrap or ellipsize, so they must be the ones to
+   yield. */
+@media (max-width: 360px) {
+  .s-checkin-nutrient-head { gap: 0.375rem; }
+  .s-checkin-nutrient-figures { gap: 0.375rem; }
+  .s-checkin-nutrient-value,
+  .s-checkin-nutrient-pct { font-size: 0.75rem; }
+}
+
 /* Delta pill — reused by the kcal headline and each macro stat. Tinted
    background (existing alert tokens) instead of bare colored text, so a
    change reads as a distinct, deliberate badge rather than stray color. */

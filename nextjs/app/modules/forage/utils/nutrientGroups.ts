@@ -21,6 +21,20 @@ export const PROTEIN_BREAKDOWN_CODES = microCodesOf("Protein Breakdown");
 
 const CLAIMED = new Set<string>([...FAT_BREAKDOWN_CODES, ...CARB_BREAKDOWN_CODES, ...PROTEIN_BREAKDOWN_CODES]);
 
+// Swatch color for a nutrient, grouped by macro family / category so every
+// surface that plots a nutrient reads coherently (sugars green with carbs, sat
+// fat purple with fat). Keyed on code + category rather than a whole `Nutrient`
+// so callers holding only those two (e.g. the check-in wizard's dashboard
+// review, which gets its rows from an API) can resolve the same color.
+export function nutrientColorForCategory(code: string, category: string): string {
+  if (FAT_BREAKDOWN_CODES.has(code)) return "var(--fg-fat)";
+  if (CARB_BREAKDOWN_CODES.has(code)) return "var(--fg-carb)";
+  if (PROTEIN_BREAKDOWN_CODES.has(code)) return "var(--fg-protein)";
+  if (category === "vitamin") return "var(--fg-vitamin)";
+  if (category === "mineral") return "var(--fg-mineral)";
+  return "var(--fg-other)";
+}
+
 export interface NutrientBucket {
   heading: string;
   match: (n: Nutrient) => boolean;

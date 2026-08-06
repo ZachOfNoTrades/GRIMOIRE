@@ -1,4 +1,5 @@
 import { TrainingKind } from '../types/program';
+import { ExpenditureMethod } from '../types/expenditure';
 import {
   KCAL_PER_KG_MASS,
   LB_PER_KG,
@@ -41,8 +42,6 @@ const TREND_SMOOTH_HALF_WINDOW_DAYS = 3;
 // (e.g. a single freak weigh-in the regression can't fully smooth).
 const TDEE_MIN_KCAL = 1200;
 const TDEE_MAX_KCAL = 6000;
-
-export type ExpenditureMethod = 'adaptive' | 'formula';
 
 export interface ExpenditureEstimate {
   expenditure_kcal: number;

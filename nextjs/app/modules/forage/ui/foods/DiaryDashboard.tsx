@@ -117,12 +117,16 @@ export default function ForageDiaryDashboard({
           ),
           fetch(`/modules/forage/api/targets?date=${date}`),
         ]);
+        // Parse the target BEFORE the cancelled check so every await is done by
+        // the time we commit — otherwise a date change landing during this last
+        // await would slip the previous day's target past the guard.
+        const nextTarget = await tRes.json().catch(() => null);
         if (cancelled) return;
         const map: Record<string, DailyTotals> = {};
         for (const [d, t] of weekResults) map[d] = t;
         setWeekData(map);
         setLoadedWeek(start); // this week's totals are now in `weekData`
-        setTarget(await tRes.json().catch(() => null));
+        setTarget(nextTarget);
       } catch {
         // non-critical — leave prior data in place
       }
