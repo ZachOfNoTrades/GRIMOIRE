@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
+import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, Flame } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Frequency } from "../../types/task";
@@ -22,8 +21,6 @@ interface StreakDraft {
 }
 
 export default function QuestDebugPage() {
-  const router = useRouter();
-  const goBack = useGoBack();
 
   // DATA
   const [streakTasks, setStreakTasks] = useState<StreakTaskSummary[]>([]);
@@ -131,13 +128,13 @@ export default function QuestDebugPage() {
 
       {/* HEADER */}
       <div className="mb-6 flex items-center justify-between gap-2">
-        <button
-          onClick={() => goBack("/modules/quest/ui/settings")}
+        <BackLink
+          fallback="/modules/quest/ui/settings"
           className="flex items-center gap-1 text-secondary hover:text-primary cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm">Settings</span>
-        </button>
+        </BackLink>
         <h1 className="text-page-title flex items-center gap-2">
           <Flame className="w-6 h-6 text-orange-400" />
           Streak Debug

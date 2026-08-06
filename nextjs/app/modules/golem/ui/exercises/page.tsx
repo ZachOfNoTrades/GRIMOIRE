@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, Dumbbell, Plus, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Exercise } from "../../types/exercise";
@@ -27,7 +27,6 @@ export default function ExercisesPage() {
 
   const tableRef = useRef<PaginatedTableHandle>(null);
   const router = useRouter();
-  const goBack = useGoBack();
 
   // Load locations and pick the initial one: URL ?location= param, else active, else default, else first.
   useEffect(() => {
@@ -69,13 +68,13 @@ export default function ExercisesPage() {
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/golem/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/golem/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE/SUBTITLE */}
           <div>

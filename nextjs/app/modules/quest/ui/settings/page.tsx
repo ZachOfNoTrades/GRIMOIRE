@@ -748,7 +748,11 @@ export default function QuestSettingsPage() {
 
         {/* HEADER */}
         <div className="mb-8">
-          <SettingsBackLink label="Home" onClick={() => attemptNavigate("/modules/quest/ui/home")} />
+          <SettingsBackLink
+            label="Home"
+            fallback="/modules/quest/ui/home"
+            onNavigate={() => attemptNavigate("/modules/quest/ui/home")}
+          />
           <h1 className="text-page-title settings-title">
             <Settings className="w-6 h-6" />
             Settings

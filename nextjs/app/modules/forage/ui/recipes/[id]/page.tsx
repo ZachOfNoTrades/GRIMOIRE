@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { ArrowLeft, Camera, ChefHat, Plus, Trash2, Save, RotateCcw, Pencil, ChevronRight } from "lucide-react";
@@ -430,14 +431,15 @@ export default function ForageRecipeDetailPage() {
 
           {/* NAV GROUP */}
           <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
-            <Button
-              className="btn-link"
-              onClick={goBack}
+            <BackLink
+              className="btn btn-link"
+              fallback="/modules/forage/ui/recipes"
+              onNavigate={goBack}
               aria-label="Back to recipes"
               style={{ paddingLeft: 0 }}
             >
               <ArrowLeft className="w-5 h-5" />
-            </Button>
+            </BackLink>
           </div>
 
           {/* TITLE — centered, takes remaining space, truncates rather than wraps */}

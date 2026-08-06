@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, Loader2, Zap, Sparkles, ListChecks, Plus, Trash2, LayoutTemplate, FileText } from "lucide-react";
@@ -284,11 +285,20 @@ export default function GenerateProgramWizardPage() {
         {/* HEADER */}
         <div className="mb-6">
 
-          {/* BACK BUTTON */}
-          <Button onClick={handleBack} className="btn-link !pl-0" disabled={isSubmitting}>
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </Button>
+          {/* BACK BUTTON — on the first step this leaves the page, so it's a real
+              <BackLink> that middle-click can open in a new tab. Later steps only
+              rewind the wizard, which has no URL of its own to link to. */}
+          {step === 0 && !isSubmitting ? (
+            <BackLink fallback="/modules/golem/ui/home" className="btn btn-link !pl-0">
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </BackLink>
+          ) : (
+            <Button onClick={handleBack} className="btn-link !pl-0" disabled={isSubmitting}>
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </Button>
+          )}
 
           {/* TITLE */}
           <h1 className="text-page-title">Generate Program</h1>

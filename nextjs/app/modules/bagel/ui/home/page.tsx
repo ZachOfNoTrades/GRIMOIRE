@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { Toaster, toast } from "react-hot-toast";
 import { ArrowLeft, Donut, HelpCircle, History, Trophy } from "lucide-react";
@@ -230,13 +231,13 @@ export default function BagelHomePage() {
         <div className="flex items-center justify-between mb-6">
 
           {/* BACK TO DASHBOARD */}
-          <Button
-            className="btn-link !pl-0"
-            onClick={() => router.push("/dashboard")}
+          <BackLink
+            className="btn btn-link !pl-0"
+            fallback="/dashboard"
             aria-label="Back to dashboard"
           >
             <ArrowLeft className="w-5 h-5" />
-          </Button>
+          </BackLink>
 
           {/* RULES TOGGLE */}
           <Button

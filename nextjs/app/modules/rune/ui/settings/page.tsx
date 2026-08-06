@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { Bell, Send, Sparkles, GraduationCap } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -30,8 +28,6 @@ function calendarTodayYMD(): string {
 }
 
 export default function RuneSettingsPage() {
-  const router = useRouter();
-  const goBack = useGoBack();
 
   // INPUT
   const [digestEnabled, setDigestEnabled] = useState<boolean>(DEFAULT_DIGEST_ENABLED);
@@ -274,7 +270,7 @@ export default function RuneSettingsPage() {
       <div className="page-container">
 
         {/* BACK */}
-        <SettingsBackLink label="Home" onClick={() => goBack("/modules/rune/ui/home")} />
+        <SettingsBackLink label="Home" fallback="/modules/rune/ui/home" />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">

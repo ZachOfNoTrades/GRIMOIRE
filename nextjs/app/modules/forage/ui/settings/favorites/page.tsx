@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useGoBack } from "@/lib/useGoBack";
 import toast, { Toaster } from "react-hot-toast";
 import { SettingsBackLink, SettingsRadioGroup } from "@/components/settings/SettingsList";
 
@@ -22,7 +21,6 @@ const RANGE_OPTIONS: RangeOption[] = [
 ];
 
 export default function ForageFavoritesSettingsPage() {
-  const goBack = useGoBack();
 
   // DATA / INPUT
   const [historyDays, setHistoryDays] = useState<number>(30);
@@ -69,7 +67,7 @@ export default function ForageFavoritesSettingsPage() {
       <div className="page-container">
 
         {/* BACK */}
-        <SettingsBackLink label="Settings" onClick={() => goBack("/modules/forage/ui/settings")} />
+        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Favorites</h1>

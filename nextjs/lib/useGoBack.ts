@@ -1,7 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { moduleOf, previousPath } from "@/lib/navHistory";
+
+// Where a Back button will actually land, given its `fallback`. Mirrors the
+// decision useGoBack makes at click time: pop to the previous route when it is
+// in the SAME module, otherwise use the fallback.
+function resolveBackTarget(pathname: string | null, fallback: string): string {
+  const previous = previousPath();
+  const sameModule =
+    previous != null && pathname != null && moduleOf(previous) === moduleOf(pathname);
+  return sameModule ? previous : fallback;
+}
 
 // Shared "Back" navigation for top-of-page back buttons.
 //
@@ -27,4 +38,19 @@ export function useGoBack() {
       router.back();
     }
   };
+}
+
+// The href a Back control should expose so middle-click / cmd-click can open the
+// destination in a new tab. Starts at `fallback` so the server render and the
+// first client render agree, then upgrades to the route Back would really pop to
+// once mounted — previousPath() reads sessionStorage and is client-only.
+export function useBackHref(fallback: string): string {
+  const pathname = usePathname();
+  const [href, setHref] = useState(fallback);
+
+  useEffect(() => {
+    setHref(resolveBackTarget(pathname, fallback));
+  }, [pathname, fallback]);
+
+  return href;
 }

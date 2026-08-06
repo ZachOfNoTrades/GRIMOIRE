@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useGoBack } from "@/lib/useGoBack";
 import toast, { Toaster } from "react-hot-toast";
 import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 
 export default function ForageHomeBadgePage() {
-  const goBack = useGoBack();
 
   // INPUT — the user's badge preference (mirrors the stored settings columns).
   const [enabled, setEnabled] = useState(true);
@@ -63,7 +61,7 @@ export default function ForageHomeBadgePage() {
       <div className="page-container">
 
         {/* BACK */}
-        <SettingsBackLink label="Settings" onClick={() => goBack("/modules/forage/ui/settings")} />
+        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Home badge</h1>

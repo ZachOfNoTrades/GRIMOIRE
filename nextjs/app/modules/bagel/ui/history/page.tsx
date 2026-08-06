@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, History } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { BagelGame, BagelGameHistoryItem } from "../../types/bagel";
 import PaginatedTable from "../../components/PaginatedTable";
@@ -28,7 +27,6 @@ const STATUS_BADGE: Record<BagelGameHistoryItem["status"], { className: string; 
 };
 
 export default function BagelHistoryPage() {
-  const router = useRouter();
 
   // DATA — the fully-loaded game (with its per-guess history) shown in the modal.
   const [selectedGame, setSelectedGame] = useState<BagelGame | null>(null);
@@ -76,13 +74,13 @@ export default function BagelHistoryPage() {
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => router.push("/modules/bagel/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/bagel/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <h1 className="text-page-title">

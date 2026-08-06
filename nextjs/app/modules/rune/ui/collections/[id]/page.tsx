@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, use } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, Layers, Pencil, Trash2 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import DeleteCollectionModal from "./DeleteCollectionModal";
 export default function CollectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const goBack = useGoBack();
 
   // DATA
   const [collection, setCollection] = useState<CollectionWithDecks | null>(null);
@@ -178,13 +177,13 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
       <div className="page">
         <main className="page-container">
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/rune/ui/collections")}
-            className="btn-link !pl-0 mb-4"
+          <BackLink
+            fallback="/modules/rune/ui/collections"
+            className="btn btn-link !pl-0 mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* NOT FOUND MESSAGE */}
           <div className="card">
@@ -206,13 +205,13 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
             <div className="flex items-center justify-between mb-4">
               <div>
                 {/* BACK BUTTON */}
-                <Button
-                  onClick={() => goBack("/modules/rune/ui/collections")}
-                  className="btn-link !pl-0"
+                <BackLink
+                  fallback="/modules/rune/ui/collections"
+                  className="btn btn-link !pl-0"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
-                </Button>
+                </BackLink>
 
                 {/* TITLE */}
                 <h1 className="text-page-title">{collection.name}</h1>

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, Edit2, Plus, Save, Trash2 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { User } from "@/types/user";
@@ -18,7 +18,6 @@ import RevokeApiKeyModal from "./RevokeApiKeyModal";
 export default function UserDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const goBack = useGoBack();
   const userId = params.id as string;
 
   // DATA
@@ -287,13 +286,13 @@ export default function UserDetailPage() {
         <div className="page-container">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/settings/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/settings/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* ERROR CARD */}
           <div className="card mt-4">
@@ -317,13 +316,13 @@ export default function UserDetailPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             {/* BACK BUTTON */}
-            <Button
-              onClick={() => goBack("/settings/ui/home")}
-              className="btn-link !pl-0"
+            <BackLink
+              fallback="/settings/ui/home"
+              className="btn btn-link !pl-0"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
-            </Button>
+            </BackLink>
 
             {/* TITLE */}
             <h1 className="text-page-title">User Details</h1>

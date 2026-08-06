@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, FileText, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProgramTemplateSummary } from "../../types/programTemplate";
@@ -28,7 +28,6 @@ export default function TemplatesPage() {
   });
 
   const router = useRouter();
-  const goBack = useGoBack();
 
   // LOAD DATA
   useEffect(() => {
@@ -62,13 +61,13 @@ export default function TemplatesPage() {
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/golem/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/golem/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <div>

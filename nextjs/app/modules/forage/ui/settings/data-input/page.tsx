@@ -1,12 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { SettingsBackLink } from "@/components/settings/SettingsList";
 
 export default function ForageDataInputPage() {
-  const router = useRouter();
-  const goBack = useGoBack();
 
   return (
     /* PAGE */
@@ -16,7 +12,7 @@ export default function ForageDataInputPage() {
       <div className="page-container">
 
         {/* BACK */}
-        <SettingsBackLink label="Settings" onClick={() => goBack("/modules/forage/ui/settings")} />
+        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Data Input</h1>

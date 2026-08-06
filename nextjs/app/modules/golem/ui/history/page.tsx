@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, History, LayoutList, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkoutSessionHistoryItem } from "../../types/workoutSession";
@@ -18,7 +18,6 @@ export default function HistoryPage() {
 
   const sessionsTableRef = useRef<PaginatedTableHandle>(null);
   const router = useRouter();
-  const goBack = useGoBack();
 
 
   return (
@@ -32,13 +31,13 @@ export default function HistoryPage() {
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/golem/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/golem/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE ROW */}
           <div className="flex items-center justify-between">

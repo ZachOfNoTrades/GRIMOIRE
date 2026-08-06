@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 
 export default function ForageCheckinRemindersPage() {
-  const router = useRouter();
-  const goBack = useGoBack();
 
   // INPUT — the user's reminder preference (mirrors the stored settings columns).
   const [enabled, setEnabled] = useState(false);
@@ -81,7 +77,7 @@ export default function ForageCheckinRemindersPage() {
       <div className="page-container">
 
         {/* BACK */}
-        <SettingsBackLink label="Settings" onClick={() => goBack("/modules/forage/ui/settings")} />
+        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Check-in reminders</h1>

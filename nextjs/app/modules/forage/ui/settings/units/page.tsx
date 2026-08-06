@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import toast, { Toaster } from "react-hot-toast";
 import { SettingsBackLink, SettingsRadioGroup } from "@/components/settings/SettingsList";
 import { WeightUnit } from "../../../utils/units";
@@ -14,8 +12,6 @@ interface UnitOption {
 }
 
 export default function ForageUnitsPage() {
-  const router = useRouter();
-  const goBack = useGoBack();
 
   // DATA / INPUT
   const [weightUnit, setWeightUnit] = useState<WeightUnit>("lbs");
@@ -71,7 +67,7 @@ export default function ForageUnitsPage() {
       <div className="page-container">
 
         {/* BACK */}
-        <SettingsBackLink label="Settings" onClick={() => goBack("/modules/forage/ui/settings")} />
+        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Units</h1>

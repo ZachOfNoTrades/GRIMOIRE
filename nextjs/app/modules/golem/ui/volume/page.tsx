@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
+import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Program, ProgramBlock, ProgramWeek } from "../../types/program";
@@ -28,8 +27,6 @@ export default function VolumePage() {
   const [isLoadingVolume, setIsLoadingVolume] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
-  const router = useRouter();
-  const goBack = useGoBack();
 
   // Build week options from the program hierarchy
   const weekOptions: WeekOption[] = [];
@@ -148,13 +145,13 @@ export default function VolumePage() {
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/golem/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/golem/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <h1 className="text-page-title">

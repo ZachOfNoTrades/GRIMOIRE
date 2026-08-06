@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { Toaster, toast } from "react-hot-toast";
 import { ChevronLeft, ChevronUp, ChevronDown, X, Check, Plus } from "lucide-react";
 import { Nutrient } from "../../types/food";
@@ -13,7 +13,6 @@ import "./customize.css";
 
 export default function CustomizeDashboardPage() {
   const router = useRouter();
-  const goBack = useGoBack();
 
   // Pin the locked shell to the real visible viewport (Firefox Android fix).
   useAppHeight();
@@ -125,9 +124,9 @@ export default function CustomizeDashboardPage() {
       <div className="fg-customize-header">
 
         {/* BACK */}
-        <button type="button" aria-label="Back" className="fg-customize-iconbtn" onClick={() => goBack("/modules/forage/ui/home")}>
+        <BackLink fallback="/modules/forage/ui/home" aria-label="Back" className="fg-customize-iconbtn">
           <ChevronLeft size={24} />
-        </button>
+        </BackLink>
 
         {/* TITLE */}
         <div className="fg-customize-title">Customize Dashboard</div>

@@ -1,16 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useGoBack } from "@/lib/useGoBack";
+import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, CalendarDays } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import DayArchetypeConfig from '../../../components/DayArchetypeConfig';
 import '../../settings/settings.css';
 
 // Day-archetype / slot configuration surface for the deterministic generation engine.
 export default function DayArchetypeConfigPage() {
-  const router = useRouter();
-  const goBack = useGoBack();
 
   return (
     /* PAGE */
@@ -23,10 +19,10 @@ export default function DayArchetypeConfigPage() {
         <div>
 
           {/* BACK — Day Archetypes now lives under Settings → Programming */}
-          <Button onClick={() => goBack('/modules/golem/ui/settings')} className="btn-link !pl-0">
+          <BackLink fallback="/modules/golem/ui/settings" className="btn btn-link !pl-0">
             <ArrowLeft className="w-4 h-4" />
             <span>Settings</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <h1 className="text-page-title gs-title">

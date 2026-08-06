@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, Boxes, Plus, Search } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,6 @@ export default function CollectionsPage() {
   }, [collections, searchQuery]);
 
   const router = useRouter();
-  const goBack = useGoBack();
 
   // LOAD DATA
   useEffect(() => {
@@ -66,13 +65,13 @@ export default function CollectionsPage() {
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/rune/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/rune/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <div>

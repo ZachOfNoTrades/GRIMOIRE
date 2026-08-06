@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, BarChart3, Dumbbell, History, Pencil } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,6 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
   const [scrollToSessionId, setScrollToSessionId] = useState<string | null>(null);
 
   const router = useRouter();
-  const goBack = useGoBack();
 
   // RESOLVE LOCATION — URL ?location= param, else active, else default, else first.
   useEffect(() => {
@@ -344,13 +343,13 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/golem/ui/exercises")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/golem/ui/exercises"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <div className="flex items-center gap-3">

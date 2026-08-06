@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ChevronLeft } from "lucide-react";
 import { Nutrient, ResolvedNutrientTarget, FoodNutrientRanking, NutrientDailyPoint } from "../../../types/food";
 import { NutritionRange, getNutritionRangeParams } from "../../../utils/dateRange";
@@ -47,7 +47,6 @@ const BASIS_LABEL: Record<FoodNutrientRanking["basis"], string> = {
 
 export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient }) {
   const router = useRouter();
-  const goBack = useGoBack();
 
   // Lock the shell to the real visible viewport (Firefox Android handling lives
   // in lib/useAppHeight), matching the other forage screens.
@@ -204,9 +203,9 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
       <div className="page-container nutr-detail">
 
         {/* BACK */}
-        <button type="button" className="units-back" onClick={() => goBack("/modules/forage/ui/nutrition")}>
+        <BackLink fallback="/modules/forage/ui/nutrition" className="units-back">
           <ChevronLeft className="w-5 h-5" /> Nutrition
-        </button>
+        </BackLink>
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">{nutrient.name}</h1>

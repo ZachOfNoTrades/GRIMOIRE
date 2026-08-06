@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
+import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, User, Pencil } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -35,8 +34,6 @@ export default function ProfilePage() {
   const [isSavingUnits, setIsSavingUnits] = useState(false);
   const [isSavingRestTimer, setIsSavingRestTimer] = useState(false);
 
-  const router = useRouter();
-  const goBack = useGoBack();
 
   // LOAD DATA
   useEffect(() => {
@@ -202,13 +199,13 @@ export default function ProfilePage() {
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/golem/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/golem/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <h1 className="text-page-title">

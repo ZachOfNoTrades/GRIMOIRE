@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, CalendarDays, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useGoBack } from '@/lib/useGoBack';
 import type { DayArchetype, DayArchetypeWithSlots, DaySlot } from '../../../types/dayArchetype';
 import '../../settings/settings.css';
 import '../../../components/rowDesignPreview.css';
@@ -53,7 +53,6 @@ const CONCEPTS = [
 ] as const;
 
 export default function ConfigDesignPreviewPage() {
-  const goBack = useGoBack();
   const [concept, setConcept] = useState<(typeof CONCEPTS)[number]['key']>('a');
 
   const [archetypes, setArchetypes] = useState<DayArchetype[]>([]);
@@ -96,10 +95,10 @@ export default function ConfigDesignPreviewPage() {
     <div className="page">
       <div className="page-container rdp-page">
         <div>
-          <Button onClick={() => goBack('/modules/golem/ui/archetypes')} className="btn-link !pl-0">
+          <BackLink fallback="/modules/golem/ui/archetypes" className="btn btn-link !pl-0">
             <ArrowLeft className="w-4 h-4" />
             <span>Day Archetypes</span>
-          </Button>
+          </BackLink>
           <h1 className="text-page-title gs-title">
             <CalendarDays className="w-6 h-6" />
             Expandable Row — Design Preview

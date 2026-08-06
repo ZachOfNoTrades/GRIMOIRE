@@ -1,7 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useGoBack } from "@/lib/useGoBack";
+import { BackLink } from "@/components/BackLink";
 import {
   ArrowLeft,
   Settings,
@@ -13,15 +12,12 @@ import {
   BarChart3,
   User,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import GolemMenu, { type GolemMenuSection } from '../../components/GolemMenu';
 import './settings.css';
 
 // Golem settings hub — every configuration / library / insight surface, grouped
 // into a categorized terminal-console menu (mirrors the forage & quest pattern).
 export default function GolemSettingsPage() {
-  const router = useRouter();
-  const goBack = useGoBack();
 
   // MENU SECTIONS
   const sections: GolemMenuSection[] = [
@@ -62,10 +58,10 @@ export default function GolemSettingsPage() {
       <div className="page-container">
 
         {/* BACK */}
-        <Button onClick={() => goBack('/modules/golem/ui/home')} className="btn-link !pl-0">
+        <BackLink fallback="/modules/golem/ui/home" className="btn btn-link !pl-0">
           <ArrowLeft className="w-4 h-4" />
           <span>Back</span>
-        </Button>
+        </BackLink>
 
         {/* HEADER */}
         <div className="gs-header">

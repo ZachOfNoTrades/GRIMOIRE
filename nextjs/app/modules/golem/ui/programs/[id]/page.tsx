@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Loader2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PopoverMenu from "@/components/PopoverMenu";
@@ -28,7 +28,6 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
   const menuButtonRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
-  const goBack = useGoBack();
 
   // GENERATION JOB HOOK
   const { startPolling: startGenerateWeekPolling } = useGenerationJob({
@@ -200,13 +199,13 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
         <div className="mb-8">
 
           {/* BACK BUTTON */}
-          <Button
-            onClick={() => goBack("/modules/golem/ui/home")}
-            className="btn-link !pl-0"
+          <BackLink
+            fallback="/modules/golem/ui/home"
+            className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
-          </Button>
+          </BackLink>
 
           {/* TITLE ROW */}
           <div className="flex items-center justify-between">

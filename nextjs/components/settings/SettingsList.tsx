@@ -2,6 +2,7 @@
 
 import type { ComponentType } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { BackLink } from "@/components/BackLink";
 
 // Shared "grouped list" primitives for module settings/preferences pages.
 // Reference implementation: Forage's Settings tab. Pairs with the
@@ -142,10 +143,19 @@ export function SettingsRadioGroup<T extends string>({
 }
 
 // SETTINGS BACK LINK — chevron + label link back to a parent settings page.
-export function SettingsBackLink({ label, onClick }: { label: string; onClick: () => void }) {
+// A real <a href> (via BackLink) so middle/cmd-click opens the parent in a new tab.
+export function SettingsBackLink({
+  label,
+  fallback,
+  onNavigate,
+}: {
+  label: string;
+  fallback: string;
+  onNavigate?: () => void;
+}) {
   return (
-    <button type="button" className="settings-back-link" onClick={onClick}>
+    <BackLink fallback={fallback} onNavigate={onNavigate} className="settings-back-link">
       <ChevronLeft className="w-5 h-5" /> {label}
-    </button>
+    </BackLink>
   );
 }
