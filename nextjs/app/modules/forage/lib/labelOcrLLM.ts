@@ -133,7 +133,9 @@ export async function parseLabelImageWithLLM(opts: {
 // Defensively coerce the LLM's JSON to the LabelOcrDraft shape. Drops unknown
 // nutrient codes / units, clamps types, fills required fields with safe defaults.
 // Anything that can't be coerced becomes null/empty so the modal still loads.
-function coerceDraft(raw: any, knownUnits: Set<string>): LabelOcrDraft {
+// Exported so the source-link import (foodUrlLLM) coerces identically — both
+// paths produce the same draft the food form consumes.
+export function coerceDraft(raw: any, knownUnits: Set<string>): LabelOcrDraft {
   const name = typeof raw?.name === 'string' ? raw.name : '';
   const brand = typeof raw?.brand === 'string' ? raw.brand : '';
 

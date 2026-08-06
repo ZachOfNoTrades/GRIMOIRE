@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import toast, { Toaster } from "react-hot-toast";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/lib/useConfirm";
 import { FoodWithIngredients } from "../../../types/recipe";
-import { FoodForm, FoodDetailContent, useNutrients, prefetchNutrientTargets } from "../../_diary";
+import { FoodForm, FoodDetailContent, useNutrients, prefetchNutrientTargets, sourceUrlHost } from "../../_diary";
 
 export default function ForageFoodDetailPage() {
   const router = useRouter();
-  const goBack = useGoBack();
   const params = useParams<{ id: string }>();
   const foodId = params.id;
   const { confirm, confirmModal } = useConfirm();
@@ -26,6 +25,7 @@ export default function ForageFoodDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isFaving, setIsFaving] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
 
   async function loadFood() {
     setIsLoading(true);
@@ -83,6 +83,42 @@ export default function ForageFoodDetailPage() {
     }
   }
 
+  // RESYNC — re-read the food's source link and refresh its nutrition from the
+  // page as it stands now. Confirmed first because it overwrites the stored
+  // macros/nutrients; the server leaves identity (name, brand, icon) alone and
+  // merges serving units, so nothing the user typed by hand is lost.
+  async function handleResync() {
+    if (!food?.source_url || isResyncing) return;
+    const confirmed = await confirm({
+      title: "Resync Nutrition",
+      message: (
+        <>
+          Re-read nutrition for <strong>{food.name}</strong> from{" "}
+          <strong>{sourceUrlHost(food.source_url)}</strong>? This replaces the stored calories,
+          macros and nutrients with what the page says now.
+        </>
+      ),
+      confirmLabel: "Resync",
+    });
+    if (!confirmed) return;
+    setIsResyncing(true);
+    const toastId = toast.loading("Resyncing from source…");
+    try {
+      const res = await fetch(`/modules/forage/api/foods/${food.id}/resync`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) {
+        toast.error(body?.error || "Resync failed", { id: toastId });
+        return;
+      }
+      setFood(body);
+      toast.success("Nutrition resynced", { id: toastId });
+    } catch {
+      toast.error("Resync failed", { id: toastId });
+    } finally {
+      setIsResyncing(false);
+    }
+  }
+
   async function handleDelete() {
     if (!food) return;
     const confirmed = await confirm({
@@ -121,14 +157,14 @@ export default function ForageFoodDetailPage() {
           {/* BACK — return to wherever the user came from (library list, the
               diary timeline's "View food", search results, etc.). Falls back to
               the library list when there's no in-app history to pop. */}
-          <Button
-            className="btn-link"
-            onClick={() => goBack("/modules/forage/ui/library")}
+          <BackLink
+            fallback="/modules/forage/ui/library"
+            className="btn btn-link"
             aria-label="Back"
             style={{ paddingLeft: 0, flexShrink: 0 }}
           >
             <ArrowLeft className="w-5 h-5" />
-          </Button>
+          </BackLink>
 
           {/* TITLE */}
           <h1
@@ -146,6 +182,22 @@ export default function ForageFoodDetailPage() {
           >
             {isEditing ? "Edit food" : food?.name ?? "Food"}
           </h1>
+
+          {/* RESYNC — only for foods that carry a source link. Re-scrapes that
+              page and refreshes the nutrition in place. Icon-only so the header
+              stays on one line on a phone. */}
+          {!isEditing && food?.source_url && (
+            <Button
+              className="btn-off"
+              onClick={handleResync}
+              disabled={isLoading || isResyncing}
+              aria-label="Resync nutrition from source link"
+              title={`Resync from ${sourceUrlHost(food.source_url)}`}
+              style={{ padding: "0.4rem 0.55rem", flexShrink: 0 }}
+            >
+              <RefreshCw className={`w-4 h-4${isResyncing ? " animate-spin" : ""}`} />
+            </Button>
+          )}
 
           {/* EDIT — hidden while editing; the inline form carries its own
               Save/Cancel action bar. */}

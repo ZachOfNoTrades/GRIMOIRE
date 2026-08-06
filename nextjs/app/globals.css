@@ -3030,6 +3030,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-weight: 600;
   font-size: 0.875rem;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 /* ============================================================
    Time pill — MacroFactor-style terse time selector inside Add modal
@@ -3123,6 +3124,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .timeline-chip-meta {
   display: flex;
@@ -3154,6 +3156,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .list-row:hover {
   background: color-mix(in srgb, var(--card-bg) 80%, var(--color-primary) 4%);
 }
+/* Rows rendered as <button> (the Open Food Facts suggestion lane) are clickable
+   in their entirety, so they get the pointer the browser only gives <a> by
+   default. Disabled rows say so instead. */
+button.list-row {
+  cursor: pointer;
+}
+button.list-row:disabled {
+  cursor: default;
+}
 .list-row-avatar {
   width: 2.25rem;
   height: 2.25rem;
@@ -3165,6 +3176,27 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   justify-content: center;
   color: var(--color-secondary);
   flex-shrink: 0;
+}
+/* Avatar carrying a product photo — the image fills the circle edge to edge, so
+   the padding/background that suits a line icon is dropped. */
+.food-avatar-photo {
+  padding: 0;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+.food-avatar-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Photo standing in for a bare icon (card headers, library cards) — a rounded
+   square rather than a circle, sized by the caller. */
+.food-avatar-inline {
+  object-fit: cover;
+  border-radius: 0.375rem;
+  flex-shrink: 0;
+  border: 1px solid var(--card-border);
 }
 .list-row-title {
   font-size: 0.9375rem;

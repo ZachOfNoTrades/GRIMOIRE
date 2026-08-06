@@ -34,6 +34,10 @@ import {
   CalendarClock,
   Replace,
   ArrowDownUp,
+  Link as LinkIcon,
+  Download,
+  ExternalLink,
+  Globe,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,7 +57,18 @@ import {
   byNutrientOrder,
 } from "../utils/nutrientLedger";
 import { LabelOcrDraft } from "../types/labelOcr";
+
+// One Open Food Facts search suggestion, as returned by the module's
+// /api/foods/openfoodfacts lane (mirrors OpenFoodFactsSuggestion server-side).
+type OffSuggestion = {
+  code: string;
+  name: string;
+  brand: string;
+  quantity: string | null;
+  kcal_per_100: number | null;
+};
 import { FOOD_ICONS, resolveFoodIcon } from "../lib/foodIcons";
+import { FoodAvatar } from "../components/FoodAvatar";
 import { LiveBarcodeScanner } from "../components/LiveBarcodeScanner";
 import { FoodRecordRow } from "../components/FoodRecordRow";
 import { NutrientMeter, bandDisplay, fmtNutrient, ProgramTargetMark, isProgramTarget, type NutrientBand } from "./nutrition/nutrientMeter";
@@ -67,6 +82,12 @@ import "./foodDetail.css";
 // — handleSave detects the prefix and logs it as a quick-add entry (food_id null).
 // kcal/macros are PER UNIT (1 serving = 1 unit), so the plate quantity multiplies them.
 const QUICK_PREFIX = "quick:";
+
+// How many "frequently paired with" records the logger injects under a food it has
+// just staged. Small on purpose — these rows push the real search results down, so
+// they read as a nudge rather than a second list.
+const PAIRED_SUGGESTION_LIMIT = 3;
+
 function makeQuickFood(
   name: string,
   kcal: number,
@@ -83,6 +104,9 @@ function makeQuickFood(
     source: "generic",
     usda_fdc_id: null,
     barcode_upc: null,
+    source_url: null,
+    // A quick-add food is a throwaway macro entry — it never has a photo.
+    image_updated_at: null,
     kcal_per_serving: kcal,
     protein_g_per_serving: protein,
     carbs_g_per_serving: carbs,
@@ -272,6 +296,16 @@ export function DiaryTimeline({
   // this lets us hold back a totals emit until `entries` genuinely belong to the
   // viewed day (see the OPTIMISTIC DAY TOTALS emit below).
   const [loadedDate, setLoadedDate] = useState(date);
+  // Monotonic token for the timeline load below. Every refresh() bumps it, so a
+  // response can check whether it is still the newest request before it writes
+  // any state. Without this, opening the page and stepping to another day BEFORE
+  // the first load lands lets that slow first response resolve LAST and overwrite
+  // the newly-viewed day's rows with the previous day's (usually empty) ones —
+  // the timeline blanks out even though the day has entries.
+  const requestSequence = useRef(0);
+  // The in-flight load's abort handle, so a superseded request is cancelled
+  // outright rather than left to burn a connection + DB round-trip.
+  const inFlightRequest = useRef<AbortController | null>(null);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -280,9 +314,6 @@ export function DiaryTimeline({
         mode: "create";
         defaultTime: string;
         initialPicker?: "scan" | "search" | "recipes" | "quick" | "add";
-        // Pre-stage a food onto the plate when the modal opens (e.g. a pairing
-        // suggestion the user tapped) so they only confirm the amount.
-        initialFood?: Food;
       }
     | null
   >(null);
@@ -491,20 +522,11 @@ export function DiaryTimeline({
     );
   }, [entriesByHour]);
 
-  // FREQUENTLY-PAIRED ANCHOR — the strip is keyed to the day's latest food-backed
-  // entry (entries are ASC, so the last one is the most recent). Only surfaced when
-  // viewing today (it's a "what to log next" nudge, not history) and the latest
-  // entry is a real food, not a quick-add. excludeIds = everything already on the
-  // plate today, so we never suggest a food the user has already logged.
-  const pairedAnchor = useMemo(() => {
-    if (date !== todayIso()) return null;
-    const latest = entries.length ? entries[entries.length - 1] : null;
-    if (!latest || !latest.food_id) return null;
-    const excludeIds = entries
-      .map((e) => e.food_id)
-      .filter((id): id is string => !!id);
-    return { entryId: latest.id, foodId: latest.food_id, foodName: latest.display_name, excludeIds };
-  }, [entries, date]);
+  // FREQUENTLY-PAIRED SUGGESTIONS used to live here, as a chip strip pinned above
+  // the day's latest timeline entry. They now belong to the food logger instead:
+  // adding a food there injects its usual partners as real records directly under
+  // it (see `pairedByAnchor` in AddEntryModal), which is where the user is already
+  // deciding what to log. The timeline is history, not a picker.
 
   // OPTIMISTIC DAY TOTALS — sum the live `entries` (macros + micros) client-side,
   // mirroring the server's computeTotals so there's no drift. Because `entries`
@@ -551,21 +573,43 @@ export function DiaryTimeline({
   // load shows the spinner. Optimistic mutations below update state immediately,
   // then call this silently to reconcile against the server's source of truth.
   async function refresh({ silent = false }: { silent?: boolean } = {}) {
+    // Claim the newest sequence number and cancel whatever is still in flight —
+    // its result is already superseded by this one. `requestedDate` is captured
+    // here so a response is always matched against the day it actually asked for.
+    const sequence = ++requestSequence.current;
+    const requestedDate = date;
+    inFlightRequest.current?.abort();
+    const controller = new AbortController();
+    inFlightRequest.current = controller;
+
     if (!silent) setIsLoading(true);
     try {
-      const r = await fetch(`/modules/forage/api/entries?date=${date}`);
+      const r = await fetch(`/modules/forage/api/entries?date=${requestedDate}`, {
+        signal: controller.signal,
+      });
       const data = await r.json();
+      // A newer load started while this one was in flight — drop this response
+      // rather than painting a stale day over the one being viewed.
+      if (sequence !== requestSequence.current) return;
       const list: FoodEntry[] = data.entries ?? [];
       setEntries(list);
-      setLoadedDate(date); // entries now belong to `date` — unblocks the totals emit
+      setLoadedDate(requestedDate); // entries now belong to this day — unblocks the totals emit
 
       // Warm caches so inline-edit shows the unit dropdown without a flicker.
       const foodIds = Array.from(new Set(list.map((e) => e.food_id).filter((id): id is string => !!id)));
       foodIds.forEach((id) => prefetchFoodServings(id));
-    } catch {
+    } catch (error) {
+      // An abort (or any failure of a superseded request) is expected — the
+      // newer load owns the UI now, so it must not raise a false error toast.
+      if (sequence !== requestSequence.current) return;
+      if ((error as Error | null)?.name === "AbortError") return;
       toast.error("Failed to load timeline");
     } finally {
-      if (!silent) setIsLoading(false);
+      // Only the newest request clears the spinner. Clearing it unconditionally
+      // would let a superseded load hide the spinner while the real one is still
+      // running; skipping it entirely would strand the spinner when a silent
+      // re-sync supersedes a day-change load.
+      if (sequence === requestSequence.current) setIsLoading(false);
     }
   }
 
@@ -794,10 +838,6 @@ export function DiaryTimeline({
                 onMove={(entry) => setMoveEntry(entry)}
                 onCopy={(entry) => setCopyEntry(entry)}
                 onReplace={(entry) => setReplaceEntry(entry)}
-                pairedAnchor={pairedAnchor}
-                onPickPaired={(food) =>
-                  setEditorState({ mode: "create", defaultTime: nowHHMM(), initialFood: food })
-                }
               />
             ))}
           </div>
@@ -815,7 +855,6 @@ export function DiaryTimeline({
           mode="create"
           defaultTime={editorState.defaultTime}
           initialPicker={editorState.initialPicker}
-          initialFood={editorState.initialFood}
           editingEntry={null}
           onClose={() => setEditorState(null)}
           onSaved={(created) => {
@@ -1161,95 +1200,6 @@ function prefetchFoodServings(foodId: string): Promise<void> {
   return p;
 }
 
-/* ============================================================
-   FREQUENTLY-PAIRED STRIP
-   ============================================================ */
-
-// A one-tap row of foods the user usually logs alongside `foodName` (the day's
-// latest entry). Fetched on mount / foodId change; foods already logged today are
-// filtered out. Renders nothing while loading or when there are no fresh pairings,
-// so it never adds empty chrome to the timeline. Tapping a chip opens the Add modal
-// pre-staged with that food so only the amount needs confirming.
-function FrequentlyPairedStrip({
-  foodId,
-  foodName,
-  excludeIds,
-  onPick,
-}: {
-  foodId: string;
-  foodName: string;
-  excludeIds: string[];
-  onPick: (food: Food) => void;
-}) {
-  // DATA
-  const [foods, setFoods] = useState<Food[]>([]);
-
-  // STATE
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    fetch(`/modules/forage/api/foods/${foodId}/paired?limit=10`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Food[]) => {
-        if (cancelled) return;
-        const exclude = new Set(excludeIds);
-        // Drop anything already on today's plate, then cap the strip at six.
-        setFoods((Array.isArray(data) ? data : []).filter((f) => !exclude.has(f.id)).slice(0, 6));
-      })
-      .catch(() => {
-        if (!cancelled) setFoods([]);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [foodId, excludeIds]);
-
-  // Stay invisible until there's something worth tapping.
-  if (isLoading || foods.length === 0) return null;
-
-  return (
-    /* PAIRING STRIP */
-    <div className="fg-paired-strip">
-
-      {/* LABEL */}
-      <div className="fg-paired-label">
-        Frequently paired with <span className="fg-paired-anchor">{foodName}</span>
-      </div>
-
-      {/* SUGGESTION CHIPS — horizontal scroll */}
-      <div className="fg-paired-track">
-        {foods.map((food) => {
-          const FoodIcon = resolveFoodIcon(food.icon);
-          return (
-            /* PAIRING CHIP */
-            <button
-              key={food.id}
-              type="button"
-              className="fg-paired-chip"
-              onClick={() => onPick(food)}
-              aria-label={`Add ${food.name}`}
-            >
-              {/* ICON */}
-              <FoodIcon size={15} />
-
-              {/* NAME */}
-              <span className="fg-paired-chip-name">{food.name}</span>
-
-              {/* ADD GLYPH */}
-              <Plus size={14} className="fg-paired-chip-plus" />
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function HourGroup({
   hour,
   entries,
@@ -1266,8 +1216,6 @@ function HourGroup({
   onMove,
   onCopy,
   onReplace,
-  pairedAnchor,
-  onPickPaired,
 }: {
   hour: number;
   entries: FoodEntry[];
@@ -1290,11 +1238,6 @@ function HourGroup({
   onCopy: (entry: FoodEntry) => void;
   // Open the replace-food modal to swap this entry's backing food (food-backed entries only).
   onReplace: (entry: FoodEntry) => void;
-  // When set, the "frequently paired with" strip renders directly above the entry
-  // whose id === entryId (the day's latest food entry). Null on every other row/day.
-  pairedAnchor: { entryId: string; foodId: string; foodName: string; excludeIds: string[] } | null;
-  // Stage a tapped pairing suggestion onto a pre-filled Add modal.
-  onPickPaired: (food: Food) => void;
 }) {
   const [menuFor, setMenuFor] = useState<string | null>(null);
   // Direction the action menu opens. Flipped to "up" when the trigger sits too
@@ -1545,18 +1488,6 @@ function HourGroup({
       <div className="timeline-list">
         {entries.map((e) => (
           <Fragment key={e.id}>
-
-            {/* FREQUENTLY-PAIRED STRIP — sits directly above the day's latest logged
-                entry; one-tap suggestions for foods usually eaten alongside it */}
-            {pairedAnchor && e.id === pairedAnchor.entryId && (
-              <FrequentlyPairedStrip
-                foodId={pairedAnchor.foodId}
-                foodName={pairedAnchor.foodName}
-                excludeIds={pairedAnchor.excludeIds}
-                onPick={onPickPaired}
-              />
-            )}
-
           <div style={{ position: "relative" }}>
             <div style={{ display: "flex", alignItems: "stretch", gap: "0.5rem" }}>
               {/* SELECTION CHECKBOX */}
@@ -3025,6 +2956,11 @@ export function AddEntryModal({
   // Foods the user most often logs around the current hour-of-day — surfaced in a
   // "Frequent now" section above Latest so the usual meal-time items are one tap away.
   const [frequentFoods, setFrequentFoods] = useState<Food[]>([]);
+  // FREQUENTLY-PAIRED SUGGESTIONS — anchor food id -> the foods usually logged on the
+  // same day as it. Filled the moment a food lands on the plate and rendered as real
+  // records injected directly beneath that food's row (not a separate widget): add
+  // cereal, and milk slides in under it ready to add at its usual amount.
+  const [pairedByAnchor, setPairedByAnchor] = useState<Record<string, Food[]>>({});
   // Recipes for the Recipes tab — ordered server-side per `recipeSort`
   // (last used / created / A–Z); see the recipes load effect below.
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -3047,6 +2983,11 @@ export function AddEntryModal({
     initialPicker ?? (editingEntry && !editingEntry.food_id ? "quick" : "search")
   );
   const [search, setSearch] = useState("");
+  // What actually gets searched. The raw `search` stays untrimmed so the box still
+  // accepts a space mid-word ("colby jack"), but every query built from it uses the
+  // trimmed text: a mobile keyboard appends a trailing space after a word, and that
+  // space used to make the query miss (e.g. "shake " returned nothing for "Shake").
+  const searchQuery = search.trim();
   // Sort order for the Recipes tab list — applied client-side (see sortedRecipes).
   // Cycled via the panel toggle and remembered across sessions in localStorage so
   // it opens on the user's last-chosen order; defaults to 'last_used'.
@@ -3089,7 +3030,15 @@ export function AddEntryModal({
   // null = closed; an object = open, optionally pre-filling the name (from the
   // search "Create X" CTA) or the UPC (from a barcode-scan miss). On completion
   // the new food is staged straight onto the plate (handleFoodCreated).
-  const [createDraft, setCreateDraft] = useState<{ name?: string; barcode?: string } | null>(null);
+  const [createDraft, setCreateDraft] = useState<
+    { name?: string; barcode?: string; draft?: LabelOcrDraft; sourceUrl?: string; imageUrl?: string | null } | null
+  >(null);
+  // OPEN FOOD FACTS FALLBACK — suggestions shown only when the library search
+  // comes up empty, so "nothing found" offers a pick instead of a from-scratch
+  // create. `offPickingCode` marks the row whose draft is being fetched.
+  const [offSuggestions, setOffSuggestions] = useState<OffSuggestion[]>([]);
+  const [offLoading, setOffLoading] = useState(false);
+  const [offPickingCode, setOffPickingCode] = useState<string | null>(null);
   // Expanded "Your Plate" overlay (MF-style). When true, the modal body is
   // replaced by the plate list + Nutrition section; otherwise the picker
   // content (search/scan/recipes/quick) renders.
@@ -3156,9 +3105,9 @@ export function AddEntryModal({
     });
   }
 
-  // PRE-STAGE — when the modal is opened with an initialFood (a tapped pairing
-  // suggestion), drop it onto the plate once on mount, seeded from its own
-  // last-logged serving + amount so the user just confirms the size and logs.
+  // PRE-STAGE — when the modal is opened with an initialFood, drop it onto the
+  // plate once on mount, seeded from its own last-logged serving + amount so the
+  // user just confirms the size and logs.
   const stagedInitialRef = useRef(false);
   useEffect(() => {
     if (!initialFood || stagedInitialRef.current) return;
@@ -3169,6 +3118,75 @@ export function AddEntryModal({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Anchors already asked about, and every food id currently shown AS a suggestion.
+  // Refs rather than state so the fetch effect below can read them without listing
+  // them as deps — depending on the very map it writes would re-run it forever.
+  const pairedAskedRef = useRef<Set<string>>(new Set());
+  const suggestedIdsRef = useRef<Set<string>>(new Set());
+
+  // PAIRING INJECTION — whenever a food lands on the plate, pull the foods usually
+  // logged alongside it and hang them off that food's row. Watching `collection`
+  // (rather than hooking the + button) means every staging path feeds it: the row +,
+  // the details sheet, a barcode scan, the create-food wizard, a USDA lookup.
+  //
+  // Two deliberate limits keep it a nudge instead of a cascade: a food staged FROM a
+  // suggestion never fetches its own partners (one level deep, so the list can't
+  // grow without bound), and a group is dropped when its anchor leaves the plate.
+  useEffect(() => {
+    if (ingredientMode) return;
+    const stagedIds = new Set(collection.map((c) => c.food.id));
+
+    // Drop groups whose anchor is no longer staged; their foods return to the
+    // normal Frequent/Latest/Library sections that excluded them while shown.
+    setPairedByAnchor((prev) => {
+      const stale = Object.keys(prev).filter((anchorId) => !stagedIds.has(anchorId));
+      if (stale.length === 0) return prev;
+      const next = { ...prev };
+      for (const anchorId of stale) {
+        for (const food of next[anchorId]) suggestedIdsRef.current.delete(food.id);
+        pairedAskedRef.current.delete(anchorId);
+        delete next[anchorId];
+      }
+      return next;
+    });
+
+    // Quick-add foods are ephemeral client-side objects with no library row (and so
+    // no logging history) to pair against.
+    const anchors = collection
+      .map((c) => c.food)
+      .filter(
+        (food) =>
+          !food.id.startsWith(QUICK_PREFIX) &&
+          !pairedAskedRef.current.has(food.id) &&
+          !suggestedIdsRef.current.has(food.id)
+      );
+
+    for (const anchor of anchors) {
+      pairedAskedRef.current.add(anchor.id);
+      fetch(`/modules/forage/api/foods/${anchor.id}/paired?limit=10`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data: Food[]) => {
+          // Never suggest what is already staged, already suggested under another
+          // anchor, or already an anchor itself; cap the group so one add can't
+          // bury the search results.
+          const fresh = (Array.isArray(data) ? data : [])
+            .filter(
+              (food) =>
+                !stagedIds.has(food.id) &&
+                !suggestedIdsRef.current.has(food.id) &&
+                !pairedAskedRef.current.has(food.id)
+            )
+            .slice(0, PAIRED_SUGGESTION_LIMIT);
+          if (fresh.length === 0) return;
+          for (const food of fresh) suggestedIdsRef.current.add(food.id);
+          setPairedByAnchor((prev) => ({ ...prev, [anchor.id]: fresh }));
+        })
+        .catch(() => {
+          // Suggestions are a nudge — a failed fetch just means none appear.
+        });
+    }
+  }, [collection, ingredientMode]);
 
   // Tap a picker row → open the details sheet WITHOUT staging. Ingredient-picker
   // mode bypasses the sheet and picks immediately.
@@ -3414,13 +3432,45 @@ export function AddEntryModal({
     // search effects above).
     let cancelled = false;
     setFoodsLoading(true);
-    fetch(`/modules/forage/api/foods${search ? `?search=${encodeURIComponent(search)}` : ""}`)
+    fetch(`/modules/forage/api/foods${searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""}`)
       .then((r) => r.json())
       .then((data) => { if (!cancelled) setAllFoods(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancelled) toast.error("Failed to load foods"); })
       .finally(() => { if (!cancelled) setFoodsLoading(false); });
     return () => { cancelled = true; };
-  }, [search, picker]);
+  }, [searchQuery, picker]);
+
+  // Pull the full record for a tapped suggestion and open the create wizard
+  // pre-filled with it. Deliberately does NOT create the food outright — an Open
+  // Food Facts entry is community-entered and of uneven completeness, so it gets
+  // the same review step a scanned label does.
+  async function handlePickOffSuggestion(suggestion: OffSuggestion) {
+    if (offPickingCode) return;
+    setOffPickingCode(suggestion.code);
+    try {
+      const res = await fetch(
+        `/modules/forage/api/foods/openfoodfacts?code=${encodeURIComponent(suggestion.code)}`
+      );
+      const draft = await res.json();
+      if (!res.ok) {
+        toast.error(draft?.error || "Couldn't read that product", { id: "off-pick" });
+        return;
+      }
+      // Stamp the Open Food Facts record as the food's source link, so where the
+      // numbers came from stays visible on the food and Resync has something to
+      // re-read later.
+      setCreateDraft({
+        draft: draft as LabelOcrDraft,
+        sourceUrl: draft?.data_source_url ?? undefined,
+        imageUrl: draft?.image_url ?? null,
+      });
+      setPicker("add");
+    } catch {
+      toast.error("Couldn't read that product", { id: "off-pick" });
+    } finally {
+      setOffPickingCode(null);
+    }
+  }
 
   // Load the user's recipes when the Recipes tab is active. The same `search`
   // box (shown under the tabs for this tab too) narrows the list server-side.
@@ -3433,13 +3483,13 @@ export function AddEntryModal({
     // overwrite a newer narrowed result when the user types before the first load lands.
     let cancelled = false;
     setRecipesLoading(true);
-    fetch(`/modules/forage/api/recipes${search ? `?search=${encodeURIComponent(search)}` : ""}`)
+    fetch(`/modules/forage/api/recipes${searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""}`)
       .then((r) => r.json())
       .then((data) => { if (!cancelled) setRecipes(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancelled) toast.error("Failed to load recipes"); })
       .finally(() => { if (!cancelled) setRecipesLoading(false); });
     return () => { cancelled = true; };
-  }, [search, picker]);
+  }, [searchQuery, picker]);
 
   // Reorder the loaded recipes client-side per the selected sort. `last_used` /
   // `ts_created` are ISO strings hydrated by the API; nulls (never logged / missing)
@@ -3463,7 +3513,7 @@ export function AddEntryModal({
     if (typeof window !== "undefined") window.localStorage.setItem("forage.recipeSort", recipeSort);
   }, [recipeSort]);
 
-  const q = search.trim().toLowerCase();
+  const q = searchQuery.toLowerCase();
   // Token-based filter (mirrors the server-side listFoods search): require every
   // whitespace-separated token to appear somewhere in name+brand, so "colby jack"
   // matches "Colby & monterey jack..." even when the words aren't contiguous.
@@ -3473,9 +3523,16 @@ export function AddEntryModal({
     const haystack = `${f.name} ${f.brand ?? ""}`.toLowerCase();
     return searchTokens.every((token) => haystack.includes(token));
   };
+  // Foods currently injected as pairing suggestions under a staged food's row. They
+  // are pulled OUT of the three sections below so a suggested food shows up exactly
+  // once — under its anchor — instead of twice; dropping the group (anchor unstaged)
+  // hands them straight back to their normal section.
+  const pairedSuggestionIds = new Set(
+    Object.values(pairedByAnchor).flatMap((foods) => foods.map((f) => f.id))
+  );
   // Frequent-now sits at the top; its ids are excluded from Latest + Library below
   // so a food only ever appears in one section.
-  const frequentFiltered = frequentFoods.filter(matchesSearch);
+  const frequentFiltered = frequentFoods.filter((f) => matchesSearch(f) && !pairedSuggestionIds.has(f.id));
   // Heading reflects the local hour the suggestions are keyed to, e.g. "9PM favorites".
   const frequentHourLabel = (() => {
     const h = new Date().getHours();
@@ -3483,13 +3540,117 @@ export function AddEntryModal({
     return `${h12}${h < 12 ? "AM" : "PM"} favorites`;
   })();
   const frequentIds = new Set(frequentFiltered.map((f) => f.id));
-  const recentFiltered = recentFoods.filter((f) => matchesSearch(f) && !frequentIds.has(f.id));
+  const recentFiltered = recentFoods.filter(
+    (f) => matchesSearch(f) && !frequentIds.has(f.id) && !pairedSuggestionIds.has(f.id)
+  );
   const recentIds = new Set(recentFiltered.map((f) => f.id));
   // Also apply the client-side token filter here (the frequent/recent sections above
   // already do): keeps the library list honest to the current search text even if
   // `allFoods` still holds an in-flight/stale server response for a previous query.
-  const librarySection = allFoods.filter((f) => matchesSearch(f) && !recentIds.has(f.id) && !frequentIds.has(f.id));
+  const librarySection = allFoods.filter(
+    (f) => matchesSearch(f) && !recentIds.has(f.id) && !frequentIds.has(f.id) && !pairedSuggestionIds.has(f.id)
+  );
   const collectionIds = new Set(collection.map((c) => c.food.id));
+  // True when the three library sections above have nothing for this query — the
+  // only condition under which the Open Food Facts lane appears.
+  const hasNoLocalMatch =
+    frequentFiltered.length === 0 && recentFiltered.length === 0 && librarySection.length === 0;
+
+  // OPEN FOOD FACTS FALLBACK — only fires once the user's OWN foods have loaded
+  // and come back empty for a real query, so it costs nothing on the common path
+  // and can never reorder or delay the library results. Debounced because it runs
+  // off every keystroke's worth of search text.
+  useEffect(() => {
+    if (picker !== "search" || foodsLoading || !hasNoLocalMatch || searchQuery.trim().length < 2) {
+      setOffSuggestions([]);
+      setOffLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setOffLoading(true);
+    const timer = setTimeout(() => {
+      fetch(`/modules/forage/api/foods/openfoodfacts?q=${encodeURIComponent(searchQuery.trim())}`)
+        .then((r) => r.json())
+        .then((data) => { if (!cancelled) setOffSuggestions(Array.isArray(data) ? data : []); })
+        // Silent on failure: this is a bonus lane, and the empty state below it
+        // already tells the user nothing matched.
+        .catch(() => { if (!cancelled) setOffSuggestions([]); })
+        .finally(() => { if (!cancelled) setOffLoading(false); });
+    }, 400);
+
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchQuery, picker, foodsLoading, hasNoLocalMatch]);
+
+  // One picker row, plus any pairing suggestions that food unlocked when it was
+  // staged. The suggestions are the SAME FoodRecordRow as everything else — they
+  // animate into the list directly beneath their anchor rather than rendering a
+  // separate widget, so adding cereal simply grows a milk row under it that adds
+  // at its usual amount in one more tap.
+  function renderPickerRow(
+    food: Food,
+    keyPrefix: string,
+    seed?: { servingId: string | null; quantity: number | null }
+  ) {
+    const suggestions = pairedByAnchor[food.id] ?? [];
+    return (
+      <Fragment key={`${keyPrefix}-${food.id}`}>
+
+        {/* FOOD ROW */}
+        <FoodRecordRow
+          food={food}
+          entry={collection.find((c) => c.food.id === food.id) ?? null}
+          inCollection={collectionIds.has(food.id)}
+          onAdd={() => addToCollection(food, seed)}
+          onOpenDetails={() => openDetailsSheet(food)}
+          {...rowMenuProps(food)}
+          onUpdateQuantity={updateCollectionQuantity}
+          onUpdateUnit={updateCollectionUnit}
+          onCommitQuantity={commitCollectionQuantity}
+        />
+
+        {/* PAIRED RECORDS — injected under the anchor once it is on the plate */}
+        {suggestions.length > 0 && (
+          <div className="fg-paired-group">
+
+            {/* CAPTION — why these rows appeared */}
+            <div className="fg-paired-caption">
+              Frequently paired with <span className="fg-paired-anchor">{food.name}</span>
+            </div>
+
+            {suggestions.map((partner, index) => (
+
+              /* PAIRED RECORD — staggered so the group reads as one arrival */
+              <div
+                key={partner.id}
+                className="fg-paired-record"
+                style={{ animationDelay: `${index * 70}ms` }}
+              >
+                <FoodRecordRow
+                  food={partner}
+                  entry={collection.find((c) => c.food.id === partner.id) ?? null}
+                  inCollection={collectionIds.has(partner.id)}
+                  // Re-add a partner at the amount it was last logged at, exactly like
+                  // a Latest row — the pairing endpoint ships that seed with the food.
+                  onAdd={() =>
+                    addToCollection(partner, {
+                      servingId: partner.last_serving_id ?? null,
+                      quantity: partner.last_quantity ?? null,
+                    })
+                  }
+                  onOpenDetails={() => openDetailsSheet(partner)}
+                  {...rowMenuProps(partner)}
+                  onUpdateQuantity={updateCollectionQuantity}
+                  onUpdateUnit={updateCollectionUnit}
+                  onCommitQuantity={commitCollectionQuantity}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </Fragment>
+    );
+  }
 
   // Shared post-decode flow: look up the UPC in the library; on a hit add the food
   // to the collection and snap back to Search; on a miss surface the inline "create
@@ -4041,85 +4202,104 @@ export function AddEntryModal({
                   <div style={{ display: "flex", justifyContent: "center", padding: "2rem 0" }}>
                     <div className="loading-spinner" />
                   </div>
-                ) : frequentFiltered.length === 0 && recentFiltered.length === 0 && librarySection.length === 0 ? (
-                  <div className="empty-state">
-                    <div className="empty-state-body">
-                      {q ? `No foods match "${search}".` : "No foods yet."}
-                    </div>
-                    {q && (
-                      <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "center" }}>
-                        <Button className="btn-blue" onClick={() => openCreateWizard({ name: search.trim() })}>
-                          <Plus className="w-4 h-4" /> Create "{search.trim()}"
-                        </Button>
+                ) : hasNoLocalMatch ? (
+                  <>
+                    {/* EMPTY STATE — nothing in the user's own library matched */}
+                    <div className="empty-state">
+                      <div className="empty-state-body">
+                        {q ? `No foods match "${searchQuery}".` : "No foods yet."}
                       </div>
+                      {q && (
+                        <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "center" }}>
+                          <Button className="btn-blue" onClick={() => openCreateWizard({ name: searchQuery })}>
+                            <Plus className="w-4 h-4" /> Create "{searchQuery}"
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* OPEN FOOD FACTS LANE — a miss in the library doesn't have to
+                        mean building the food by hand. Tapping a result opens the
+                        create wizard pre-filled with it, so the community record is
+                        still reviewed before it lands in the library. */}
+                    {q && (offLoading || offSuggestions.length > 0) && (
+                      <>
+                        <div className="section-heading">From Open Food Facts</div>
+
+                        {offLoading ? (
+                          <div style={{ display: "flex", justifyContent: "center", padding: "1.25rem 0" }}>
+                            <div className="loading-spinner" />
+                          </div>
+                        ) : (
+                          offSuggestions.map((suggestion) => (
+                            <button
+                              key={suggestion.code}
+                              type="button"
+                              className="list-row"
+                              onClick={() => handlePickOffSuggestion(suggestion)}
+                              disabled={offPickingCode !== null}
+                              style={{ width: "100%", textAlign: "left" }}
+                            >
+                              {/* SUGGESTION AVATAR */}
+                              <span className="list-row-avatar">
+                                <Globe className="w-4 h-4" />
+                              </span>
+
+                              {/* SUGGESTION IDENTITY */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div className="list-row-title">{suggestion.name}</div>
+                                <div className="list-row-meta">
+                                  {[suggestion.brand, suggestion.quantity].filter(Boolean).join(" · ") || "Open Food Facts"}
+                                </div>
+                              </div>
+
+                              {/* SUGGESTION ENERGY — per 100 g/ml, the only basis the
+                                  search index carries; exact per-serving figures come
+                                  from the record itself once picked. */}
+                              <div className="list-row-meta" style={{ flexShrink: 0 }}>
+                                {offPickingCode === suggestion.code
+                                  ? "Loading…"
+                                  : suggestion.kcal_per_100 !== null
+                                    ? `${Math.round(suggestion.kcal_per_100)} kcal/100`
+                                    : ""}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </>
                     )}
-                  </div>
+                  </>
                 ) : (
                   <>
                     {frequentFiltered.length > 0 && (
                       <>
                         {/* FREQUENT-NOW HEADING — foods usually logged during this clock hour */}
                         <div className="section-heading">{frequentHourLabel}</div>
-                        {frequentFiltered.map((f) => {
+                        {frequentFiltered.map((f) =>
                           // Re-add a Frequent item using its last-logged serving + amount.
-                          const seed = { servingId: f.last_serving_id ?? null, quantity: f.last_quantity ?? null };
-                          return (
-                            <FoodRecordRow
-                              key={`f-${f.id}`}
-                              food={f}
-                              entry={collection.find((c) => c.food.id === f.id) ?? null}
-                              inCollection={collectionIds.has(f.id)}
-                              onAdd={() => addToCollection(f, seed)}
-                              onOpenDetails={() => openDetailsSheet(f)}
-                              {...rowMenuProps(f)}
-                              onUpdateQuantity={updateCollectionQuantity}
-                              onUpdateUnit={updateCollectionUnit}
-                              onCommitQuantity={commitCollectionQuantity}
-                            />
-                          );
-                        })}
+                          renderPickerRow(f, "f", {
+                            servingId: f.last_serving_id ?? null,
+                            quantity: f.last_quantity ?? null,
+                          })
+                        )}
                       </>
                     )}
                     {recentFiltered.length > 0 && (
                       <>
                         <div className="section-heading">Latest</div>
-                        {recentFiltered.map((f) => {
+                        {recentFiltered.map((f) =>
                           // Re-add a Latest item using its last-logged serving + amount.
-                          const seed = { servingId: f.last_serving_id ?? null, quantity: f.last_quantity ?? null };
-                          return (
-                            <FoodRecordRow
-                              key={`r-${f.id}`}
-                              food={f}
-                              entry={collection.find((c) => c.food.id === f.id) ?? null}
-                              inCollection={collectionIds.has(f.id)}
-                              onAdd={() => addToCollection(f, seed)}
-                              onOpenDetails={() => openDetailsSheet(f)}
-                              {...rowMenuProps(f)}
-                              onUpdateQuantity={updateCollectionQuantity}
-                              onUpdateUnit={updateCollectionUnit}
-                              onCommitQuantity={commitCollectionQuantity}
-                            />
-                          );
-                        })}
+                          renderPickerRow(f, "r", {
+                            servingId: f.last_serving_id ?? null,
+                            quantity: f.last_quantity ?? null,
+                          })
+                        )}
                       </>
                     )}
                     {librarySection.length > 0 && (
                       <>
                         <div className="section-heading">{q ? "From your library" : "Library"}</div>
-                        {librarySection.map((f) => (
-                          <FoodRecordRow
-                            key={`l-${f.id}`}
-                            food={f}
-                            entry={collection.find((c) => c.food.id === f.id) ?? null}
-                            inCollection={collectionIds.has(f.id)}
-                            onAdd={() => addToCollection(f)}
-                            onOpenDetails={() => openDetailsSheet(f)}
-                            {...rowMenuProps(f)}
-                            onUpdateQuantity={updateCollectionQuantity}
-                            onUpdateUnit={updateCollectionUnit}
-                            onCommitQuantity={commitCollectionQuantity}
-                          />
-                        ))}
+                        {librarySection.map((f) => renderPickerRow(f, "l"))}
                       </>
                     )}
                   </>
@@ -4186,7 +4366,7 @@ export function AddEntryModal({
                   /* EMPTY STATE — no recipes (or none match the search) */
                   <div className="empty-state">
                     <div className="empty-state-body">
-                      {q ? `No recipes match "${search}".` : "No recipes yet. Build one on the Recipes page."}
+                      {q ? `No recipes match "${searchQuery}".` : "No recipes yet. Build one on the Recipes page."}
                     </div>
                     <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "center" }}>
                       <Button
@@ -4405,6 +4585,9 @@ export function AddEntryModal({
           overlay
           initialName={createDraft.name}
           initialBarcode={createDraft.barcode}
+          initialDraft={createDraft.draft}
+          initialSourceUrl={createDraft.sourceUrl}
+          initialImageUrl={createDraft.imageUrl}
           onCreated={handleWizardCreated}
           onCancel={handleWizardCancel}
         />
@@ -4822,6 +5005,16 @@ type WizardBasis = "serving" | "100g" | "100ml";
 // round to decimal(10,4) — the food_servings.units_per_serving column scale.
 const round4Wizard = (n: number) => Math.round(n * 1e4) / 1e4;
 
+// Success message for a source-link import. Retailer sites increasingly wall off
+// server-side reads (H-E-B, Walmart), and the import then matches the product in
+// Open Food Facts instead — community data rather than the brand's own page, so
+// say which one filled the form and prompt a check.
+function importedFromMessage(draft: { data_source?: string }): string {
+  return draft.data_source === "openfoodfacts"
+    ? "Website blocked - using Open Food Facts as fallback"
+    : "Imported from link";
+}
+
 // Wizard step order. Kept as a const so the progress bar length and the
 // next/back guards stay in sync.
 const WIZARD_STEPS = ["Details", "Nutrition"] as const;
@@ -4909,6 +5102,9 @@ function ScanTile({
 export function CreateFoodWizard({
   initialName,
   initialBarcode,
+  initialDraft,
+  initialSourceUrl,
+  initialImageUrl,
   overlay = false,
   onCreated,
   onCancel,
@@ -4917,6 +5113,14 @@ export function CreateFoodWizard({
   initialName?: string;
   // Pre-fills the UPC field (e.g. from a barcode-scan miss).
   initialBarcode?: string;
+  // Pre-fills the WHOLE form — identity plus nutrition — from an already-parsed
+  // draft (an Open Food Facts search pick). Applied through the same
+  // applyFoodDraft path a label scan uses, so there's one way in.
+  initialDraft?: LabelOcrDraft;
+  // Pre-fills the source link — the record the draft above was read from.
+  initialSourceUrl?: string;
+  // Product photo to download on save, when the draft's source carried one.
+  initialImageUrl?: string | null;
   // When true, renders as a fixed fullscreen overlay (used over the logger
   // modal); otherwise fills its container as a page (used on /library/new).
   overlay?: boolean;
@@ -4935,6 +5139,16 @@ export function CreateFoodWizard({
   const [brand, setBrand] = useState("");
   // UPC / barcode (no validation beyond trim — labels carry 8/12/13/14-digit codes).
   const [barcodeUpc, setBarcodeUpc] = useState(initialBarcode ?? "");
+  // Source link — the product/nutrition page this food came from. Stored on the
+  // food (foods.source_url) and re-read by the detail page's Resync action.
+  const [sourceUrl, setSourceUrl] = useState(initialSourceUrl ?? "");
+  // Product photo to download on save (Open Food Facts pick / URL import). The
+  // server fetches it — the browser never loads the third-party image.
+  const [imageSourceUrl, setImageSourceUrl] = useState<string | null>(initialImageUrl ?? null);
+  // STATE — when set, the food is saved to the SHARED library (user_id NULL) so
+  // every user can log it. Defaults on for imported products, which are
+  // objectively packaged goods rather than someone's own recipe.
+  const [isGlobal, setIsGlobal] = useState(!!initialImageUrl || !!initialSourceUrl);
   const [kcal, setKcal] = useState("");
   const [p, setP] = useState("");
   const [c, setC] = useState("");
@@ -4974,6 +5188,9 @@ export function CreateFoodWizard({
   const [isPickingIcon, setIsPickingIcon] = useState(false);
   const [isLiveScannerOpen, setIsLiveScannerOpen] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement | null>(null);
+  // Source-link import (scrape the pasted URL) — its own in-flight flag so it
+  // never shares a spinner with either photo pipeline.
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
   // Desktop = a precise pointer + hover (mouse/keyboard), where Ctrl/⌘+V image
   // paste applies. Drives the paste hint on the Nutrition step. Defaults false
   // for SSR (no matchMedia on the server); resolved on mount.
@@ -5057,12 +5274,99 @@ export function CreateFoodWizard({
     return nutrientByCode.get(code)?.daily_value ?? null;
   }
 
+  // APPLY DRAFT — shared by every auto-fill source (label/front photo scan and
+  // the source-link import), which all hand back the same LabelOcrDraft shape.
+  // A numeric value (including 0) came from the source; `null` means the field
+  // wasn't present, so the user's existing input is left alone.
+  function applyFoodDraft(draft: LabelOcrDraft) {
+    if (draft.name) setName(draft.name);
+    if (draft.brand) setBrand(draft.brand);
+    // UPC read off the barcode (front or back of the package) — zbar-decoded
+    // server-side with the vision LLM's printed-digit read as a fallback.
+    if (draft.barcode_upc) setBarcodeUpc(draft.barcode_upc);
+    // Icon the model picked for this product (e.g. "cup-soda"). Applied like
+    // name/brand — it's identity, not nutrition, so no serving-size gate.
+    if (draft.icon) setIcon(draft.icon);
+
+    // NUTRITION — only trusted when the source carried a real facts panel with a
+    // stated serving size (server-enforced). Front-of-pack marketing claims
+    // ("24g PROTEIN!") arrive with serving_size_stated=false and are ignored,
+    // so they never fill fields or light the label tile's captured-check.
+    if (!draft.serving_size_stated) return;
+    setServingSizeStated(true);
+    if (draft.kcal_per_serving !== null) setKcal(String(draft.kcal_per_serving));
+    if (draft.protein_g_per_serving !== null) setP(String(draft.protein_g_per_serving));
+    if (draft.carbs_g_per_serving !== null) setC(String(draft.carbs_g_per_serving));
+    if (draft.fat_g_per_serving !== null) setF(String(draft.fat_g_per_serving));
+    // Replace serving rows from the draft when the basis is per-serving; an
+    // empty result leaves the existing draft rows untouched.
+    const draftServings = draft.servings
+      .filter((s) => Number.isFinite(s.units_per_serving) && s.units_per_serving > 0 && s.unit)
+      .map((s) => ({ unit: s.unit, ups: String(s.units_per_serving) }));
+    if (basis === "serving" && draftServings.length > 0) {
+      setServings(draftServings);
+    }
+    if (Object.keys(draft.nutrients_by_code).length > 0) {
+      const byId: Record<string, string> = {};
+      for (const n of nutrients) {
+        const amt = draft.nutrients_by_code[n.code];
+        // >= 0 so explicit label zeros ("Trans Fat 0g") propagate as "0".
+        if (typeof amt === "number" && amt >= 0) byId[n.id] = String(amt);
+      }
+      setNutrientAmounts(byId);
+    }
+  }
+
+  // PRE-FILL FROM A READY-MADE DRAFT (Open Food Facts search pick). Waits for
+  // useNutrients() to resolve, because applyFoodDraft maps nutrient CODES onto
+  // nutrient ids — applying before they load would silently drop every
+  // micronutrient. Runs once; after that the form belongs to the user.
+  const appliedInitialDraftRef = useRef(false);
+  useEffect(() => {
+    if (!initialDraft || appliedInitialDraftRef.current || nutrients.length === 0) return;
+    appliedInitialDraftRef.current = true;
+    applyFoodDraft(initialDraft);
+  }, [initialDraft, nutrients.length]);
+
+  // IMPORT FROM SOURCE LINK — scrapes the pasted product/nutrition page and fills
+  // the form from it, the same way a label scan does (mirrors the recipe "Import
+  // from website" flow, but leaves the result on the form to review rather than
+  // creating the record outright).
+  async function handleImportFromUrl() {
+    const url = sourceUrl.trim();
+    if (!url || isImportingUrl) return;
+    setIsImportingUrl(true);
+    const toastId = toast.loading("Reading page…");
+    try {
+      const res = await fetch(`/modules/forage/api/foods/import-url`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const draft = await res.json();
+      if (!res.ok) {
+        toast.error(draft?.error || "Couldn't read that link", { id: toastId });
+        return;
+      }
+      applyFoodDraft(draft as LabelOcrDraft);
+      // An imported product is a packaged good rather than a personal recipe, so
+      // it defaults to the shared library — and brings its photo with it.
+      if (draft.image_url) setImageSourceUrl(draft.image_url);
+      setIsGlobal(true);
+      if (draft.serving_size_stated) toast.success(importedFromMessage(draft), { id: toastId });
+      else toast.error("No nutrition found on that page", { id: toastId });
+    } catch {
+      toast.error("Couldn't read that link", { id: toastId });
+    } finally {
+      setIsImportingUrl(false);
+    }
+  }
+
   // SCAN/UPLOAD IMAGE — routes through the label-OCR endpoint and applies the
-  // parsed draft to the form. A numeric value (including 0) is from the label;
-  // `null` means the field wasn't present, so leave the user's input. `kind`
-  // selects the pipeline: the front-of-product scan and the nutrition-label scan
-  // are fully independent (their own spinner) so one never blocks or visually
-  // hijacks the other. Both still apply whatever fields the vision LLM extracts.
+  // parsed draft to the form. `kind` selects the pipeline: the front-of-product
+  // scan and the nutrition-label scan are fully independent (their own spinner)
+  // so one never blocks or visually hijacks the other. Both apply whatever
+  // fields the vision LLM extracts via applyFoodDraft above.
   async function handleScanLabelFile(fileOrFiles: File | File[], kind: "front" | "label" = "label") {
     const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
     if (files.length === 0) return;
@@ -5079,43 +5383,7 @@ export function CreateFoodWizard({
         return;
       }
       const draft: LabelOcrDraft = await res.json();
-      if (draft.name) setName(draft.name);
-      if (draft.brand) setBrand(draft.brand);
-      // UPC read off the barcode (front or back of the package) — zbar-decoded
-      // server-side with the vision LLM's printed-digit read as a fallback.
-      if (draft.barcode_upc) setBarcodeUpc(draft.barcode_upc);
-      // Icon the vision model picked for this product (e.g. "cup-soda"). Applied
-      // like name/brand — it's identity, not nutrition, so no serving-size gate.
-      if (draft.icon) setIcon(draft.icon);
-
-      // NUTRITION — only trusted when the scan saw a real facts panel with a
-      // stated serving size (server-enforced). Front-of-pack marketing claims
-      // ("24g PROTEIN!") arrive with serving_size_stated=false and are ignored,
-      // so they never fill fields or light the label tile's captured-check.
-      if (draft.serving_size_stated) {
-        setServingSizeStated(true);
-        if (draft.kcal_per_serving !== null) setKcal(String(draft.kcal_per_serving));
-        if (draft.protein_g_per_serving !== null) setP(String(draft.protein_g_per_serving));
-        if (draft.carbs_g_per_serving !== null) setC(String(draft.carbs_g_per_serving));
-        if (draft.fat_g_per_serving !== null) setF(String(draft.fat_g_per_serving));
-        // Replace serving rows from the scan when the basis is per-serving; an
-        // empty result leaves the existing draft rows untouched.
-        const scanServings = draft.servings
-          .filter((s) => Number.isFinite(s.units_per_serving) && s.units_per_serving > 0 && s.unit)
-          .map((s) => ({ unit: s.unit, ups: String(s.units_per_serving) }));
-        if (basis === "serving" && scanServings.length > 0) {
-          setServings(scanServings);
-        }
-        if (Object.keys(draft.nutrients_by_code).length > 0) {
-          const byId: Record<string, string> = {};
-          for (const n of nutrients) {
-            const amt = draft.nutrients_by_code[n.code];
-            // >= 0 so explicit label zeros ("Trans Fat 0g") propagate as "0".
-            if (typeof amt === "number" && amt >= 0) byId[n.id] = String(amt);
-          }
-          setNutrientAmounts(byId);
-        }
-      }
+      applyFoodDraft(draft);
       // The green check on each tile shows exactly what landed, so the toast just
       // confirms the scan worked — or says so plainly when nothing usable was read.
       const captured = !!draft.name || !!draft.brand || !!draft.barcode_upc || draft.serving_size_stated;
@@ -5266,6 +5534,9 @@ export function CreateFoodWizard({
           name: name.trim(),
           brand: brand.trim() || null,
           barcode_upc: barcodeUpc.trim() || null,
+          source_url: sourceUrl.trim() || null,
+          image_source_url: imageSourceUrl,
+          is_global: isGlobal,
           kcal_per_serving: Number(kcal),
           protein_g_per_serving: Number(p || 0),
           carbs_g_per_serving: Number(c || 0),
@@ -5577,6 +5848,66 @@ export function CreateFoodWizard({
                 }}
               />
             </div>
+
+            {/* SOURCE LINK — the product / nutrition page this food comes from.
+                Saved on the food, and "Import" scrapes it to fill the form (the
+                same auto-fill path as a label scan). The saved link is what the
+                food details page later resyncs from. */}
+            <div className="flex flex-col gap-1">
+              <label className="text-label" htmlFor="ef-source-url">Source link (Optional)</label>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "stretch" }}>
+                <input
+                  id="ef-source-url"
+                  className="input-field"
+                  type="url"
+                  inputMode="url"
+                  value={sourceUrl}
+                  onChange={(e) => setSourceUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLInputElement).blur();
+                      void handleImportFromUrl();
+                    }
+                  }}
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  placeholder="https://brand.com/product-page"
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <Button
+                  className="btn-off"
+                  onClick={handleImportFromUrl}
+                  disabled={isImportingUrl || !sourceUrl.trim()}
+                  aria-label="Import nutrition from this link"
+                >
+                  {isImportingUrl ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  {isImportingUrl ? "Reading…" : "Import"}
+                </Button>
+              </div>
+              <span className="text-muted" style={{ fontSize: "0.75rem" }}>
+                Paste a product page and we&apos;ll pull its nutrition. Kept on the food so you can resync it later.
+              </span>
+            </div>
+
+            {/* SHARED-LIBRARY TOGGLE — a packaged product's nutrition is the same
+                for everyone, so an imported one is worth adding once for all
+                users rather than per-account. Defaults on for imports and off
+                for hand-entered foods, which are usually personal. */}
+            <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={isGlobal}
+                onChange={(e) => setIsGlobal(e.target.checked)}
+                style={{ accentColor: "var(--color-primary)", width: "1rem", height: "1rem", marginTop: "0.125rem", flexShrink: 0 }}
+              />
+              <span style={{ minWidth: 0 }}>
+                <span style={{ fontSize: "0.875rem" }}>Add to global database</span>
+                <span className="text-muted" style={{ fontSize: "0.75rem", display: "block" }}>
+                  Shared with every user instead of saved to just your library. Best for packaged products.
+                </span>
+              </span>
+            </label>
 
           </div>
         )}
@@ -5891,6 +6222,9 @@ export function FoodForm({
   const [brand, setBrand] = useState("");
   // UPC / barcode (no validation beyond trim — labels carry 8/12/13/14-digit codes).
   const [barcodeUpc, setBarcodeUpc] = useState(initialBarcode ?? "");
+  // Source link — the product/nutrition page this food came from (foods.source_url).
+  // Editable here, and what the details page's Resync action re-reads.
+  const [sourceUrl, setSourceUrl] = useState("");
   const [kcal, setKcal] = useState("");
   const [p, setP] = useState("");
   const [c, setC] = useState("");
@@ -5917,6 +6251,9 @@ export function FoodForm({
   const barcodeInputRef = useRef<HTMLInputElement | null>(null);
   // Toggles the live-camera scanner overlay for the UPC field.
   const [isLiveScannerOpen, setIsLiveScannerOpen] = useState(false);
+  // Source-link import (scrape the pasted URL) — its own in-flight flag so it
+  // never shares a spinner with the photo pipelines.
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
 
   // Codes the merged macro/micro list renders inline (in label order, between
   // the macros). Everything else is rendered as the inline tail below the
@@ -5950,7 +6287,7 @@ export function FoodForm({
   // nutrient tail are variable-length. The serving unit <select> and the kcal
   // %DV toggle are intentionally skipped — only text/number inputs participate.
   const advanceOrder = useMemo(() => {
-    const ids = ["ef-name", "ef-brand", "ef-upc"];
+    const ids = ["ef-name", "ef-brand", "ef-upc", "ef-source-url"];
     servings.forEach((_, i) => ids.push(`ef-srv-${i}-ups`));
     ids.push(
       "ef-kcal", "ef-fat", "ef-satfat", "ef-transfat", "ef-chol", "ef-sodium",
@@ -6012,6 +6349,73 @@ export function FoodForm({
     return nutrientByCode.get(code)?.daily_value ?? null;
   }
 
+  // APPLY DRAFT — shared by both auto-fill sources (the label photo scan and the
+  // source-link import), which hand back the same LabelOcrDraft shape. A numeric
+  // value (including 0) came from the source — write it in. `null` means the
+  // field wasn't there at all, so leave whatever the user already typed (or the
+  // empty/dash-placeholder state) untouched. The server has already dropped any
+  // nutrition that didn't come from a real facts panel.
+  function applyFoodDraft(draft: LabelOcrDraft) {
+    if (draft.name) setName(draft.name);
+    if (draft.brand) setBrand(draft.brand);
+    // Icon the model picked for this product (e.g. "cup-soda").
+    if (draft.icon) setIcon(draft.icon);
+    // UPC read off the barcode (front or back of the package) — zbar-decoded
+    // server-side with the vision LLM's printed-digit read as a fallback.
+    if (draft.barcode_upc) setBarcodeUpc(draft.barcode_upc);
+    if (draft.kcal_per_serving !== null) setKcal(String(draft.kcal_per_serving));
+    if (draft.protein_g_per_serving !== null) setP(String(draft.protein_g_per_serving));
+    if (draft.carbs_g_per_serving !== null) setC(String(draft.carbs_g_per_serving));
+    if (draft.fat_g_per_serving !== null) setF(String(draft.fat_g_per_serving));
+    // Replace serving rows from the draft. Filter to positive quantities; an empty
+    // result leaves the existing rows untouched.
+    const draftServings = draft.servings
+      .filter((s) => Number.isFinite(s.units_per_serving) && s.units_per_serving > 0 && s.unit)
+      .map((s) => ({ unit: s.unit, ups: String(s.units_per_serving) }));
+    if (draftServings.length > 0) {
+      setServings(draftServings);
+    }
+    if (Object.keys(draft.nutrients_by_code).length > 0) {
+      const byId: Record<string, string> = {};
+      for (const n of nutrients) {
+        const amt = draft.nutrients_by_code[n.code];
+        // >= 0 so that explicit zeros from the label ("Trans Fat 0g") propagate to
+        // the editor as "0" rather than being dropped.
+        if (typeof amt === "number" && amt >= 0) byId[n.id] = String(amt);
+      }
+      setNutrientAmounts(byId);
+    }
+  }
+
+  // IMPORT FROM SOURCE LINK — scrapes the product/nutrition page in the source
+  // field and refills the form from it. Same endpoint the create wizard and the
+  // details page's Resync use, so all three read a page identically.
+  async function handleImportFromUrl() {
+    const url = sourceUrl.trim();
+    if (!url || isImportingUrl) return;
+    setIsImportingUrl(true);
+    const toastId = toast.loading("Reading page…");
+    try {
+      const res = await fetch(`/modules/forage/api/foods/import-url`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const draft = await res.json();
+      if (!res.ok) {
+        toast.error(draft?.error || "Couldn't read that link", { id: toastId });
+        return;
+      }
+      applyFoodDraft(draft as LabelOcrDraft);
+      if (draft.serving_size_stated) toast.success(importedFromMessage(draft), { id: toastId });
+      else toast.error("No nutrition found on that page", { id: toastId });
+    } catch {
+      toast.error("Couldn't read that link", { id: toastId });
+    } finally {
+      setIsImportingUrl(false);
+    }
+  }
+
   // Accepts one OR MORE images — pick the package front + back together and the
   // vision LLM reads the brand/name off the front while still reading nutrition
   // off the facts panel.
@@ -6030,39 +6434,7 @@ export function FoodForm({
         return;
       }
       const draft: LabelOcrDraft = await res.json();
-      // Apply scan results to the form. A numeric value (including 0) is from the
-      // label — write it in. `null` means the field wasn't on the label at all, so
-      // leave whatever the user already typed (or the empty/dash-placeholder state)
-      // untouched.
-      if (draft.name) setName(draft.name);
-      if (draft.brand) setBrand(draft.brand);
-      // Icon the vision model picked for this product (e.g. "cup-soda").
-      if (draft.icon) setIcon(draft.icon);
-      // UPC read off the barcode (front or back of the package) — zbar-decoded
-      // server-side with the vision LLM's printed-digit read as a fallback.
-      if (draft.barcode_upc) setBarcodeUpc(draft.barcode_upc);
-      if (draft.kcal_per_serving !== null) setKcal(String(draft.kcal_per_serving));
-      if (draft.protein_g_per_serving !== null) setP(String(draft.protein_g_per_serving));
-      if (draft.carbs_g_per_serving !== null) setC(String(draft.carbs_g_per_serving));
-      if (draft.fat_g_per_serving !== null) setF(String(draft.fat_g_per_serving));
-      // Replace serving rows from the scan. Filter to positive quantities; an empty
-      // result leaves the existing draft rows untouched.
-      const scanServings = draft.servings
-        .filter((s) => Number.isFinite(s.units_per_serving) && s.units_per_serving > 0 && s.unit)
-        .map((s) => ({ unit: s.unit, ups: String(s.units_per_serving) }));
-      if (scanServings.length > 0) {
-        setServings(scanServings);
-      }
-      if (Object.keys(draft.nutrients_by_code).length > 0) {
-        const byId: Record<string, string> = {};
-        for (const n of nutrients) {
-          const amt = draft.nutrients_by_code[n.code];
-          // >= 0 so that explicit zeros from the label ("Trans Fat 0g") propagate to
-          // the editor as "0" rather than being dropped.
-          if (typeof amt === "number" && amt >= 0) byId[n.id] = String(amt);
-        }
-        setNutrientAmounts(byId);
-      }
+      applyFoodDraft(draft);
       const captured = !!draft.name || !!draft.brand || !!draft.barcode_upc || draft.serving_size_stated;
       if (captured) toast.success("Scanned", { id: toastId });
       else toast.error("Nothing found — try a clearer photo", { id: toastId });
@@ -6141,6 +6513,7 @@ export function FoodForm({
         setName(data.name ?? "");
         setBrand(data.brand ?? "");
         setBarcodeUpc(data.barcode_upc ?? "");
+        setSourceUrl(data.source_url ?? "");
         setKcal(String(data.kcal_per_serving ?? ""));
         setP(String(data.protein_g_per_serving ?? ""));
         setC(String(data.carbs_g_per_serving ?? ""));
@@ -6200,6 +6573,7 @@ export function FoodForm({
           name: name.trim(),
           brand: brand.trim() || null,
           barcode_upc: barcodeUpc.trim() || null,
+          source_url: sourceUrl.trim() || null,
           kcal_per_serving: Number(kcal),
           protein_g_per_serving: Number(p || 0),
           carbs_g_per_serving: Number(c || 0),
@@ -6328,6 +6702,36 @@ export function FoodForm({
                   if (file) handleScanBarcodeFile(file);
                 }}
               />
+            </div>
+          </div>
+
+          {/* SOURCE LINK — product / nutrition page this food comes from. Saved on
+              the food; "Import" re-reads the page and refills the form from it
+              (the details page's Resync uses the same link). */}
+          <div className="flex flex-col gap-1">
+            <label className="text-label" htmlFor="ef-source-url">Source link (optional)</label>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "stretch" }}>
+              <input
+                id="ef-source-url"
+                className="input-field"
+                type="url"
+                inputMode="url"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                autoComplete="off"
+                autoCapitalize="off"
+                placeholder="https://brand.com/product-page"
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <Button
+                className="btn-off"
+                onClick={handleImportFromUrl}
+                disabled={isImportingUrl || !sourceUrl.trim()}
+                aria-label="Import nutrition from this link"
+              >
+                {isImportingUrl ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {isImportingUrl ? "Reading…" : "Import"}
+              </Button>
             </div>
           </div>
 
@@ -6879,6 +7283,17 @@ export function FoodUsageCard({ foodId }: { foodId: string }) {
   );
 }
 
+// Host of a stored source link, for a compact one-line display ("tacobell.com").
+// Falls back to the raw string if it somehow isn't parseable — the column holds
+// whatever was saved, and a malformed link should still be visible/fixable.
+export function sourceUrlHost(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 export function FoodDetailContent({
   food,
   nutrients,
@@ -6908,21 +7323,46 @@ export function FoodDetailContent({
     };
   }, [food]);
 
-  const Icon = resolveFoodIcon(food.icon ?? null);
-
   return (
     <>
       {/* FOOD IDENTITY CARD */}
       <div className="sub-card" style={{ padding: "1rem", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
 
-        {/* ICON */}
-        <Icon className="w-8 h-8" style={{ flexShrink: 0 }} />
+        {/* PHOTO / ICON */}
+        <FoodAvatar food={food} size={32} variant="inline" />
 
         {/* NAME / BRAND / SOURCE */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="text-primary" style={{ fontWeight: 600, fontSize: "1rem" }}>{food.name}</div>
           {food.brand && <div className="text-muted" style={{ fontSize: "0.8125rem" }}>{food.brand}</div>}
           <div className="text-muted" style={{ fontSize: "0.75rem", textTransform: "capitalize" }}>{food.source}</div>
+
+          {/* SOURCE LINK — the page this food's nutrition came from. Opens in a new
+              tab; the host alone is shown so a long URL can't run out of the card
+              (the full link is the title/aria text). */}
+          {food.source_url && (
+            <a
+              className="text-muted"
+              href={food.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={food.source_url}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.25rem",
+                fontSize: "0.75rem",
+                textDecoration: "underline",
+                maxWidth: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <ExternalLink className="w-3 h-3" style={{ flexShrink: 0 }} />
+              {sourceUrlHost(food.source_url)}
+            </a>
+          )}
         </div>
 
         {/* FAVORITE */}

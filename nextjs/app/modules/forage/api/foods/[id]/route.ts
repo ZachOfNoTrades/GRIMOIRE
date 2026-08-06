@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { getFood, updateFood, archiveFood, setFoodFavorite } from '../../../lib/foodFunctions';
+import { getFood, updateFood, archiveFood, setFoodFavorite, normalizeSourceUrl } from '../../../lib/foodFunctions';
 import { getRecipeIngredients } from '../../../lib/recipeFunctions';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,6 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       fat_g_per_serving: Number(body.fat_g_per_serving ?? 0),
       icon: typeof body.icon === 'string' && body.icon.trim() ? body.icon.trim() : null,
       barcode_upc: typeof body.barcode_upc === 'string' && body.barcode_upc.trim() ? body.barcode_upc.trim() : null,
+      source_url: normalizeSourceUrl(body.source_url),
       servings: Array.isArray(body.servings)
         ? body.servings
             .filter((s: any) => s && typeof s.unit === 'string' && s.unit.trim() && Number(s.units_per_serving) > 0)
@@ -53,7 +54,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         : [],
       nutrients: Array.isArray(body.nutrients)
         ? body.nutrients
-            .filter((n: any) => n && typeof n.nutrient_id === 'string' && Number(n.amount) > 0)
+            // An explicit zero is DATA — "Trans fat 0 g" on a label, or a 0 in an
+            // Open Food Facts record — and must persist. Only missing/negative
+            // values are dropped.
+            .filter((n: any) => n && typeof n.nutrient_id === 'string' && Number.isFinite(Number(n.amount)) && Number(n.amount) >= 0)
             .map((n: any) => ({ nutrient_id: n.nutrient_id, amount: Number(n.amount) }))
         : [],
     });

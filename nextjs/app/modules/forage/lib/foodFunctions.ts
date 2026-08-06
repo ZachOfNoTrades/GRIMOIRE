@@ -14,12 +14,21 @@ interface CreateFoodInput {
   fat_g_per_serving: number;
   icon?: string | null;
   barcode_upc?: string | null;
+  // Public product/nutrition page the food came from. Persisted verbatim (only
+  // trimmed); the scrape path validates it, so an unreachable link is still a
+  // legitimate thing to store.
+  source_url?: string | null;
   servings?: { unit: string; units_per_serving: number }[];
   nutrients?: FoodNutrient[];
   // When true, do NOT force the canonical {'serving', 1} row. Used for foods
   // whose reference basis is a base unit (per-100g / per-100ml), where a generic
   // "serving" unit is meaningless — the base unit (g/ml) is the reference.
   omit_default_serving?: boolean;
+  // When true the food is stored with user_id NULL, i.e. it lands in the SHARED
+  // library every user can see and log — the same slot USDA-cached foods use.
+  // Meant for objectively-packaged products (a scanned label, a URL/Open Food
+  // Facts import), not for someone's "Mom's chili".
+  is_global?: boolean;
 }
 
 // Thrown by createFood when barcode_upc already belongs to an in-scope food (the
@@ -94,8 +103,8 @@ async function macroNutrientIds(pool: sql.ConnectionPool): Promise<Record<string
 }
 
 // Merge the food's macro values (per canonical serving) into a micro nutrient
-// list as food_nutrients rows, deduped by nutrient_id. Only positive amounts
-// get a row, matching the absent-row=0 convention used for micros.
+// list as food_nutrients rows, deduped by nutrient_id. Zero is a real value and
+// gets a row (see below), so only non-numeric input is skipped.
 async function withMacroNutrients(
   pool: sql.ConnectionPool,
   input: CreateFoodInput,
@@ -107,7 +116,10 @@ async function withMacroNutrients(
     const id = ids[m.code];
     if (!id) continue; // macro nutrient row not seeded yet (pre-migration DB)
     const amount = Number(input[m.field]);
-    if (Number.isFinite(amount) && amount > 0) merged.set(id, amount);
+    // >= 0, not > 0: a food that genuinely has 0 g of fat must keep an explicit
+    // zero row, otherwise "no fat" and "fat never recorded" are indistinguishable
+    // and a resync merge can resurrect a stale value.
+    if (Number.isFinite(amount) && amount >= 0) merged.set(id, amount);
   }
   return Array.from(merged, ([nutrient_id, amount]) => ({ nutrient_id, amount }));
 }
@@ -158,7 +170,8 @@ async function reconcileFoodNutrients(
 }
 
 const FOOD_BASE_COLUMNS = `foods.id, foods.user_id, foods.name, foods.brand, foods.source, foods.usda_fdc_id,
-              foods.barcode_upc, foods.is_favorite, foods.is_archived, foods.icon`;
+              foods.barcode_upc, foods.source_url, foods.is_favorite, foods.is_archived, foods.icon,
+              foods.image_updated_at`;
 // Macros are derived from the nutrient EAV (category='macro' rows), not the
 // legacy foods.*_per_serving columns, so the Food contract survives the Phase 5
 // column drop. Amounts are per canonical serving (kept in sync on every write).
@@ -181,9 +194,27 @@ const SERVING_COLUMNS = `id, food_id, unit, units_per_serving`;
 
 // Escape the LIKE wildcard metacharacters so a user-typed token is matched
 // literally (paired with `ESCAPE '\'` on the LIKE). Without this a '%' or '_'
-// in a search term would behave as a wildcard.
-function escapeLike(value: string): string {
+// in a search term would behave as a wildcard. Exported so every forage search
+// (foods here, recipes in recipeFunctions) escapes identically.
+export function escapeLike(value: string): string {
   return value.replace(/[\\%_[]/g, (char) => `\\${char}`);
+}
+
+// Normalize a user-supplied source link for storage: trim, require an http(s)
+// URL, cap at the column width. Anything else (blank, "not a url", a javascript:
+// scheme) becomes null rather than being rejected — the link is a convenience
+// field, and the scrape path re-validates it with the SSRF guard before use.
+export function normalizeSourceUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  } catch {
+    return null;
+  }
+  return trimmed.slice(0, 1000);
 }
 
 export async function listFoods(
@@ -263,6 +294,9 @@ export async function listFoods(
       fat_g_per_serving: Number(r.fat_g_per_serving),
       is_archived: !!r.is_archived,
       is_favorite: !!r.is_favorite,
+      // Non-null when the food has a stored photo; also the image URL's
+      // cache-buster, so a replaced photo is fetched fresh.
+      image_updated_at: r.image_updated_at ? new Date(r.image_updated_at).toISOString() : null,
       servings: servingsByFood.get(r.id) || [],
       // The serving + amount from this user's most-recent entry for the food, so the
       // logger's details sheet defaults to "last used" rather than "1 serving". Left
@@ -473,6 +507,9 @@ export async function getFood(userId: string, foodId: string): Promise<Food> {
       fat_g_per_serving: Number(r.fat_g_per_serving),
       is_archived: !!r.is_archived,
       is_favorite: !!r.is_favorite,
+      // Non-null when the food has a stored photo; also the image URL's
+      // cache-buster, so a replaced photo is fetched fresh.
+      image_updated_at: r.image_updated_at ? new Date(r.image_updated_at).toISOString() : null,
       servings: servings.recordset.map((s) => ({ ...s, units_per_serving: Number(s.units_per_serving) })),
       nutrients: nutrients.recordset.map((n) => ({
         nutrient_id: n.nutrient_id,
@@ -586,19 +623,21 @@ export async function createFood(userId: string, input: CreateFoodInput): Promis
 
     const insert = await pool
       .request()
-      .input('userId', sql.UniqueIdentifier, userId)
+      // A global food is stored ownerless (user_id NULL) so every user sees it.
+      .input('userId', sql.UniqueIdentifier, input.is_global ? null : userId)
       .input('name', sql.NVarChar(255), input.name)
       .input('brand', sql.NVarChar(255), input.brand ?? null)
       .input('icon', sql.NVarChar(32), input.icon ?? null)
       .input('barcode', sql.NVarChar(32), input.barcode_upc ?? null)
+      .input('sourceUrl', sql.NVarChar(1000), input.source_url ?? null)
       .input('source', sql.NVarChar(16), input.source ?? 'user')
       .input('fdcId', sql.Int, input.usda_fdc_id ?? null)
       // Macros are written as food_nutrients rows (withMacroNutrients below), not
       // foods columns — those columns were dropped in the macro→nutrient migration.
       .query<{ id: string }>(
-        `INSERT INTO foods (user_id, name, brand, source, usda_fdc_id, icon, barcode_upc)
+        `INSERT INTO foods (user_id, name, brand, source, usda_fdc_id, icon, barcode_upc, source_url)
          OUTPUT INSERTED.id
-         VALUES (@userId, @name, @brand, @source, @fdcId, @icon, @barcode)`
+         VALUES (@userId, @name, @brand, @source, @fdcId, @icon, @barcode, @sourceUrl)`
       );
     const newId = insert.recordset[0].id;
     const servings = normalizeServings(input.servings, input.omit_default_serving);
@@ -629,11 +668,12 @@ export async function updateFood(userId: string, foodId: string, input: CreateFo
       .input('brand', sql.NVarChar(255), input.brand ?? null)
       .input('icon', sql.NVarChar(32), input.icon ?? null)
       .input('barcode', sql.NVarChar(32), input.barcode_upc ?? null)
+      .input('sourceUrl', sql.NVarChar(1000), input.source_url ?? null)
       // Macros are reconciled into food_nutrients (withMacroNutrients below), not
       // foods columns — those were dropped in the macro→nutrient migration.
       .query(
         `UPDATE foods SET name=@name, brand=@brand,
-           icon=@icon, barcode_upc=@barcode,
+           icon=@icon, barcode_upc=@barcode, source_url=@sourceUrl,
            ts_updated=GETDATE()
          WHERE id=@foodId AND user_id=@userId`
       );
@@ -716,6 +756,9 @@ export async function listFavoriteFoods(userId: string): Promise<Food[]> {
       fat_g_per_serving: Number(r.fat_g_per_serving),
       is_archived: !!r.is_archived,
       is_favorite: !!r.is_favorite,
+      // Non-null when the food has a stored photo; also the image URL's
+      // cache-buster, so a replaced photo is fetched fresh.
+      image_updated_at: r.image_updated_at ? new Date(r.image_updated_at).toISOString() : null,
       servings: [],
     }));
   } finally {
@@ -790,7 +833,13 @@ export async function archiveFood(userId: string, foodId: string): Promise<void>
       .request()
       .input('foodId', sql.UniqueIdentifier, foodId)
       .input('userId', sql.UniqueIdentifier, userId)
-      .query(`UPDATE foods SET is_archived=1, ts_updated=GETDATE() WHERE id=@foodId AND user_id=@userId`);
+      // Shared/global foods (user_id NULL) are archivable too — matching what
+      // updateFood already allows. Without this a food added to the global
+      // library could never be removed by anyone, only edited.
+      .query(
+        `UPDATE foods SET is_archived=1, ts_updated=GETDATE()
+         WHERE id=@foodId AND (user_id=@userId OR user_id IS NULL)`
+      );
   } finally {
     if (pool) await closeFoodConnection(pool);
   }

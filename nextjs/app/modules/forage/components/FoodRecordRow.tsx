@@ -6,7 +6,7 @@ import { Plus, Flame, Info, MoreVertical, Pencil, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { selectOnFocus } from "@/lib/inputBehavior";
 import { Food } from "../types/food";
-import { resolveFoodIcon } from "../lib/foodIcons";
+import { FoodAvatar } from "./FoodAvatar";
 import { fmtAmount } from "../lib/format";
 
 // A staged plate item: the virtual-unit food plus the drafted amount + unit.
@@ -57,7 +57,6 @@ export function FoodRecordRow({
   // is dropped from the plate. Optional — only the staging plate wires it.
   onCommitQuantity?: (foodId: string, q: string) => void;
 }) {
-  const FoodIcon = resolveFoodIcon(food.icon);
 
   // A recipe is a `foods` row with source='recipe'; its View/Edit targets are the
   // recipe pages, not the library ones, so the menu labels follow suit.
@@ -173,9 +172,7 @@ export function FoodRecordRow({
       >
 
         {/* FOOD AVATAR */}
-        <span className="list-row-avatar">
-          <FoodIcon size={16} />
-        </span>
+        <FoodAvatar food={food} size={16} />
 
         {/* TITLE + META */}
         <div style={{ flex: 1, minWidth: 0 }}>

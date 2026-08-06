@@ -97,6 +97,10 @@ export interface Food {
   source: FoodSource;
   usda_fdc_id: number | null;
   barcode_upc: string | null;
+  // Public product/nutrition page this food's data came from — typed into the
+  // create/edit form or stamped by the "Import from website" flow. Drives the
+  // food detail page's Resync action. null when the food has no web source.
+  source_url: string | null;
   kcal_per_serving: number;
   protein_g_per_serving: number;
   carbs_g_per_serving: number;
@@ -105,6 +109,10 @@ export interface Food {
   is_archived: boolean;
   // Preseeded icon code (see lib/foodIcons.tsx FOOD_ICONS). null → default apple.
   icon: string | null;
+  // ISO timestamp of the food's stored photo, or null when it has none. Drives
+  // whether the avatar renders the photo or falls back to the icon, and busts
+  // the image URL's cache when the photo is replaced.
+  image_updated_at: string | null;
   servings: FoodServing[];
   // Populated by getFood; omitted by listFoods to keep the library list cheap.
   nutrients?: FoodNutrient[];

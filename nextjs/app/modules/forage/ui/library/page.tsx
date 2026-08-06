@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import toast, { Toaster } from "react-hot-toast";
 import { ArrowLeft, ChevronRight, Plus, Search, Apple } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Food } from "../../types/food";
-import { resolveFoodIcon } from "../../lib/foodIcons";
+import { FoodAvatar } from "../../components/FoodAvatar";
 
 export default function ForageLibraryPage() {
   const router = useRouter();
-  const goBack = useGoBack();
 
   // DATA
   const [foods, setFoods] = useState<Food[]>([]);
@@ -61,9 +60,9 @@ export default function ForageLibraryPage() {
 
           {/* TITLE GROUP */}
           <div className="flex items-center gap-2">
-            <Button className="btn-link" onClick={() => goBack("/modules/forage/ui/settings")} aria-label="Back">
+            <BackLink fallback="/modules/forage/ui/settings" className="btn btn-link" aria-label="Back">
               <ArrowLeft className="w-5 h-5" />
-            </Button>
+            </BackLink>
             <h1 className="text-page-title"><Apple className="w-6 h-6" /> Food library</h1>
           </div>
 
@@ -104,7 +103,6 @@ export default function ForageLibraryPage() {
             </div>
           )}
           {!isLoading && foods.map((food) => {
-            const FoodIcon = resolveFoodIcon(food.icon);
             return (
               /* FOOD ITEM CARD */
               <button
@@ -126,7 +124,7 @@ export default function ForageLibraryPage() {
               >
 
                 {/* ICON */}
-                <FoodIcon className="w-5 h-5" style={{ flexShrink: 0 }} />
+                <FoodAvatar food={food} size={20} variant="inline" />
 
                 {/* NAME + MACROS */}
                 <div style={{ flex: 1, minWidth: 0 }}>

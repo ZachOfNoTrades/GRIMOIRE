@@ -29,6 +29,14 @@ BEGIN TRY
             -- Code from the preseeded forage icon set (FOOD_ICONS in lib/foodIcons.tsx).
             -- NULL falls back to the default apple icon at render time.
             icon NVARCHAR(32) NULL,
+            -- Public product/nutrition page this food's data came from (or was
+            -- pasted in by the user). Drives the "Resync" action on the food
+            -- detail page, which re-scrapes this URL and refreshes the nutrition.
+            source_url NVARCHAR(1000) NULL,
+            -- Set when the food has a photo in food_images; NULL means "no photo,
+            -- render the icon". Also the image URL's cache-buster, since it moves
+            -- whenever the photo is replaced.
+            image_updated_at DATETIME2 NULL,
             ts_created DATETIME2 DEFAULT GETDATE(),
             ts_updated DATETIME2 DEFAULT GETDATE(),
             CONSTRAINT chk_foods_source CHECK (source IN ('user','usda','recipe','generic'))
@@ -37,6 +45,27 @@ BEGIN TRY
         CREATE INDEX IX_foods_user_name ON foods (user_id, name);
         CREATE INDEX IX_foods_usda ON foods (usda_fdc_id) WHERE usda_fdc_id IS NOT NULL;
         CREATE INDEX IX_foods_barcode ON foods (barcode_upc) WHERE barcode_upc IS NOT NULL;
+    END
+
+    -- =============================
+    -- Food Images — one product photo per food, stored as bytes.
+    -- Kept in its own table so listing foods never drags blobs along, and stored
+    -- rather than hotlinked so a photo survives its source going down or
+    -- re-revving its URLs, and no third party sees what the user is browsing.
+    -- foods.image_updated_at mirrors "a row exists here" for cheap list queries.
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='food_images' AND xtype='U')
+    BEGIN
+        CREATE TABLE food_images (
+            food_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+            content_type NVARCHAR(64) NOT NULL,
+            bytes VARBINARY(MAX) NOT NULL,
+            byte_size INT NOT NULL,
+            -- Where the photo was downloaded from, kept for provenance/re-fetch.
+            source_url NVARCHAR(1000) NULL,
+            ts_updated DATETIME2 NOT NULL DEFAULT GETDATE(),
+            CONSTRAINT FK_food_images_food FOREIGN KEY (food_id) REFERENCES foods (id) ON DELETE CASCADE
+        );
     END
 
     -- =============================

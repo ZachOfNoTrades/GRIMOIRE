@@ -98,6 +98,11 @@ export function registerForageTools(server: McpServer, ctx: McpContext) {
         fat_g_per_serving: z.number().min(0),
         icon: z.string().nullable().optional().describe('Preset icon code.'),
         barcode_upc: z.string().nullable().optional(),
+        source_url: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Public product/nutrition page this food's data came from. Enables the app's Resync action."),
         servings: z.array(Serving).default([]),
         nutrients: z.array(Nutrient).default([]),
         omit_default_serving: z
@@ -117,6 +122,7 @@ export function registerForageTools(server: McpServer, ctx: McpContext) {
           fat_g_per_serving: args.fat_g_per_serving,
           icon: args.icon ?? null,
           barcode_upc: args.barcode_upc ?? null,
+          source_url: args.source_url ?? null,
           servings: args.servings,
           nutrients: args.nutrients,
           omit_default_serving: args.omit_default_serving,
@@ -139,6 +145,11 @@ export function registerForageTools(server: McpServer, ctx: McpContext) {
         fat_g_per_serving: z.number().min(0),
         icon: z.string().nullable().optional(),
         barcode_upc: z.string().nullable().optional(),
+        source_url: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Public product/nutrition page this food's data came from. Enables the app's Resync action."),
         servings: z.array(Serving).default([]),
         nutrients: z.array(Nutrient).default([]),
       },
@@ -155,6 +166,7 @@ export function registerForageTools(server: McpServer, ctx: McpContext) {
             fat_g_per_serving: args.fat_g_per_serving,
             icon: args.icon ?? null,
             barcode_upc: args.barcode_upc ?? null,
+            source_url: args.source_url ?? null,
             servings: args.servings,
             nutrients: args.nutrients,
           }),
