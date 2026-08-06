@@ -1,6 +1,6 @@
 import sql from 'mssql';
 import { getQuestConnection } from './db';
-import { Task, Subtask, Difficulty, TaskKind, Frequency } from '../types/task';
+import { Task, Subtask, Difficulty, TaskKind, Frequency, RepeatMode, REPEAT_MODES } from '../types/task';
 import {
   getFactors,
   getCurrentDate,
@@ -26,6 +26,7 @@ const TASK_SELECT_COLUMNS = `id, user_id, title, description, difficulty, status
   CASE WHEN last_completed_date = @today THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS done_today,
   frequency, days_of_week, every_n,
   CONVERT(VARCHAR(10), start_date, 23) AS start_date,
+  repeat_mode,
   window_days,
   CAST(manual_reward_override AS FLOAT) AS manual_reward_override,
   CONVERT(VARCHAR(10), deferred_to_date, 23) AS deferred_to_date,
@@ -47,6 +48,7 @@ function taskOutputClause(doneTodayLiteral: '0' | '1' | 'computed' = 'computed')
           ${doneToday},
           INSERTED.frequency, INSERTED.days_of_week, INSERTED.every_n,
           CONVERT(VARCHAR(10), INSERTED.start_date, 23) AS start_date,
+          INSERTED.repeat_mode,
           INSERTED.window_days,
           CAST(INSERTED.manual_reward_override AS FLOAT) AS manual_reward_override,
           CONVERT(VARCHAR(10), INSERTED.deferred_to_date, 23) AS deferred_to_date,
@@ -134,6 +136,9 @@ interface OccurrenceShape {
   days_of_week: string | null;
   every_n: number;
   start_date: string | null;
+  // Monthly / yearly calendar anchor. Optional + null-tolerant so every legacy caller passing a
+  // plain shape keeps the historical 'day_of_month' behaviour.
+  repeat_mode?: RepeatMode | null;
   // Completion grace window: each scheduled occurrence stays completable for window_days days
   // (1 = the scheduled day only). Optional so legacy callers passing a plain shape still type-check.
   window_days?: number | null;
@@ -193,6 +198,28 @@ export function isOccurrenceOn(task: OccurrenceShape, dateYMD: string): boolean 
   return activeOccurrenceStart(task, dateYMD) !== null;
 }
 
+// Coerce a caller-supplied repeat_mode into something storable: NULL unless the frequency actually
+// has a calendar anchor AND the value is a known mode. NULL reads as 'day_of_month'.
+function normalizeRepeatMode(frequency: Frequency, mode: string | null | undefined): RepeatMode | null {
+  if (frequency !== 'monthly' && frequency !== 'yearly') return null;
+  return REPEAT_MODES.includes(mode as RepeatMode) ? (mode as RepeatMode) : null;
+}
+
+// Which <weekday> of its month a date is: the 1st..5th Monday, etc.
+function weekdayOrdinal(date: Date): number {
+  return Math.ceil(date.getDate() / 7);
+}
+
+// Does `date` sit on the same monthly anchor as `start`? 'day_of_month' compares the day number;
+// 'nth_weekday' compares (weekday, ordinal-within-month) — so a "1st Monday" task lands on the 1st
+// Monday of each month, and a month with no 5th <weekday> simply has no occurrence.
+function matchesMonthAnchor(task: OccurrenceShape, start: Date, date: Date): boolean {
+  if (task.repeat_mode === 'nth_weekday') {
+    return date.getDay() === start.getDay() && weekdayOrdinal(date) === weekdayOrdinal(start);
+  }
+  return date.getDate() === start.getDate();
+}
+
 function isOccurrence(task: OccurrenceShape, date: Date): boolean {
   if (task.frequency === 'daily') {
     if (task.days_of_week) {
@@ -216,14 +243,17 @@ function isOccurrence(task: OccurrenceShape, date: Date): boolean {
   if (task.frequency === 'monthly') {
     if (!task.start_date) return false;
     const start = parseYMD(task.start_date);
-    if (date.getDate() !== start.getDate()) return false;
+    if (!matchesMonthAnchor(task, start, date)) return false;
     const monthsDiff = (date.getFullYear() - start.getFullYear()) * 12 + (date.getMonth() - start.getMonth());
     return monthsDiff >= 0 && monthsDiff % (task.every_n || 1) === 0;
   }
   if (task.frequency === 'yearly') {
     if (!task.start_date) return false;
     const start = parseYMD(task.start_date);
-    if (date.getDate() !== start.getDate() || date.getMonth() !== start.getMonth()) return false;
+    // Yearly is monthly's anchor pinned to one month: same month, then the same day-of-month or
+    // the same weekday ordinal within it.
+    if (date.getMonth() !== start.getMonth()) return false;
+    if (!matchesMonthAnchor(task, start, date)) return false;
     const yearsDiff = date.getFullYear() - start.getFullYear();
     return yearsDiff >= 0 && yearsDiff % (task.every_n || 1) === 0;
   }
@@ -417,6 +447,7 @@ async function allScheduledDailiesDone(tx: sql.Transaction, userId: string, toda
     .query<DailyOccurrenceRow>(
       `SELECT frequency, days_of_week, every_n,
               CONVERT(VARCHAR(10), start_date, 23) AS start_date,
+              repeat_mode,
               window_days,
               CONVERT(VARCHAR(10), deferred_to_date, 23) AS deferred_to_date,
               CONVERT(VARCHAR(10), last_completed_date, 23) AS last_completed_date
@@ -490,6 +521,9 @@ export interface CreateTaskOptions {
   days_of_week?: string | null;
   every_n?: number;
   start_date?: string | null;
+  // Monthly / yearly calendar anchor ('day_of_month' | 'nth_weekday'). Ignored for other
+  // frequencies; anything unrecognized stores NULL, which reads as 'day_of_month'.
+  repeat_mode?: string | null;
   // Completion grace window in days (>=1; 1 = scheduled day only).
   window_days?: number;
   reminders?: unknown;
@@ -525,6 +559,7 @@ export async function createTask(
   const description = descriptionTrimmed ? descriptionTrimmed : null;
   // Grace window: at least 1 day (1 = must complete on the scheduled day).
   const windowDays = Math.max(1, Math.floor(options.window_days ?? 1));
+  const repeatMode = normalizeRepeatMode(frequency, options.repeat_mode);
   // Normalize the override: null/undefined or a non-finite/negative number means "no override".
   const overrideRaw = options.manual_reward_override;
   const manualOverride = overrideRaw != null && Number.isFinite(overrideRaw) && overrideRaw >= 0
@@ -540,14 +575,15 @@ export async function createTask(
     .input('daysOfWeek', sql.NVarChar(50), options.days_of_week ?? null)
     .input('everyN', sql.Int, options.every_n ?? 1)
     .input('startDate', sql.Date, options.start_date ?? null)
+    .input('repeatMode', sql.NVarChar(20), repeatMode)
     .input('windowDays', sql.Int, windowDays)
     .input('manualReward', sql.Decimal(10, 2), manualOverride)
     .input('sortOrder', sql.Int, nextOrder)
     .input('today', sql.Date, today)
     .query<Task>(
-      `INSERT INTO quest_tasks (user_id, title, description, difficulty, kind, frequency, days_of_week, every_n, start_date, window_days, manual_reward_override, sort_order)
+      `INSERT INTO quest_tasks (user_id, title, description, difficulty, kind, frequency, days_of_week, every_n, start_date, repeat_mode, window_days, manual_reward_override, sort_order)
        OUTPUT ${taskOutputClause('0')}
-       VALUES (@userId, @title, @description, @difficulty, @kind, @frequency, @daysOfWeek, @everyN, @startDate, @windowDays, @manualReward, @sortOrder)`
+       VALUES (@userId, @title, @description, @difficulty, @kind, @frequency, @daysOfWeek, @everyN, @startDate, @repeatMode, @windowDays, @manualReward, @sortOrder)`
     );
   const task = attachReward(insertResult.recordset[0], ctx);
 
@@ -660,9 +696,10 @@ export async function migrateTaskToToday(userId: string, taskId: string): Promis
   const schedRes = await pool.request()
     .input('userId', sql.UniqueIdentifier, userId)
     .input('id', sql.UniqueIdentifier, taskId)
-    .query<{ frequency: Frequency; days_of_week: string | null; every_n: number; start_date: string | null; window_days: number; deferred_to_date: string | null }>(
+    .query<{ frequency: Frequency; days_of_week: string | null; every_n: number; start_date: string | null; repeat_mode: RepeatMode | null; window_days: number; deferred_to_date: string | null }>(
       `SELECT frequency, days_of_week, every_n,
               CONVERT(VARCHAR(10), start_date, 23) AS start_date,
+              repeat_mode,
               window_days,
               CONVERT(VARCHAR(10), deferred_to_date, 23) AS deferred_to_date
        FROM quest_tasks
@@ -993,6 +1030,9 @@ export interface TaskUpdate {
   days_of_week?: string | null;
   every_n?: number;
   start_date?: string | null;
+  // Monthly / yearly calendar anchor ('day_of_month' | 'nth_weekday'). Ignored for other
+  // frequencies; anything unrecognized stores NULL, which reads as 'day_of_month'.
+  repeat_mode?: string | null;
   // Completion grace window in days (>=1; 1 = scheduled day only).
   window_days?: number;
   reminders?: unknown;
@@ -1028,6 +1068,11 @@ export async function updateTask(userId: string, taskId: string, patch: TaskUpda
     days_of_week: patch.days_of_week !== undefined ? patch.days_of_week : existing.days_of_week,
     every_n: patch.every_n ?? existing.every_n ?? 1,
     start_date: patch.start_date !== undefined ? patch.start_date : existing.start_date,
+    // Re-normalized against the NEXT frequency, so switching monthly → weekly drops a stale anchor.
+    repeat_mode: normalizeRepeatMode(
+      nextFrequency,
+      patch.repeat_mode !== undefined ? patch.repeat_mode : existing.repeat_mode,
+    ),
     window_days: Math.max(1, Math.floor(patch.window_days ?? existing.window_days ?? 1)),
     // undefined = leave as-is; null/invalid = clear; finite >=0 = set.
     manual_reward_override: patch.manual_reward_override !== undefined
@@ -1047,6 +1092,7 @@ export async function updateTask(userId: string, taskId: string, patch: TaskUpda
     .input('daysOfWeek', sql.NVarChar(50), next.days_of_week)
     .input('everyN', sql.Int, next.every_n)
     .input('startDate', sql.Date, next.start_date)
+    .input('repeatMode', sql.NVarChar(20), next.repeat_mode)
     .input('windowDays', sql.Int, next.window_days)
     .input('manualReward', sql.Decimal(10, 2), next.manual_reward_override)
     .input('today', sql.Date, today)
@@ -1054,7 +1100,7 @@ export async function updateTask(userId: string, taskId: string, patch: TaskUpda
       `UPDATE quest_tasks
        SET title = @title, description = @description, difficulty = @difficulty, kind = @kind,
            frequency = @frequency, days_of_week = @daysOfWeek, every_n = @everyN, start_date = @startDate,
-           window_days = @windowDays, manual_reward_override = @manualReward
+           repeat_mode = @repeatMode, window_days = @windowDays, manual_reward_override = @manualReward
        OUTPUT ${taskOutputClause('computed')}
        WHERE id = @id AND user_id = @userId`
     );
@@ -1292,17 +1338,27 @@ export async function toggleSubtask(
   const tx = pool.transaction();
   await tx.begin();
   try {
+    // UPDLOCK/HOLDLOCK on the PARENT row (the same row completeTask locks) so a subtask toggle and
+    // a parent completion can never interleave. Without it the parent's "reset subtasks to done = 0"
+    // could land BETWEEN this lookup and the UPDATE below, leaving the subtask stuck done = 1 on an
+    // already-completed daily — which then renders pre-checked the next day and shows as locked
+    // ("Already complete") in the previous-day review modal.
     const lookup = await tx.request()
       .input('userId', sql.UniqueIdentifier, userId)
       .input('taskId', sql.UniqueIdentifier, taskId)
       .input('id', sql.UniqueIdentifier, subtaskId)
-      .query<{ difficulty: Difficulty; title: string; was_done: number; streak_count: number; streak_last_date: string | null; sub_last_bonus_date: string | null }>(
+      .query<{ difficulty: Difficulty; title: string; was_done: number; streak_count: number; streak_last_date: string | null; sub_last_bonus_date: string | null; kind: TaskKind; last_completed_date: string | null; frequency: Frequency; days_of_week: string | null; every_n: number; start_date: string | null; repeat_mode: RepeatMode | null; window_days: number | null; deferred_to_date: string | null }>(
         `SELECT t.difficulty, s.title, CAST(s.done AS INT) AS was_done,
                 t.streak_count,
                 CONVERT(VARCHAR(10), t.streak_last_date, 23) AS streak_last_date,
-                CONVERT(VARCHAR(10), s.last_bonus_date, 23) AS sub_last_bonus_date
+                CONVERT(VARCHAR(10), s.last_bonus_date, 23) AS sub_last_bonus_date,
+                t.kind, t.frequency, t.days_of_week, t.every_n, t.repeat_mode,
+                CONVERT(VARCHAR(10), t.last_completed_date, 23) AS last_completed_date,
+                CONVERT(VARCHAR(10), t.start_date, 23) AS start_date,
+                t.window_days,
+                CONVERT(VARCHAR(10), t.deferred_to_date, 23) AS deferred_to_date
          FROM dbo.quest_subtasks s
-         INNER JOIN dbo.quest_tasks t ON t.id = s.task_id
+         INNER JOIN dbo.quest_tasks t WITH (UPDLOCK, HOLDLOCK) ON t.id = s.task_id
          WHERE s.id = @id AND s.task_id = @taskId AND t.user_id = @userId`
       );
     const found = lookup.recordset[0];
@@ -1311,6 +1367,37 @@ export async function toggleSubtask(
       return null;
     }
     const wasDone = !!found.was_done;
+
+    // A completed daily has already zeroed its subtasks for the next cycle — checking one back on
+    // would resurrect it into that cycle. Refuse and hand back the subtask's real (reset) state so
+    // the caller can roll its optimistic tick back. Only dailies reset subtasks on completion, so
+    // todos are unaffected.
+    const parentDailyComplete =
+      found.kind === 'daily' &&
+      (found.last_completed_date === today || isWindowSatisfied(found, found.last_completed_date, today));
+    if (done && !wasDone && parentDailyComplete) {
+      await tx.rollback();
+      const current = await pool.request()
+        .input('id', sql.UniqueIdentifier, subtaskId)
+        .query<Subtask>(
+          `SELECT id, task_id, title, CAST(done AS BIT) AS done, position,
+                  CONVERT(VARCHAR(10), last_bonus_date, 23) AS last_bonus_date
+           FROM quest_subtasks WHERE id = @id`
+        );
+      const row = current.recordset[0];
+      if (!row) return null;
+      return {
+        subtask: {
+          id: row.id,
+          task_id: row.task_id,
+          title: row.title,
+          done: !!row.done,
+          position: row.position,
+          last_bonus_date: row.last_bonus_date,
+        },
+        delta: 0,
+      };
+    }
     const reward = computeReward(found.difficulty, factors);
     // Use preStreak (the streak coming INTO today). If parent has already been completed today,
     // streak_count was incremented — back off by 1 so subtask bonus matches the "pre-completion" value.

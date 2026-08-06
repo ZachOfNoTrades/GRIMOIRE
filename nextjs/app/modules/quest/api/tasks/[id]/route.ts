@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { deleteTask, updateTask } from '../../../lib/taskFunctions';
-import { Difficulty, DIFFICULTY_ORDER, TaskKind, TASK_KINDS, Frequency } from '../../../types/task';
+import { Difficulty, DIFFICULTY_ORDER, TaskKind, TASK_KINDS, Frequency, RepeatMode, REPEAT_MODES } from '../../../types/task';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getAuthorizedUser(request);
@@ -44,6 +44,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (body.days_of_week !== undefined) patch.days_of_week = body.days_of_week || null;
     if (body.start_date !== undefined) patch.start_date = body.start_date || null;
     // Completion grace window in days (>=1; 1 = scheduled day only).
+    // Monthly / yearly calendar anchor. Validated against the known modes; the lib re-checks it
+    // against the resulting frequency, so an anchor on a weekly task is stored as NULL.
+    if (body.repeat_mode !== undefined) {
+      const mode = body.repeat_mode;
+      if (mode !== null && !REPEAT_MODES.includes(mode as RepeatMode)) {
+        return NextResponse.json({ error: `repeat_mode must be one of ${REPEAT_MODES.join(', ')}` }, { status: 400 });
+      }
+      patch.repeat_mode = mode;
+    }
+
     if (body.window_days !== undefined) {
       const n = Number(body.window_days);
       if (!Number.isFinite(n) || n < 1) {

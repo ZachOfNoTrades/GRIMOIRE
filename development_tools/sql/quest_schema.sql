@@ -15,6 +15,14 @@ BEGIN
     days_of_week NVARCHAR(50) NULL,
     every_n INT NOT NULL DEFAULT 1,
     start_date DATE NULL,
+    -- How a monthly / yearly cadence anchors to the calendar:
+    --   'day_of_month' (also what NULL means) — the start date's day number, e.g. "the 3rd of every
+    --                  month" / "August 3 every year".
+    --   'nth_weekday'  — the start date's weekday ordinal, e.g. "the first Monday of every month" /
+    --                  "the first Monday of August every year". A month with no 5th <weekday>
+    --                  simply has no occurrence that month.
+    -- Ignored for daily and weekly, which already anchor by weekday (days_of_week / start weekday).
+    repeat_mode NVARCHAR(20) NULL,
     -- Completion grace window (any frequency): each scheduled occurrence stays completable for
     -- window_days days starting on the occurrence date, and a single completion anywhere in that
     -- span satisfies the occurrence (counts once for streak/neglect). 1 = must complete on the
@@ -41,6 +49,7 @@ BEGIN
     CONSTRAINT chk_quest_tasks_difficulty CHECK (difficulty IN ('easy','medium','hard','max')),
     CONSTRAINT chk_quest_tasks_status CHECK (status IN ('open','done')),
     CONSTRAINT chk_quest_tasks_kind CHECK (kind IN ('todo','daily')),
+    CONSTRAINT chk_quest_tasks_repeat_mode CHECK (repeat_mode IS NULL OR repeat_mode IN ('day_of_month','nth_weekday')),
     CONSTRAINT chk_quest_tasks_frequency CHECK (frequency IN ('daily','weekly','monthly','yearly'))
   );
   CREATE INDEX ix_quest_tasks_user ON dbo.quest_tasks(user_id, status);

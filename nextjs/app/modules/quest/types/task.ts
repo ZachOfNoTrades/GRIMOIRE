@@ -19,6 +19,20 @@ export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export const FREQUENCIES: Frequency[] = ['daily', 'weekly', 'monthly', 'yearly'];
 
+// How a monthly / yearly cadence anchors to the calendar, both derived from start_date:
+//   'day_of_month' — its day number ("the 3rd of every month", "August 3 every year")
+//   'nth_weekday'  — its weekday ordinal ("the first Monday of every month", "the first Monday of
+//                    August every year"). A month with no 5th <weekday> has no occurrence at all.
+// Daily and weekly ignore it — they already anchor by weekday (days_of_week / the start weekday).
+export type RepeatMode = 'day_of_month' | 'nth_weekday';
+
+export const REPEAT_MODES: RepeatMode[] = ['day_of_month', 'nth_weekday'];
+
+// The frequencies where the choice is meaningful.
+export function repeatModeApplies(frequency: Frequency): boolean {
+  return frequency === 'monthly' || frequency === 'yearly';
+}
+
 export const WEEKDAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 export const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
@@ -54,6 +68,8 @@ export interface Task {
   days_of_week: string | null;
   every_n: number;
   start_date: string | null;
+  // Monthly / yearly calendar anchor. NULL = 'day_of_month' (every pre-existing task).
+  repeat_mode: RepeatMode | null;
   // Completion grace window in days: each scheduled occurrence stays completable for window_days
   // days from the occurrence date (1 = the scheduled day only). Applies to any frequency.
   window_days: number;

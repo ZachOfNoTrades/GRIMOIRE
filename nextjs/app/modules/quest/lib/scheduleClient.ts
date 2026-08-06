@@ -6,7 +6,7 @@
 // Each scheduled occurrence stays completable for window_days days; one completion in that span
 // satisfies it (window_days = 1 ⇒ the scheduled day only).
 
-import { Frequency } from '../types/task';
+import { Frequency, RepeatMode } from '../types/task';
 
 // Minimal schedule shape — the subset of Task fields the cadence math reads.
 export interface ScheduleShape {
@@ -14,8 +14,25 @@ export interface ScheduleShape {
   days_of_week: string | null;
   every_n: number;
   start_date: string | null;
+  // Monthly / yearly calendar anchor. Optional + null-tolerant: NULL reads as 'day_of_month'.
+  repeat_mode?: RepeatMode | null;
   window_days: number;
   deferred_to_date?: string | null;
+}
+
+// Which <weekday> of its month a date is: the 1st..5th Monday, etc.
+export function weekdayOrdinal(date: Date): number {
+  return Math.ceil(date.getDate() / 7);
+}
+
+// Does `date` sit on the same monthly anchor as `start`? 'day_of_month' compares the day number;
+// 'nth_weekday' compares (weekday, ordinal-within-month), so a month with no 5th <weekday> has no
+// occurrence at all.
+function matchesMonthAnchor(t: ScheduleShape, start: Date, date: Date): boolean {
+  if (t.repeat_mode === 'nth_weekday') {
+    return date.getDay() === start.getDay() && weekdayOrdinal(date) === weekdayOrdinal(start);
+  }
+  return date.getDate() === start.getDate();
 }
 
 export function ymd(d: Date): string {
@@ -61,13 +78,15 @@ function isOccurrenceRaw(t: ScheduleShape, dateYMD: string): boolean {
   }
   if (t.frequency === 'monthly') {
     if (!startD) return false;
-    if (date.getDate() !== startD.getDate()) return false;
+    if (!matchesMonthAnchor(t, startD, date)) return false;
     const monthsDiff = (date.getFullYear() - startD.getFullYear()) * 12 + (date.getMonth() - startD.getMonth());
     return monthsDiff >= 0 && monthsDiff % everyN === 0;
   }
   if (t.frequency === 'yearly') {
     if (!startD) return false;
-    if (date.getDate() !== startD.getDate() || date.getMonth() !== startD.getMonth()) return false;
+    // Yearly is monthly's anchor pinned to one month.
+    if (date.getMonth() !== startD.getMonth()) return false;
+    if (!matchesMonthAnchor(t, startD, date)) return false;
     const yearsDiff = date.getFullYear() - startD.getFullYear();
     return yearsDiff >= 0 && yearsDiff % everyN === 0;
   }

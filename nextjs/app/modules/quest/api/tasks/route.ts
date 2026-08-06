@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
       days_of_week: daysOfWeek,
       every_n: Number.isFinite(everyN) && everyN >= 1 ? Math.floor(everyN) : 1,
       start_date: startDate,
+      // Monthly / yearly calendar anchor; the lib drops it for the frequencies it can't apply to.
+      repeat_mode: typeof body.repeat_mode === 'string' ? body.repeat_mode : null,
       window_days: parseWindowDays(body.window_days),
       reminders,
       manual_reward_override: manualReward,
