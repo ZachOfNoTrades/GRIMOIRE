@@ -185,8 +185,9 @@ export default function Navbar({ children }: NavbarProps) {
 
       {/* NAVBAR CONTENT — full-width on desktop: the hamburger/logo sit flush
           to the left edge (px-4 gutter) and the user menu to the right, rather
-          than being capped/centered in an 80rem column. */}
-      <div className="w-full px-4 py-2 flex items-center justify-between">
+          than being capped/centered in an 80rem column. Tighter vertical padding
+          on phones, where the bar is competing with the content for height. */}
+      <div className="w-full px-4 py-1 sm:py-2 flex items-center justify-between">
 
         {/* LEFT SIDE */}
         <div className="flex items-center gap-2">
@@ -206,7 +207,7 @@ export default function Navbar({ children }: NavbarProps) {
               width={28}
               height={28}
               priority
-              className="w-7 h-7"
+              className="w-6 h-6 sm:w-7 sm:h-7"
             />
             GRIMOIRE
           </Link>
