@@ -2,14 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, Extension } from "@tiptap/react";
+import type { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
+import Paragraph from "@tiptap/extension-paragraph";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { EditorView } from "@tiptap/pm/view";
-import { Markdown, MarkdownStorage } from "tiptap-markdown";
+import { Markdown, MarkdownStorage, MarkdownNodeSpec } from "tiptap-markdown";
+import { BLANK_LINE } from "../lib/blankLine";
 import toast from "react-hot-toast";
 import { Bold, Italic, List, ListOrdered, Link as LinkIcon, ImageOff, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,11 +31,33 @@ function isVideoSrc(src: string): boolean {
   return /\.(mp4|webm|mov|ogv)(\?.*)?$/i.test(src);
 }
 
+// Media is a BLOCK node here (the image extension's default), but the markdown
+// serializer tiptap-markdown ships for it is the INLINE one — it writes the
+// `![](url)` and stops, never closing the block. Whatever followed the image
+// then got written onto the same line, so the line break after an image was
+// swallowed (`![](url)next line` instead of two blocks). Closing the block after
+// a block-level image restores it.
+const mediaImageMarkdown: MarkdownNodeSpec = {
+  serialize(state, node) {
+    const alt = state.esc(node.attrs.alt || "");
+    const src = String(node.attrs.src || "").replace(/[()]/g, "\\$&");
+    const title = node.attrs.title ? ` "${String(node.attrs.title).replace(/"/g, '\\"')}"` : "";
+    state.write(`![${alt}](${src}${title})`);
+    if (!node.type.isInline) state.closeBlock(node);
+  },
+  parse: {
+    // handled by markdown-it
+  },
+};
+
 // Extends the Image node with a node view so a video src renders as a real
 // <video> preview in the editor instead of a broken-image icon. Rendering only —
 // the node still serializes to `![](url)` markdown via tiptap-markdown, so the
 // study view (CardContent) and refine pipeline are unaffected.
 const MediaImage = Image.extend({
+  addStorage() {
+    return { markdown: mediaImageMarkdown };
+  },
   addNodeView() {
     return ({ node }) => {
       const src: string = node.attrs.src || "";
@@ -49,6 +74,60 @@ const MediaImage = Image.extend({
     };
   },
 });
+
+// Paragraph that survives a markdown round-trip when it is EMPTY. The default
+// serializer writes an empty paragraph as nothing at all, so a blank line the
+// user deliberately left (typically to space two images apart) vanished on save.
+// Writing the BLANK_LINE sentinel instead keeps it as a real markdown paragraph;
+// normalizeBlankLines() below converts it back to an empty paragraph on load, so
+// the sentinel never surfaces to the user in the editor.
+const blankLineParagraphMarkdown: MarkdownNodeSpec = {
+  serialize(state, node) {
+    if (node.content.size === 0) state.write(BLANK_LINE);
+    else state.renderInline(node);
+    state.closeBlock(node);
+  },
+  parse: {
+    // handled by markdown-it
+  },
+};
+
+const SpacedParagraph = Paragraph.extend({
+  addStorage() {
+    return { markdown: blankLineParagraphMarkdown };
+  },
+});
+
+// Turns each BLANK_LINE-sentinel paragraph back into a genuinely empty one after
+// content is loaded, so the caret/backspace behave normally instead of tripping
+// over an invisible character. Re-serializing writes the sentinel back out, so
+// this is a no-op as far as the emitted markdown is concerned.
+function normalizeBlankLines(editor: Editor) {
+  const ranges: { from: number; to: number }[] = [];
+  editor.state.doc.descendants((node, pos) => {
+    // Only a paragraph holding exactly one text node of sentinel — an image
+    // contributes nothing to textContent, so the childCount check keeps a
+    // paragraph like `![](url)` plus a stray nbsp from being emptied.
+    if (
+      node.type.name === "paragraph" &&
+      node.childCount === 1 &&
+      node.firstChild?.isText &&
+      node.textContent === BLANK_LINE
+    ) {
+      ranges.push({ from: pos + 1, to: pos + node.nodeSize - 1 });
+      return false;
+    }
+    return true;
+  });
+  if (!ranges.length) return;
+
+  // Delete back-to-front so the earlier (unmapped) positions stay valid.
+  const transaction = editor.state.tr;
+  for (let index = ranges.length - 1; index >= 0; index--) {
+    transaction.delete(ranges[index].from, ranges[index].to);
+  }
+  editor.view.dispatch(transaction.setMeta("addToHistory", false));
+}
 
 interface RichCardEditorProps {
   value: string;
@@ -187,7 +266,10 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
     // perf cost of always re-rendering is negligible.
     shouldRerenderOnTransaction: true,
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2] } }),
+      // The stock paragraph is swapped for SpacedParagraph so empty paragraphs
+      // (blank lines) survive markdown serialization.
+      StarterKit.configure({ heading: { levels: [1, 2] }, paragraph: false }),
+      SpacedParagraph,
       MediaImage,
       Link.configure({ openOnClick: false }),
       Placeholder.configure({ placeholder: placeholder || "" }),
@@ -195,6 +277,7 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
       UploadPlaceholder,
     ],
     content: value,
+    onCreate: ({ editor }) => normalizeBlankLines(editor),
     onUpdate: ({ editor }) => {
       const markdown = editor.storage.markdown.getMarkdown();
       lastEmitted.current = markdown;
@@ -224,6 +307,7 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
   useEffect(() => {
     if (editor && value !== lastEmitted.current) {
       editor.commands.setContent(value);
+      normalizeBlankLines(editor);
       lastEmitted.current = value;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
