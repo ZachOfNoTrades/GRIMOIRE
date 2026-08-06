@@ -360,6 +360,25 @@ body {
   color: var(--btn-blue-hover);
 }
 
+/* Artwork icons: the image is an alpha mask only, so the glyph paints in currentColor and tracks
+   the theme (and hover colours) exactly like a Lucide icon does. */
+.icon-mask {
+  display: inline-block;
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-mask-src);
+  mask-image: var(--icon-mask-src);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.icon-mask-forage-tree {
+  --icon-mask-src: url("/forage-tree.png");
+}
+
 /* ========================================
    CONTAINERS
    ======================================== */
@@ -758,6 +777,36 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
 
 .module-card.module-card-disabled:hover {
   border-color: var(--card-border);
+}
+
+/* MODULE CARD ICON — the box holding each module's glyph. Sized here rather than with utility
+   classes because .icon-interactive's own 1.25rem width/height wins over them, which silently
+   flex-shrank the glyph to 20px wide no matter what size utility it carried. */
+.module-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-secondary);
+  width: 2rem;
+  height: 2rem;
+}
+
+.module-card-icon:hover {
+  color: var(--btn-blue-hover);
+}
+
+.module-card-icon > * {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+}
+
+@media (min-width: 640px) {
+  .module-card-icon,
+  .module-card-icon > * {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
 }
 
 .card-backdrop {

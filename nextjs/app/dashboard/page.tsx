@@ -107,8 +107,8 @@ export default function DashboardPage() {
                 onClick={() => router.push(`/modules/${module.slug}/ui/home`)}
               >
                 {/* ICON */}
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center mb-3 sm:mb-4 icon-interactive group-hover:scale-105 transition-transform">
-                  <IconComponent className="h-5 w-5 sm:h-6 sm:w-6" />
+                <div className="module-card-icon mb-3 sm:mb-4 group-hover:scale-105 transition-transform">
+                  <IconComponent />
                 </div>
 
                 {/* NAME */}
