@@ -3523,12 +3523,34 @@ export function AddEntryModal({
     const haystack = `${f.name} ${f.brand ?? ""}`.toLowerCase();
     return searchTokens.every((token) => haystack.includes(token));
   };
-  // Foods currently injected as pairing suggestions under a staged food's row. They
+  // Anchors whose OWN row is actually on screen for the current query. A pairing
+  // group hangs off its anchor's row, so an anchor the search filtered out has
+  // nowhere to render — and its partners must then stay in their normal sections.
+  // Keying both behaviours off this one set is what lets the group survive a search
+  // (staging a food, then searching for it, still shows "frequently paired with")
+  // without the injection eating results: searching for a PARTNER of something you
+  // just staged leaves that partner in its own Frequent/Latest/Library row, because
+  // its anchor doesn't match the query. Suppressing partners in that case hid the
+  // whole section list behind the "no match" empty state + Open Food Facts lane,
+  // which read as "the frequent section stopped coming up".
+  const anchorIds = Object.keys(pairedByAnchor);
+  const renderedAnchorIds = new Set(
+    anchorIds.filter((anchorId) => {
+      const anchorFood =
+        frequentFoods.find((f) => f.id === anchorId) ??
+        recentFoods.find((f) => f.id === anchorId) ??
+        allFoods.find((f) => f.id === anchorId);
+      return !!anchorFood && matchesSearch(anchorFood);
+    })
+  );
+  // Foods currently injected as pairing suggestions under a rendered anchor. They
   // are pulled OUT of the three sections below so a suggested food shows up exactly
-  // once — under its anchor — instead of twice; dropping the group (anchor unstaged)
-  // hands them straight back to their normal section.
+  // once — under its anchor — instead of twice; dropping the group (anchor unstaged
+  // or filtered out by the search) hands them straight back to their normal section.
   const pairedSuggestionIds = new Set(
-    Object.values(pairedByAnchor).flatMap((foods) => foods.map((f) => f.id))
+    anchorIds
+      .filter((anchorId) => renderedAnchorIds.has(anchorId))
+      .flatMap((anchorId) => pairedByAnchor[anchorId].map((f) => f.id))
   );
   // Frequent-now sits at the top; its ids are excluded from Latest + Library below
   // so a food only ever appears in one section.
@@ -3592,7 +3614,10 @@ export function AddEntryModal({
     keyPrefix: string,
     seed?: { servingId: string | null; quantity: number | null }
   ) {
-    const suggestions = pairedByAnchor[food.id] ?? [];
+    // Only under an anchor the current query actually renders (see renderedAnchorIds);
+    // for any other anchor the partners are back in their own sections, so rendering
+    // the group too would double them.
+    const suggestions = renderedAnchorIds.has(food.id) ? pairedByAnchor[food.id] ?? [] : [];
     return (
       <Fragment key={`${keyPrefix}-${food.id}`}>
 
