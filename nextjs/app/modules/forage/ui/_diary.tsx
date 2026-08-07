@@ -4324,7 +4324,14 @@ export function AddEntryModal({
                     {librarySection.length > 0 && (
                       <>
                         <div className="section-heading">{q ? "From your library" : "Library"}</div>
-                        {librarySection.map((f) => renderPickerRow(f, "l"))}
+                        {librarySection.map((f) =>
+                          // Same as Frequent/Latest: add at the amount it was last
+                          // logged at, which is what the row's serving label shows.
+                          renderPickerRow(f, "l", {
+                            servingId: f.last_serving_id ?? null,
+                            quantity: f.last_quantity ?? null,
+                          })
+                        )}
                       </>
                     )}
                   </>
