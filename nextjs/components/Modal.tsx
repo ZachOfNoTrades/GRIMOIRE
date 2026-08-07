@@ -28,6 +28,9 @@ interface ModalProps {
     // Widens the centered card at desktop widths (>=768px) for two-column layouts
     // like the rune card editor. No effect on mobile — the card stays full-width.
     wide?: boolean;
+    // Raises the card's cap from 85% to 95% of the visible viewport, for long forms that would
+    // otherwise scroll a lot inside a short card (e.g. the quest task editor).
+    tall?: boolean;
     zIndex?: number;
     modalActions?: ReactNode;
 }
@@ -45,6 +48,7 @@ export default function Modal({
     fullScreenMobileOnly = false,
     sheet = false,
     wide = false,
+    tall = false,
     zIndex,
     modalActions,
 }: ModalProps) {
@@ -87,7 +91,7 @@ export default function Modal({
 
             {/* MODAL CARD */}
             <div
-                className={`modal-card${fullHeight ? ' modal-card-full' : ''}${sheet ? ' modal-card-sheet' : ''}${wide ? ' modal-card-wide' : ''}${fullScreen ? ' modal-card-screen' : ''}${fullScreenMobileOnly ? ' modal-card-screen-mobile' : ''}`}
+                className={`modal-card${fullHeight ? ' modal-card-full' : ''}${sheet ? ' modal-card-sheet' : ''}${wide ? ' modal-card-wide' : ''}${tall ? ' modal-card-tall' : ''}${fullScreen ? ' modal-card-screen' : ''}${fullScreenMobileOnly ? ' modal-card-screen-mobile' : ''}`}
                 onClick={sheet ? (e) => e.stopPropagation() : undefined}
             >
 

@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Snowflake } from "lucide-react";
-import CalendarMonthWidget, { buildWidgetMonth } from "@/components/CalendarMonthWidget";
+import type { CSSProperties, ReactNode } from "react";
+import { ArrowRight, Plus, Snowflake } from "lucide-react";
+import CalendarMonthWidget, { buildWidgetMonth, buildWidgetWeek } from "@/components/CalendarMonthWidget";
+import { useChipFit } from "../lib/useChipFit";
 import {
   ScheduleShape,
   isOccurrenceOn,
@@ -58,10 +60,33 @@ interface DayEntry {
   time: string | null; // reminder time for this day, pre-formatted ("9a", "2:30p")
   carriedHere: boolean; // deferred onto this day from a frozen one
   movedTo: string | null; // carried OFF this frozen day to another date
+  // A completion grace window (window_days > 1) makes one occurrence cover several days; it's drawn
+  // as one bar the way a calendar draws a multi-day event. `lead` marks the segment carrying the
+  // label (the first day, or the first day of a week row it continues into) and `cols` is how many
+  // of that row's days it still covers, so the bar can run the width of the span.
+  // `continues` = the occurrence runs past the end of the VISIBLE GRID, so its end isn't on screen
+  // — that's what earns a trailing arrow. A span that merely wraps to the next row needs none: you
+  // can see where it finishes.
+  span: { isStart: boolean; isEnd: boolean; lead: boolean; cols: number; continues: boolean } | null;
 }
 
-const MAX_CHIPS = 6; // entries drawn per wide day box before collapsing into "+N more"
+// Whole days between two YMD dates (negative if `to` is earlier).
+function dayDiff(fromYMD: string, toYMD: string): number {
+  return Math.round((parseYMD(toYMD).getTime() - parseYMD(fromYMD).getTime()) / 86400000);
+}
+
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// The calendar legend — exported so the phone-sized calendar page renders exactly the same one.
+export const QUEST_LEGEND = (
+  <>
+    <span className="qcal-legend-item"><span className="qcal-swatch qcal-swatch--daily" />Daily</span>
+    <span className="qcal-legend-item"><span className="qcal-swatch qcal-swatch--weekly" />Weekly</span>
+    <span className="qcal-legend-item"><span className="qcal-swatch qcal-swatch--monthly" />Monthly</span>
+    <span className="qcal-legend-item"><span className="qcal-swatch qcal-swatch--yearly" />Yearly</span>
+    <span className="qcal-legend-item"><span className="qcal-swatch qcal-swatch--todo" />Todo</span>
+  </>
+);
 
 // Approximate days between occurrences — bigger = rarer. Mirrors the full calendar page so both
 // views agree on which task claims a chip slot.
@@ -118,6 +143,11 @@ function chipClass(entry: DayEntry): string {
     `qcal-chip--${entry.kind}`,
     settled ? "qcal-chip--settled" : "",
     entry.state === "missed" ? "qcal-chip--missed" : "",
+    // A spanning occurrence: the lead segment is widened to cover the days it spans, so the whole
+    // thing reads as one bar rather than a row of separate chips.
+    entry.span ? "qcal-chip--span" : "",
+    entry.span?.lead ? "qcal-chip--span-lead" : "",
+    entry.span && !entry.span.lead ? "qcal-chip--span-spacer" : "",
   ].filter(Boolean).join(" ");
 }
 
@@ -132,51 +162,111 @@ export default function QuestCalendarWidget({
   hideDailyTasks = false,
   onSelectTask,
   onCreateTask,
+  onSelectDay,
+  onMonthChange,
+  overlay,
+  headerActions,
+  view = "month",
+  weekStart = 0,
 }: {
   tasks: WidgetTask[];
   today: string;
   // Drop every-day tasks from the day detail (they land in every cell and bury the rarer ones).
   // Affects the named entries only — the compact status dot and today's x/y still count everything.
   hideDailyTasks?: boolean;
-  // Clicking a named entry hands its task id back so the page can open its edit modal. Omitted =
-  // chips are inert.
-  onSelectTask?: (taskId: string) => void;
+  // Clicking a named entry hands back its task id AND the day it was clicked on, so a consumer can
+  // open either the task (home) or that day (the calendar page). Omitted = chips are inert.
+  onSelectTask?: (taskId: string, date: string) => void;
   // Double-clicking empty space in a day cell asks the page to open a blank task form scheduled on
   // that day.
   onCreateTask?: (date: string) => void;
+  // When given, the day cell itself is clickable (the calendar page opens its day detail). The home
+  // page omits it on purpose — there, only the chips are targets.
+  onSelectDay?: (date: string) => void;
+  // A host that already fetches the completion overlay (the calendar page does) hands it in, so the
+  // widget doesn't issue a second identical request for the same month.
+  overlay?: { completions: Completion[]; frozenDays: Set<string>; ready: boolean };
+  // Trailing content for the calendar's header — the home page puts its ⋮ view menu here.
+  headerActions?: ReactNode;
+  // "week" renders a single 7-day row; everything else (cells, chrome, chips) is identical.
+  view?: "month" | "week";
+  // Which weekday a row starts on (0=Sun … 6=Sat) — applies to the month grid as well as the week.
+  weekStart?: number;
+  // Fires with the first-of-visible-month whenever the widget's own month nav moves, so a consumer
+  // that also fetches by month can follow along.
+  onMonthChange?: (anchorYMD: string) => void;
 }) {
-  // DATA
-  const [completions, setCompletions] = useState<Completion[]>([]);
-  const [frozenDays, setFrozenDays] = useState<Set<string>>(new Set());
+  // DATA — own fetch, unless the host supplied the overlay (see the `overlay` prop).
+  const [ownCompletions, setOwnCompletions] = useState<Completion[]>([]);
+  const [ownFrozenDays, setOwnFrozenDays] = useState<Set<string>>(new Set());
+  const completions = overlay ? overlay.completions : ownCompletions;
+  const frozenDays = overlay ? overlay.frozenDays : ownFrozenDays;
+  // The date range the loaded completions actually cover. Until it covers the visible month, the
+  // grid has the schedule but not the "was it done" overlay, and drawing it then would paint every
+  // completed occurrence as due/missed for a frame before the fetch lands — a flash of wrong state
+  // on first paint and again on every month change.
+  const [loaded, setLoaded] = useState<{ from: string; to: string } | null>(null);
 
   // INPUT
-  const [anchor, setAnchor] = useState<string>(today); // first-of-visible-month (widget-owned nav)
+  const [anchor, setAnchor] = useState<string>(today);
 
   // The shared grid for the visible month (also drives the completions fetch range).
-  const weeks = useMemo(() => buildWidgetMonth(anchor, today), [anchor, today]);
+  const weeks = useMemo(
+    () => (view === "week"
+      ? buildWidgetWeek(anchor, today, weekStart)
+      : buildWidgetMonth(anchor, today, 6, weekStart)),
+    [anchor, today, view, weekStart],
+  );
   const range = useMemo(() => ({ from: weeks[0][0].date, to: weeks[weeks.length - 1][6].date }), [weeks]);
 
   // Stable so the widget's month nav doesn't loop through the effect that reports it.
-  const handleMonthChange = useCallback((next: string) => setAnchor(next), []);
+  const handleMonthChange = useCallback(
+    (next: string) => {
+      setAnchor(next);
+      onMonthChange?.(next);
+    },
+    [onMonthChange],
+  );
+
+  // Covered = what we hold describes the visible month, so it renders with no fetch at all.
+  const covered = !!loaded && loaded.from <= range.from && loaded.to >= range.to;
+  // Within a month of the window's edge: still covered, but the NEXT step might not be, so widen
+  // now, in the background. That's what makes stepping instant rather than merely fast — the fetch
+  // happens while you're looking at a month that's already drawn.
+  const nearEdge = !!loaded && covered
+    && (range.from < addDays(loaded.from, 40) || range.to > addDays(loaded.to, -40));
+  const overlayReady = overlay ? overlay.ready : covered;
 
   useEffect(() => {
+    if (overlay) return; // the host owns the overlay
+    if (covered && !nearEdge) return; // nothing to do — and nothing to blank
     let cancelled = false;
+    // A wide window (about three months either side). The endpoint costs the same whatever the
+    // range, so paying once beats paying per step. Note we do NOT clear `loaded` first: while this
+    // is in flight the grid keeps rendering the months we already have.
+    const from = addDays(range.from, -100);
+    const to = addDays(range.to, 100);
     (async () => {
       try {
-        const res = await fetch(`/modules/quest/api/tasks/completions?from=${range.from}&to=${range.to}`);
+        const res = await fetch(`/modules/quest/api/tasks/completions?from=${from}&to=${to}`);
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
-        setCompletions(Array.isArray(data?.completions) ? data.completions : []);
-        setFrozenDays(new Set(Array.isArray(data?.frozenDays) ? data.frozenDays : []));
+        setOwnCompletions(Array.isArray(data?.completions) ? data.completions : []);
+        setOwnFrozenDays(new Set(Array.isArray(data?.frozenDays) ? data.frozenDays : []));
+        setLoaded({ from, to });
       } catch {
-        // best-effort — grid still renders the schedule without the overlay
+        // best-effort — the grid stays blank rather than showing an unverified overlay
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [range.from, range.to]);
+  }, [range.from, range.to, covered, nearEdge, overlay]);
+
+  // How many entries fit a day cell at this size — measured, so the last one is never sliced or
+  // pushed past the cell's bottom rule.
+  const chipFit = useChipFit([anchor, today, hideDailyTasks, tasks.length, overlayReady]);
 
   const completionsByTask = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -269,17 +359,29 @@ export default function QuestCalendarWidget({
   // The named entries on a day, rarest-first: the dailies whose occurrence starts (or was deferred
   // onto) that day, plus any todo credited that day. Wide layout only.
   const dayEntries = useCallback(
-    (day: string): DayEntry[] => {
+    (day: string, rowStart: string, rowEnd: string, gridEnd: string): DayEntry[] => {
       const frozen = frozenDays.has(day);
       const out: DayEntry[] = [];
       for (const t of tasks) {
         if (t.kind !== "daily" || !isOccurrenceOn(t, day)) continue;
-        if (activeOccurrenceStart(t, day) !== day && t.deferred_to_date !== day) continue;
+        // A task with a grace window appears on EVERY day of that window (one spanning bar); a
+        // single-day one only on its occurrence date, plus any day it was deferred onto.
+        const activeStart = activeOccurrenceStart(t, day);
+        if (activeStart === null && t.deferred_to_date !== day) continue;
         // "Daily" = the task's Repeats setting, matching the wording in the task modal, so the
         // weekly / monthly / yearly ones are exactly what's left behind.
         if (hideDailyTasks && t.frequency === "daily") continue;
-        const occStart = activeOccurrenceStart(t, day) ?? day;
+        const occStart = activeStart ?? day;
         const windowEnd = occurrenceWindowEnd(t, day) ?? day;
+        const span = windowEnd > occStart
+          ? {
+              isStart: day === occStart,
+              isEnd: day === windowEnd,
+              lead: day === occStart || day === rowStart,
+              cols: dayDiff(day, windowEnd < rowEnd ? windowEnd : rowEnd) + 1,
+              continues: windowEnd > gridEnd,
+            }
+          : null;
         const done = (completionsByTask.get(t.id) ?? []).some((d) => d >= occStart && d <= windowEnd);
         // Migrated away: only on the frozen day this occurrence was carried OFF of. A freeze carry
         // always defers to (frozen day + 1), so that day is exactly deferred_to_date - 1.
@@ -301,6 +403,7 @@ export default function QuestCalendarWidget({
           time: reminderTimeFor(t, day),
           carriedHere: t.deferred_to_date === day,
           movedTo,
+          span,
         });
       }
 
@@ -316,10 +419,18 @@ export default function QuestCalendarWidget({
           time: null,
           carriedHere: false,
           movedTo: null,
+          span: null,
         });
       }
 
-      return out.sort((a, b) => b.period - a.period || a.title.localeCompare(b.title));
+      return out.sort((a, b) => {
+        // Spanning occurrences take the top lanes, in the same order, in every cell they cross —
+        // otherwise the bar's continuation in one cell sits a lane below the bar in the next and the
+        // two read as separate bubbles.
+        if (!!a.span !== !!b.span) return a.span ? -1 : 1;
+        if (a.span && b.span && a.span.cols !== b.span.cols) return b.span.cols - a.span.cols;
+        return b.period - a.period || a.title.localeCompare(b.title);
+      });
     },
     [tasks, today, todosByDay, completionsByTask, frozenDays, hideDailyTasks],
   );
@@ -333,19 +444,28 @@ export default function QuestCalendarWidget({
   }
 
   return (
+    // display:contents — a measurement anchor for useChipFit that adds no box of its own.
+    <div ref={chipFit.gridRef} className="contents">
     <CalendarMonthWidget
       today={today}
       navigable
       navMonthLabel
+      fixedWeeks={view === "month"}
+      view={view}
+      weekStart={weekStart}
+      headerActions={headerActions}
       monthAnchor={anchor}
       onMonthChange={handleMonthChange}
       weekdayLabels={WEEKDAY_LABELS}
       renderDay={(day) => {
-        const status = dayStatus(day.date);
-        const counts = day.isToday ? dayCounts(day.date) : null;
-        const frozen = frozenDays.has(day.date);
-        const entries = dayEntries(day.date);
-        const shown = entries.slice(0, MAX_CHIPS);
+        // Nothing is drawn until the completion overlay covers this month (see overlayReady).
+        const status = overlayReady ? dayStatus(day.date) : "none";
+        const counts = overlayReady && day.isToday ? dayCounts(day.date) : null;
+        const frozen = overlayReady && frozenDays.has(day.date);
+        // The row this cell sits in — a spanning bar can only run to the end of its row, and
+        // restarts on the next one. The grid supplies the bounds (a week needn't start on Sunday).
+        const entries = overlayReady ? dayEntries(day.date, day.rowStart, day.rowEnd, range.to) : [];
+        const shown = entries.slice(0, chipFit.fit);
         const overflow = entries.length - shown.length;
 
         return (
@@ -355,18 +475,18 @@ export default function QuestCalendarWidget({
              hover tint and a pointer cursor (both desktop-only). */
           <div
             key={day.date}
-            onDoubleClick={() => onCreateTask?.(day.date)}
-            title={onCreateTask ? "Double-click to add a task on this day" : undefined}
+            onClick={onSelectDay ? () => onSelectDay(day.date) : undefined}
+            title={onSelectDay ? "Open this day" : undefined}
             // select-none: a double-click on a cell is the "add here" gesture, not a text selection —
             // without it the second click highlights whatever chip text sits under the cursor.
-            className={`group select-none overflow-hidden aspect-square rounded flex flex-col items-center justify-center gap-0.5 lg:aspect-auto lg:min-h-[7rem] lg:items-stretch lg:justify-start lg:gap-0 lg:p-1 lg:border lg:text-left lg:transition-colors ${
-              onCreateTask ? "lg:cursor-pointer" : ""
+            className={`qcal-day group select-none overflow-hidden aspect-square rounded flex flex-col items-center justify-center gap-0.5 lg:aspect-auto lg:min-h-[7rem] lg:items-stretch lg:justify-start lg:gap-0 lg:p-1 lg:border lg:text-left lg:transition-colors ${
+              onSelectDay ? "lg:cursor-pointer" : ""
             } ${
               day.isToday
-                ? "bg-yellow-400/15 ring-1 ring-yellow-400 lg:ring-0 lg:border-yellow-400 lg:hover:bg-yellow-400/25"
+                ? "qcal-day--today bg-yellow-400/15 ring-1 ring-yellow-400 lg:ring-0 lg:border-yellow-400"
                 : frozen
-                  ? "lg:border-cyan-500/50 lg:bg-cyan-500/10 lg:hover:bg-cyan-500/20"
-                  : "lg:border-gray-700 lg:hover:bg-gray-500/15"
+                  ? "qcal-day--frozen lg:border-cyan-500/50 lg:bg-cyan-500/10"
+                  : "lg:border-gray-700"
             } ${day.inMonth ? "" : "opacity-30 lg:opacity-50"}`}
           >
 
@@ -376,8 +496,26 @@ export default function QuestCalendarWidget({
                 {parseYMD(day.date).getDate()}
               </span>
 
-              {/* WIDE-ONLY MARKER — a snowflake on frozen days */}
-              {frozen && <Snowflake className="hidden lg:block w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+              {/* WIDE-ONLY MARKERS — a snowflake on frozen days, and the add button, which only
+                  appears while the cursor is over this cell (or it's keyboard-focused). An explicit
+                  target beats a double-click-anywhere gesture nobody can see. */}
+              <span className="hidden lg:flex items-center gap-1 shrink-0">
+                {frozen && <Snowflake className="w-3.5 h-3.5 text-cyan-400" />}
+
+                {onCreateTask && (
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      onCreateTask(day.date);
+                    }}
+                    title="Add a task on this day"
+                    className="flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 text-secondary hover:text-primary cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </span>
             </div>
 
             {/* COMPACT MARKER — today shows completed/total, other days a status dot */}
@@ -395,17 +533,31 @@ export default function QuestCalendarWidget({
                   <button
                     key={e.id}
                     type="button"
-                    onClick={() => onSelectTask?.(e.taskId)}
+                    onClick={(ev) => {
+                      if (!onSelectTask) return;
+                      // The chip is its own target — don't also trigger the cell's day click.
+                      ev.stopPropagation();
+                      onSelectTask(e.taskId, day.date);
+                    }}
                     // A chip is a target of its own: don't let a fast double-click on it also fire
                     // the cell's "add a task on this day".
                     onDoubleClick={(ev) => ev.stopPropagation()}
                     title={`${e.time ? `${e.time} · ` : ""}${e.title} — ${chipStateNote(e)}${onSelectTask ? " · click to edit" : ""}`}
                     className={chipClass(e)}
+                    // How many of this row's days the bar covers — the CSS widens it that far.
+                    style={e.span?.lead ? ({ "--qcal-span-cols": e.span.cols } as CSSProperties) : undefined}
                   >
-                    {e.carriedHere && <Snowflake className="w-2.5 h-2.5 shrink-0" />}
-                    {e.time && <span className="qcal-chip-time">{e.time}</span>}
-                    <span className="qcal-chip-title">{e.title}</span>
+                    {(!e.span || e.span.lead) && e.carriedHere && <Snowflake className="w-2.5 h-2.5 shrink-0" />}
+                    {(!e.span || e.span.lead) && e.time && <span className="qcal-chip-time">{e.time}</span>}
+                    {/* Only the lead segment is labelled; a non-breaking space keeps the middle
+                        segments the same height. */}
+                    <span className="qcal-chip-title">{!e.span || e.span.lead ? e.title : "\u00A0"}</span>
                     {e.movedTo && <ArrowRight className="w-2.5 h-2.5 shrink-0" />}
+
+                    {/* Runs past this row — the bar is cut by the row break, not finished. */}
+                    {e.span?.lead && e.span.continues && (
+                      <ArrowRight className="w-2.5 h-2.5 shrink-0 ml-auto" aria-label="continues" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -418,23 +570,11 @@ export default function QuestCalendarWidget({
           </div>
         );
       }}
-      legend={
-        <>
-          {/* COMPACT LEGEND — the mobile widget still shows one status dot per day */}
-          <span className="lg:hidden flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />Done</span>
-          <span className="lg:hidden flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />Missed</span>
-          <span className="lg:hidden flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />Due</span>
-          <span className="lg:hidden flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block" />Frozen</span>
-
-          {/* WIDE LEGEND — the day boxes colour entries by repeat frequency */}
-          <span className="hidden lg:flex items-center gap-1"><span className="qcal-swatch qcal-swatch--daily" />Daily</span>
-          <span className="hidden lg:flex items-center gap-1"><span className="qcal-swatch qcal-swatch--weekly" />Weekly</span>
-          <span className="hidden lg:flex items-center gap-1"><span className="qcal-swatch qcal-swatch--monthly" />Monthly</span>
-          <span className="hidden lg:flex items-center gap-1"><span className="qcal-swatch qcal-swatch--yearly" />Yearly</span>
-          <span className="hidden lg:flex items-center gap-1"><span className="qcal-swatch qcal-swatch--todo" />Todo</span>
-          <span className="hidden lg:flex items-center gap-1"><span className="line-through opacity-60">Struck</span>= done or excused</span>
-        </>
-      }
+      // ONE legend, wherever this widget renders: entries are coloured by repeat frequency, so the
+      // legend names the cadences. (The old status-dot variant belonged to the compact mobile
+      // layout, which no longer ships — the phone gets the full calendar page instead.)
+      legend={QUEST_LEGEND}
     />
+    </div>
   );
 }

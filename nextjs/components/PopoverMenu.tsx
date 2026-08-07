@@ -8,6 +8,7 @@ interface PopoverMenuProps {
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement | null>;
   align?: "left" | "right"; // which edge of the anchor the menu's edge lines up with
+  className?: string; // extra classes on the menu itself (e.g. .popover-menu--wide)
   children: React.ReactNode;
 }
 
@@ -20,7 +21,7 @@ interface PopoverMenuProps {
 // stacking context, it doesn't escape an ancestor's overflow clip. Portaling
 // to <body> removes it from that subtree entirely, so it can never be
 // clipped by where its trigger happens to live.
-export default function PopoverMenu({ open, onClose, anchorRef, align = "right", children }: PopoverMenuProps) {
+export default function PopoverMenu({ open, onClose, anchorRef, align = "right", className, children }: PopoverMenuProps) {
   const [mounted, setMounted] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [openUp, setOpenUp] = useState(false);
@@ -80,7 +81,7 @@ export default function PopoverMenu({ open, onClose, anchorRef, align = "right",
   return createPortal(
     <div
       ref={menuRef}
-      className={`popover-menu ${openUp ? "popover-menu-up" : ""}`}
+      className={`popover-menu ${openUp ? "popover-menu-up" : ""}${className ? ` ${className}` : ""}`}
       style={{
         position: "fixed",
         top: pos ? pos.top : -9999,

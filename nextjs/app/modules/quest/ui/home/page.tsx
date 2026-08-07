@@ -32,6 +32,7 @@ import {
   Snowflake,
   Dices,
   Quote,
+  EllipsisVertical,
 } from "lucide-react";
 import {
   Difficulty,
@@ -57,6 +58,19 @@ import {
 } from "../../types/settings";
 import { Habit } from "../../types/habit";
 import QuestCalendarWidget from "../../components/QuestCalendarWidget";
+import QuestTaskModal from "../../components/QuestTaskModal";
+import PopoverMenu from "@/components/PopoverMenu";
+import QuestCalendarMenu from "../../components/QuestCalendarMenu";
+import { CALENDAR_PREF_DEFAULTS, CalendarView, readCalendarPrefs, writeCalendarPrefs } from "../../lib/calendarPrefs";
+import {
+  DIFF_LABELS,
+  FREQ_LABELS,
+  DraftSubtask,
+  ReminderDraft,
+  TaskFormState,
+  normalizeCoinInput,
+  taskToForm,
+} from "../../types/taskForm";
 import { Debt } from "../../types/debt";
 import { Mantra } from "../../types/mantra";
 import { evaluateFormula } from "../../lib/formulaEvaluator";
@@ -127,11 +141,6 @@ interface TaskReminder {
   last_fired_date: string | null;
 }
 
-interface ReminderDraft {
-  fire_time: string;
-  fire_date: string | null;
-}
-
 interface Reward {
   id: string;
   name: string;
@@ -187,25 +196,11 @@ function dayStepperLabel(today: string, date: string): { primary: string; second
   return { primary: DAY_WEEKDAY_LABELS[d.getDay()], secondary: full };
 }
 
-const DIFF_LABELS: Record<Difficulty, string> = {
-  easy: "Easy",
-  medium: "Medium",
-  hard: "Hard",
-  max: "Max",
-};
-
 const DIFF_SPARKS: Record<Difficulty, number> = {
   easy: 1,
   medium: 2,
   hard: 3,
   max: 4,
-};
-
-const FREQ_LABELS: Record<Frequency, string> = {
-  daily: "Daily",
-  weekly: "Weekly",
-  monthly: "Monthly",
-  yearly: "Yearly",
 };
 
 type TaskFilter = "all" | "daily" | "todo";
@@ -259,34 +254,6 @@ function readViewPreferences(): QuestViewPreferences {
     // ignore — invalid JSON just falls back to the defaults
     return { ...DEFAULT_VIEW_PREFERENCES };
   }
-}
-
-interface DraftSubtask {
-  id: string;
-  title: string;
-  done: boolean;
-  isNew?: boolean;
-}
-
-interface TaskFormState {
-  kind: TaskKind;
-  title: string;
-  // Optional free-text notes/details for the task (empty string = no description).
-  description: string;
-  difficulty: Difficulty;
-  frequency: Frequency;
-  repeat_mode: RepeatMode;
-  every_n: string;
-  days_of_week: string[];
-  start_date: string;
-  // Completion grace window in days, as a string for the input ("1" = scheduled day only).
-  window_days: string;
-  // Manual reward override as a string for the input. Empty string = no override (use difficulty).
-  reward_override: string;
-  subtasksDraft: DraftSubtask[];
-  originalSubtasks: { id: string; done: boolean }[];
-  newSubtaskInput: string;
-  reminders: ReminderDraft[];
 }
 
 function localTodayYMD(): string {
@@ -467,36 +434,6 @@ function repeatModeLabels(frequency: Frequency, startYMD: string): { day_of_mont
   };
 }
 
-// Coin amounts are always shown to 2 decimals — typing "0.10" must not settle back to "0.1" when
-// the field is re-rendered from state. Empty / unparseable input is left alone so the user can keep
-// editing (and an emptied field still means "no override").
-function normalizeCoinInput(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed === "") return "";
-  const n = Number(trimmed);
-  return Number.isFinite(n) && n >= 0 ? n.toFixed(2) : value;
-}
-
-function taskToForm(t: Task): TaskFormState {
-  return {
-    kind: t.kind,
-    title: t.title,
-    description: t.description ?? "",
-    difficulty: t.difficulty,
-    frequency: t.frequency,
-    repeat_mode: t.repeat_mode ?? "day_of_month",
-    every_n: String(t.every_n ?? 1),
-    days_of_week: t.days_of_week ? t.days_of_week.split(",").filter(Boolean) : [],
-    start_date: t.start_date ?? "",
-    window_days: String(t.window_days ?? 1),
-    reward_override: t.manual_reward_override != null ? t.manual_reward_override.toFixed(2) : "",
-    subtasksDraft: t.subtasks.map((s) => ({ id: s.id, title: s.title, done: s.done })),
-    originalSubtasks: t.subtasks.map((s) => ({ id: s.id, done: s.done })),
-    newSubtaskInput: "",
-    reminders: (t.reminders ?? []).map((r) => ({ fire_time: r.fire_time, fire_date: r.fire_date })),
-  };
-}
-
 export default function QuestHomePage() {
   const router = useRouter();
 
@@ -532,6 +469,16 @@ export default function QuestHomePage() {
   const [retroMultiplier, setRetroMultiplier] = useState<number>(0.5);
   const [retroLookbackDays, setRetroLookbackDays] = useState<number>(14);
   const [state, setState] = useState<UserState>({ health: 50, max_health: 50, last_damage_check_date: null });
+  // The calendar's completion overlay, fetched with the initial batch and handed to the widget.
+  const [calendarOverlay, setCalendarOverlay] = useState<{
+    completions: { task_id: string; completed_on: string }[];
+    frozenDays: Set<string>;
+    from: string;
+    to: string;
+  } | null>(null);
+  // The month the widget is showing, so we only hand it the overlay while it actually covers that
+  // month — step outside the window and the widget goes back to fetching for itself.
+  const [calendarAnchor, setCalendarAnchor] = useState<string>(() => localTodayYMD());
 
   // INPUT — the task-list view preferences seed from localStorage on first render (see
   // readViewPreferences) so the user's last selection is already applied before the first paint.
@@ -541,6 +488,34 @@ export default function QuestHomePage() {
   const [showAllDailies, setShowAllDailies] = useState(() => readViewPreferences().showAllDailies);
   const [moveCompletedToBottom, setMoveCompletedToBottom] = useState(() => readViewPreferences().moveCompletedToBottom);
   const [hideDailyTasksInCalendar, setHideDailyTasksInCalendar] = useState(() => readViewPreferences().hideDailyTasksInCalendar);
+  // The calendar card's ⋮ view menu, and the view settings it drives — all persisted and shared
+  // with the calendar page (see lib/calendarPrefs).
+  const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
+  const calendarMenuAnchor = useRef<HTMLButtonElement>(null);
+  const [calendarView, setCalendarView] = useState<CalendarView>(CALENDAR_PREF_DEFAULTS.calendarView);
+  const [calendarWeekStart, setCalendarWeekStart] = useState<number>(CALENDAR_PREF_DEFAULTS.calendarWeekStart);
+
+  // Restore them on mount (localStorage isn't readable during the server render).
+  useEffect(() => {
+    const prefs = readCalendarPrefs();
+    setCalendarView(prefs.calendarView);
+    setCalendarWeekStart(prefs.calendarWeekStart);
+  }, []);
+
+  function changeCalendarView(value: CalendarView) {
+    setCalendarView(value);
+    writeCalendarPrefs({ calendarView: value });
+  }
+
+  function changeCalendarWeekStart(value: number) {
+    setCalendarWeekStart(value);
+    writeCalendarPrefs({ calendarWeekStart: value });
+  }
+
+  function changeHideDailyTasksInCalendar(value: boolean) {
+    setHideDailyTasksInCalendar(value);
+    writeCalendarPrefs({ hideDailyTasksInCalendar: value });
+  }
   const [taskForm, setTaskForm] = useState<TaskFormState | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   // Whether the task modal's collapsible "Advanced" scheduling section is expanded.
@@ -689,7 +664,12 @@ export default function QuestHomePage() {
 
   async function refresh() {
     try {
-      const [bRes, tRes, rRes, sRes, hRes, stRes, dRes, mRes] = await Promise.all([
+      // The calendar's completion overlay only needs a date range, so it rides along with this batch
+      // rather than waiting for the widget to mount after the page's loading placeholder clears —
+      // that serialisation was a whole round trip before any task chip could render.
+      const overlayFrom = addDays(localTodayYMD(), -100);
+      const overlayTo = addDays(localTodayYMD(), 100);
+      const [bRes, tRes, rRes, sRes, hRes, stRes, dRes, mRes, cRes] = await Promise.all([
         fetch("/modules/quest/api/balance"),
         fetch("/modules/quest/api/tasks"),
         fetch("/modules/quest/api/rewards"),
@@ -698,7 +678,17 @@ export default function QuestHomePage() {
         fetch("/modules/quest/api/state"),
         fetch("/modules/quest/api/debts"),
         fetch("/modules/quest/api/mantras/today"),
+        fetch(`/modules/quest/api/tasks/completions?from=${overlayFrom}&to=${overlayTo}`),
       ]);
+      if (cRes.ok) {
+        const c = await cRes.json();
+        setCalendarOverlay({
+          completions: Array.isArray(c?.completions) ? c.completions : [],
+          frozenDays: new Set<string>(Array.isArray(c?.frozenDays) ? c.frozenDays : []),
+          from: overlayFrom,
+          to: overlayTo,
+        });
+      }
       if (bRes.ok) {
         const b = await bRes.json();
         setBalance(b.balance);
@@ -1240,95 +1230,6 @@ export default function QuestHomePage() {
 
   function closeTaskModal() {
     animateCloseTaskModal();
-  }
-
-  function toggleDayOfWeek(key: string) {
-    if (!taskForm) return;
-    setTaskForm({
-      ...taskForm,
-      days_of_week: taskForm.days_of_week.includes(key)
-        ? taskForm.days_of_week.filter((d) => d !== key)
-        : [...taskForm.days_of_week, key],
-    });
-  }
-
-  function addPendingSubtask() {
-    if (!taskForm) return;
-    const v = taskForm.newSubtaskInput.trim();
-    if (!v) return;
-    const tempId = `tmp-${Date.now()}-${Math.random()}`;
-    setTaskForm({
-      ...taskForm,
-      subtasksDraft: [...taskForm.subtasksDraft, { id: tempId, title: v, done: false, isNew: true }],
-      newSubtaskInput: "",
-    });
-  }
-
-  function toggleDraftSubtask(id: string) {
-    if (!taskForm) return;
-    setTaskForm({
-      ...taskForm,
-      subtasksDraft: taskForm.subtasksDraft.map((s) => (s.id === id ? { ...s, done: !s.done } : s)),
-    });
-  }
-
-  function removeDraftSubtask(id: string) {
-    if (!taskForm) return;
-    setTaskForm({
-      ...taskForm,
-      subtasksDraft: taskForm.subtasksDraft.filter((s) => s.id !== id),
-    });
-  }
-
-  // CHECKLIST DRAG-REORDER — pointer-events based (like the task-list reorder) so it works on touch
-  // (mobile Firefox) as well as mouse. We live-reorder the draft array as the pointer crosses other
-  // rows; the resulting order is persisted on save via the subtasks/reorder API.
-  const [subtaskDragId, setSubtaskDragId] = useState<string | null>(null);
-  const subtaskDragIdRef = useRef<string | null>(null);
-  const subtaskRowRefs = useRef<Map<string, HTMLLIElement>>(new Map());
-
-  // Move the dragged checklist item so it lands at the position currently occupied by targetId.
-  function moveDraftSubtaskOver(dragId: string, targetId: string) {
-    if (dragId === targetId) return;
-    setTaskForm((prev) => {
-      if (!prev) return prev;
-      const list = prev.subtasksDraft;
-      const from = list.findIndex((s) => s.id === dragId);
-      const to = list.findIndex((s) => s.id === targetId);
-      if (from < 0 || to < 0 || from === to) return prev;
-      const next = [...list];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return { ...prev, subtasksDraft: next };
-    });
-  }
-
-  function onSubtaskHandlePointerDown(e: React.PointerEvent, id: string) {
-    e.preventDefault();
-    subtaskDragIdRef.current = id;
-    setSubtaskDragId(id);
-    const onMove = (ev: PointerEvent) => {
-      const dragId = subtaskDragIdRef.current;
-      if (!dragId) return;
-      // Find the checklist row whose vertical span the pointer is currently over and reorder onto it.
-      for (const [rowId, el] of subtaskRowRefs.current) {
-        const r = el.getBoundingClientRect();
-        if (ev.clientY >= r.top && ev.clientY <= r.bottom) {
-          if (rowId !== dragId) moveDraftSubtaskOver(dragId, rowId);
-          break;
-        }
-      }
-    };
-    const finish = () => {
-      subtaskDragIdRef.current = null;
-      setSubtaskDragId(null);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", finish);
-    window.addEventListener("pointercancel", finish);
   }
 
   async function submitTaskForm() {
@@ -2442,10 +2343,9 @@ export default function QuestHomePage() {
           {/* CALENDAR — navigates instead of switching */}
           <button
             onClick={() => router.push("/modules/quest/ui/calendar")}
-            className="flex-1 py-2 text-sm font-semibold capitalize cursor-pointer border-b-2 border-transparent text-secondary flex items-center justify-center gap-1"
+            className="flex-1 py-2 text-sm font-semibold capitalize cursor-pointer border-b-2 border-transparent text-secondary"
           >
             calendar
-            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -3345,541 +3245,72 @@ export default function QuestHomePage() {
               card's 95vh height. */}
           <section className="card quest-cal-shell lg:col-span-3 !hidden lg:!flex">
             <QuestCalendarWidget
+              headerActions={
+                <>
+                  {/* VIEW OPTIONS — same ⋮ menu the calendar page carries, in the card's header. */}
+                  <button
+                    ref={calendarMenuAnchor}
+                    onClick={() => setCalendarMenuOpen((v) => !v)}
+                    title="View options"
+                    className={`p-1.5 cursor-pointer ${calendarMenuOpen ? "text-primary" : "text-secondary hover:text-primary"}`}
+                  >
+                    <EllipsisVertical className="w-5 h-5" />
+                  </button>
+
+                  <PopoverMenu
+                    open={calendarMenuOpen}
+                    onClose={() => setCalendarMenuOpen(false)}
+                    anchorRef={calendarMenuAnchor}
+                    className="popover-menu--wide"
+                  >
+                    <QuestCalendarMenu
+                      view={calendarView}
+                      onViewChange={changeCalendarView}
+                      weekStart={calendarWeekStart}
+                      onWeekStartChange={changeCalendarWeekStart}
+                      hideDailyTasks={hideDailyTasksInCalendar}
+                      onHideDailyTasksChange={changeHideDailyTasksInCalendar}
+                    />
+                  </PopoverMenu>
+                </>
+              }
               tasks={tasks}
               today={simulationDate ?? localTodayYMD()}
+              view={calendarView}
+              weekStart={calendarWeekStart}
               hideDailyTasks={hideDailyTasksInCalendar}
+              overlay={
+                calendarOverlay
+                  && calendarOverlay.from <= addDays(calendarAnchor, -7)
+                  && calendarOverlay.to >= addDays(calendarAnchor, 38)
+                  ? { completions: calendarOverlay.completions, frozenDays: calendarOverlay.frozenDays, ready: true }
+                  : undefined
+              }
+              onMonthChange={setCalendarAnchor}
               onSelectTask={openEditTaskModalById}
               onCreateTask={openCreateTaskModalOnDate}
             />
 
-            {/* DAY-DETAIL FILTER — every-day tasks fill every cell and bury the weekly/monthly ones,
-                so they're dropped from the day detail by default. Persisted with the other view
-                preferences. Only meaningful where the day detail renders (lg and up). */}
-            <label className="hidden lg:flex items-center gap-2 mt-3 text-xs text-secondary cursor-pointer w-fit">
-              <input
-                type="checkbox"
-                checked={hideDailyTasksInCalendar}
-                onChange={(e) => setHideDailyTasksInCalendar(e.target.checked)}
-                className="cursor-pointer"
-              />
-              Hide daily tasks
-            </label>
           </section>
 
         </div>
 
       </div>
 
-      {/* TASK CREATE/EDIT MODAL */}
+      {/* TASK CREATE/EDIT MODAL — the shared editor, also rendered by the calendar page. */}
       {taskForm && (
-        <div
-          className={`fixed inset-0 bg-black/70 flex items-start justify-center p-4 z-50 overflow-y-auto transition-opacity duration-150 ${
-            taskModalClosing ? "opacity-0" : "opacity-100"
-          }`}
-          onClick={closeTaskModal}
-        >
-          <div
-            className={`bg-gray-900 border border-gray-700 rounded-lg w-full max-w-md mt-12 mb-12 transition-all duration-150 origin-top ${
-              taskModalClosing ? "opacity-0 scale-95" : "opacity-100 scale-100"
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
-
-            {/* MODAL HEADER */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={closeTaskModal}
-                  className="p-1 rounded hover:bg-gray-700 cursor-pointer"
-                  title="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-                <h2 className="text-lg font-semibold">
-                  {editingTaskId ? "Edit" : "Create"} {taskForm.kind === "daily" ? "Daily" : "Todo"}
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                {editingTaskId && (
-                  <button
-                    onClick={() => {
-                      if (!editingTaskId) return;
-                      const id = editingTaskId;
-                      closeTaskModal();
-                      void deleteTask(id);
-                    }}
-                    title="Delete task"
-                    className="h-8 px-2 rounded border border-red-500/40 text-red-500 hover:bg-red-500/10 cursor-pointer inline-flex items-center gap-1 text-sm"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-                <button
-                  onClick={submitTaskForm}
-                  disabled={!taskForm.title.trim() || submitting}
-                  className="h-8 px-3 rounded border border-transparent bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer inline-flex items-center"
-                >
-                  {submitting ? "Saving..." : editingTaskId ? "Save" : "Create"}
-                </button>
-              </div>
-            </div>
-
-            {/* MODAL BODY */}
-            <div className="px-5 py-5 space-y-5">
-
-              {/* KIND TOGGLE — creating only. Two cards rather than a bare segmented control: the
-                  choice changes which fields exist below, so each option says what it means. A todo
-                  keeps the Start Date (its scheduled day) but drops the cadence fields; switching
-                  kind mid-form keeps everything else typed. */}
-              {!editingTaskId && (
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { kind: "daily", label: "Daily", hint: "Repeats on a schedule", Icon: Repeat },
-                    { kind: "todo", label: "Todo", hint: "One-off, on a set day", Icon: ListTodo },
-                  ] as const).map(({ kind, label, hint, Icon }) => {
-                    const active = taskForm.kind === kind;
-                    return (
-                      <button
-                        key={kind}
-                        type="button"
-                        onClick={() => setTaskForm({ ...taskForm, kind })}
-                        className={`relative flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-left cursor-pointer transition-colors ${
-                          active
-                            ? "border-blue-500 bg-blue-500/15"
-                            : "border-gray-700 hover:border-gray-500 hover:bg-gray-800/60"
-                        }`}
-                      >
-
-                        {/* LABEL */}
-                        <span className={`flex items-center gap-1.5 text-sm font-semibold ${active ? "text-blue-400" : "text-gray-300"}`}>
-                          <Icon className="w-4 h-4" />
-                          {label}
-                        </span>
-
-                        {/* HINT */}
-                        <span className="text-[11px] leading-tight text-gray-400">{hint}</span>
-
-                        {/* SELECTED TICK */}
-                        {active && <Check className="w-3.5 h-3.5 text-blue-400 absolute top-2 right-2" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* TITLE */}
-              <label className="block">
-                <span className="text-sm text-secondary">Task Title</span>
-                <input
-                  type="text"
-                  autoFocus={!editingTaskId}
-                  value={taskForm.title}
-                  onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
-                  className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent"
-                />
-              </label>
-
-              {/* DESCRIPTION — optional free-text notes/details, shown as a sub-line on the task row */}
-              <label className="block">
-                <span className="text-sm text-secondary">Description <span className="text-xs text-gray-500">(optional)</span></span>
-                <textarea
-                  rows={3}
-                  value={taskForm.description}
-                  onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
-                  placeholder="Add notes or details…"
-                  className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent resize-y"
-                />
-              </label>
-
-              {/* DIFFICULTY */}
-              <div>
-                <span className="text-sm text-secondary block mb-2">Difficulty</span>
-                <div className="grid grid-cols-4 gap-2">
-                  {DIFFICULTY_ORDER.map((d) => {
-                    const selected = taskForm.difficulty === d;
-                    return (
-                      <button
-                        key={d}
-                        onClick={() => setTaskForm({ ...taskForm, difficulty: d })}
-                        className={`flex flex-col items-center gap-1 py-3 rounded border cursor-pointer ${
-                          selected
-                            ? "bg-blue-600/30 border-blue-500 text-primary"
-                            : "border-gray-600 text-secondary hover:bg-gray-800"
-                        }`}
-                      >
-                        <span className="flex gap-0.5">
-                          {Array.from({ length: DIFF_SPARKS[d] }).map((_, i) => (
-                            <Sparkles key={i} className="w-3 h-3" />
-                          ))}
-                        </span>
-                        <span className="text-xs font-semibold">{DIFF_LABELS[d]}</span>
-                        <span className="text-xs text-yellow-500 flex items-center gap-0.5 tabular-nums">
-                          <Coins className="w-3 h-3" />
-                          {computedReward(d, taskForm.kind).toFixed(2)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-secondary mt-1">
-                  Reward per difficulty is configured in Settings → Difficulty.
-                </p>
-              </div>
-
-              {/* CUSTOM REWARD OVERRIDE */}
-              <div>
-                {/* OVERRIDE TOGGLE */}
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={taskForm.reward_override.trim() !== ""}
-                    onChange={(e) =>
-                      setTaskForm({
-                        ...taskForm,
-                        reward_override: e.target.checked
-                          ? computedReward(taskForm.difficulty, taskForm.kind).toFixed(2)
-                          : "",
-                      })
-                    }
-                    className="w-4 h-4 accent-blue-500 cursor-pointer"
-                  />
-                  <span className="text-sm text-secondary">Custom reward override</span>
-                </label>
-
-                {/* OVERRIDE INPUT — only when enabled */}
-                {taskForm.reward_override.trim() !== "" && (
-                  <div className="mt-2">
-                    {/* COINS INPUT */}
-                    <div className="relative">
-                      <Coins className="w-4 h-4 text-yellow-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={taskForm.reward_override}
-                        onChange={(e) => setTaskForm({ ...taskForm, reward_override: e.target.value })}
-                        onBlur={(e) => setTaskForm({ ...taskForm, reward_override: normalizeCoinInput(e.target.value) })}
-                        className="mt-0 w-full pl-9 pr-3 py-2 rounded border border-gray-600 bg-transparent tabular-nums"
-                      />
-                    </div>
-
-                    {/* OVERRIDE HELP TEXT */}
-                    <p className="text-xs text-secondary mt-1">
-                      Replaces the difficulty-based reward for this task. Streak / age bonuses still
-                      build on this value.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* SCHEDULING */}
-              <div className="space-y-3">
-                <span className="text-sm text-secondary block">Scheduling</span>
-
-                <label className="block">
-                  <span className="text-xs text-secondary">
-                    {taskForm.kind === "daily" ? "Start Date" : "Scheduled Date"}
-                  </span>
-                  <input
-                    type="date"
-                    value={taskForm.start_date}
-                    onChange={(e) => setTaskForm({ ...taskForm, start_date: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent"
-                  />
-                </label>
-
-                {taskForm.kind === "daily" && (
-                  <>
-                    {/* REPEATS + EVERY-N */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {/* REPEATS SELECT */}
-                      <label className="block">
-                        <span className="text-xs text-secondary">Repeats</span>
-                        <select
-                          value={taskForm.frequency}
-                          onChange={(e) =>
-                            setTaskForm({ ...taskForm, frequency: e.target.value as Frequency })
-                          }
-                          className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent"
-                        >
-                          {FREQUENCIES.map((f) => (
-                            <option key={f} value={f}>
-                              {FREQ_LABELS[f]}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      {/* EVERY-N INPUT */}
-                      <label className="block">
-                        <span className="text-xs text-secondary">Every (N)</span>
-                        <input
-                          type="number"
-                          min={1}
-                          value={taskForm.every_n}
-                          onChange={(e) => setTaskForm({ ...taskForm, every_n: e.target.value })}
-                          className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent"
-                        />
-                      </label>
-                    </div>
-
-                    {/* REPEAT MODE — monthly / yearly only. Both options are derived from the start
-                        date, so they read as the real schedule instead of abstract modes. */}
-                    {repeatModeApplies(taskForm.frequency) && (() => {
-                      const labels = repeatModeLabels(taskForm.frequency, taskForm.start_date);
-                      if (!labels) {
-                        return (
-                          <p className="text-xs text-secondary">
-                            Pick a start date to choose how this repeats.
-                          </p>
-                        );
-                      }
-                      return (
-                        <div className="flex flex-col gap-1.5">
-                          {(["day_of_month", "nth_weekday"] as const).map((mode) => {
-                            const active = taskForm.repeat_mode === mode;
-                            return (
-                              <button
-                                key={mode}
-                                type="button"
-                                onClick={() => setTaskForm({ ...taskForm, repeat_mode: mode })}
-                                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs cursor-pointer transition-colors ${
-                                  active
-                                    ? "border-blue-500 bg-blue-500/15 text-blue-400"
-                                    : "border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800/60"
-                                }`}
-                              >
-                                <span className={`w-3 h-3 rounded-full border shrink-0 ${active ? "border-blue-400 bg-blue-500" : "border-gray-500"}`} />
-                                {labels[mode]}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-
-                    {/* DAYS OF WEEK (each selected day is independently required) */}
-                    {taskForm.frequency === "daily" && (
-                      <div>
-                        <span className="text-xs text-secondary block mb-1">Days of Week</span>
-                        <div className="flex justify-between gap-1">
-                          {WEEKDAY_KEYS.map((key, i) => {
-                            const active = taskForm.days_of_week.includes(key);
-                            return (
-                              <button
-                                key={key}
-                                onClick={() => toggleDayOfWeek(key)}
-                                className={`w-8 h-8 rounded-full text-xs font-semibold cursor-pointer ${
-                                  active
-                                    ? "bg-blue-600 text-white"
-                                    : "border border-gray-600 text-secondary hover:bg-gray-800"
-                                }`}
-                              >
-                                {WEEKDAY_LETTERS[i]}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ADVANCED (collapsible) */}
-                    <div className="border-t border-gray-700 pt-2">
-                      {/* ADVANCED TOGGLE */}
-                      <button
-                        type="button"
-                        onClick={() => setTaskAdvancedOpen((v) => !v)}
-                        className="flex items-center gap-1 text-xs text-secondary hover:text-primary cursor-pointer"
-                      >
-                        <ChevronDown
-                          className={`w-3.5 h-3.5 transition-transform ${taskAdvancedOpen ? "" : "-rotate-90"}`}
-                        />
-                        Advanced
-                      </button>
-
-                      {/* ADVANCED CONTENT */}
-                      {taskAdvancedOpen && (
-                        <div className="mt-3">
-                          {/* COMPLETION GRACE WINDOW (complete once anywhere within N days of each occurrence) */}
-                          <label className="block">
-                            <span className="text-xs text-secondary">Complete within (days)</span>
-                            <input
-                              type="number"
-                              min={1}
-                              value={taskForm.window_days}
-                              onChange={(e) => setTaskForm({ ...taskForm, window_days: e.target.value })}
-                              className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent"
-                            />
-                          </label>
-
-                          {/* GRACE WINDOW HELP TEXT */}
-                          <p className="text-xs text-secondary mt-1">
-                            {Number(taskForm.window_days) > 1
-                              ? `Each scheduled occurrence stays completable for ${Number(taskForm.window_days)} days; doing it on any one of those days counts for the whole window. (e.g. a weekend chore = Weekly, start on a Saturday, 2 days.)`
-                              : "Must be completed on the scheduled day. Increase to allow finishing within a range of days (e.g. a weekend chore = Weekly, start on a Saturday, 2 days)."}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* CHECKLIST */}
-              <div>
-                <span className="text-sm text-secondary block mb-2">Checklist</span>
-                {taskForm.subtasksDraft.length > 0 && (
-                  <ul className="space-y-1 mb-2">
-                    {taskForm.subtasksDraft.map((s) => (
-                      <li
-                        key={s.id}
-                        ref={(el) => {
-                          if (el) subtaskRowRefs.current.set(s.id, el);
-                          else subtaskRowRefs.current.delete(s.id);
-                        }}
-                        className={`flex items-center gap-2 px-2 py-1 rounded border ${
-                          subtaskDragId === s.id ? "border-blue-400 ring-2 ring-blue-400 bg-gray-800/60" : "border-gray-700"
-                        }`}
-                      >
-                        {/* DRAG HANDLE */}
-                        <span
-                          className="text-gray-500 cursor-grab active:cursor-grabbing shrink-0 select-none flex items-center justify-center min-w-9 min-h-9 -ml-1 sm:min-w-0 sm:min-h-0 sm:ml-0"
-                          style={{ touchAction: "none" }}
-                          title="Drag to reorder"
-                          onPointerDown={(e) => onSubtaskHandlePointerDown(e, s.id)}
-                        >
-                          <GripVertical className="w-4 h-4" />
-                        </span>
-                        <button
-                          onClick={() => toggleDraftSubtask(s.id)}
-                          className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer ${
-                            s.done ? "bg-green-500/30 border-green-500/50 text-green-500" : "border-gray-500"
-                          }`}
-                        >
-                          {s.done && <Check className="w-3 h-3" />}
-                        </button>
-                        <span className={`flex-1 text-sm ${s.done ? "line-through text-secondary" : ""}`}>
-                          {s.title}
-                        </span>
-                        <button
-                          onClick={() => removeDraftSubtask(s.id)}
-                          className="p-1 rounded hover:bg-red-500/20 text-red-500 cursor-pointer"
-                          title="Remove"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="New checklist entry"
-                    value={taskForm.newSubtaskInput}
-                    onChange={(e) => setTaskForm({ ...taskForm, newSubtaskInput: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addPendingSubtask();
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 rounded border border-gray-600 bg-transparent text-sm"
-                  />
-                  <button
-                    onClick={addPendingSubtask}
-                    className="px-3 py-2 rounded border border-gray-600 hover:bg-gray-800 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* REMINDERS */}
-              <div>
-                <span className="text-sm text-secondary block mb-2 flex items-center gap-1">
-                  <Bell className="w-4 h-4" /> Reminders
-                </span>
-                {taskForm.reminders.length > 0 && (
-                  <ul className="space-y-1 mb-2">
-                    {taskForm.reminders.map((r, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-center gap-2 px-2 py-1 rounded border border-gray-700"
-                      >
-                        {taskForm.kind === "todo" ? (
-                          <input
-                            type="datetime-local"
-                            value={`${r.fire_date ?? localTodayYMD()}T${r.fire_time}`}
-                            onChange={(e) => {
-                              // datetime-local value is "YYYY-MM-DDTHH:MM". Split on 'T' to keep
-                              // the API contract (separate fire_date + fire_time columns) intact.
-                              const v = e.target.value;
-                              const [d, t] = v.split("T");
-                              if (!d || !t) return;
-                              const next = [...taskForm.reminders];
-                              next[idx] = { fire_date: d, fire_time: t.slice(0, 5) };
-                              setTaskForm({ ...taskForm, reminders: next });
-                            }}
-                            className="px-2 py-1 rounded bg-transparent text-sm"
-                          />
-                        ) : (
-                          <input
-                            type="time"
-                            value={r.fire_time}
-                            onChange={(e) => {
-                              const next = [...taskForm.reminders];
-                              next[idx] = { ...next[idx], fire_time: e.target.value };
-                              setTaskForm({ ...taskForm, reminders: next });
-                            }}
-                            className="px-2 py-1 rounded bg-transparent text-sm"
-                          />
-                        )}
-                        <span className="flex-1" />
-                        <button
-                          onClick={() =>
-                            setTaskForm({
-                              ...taskForm,
-                              reminders: taskForm.reminders.filter((_, i) => i !== idx),
-                            })
-                          }
-                          className="p-1 rounded hover:bg-red-500/20 text-red-500 cursor-pointer"
-                          title="Remove reminder"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <button
-                  onClick={() => {
-                    const now = new Date();
-                    const hh = String(now.getHours()).padStart(2, "0");
-                    const mm = String(now.getMinutes()).padStart(2, "0");
-                    setTaskForm({
-                      ...taskForm,
-                      reminders: [
-                        ...taskForm.reminders,
-                        {
-                          fire_time: `${hh}:${mm}`,
-                          // Todos default to today so the picker shows a concrete date the user can
-                          // adjust; dailies are inherently recurring so fire_date stays null.
-                          fire_date: taskForm.kind === "todo" ? localTodayYMD() : null,
-                        },
-                      ],
-                    });
-                  }}
-                  className="px-3 py-2 rounded border border-gray-600 hover:bg-gray-800 cursor-pointer text-sm inline-flex items-center gap-1"
-                >
-                  <Plus className="w-4 h-4" /> Add reminder
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
+        <QuestTaskModal
+          form={taskForm}
+          setForm={setTaskForm}
+          editingTaskId={editingTaskId}
+          advancedOpen={taskAdvancedOpen}
+          setAdvancedOpen={setTaskAdvancedOpen}
+          submitting={submitting}
+          onClose={closeTaskModal}
+          onSubmit={submitTaskForm}
+          onDelete={(id) => void deleteTask(id)}
+          computedReward={computedReward}
+        />
       )}
 
       {/* HABIT MODAL */}

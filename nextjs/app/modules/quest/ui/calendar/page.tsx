@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { BackLink } from "@/components/BackLink";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -14,10 +15,18 @@ import {
   Flame,
   Snowflake,
   ArrowRight,
+  EllipsisVertical,
   Star,
 } from "lucide-react";
-import { Difficulty, TaskKind, Frequency } from "../../types/task";
+import { Difficulty, TaskKind, Frequency, repeatModeApplies } from "../../types/task";
 import QuestTaskItem from "../../components/QuestTaskItem";
+import QuestCalendarWidget, { QUEST_LEGEND } from "../../components/QuestCalendarWidget";
+import QuestCalendarMenu, { WEEK_START_OPTIONS } from "../../components/QuestCalendarMenu";
+import { CALENDAR_PREF_DEFAULTS, CalendarView, readCalendarPrefs, writeCalendarPrefs } from "../../lib/calendarPrefs";
+import PopoverMenu from "@/components/PopoverMenu";
+import QuestTaskModal from "../../components/QuestTaskModal";
+import { TaskFormState, taskToForm } from "../../types/taskForm";
+import { useChipFit } from "../../lib/useChipFit";
 import {
   ScheduleShape,
   ymd,
@@ -32,6 +41,11 @@ import {
 interface Task extends ScheduleShape {
   id: string;
   title: string;
+  // Carried so the shared editor can open a task straight from a chip (see QuestTaskModal).
+  description: string | null;
+  manual_reward_override: number | null;
+  subtasks: { id: string; title: string; done: boolean }[];
+  reminders: { fire_time: string; fire_date: string | null }[];
   difficulty: Difficulty;
   kind: TaskKind;
   reward_value: number;
@@ -52,7 +66,6 @@ interface Completion {
   late: boolean;
 }
 
-type CalendarView = "week" | "month";
 // Chip colour variants — mirrors QuestCalendarWidget so both calendars read the same.
 type EntryKind = "daily" | "weekly" | "monthly" | "yearly" | "todo";
 type DayState = "done" | "missed" | "pending" | "upcoming" | "frozen";
@@ -60,6 +73,7 @@ type DayState = "done" | "missed" | "pending" | "upcoming" | "frozen";
 interface DayDaily {
   task: Task;
   state: DayState;
+  occStart: string; // first day of this occurrence's completion window
   windowEnd: string;
   awarded: number | null; // coins recorded for this occurrence, when done
   late: boolean;
@@ -71,6 +85,13 @@ interface CellChip {
   id: string;
   title: string;
   state: DayState;
+  // Grace window (window_days > 1): one occurrence drawn as a bar across its days. Null = one day.
+  // `lead` marks the segment that carries the label — the occurrence's first day, or the first day
+  // of a week row it continues into — and `cols` is how many of this row's days it still covers, so
+  // the label can run the width of the span instead of being truncated in one cell.
+  // `continues` = runs past the end of the VISIBLE GRID, so its end isn't on screen — that's what
+  // earns a trailing arrow. Wrapping to the next row doesn't: you can see where it finishes.
+  span: { isStart: boolean; isEnd: boolean; lead: boolean; cols: number; continues: boolean } | null;
   // Chip colour = the task's cadence (matches the home page's calendar); completion state only
   // strikes it through / underlines it.
   kind: EntryKind;
@@ -87,14 +108,19 @@ const MONTH_LABELS = [
 
 // Build the month grid (weeks of 7, Sunday-first) covering the month containing anchorYMD,
 // padded with leading/trailing days from adjacent months.
-function buildMonthMatrix(anchorYMD: string): { date: string; inMonth: boolean }[][] {
+// Always six rows: a 5-week month would otherwise stretch its rows taller than a 6-week month, so
+// cell height (and how many chips fit) would change as you page through the year.
+const MONTH_ROWS = 6;
+
+function buildMonthMatrix(anchorYMD: string, weekStart = 0): { date: string; inMonth: boolean }[][] {
   const a = parseYMD(anchorYMD);
   const year = a.getFullYear();
   const month = a.getMonth();
   const first = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const cur = new Date(first);
-  cur.setDate(1 - first.getDay()); // back up to the Sunday on/before the 1st
+  // Back up to the week's first day on/before the 1st — `weekStart` decides which weekday that is.
+  cur.setDate(1 - ((first.getDay() - weekStart + 7) % 7));
   const weeks: { date: string; inMonth: boolean }[][] = [];
   while (true) {
     const week: { date: string; inMonth: boolean }[] = [];
@@ -103,7 +129,7 @@ function buildMonthMatrix(anchorYMD: string): { date: string; inMonth: boolean }
       cur.setDate(cur.getDate() + 1);
     }
     weeks.push(week);
-    if (cur > lastDay) break;
+    if (cur > lastDay && weeks.length >= MONTH_ROWS) break;
   }
   return weeks;
 }
@@ -120,41 +146,6 @@ function buildWeek(anchorYMD: string, weekStart: number): string[] {
     return ymd(d);
   });
 }
-
-// The home page's saved view preferences (see ui/home/page.tsx). This page only touches the one
-// field it shares — "hide daily tasks" — and leaves the rest of the bag untouched.
-const QUEST_VIEW_PREFERENCES_KEY = "quest_view_prefs";
-
-function readHideDailyPreference(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    const raw = window.localStorage.getItem(QUEST_VIEW_PREFERENCES_KEY);
-    if (!raw) return true;
-    const saved = JSON.parse(raw) as { hideDailyTasksInCalendar?: unknown };
-    return typeof saved.hideDailyTasksInCalendar === "boolean" ? saved.hideDailyTasksInCalendar : true;
-  } catch {
-    return true; // unreadable/invalid preferences fall back to the default
-  }
-}
-
-function writeHideDailyPreference(value: boolean) {
-  try {
-    const raw = window.localStorage.getItem(QUEST_VIEW_PREFERENCES_KEY);
-    const saved = raw ? JSON.parse(raw) : {};
-    window.localStorage.setItem(
-      QUEST_VIEW_PREFERENCES_KEY,
-      JSON.stringify({ ...saved, hideDailyTasksInCalendar: value }),
-    );
-  } catch {
-    // ignore — a full/blocked localStorage just means the choice isn't remembered
-  }
-}
-
-const WEEK_START_OPTIONS = [
-  { value: 1, label: "Monday" },
-  { value: 0, label: "Sunday" },
-  { value: 6, label: "Saturday" },
-];
 
 // Approximate days between occurrences — bigger = rarer. Drives the "rarest first" cell sort and
 // the rare ★ marker, so an infrequent task (e.g. monthly) is never buried under daily ones.
@@ -193,7 +184,17 @@ function chipClass(chip: CellChip): string {
     `qcal-chip--${chip.kind}`,
     settled ? "qcal-chip--settled" : "",
     chip.state === "missed" ? "qcal-chip--missed" : "",
+    // A spanning occurrence: the lead segment is widened to cover the days it spans, so the whole
+    // thing reads as one bar rather than a row of separate chips.
+    chip.span ? "qcal-chip--span" : "",
+    chip.span?.lead ? "qcal-chip--span-lead" : "",
+    chip.span && !chip.span.lead ? "qcal-chip--span-spacer" : "",
   ].filter(Boolean).join(" ");
+}
+
+// Whole days from `fromYMD` to `toYMD` (negative if `to` is earlier).
+function dayDiff(fromYMD: string, toYMD: string): number {
+  return Math.round((parseYMD(toYMD).getTime() - parseYMD(fromYMD).getTime()) / 86400000);
 }
 
 export default function QuestCalendarPage() {
@@ -202,6 +203,10 @@ export default function QuestCalendarPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [frozenDays, setFrozenDays] = useState<Set<string>>(new Set());
+  // The range the loaded completions cover. Until it covers what's on screen the grid would paint
+  // completed occurrences as due/missed for a frame — a flash of wrong state on load and on every
+  // month change.
+  const [loaded, setLoaded] = useState<{ from: string; to: string } | null>(null);
   const [balance, setBalance] = useState<number>(0);
   const [today, setToday] = useState<string | null>(null);
   const [retroEnabled, setRetroEnabled] = useState<boolean>(true);
@@ -209,14 +214,86 @@ export default function QuestCalendarPage() {
   const [retroLookbackDays, setRetroLookbackDays] = useState<number>(14);
 
   // INPUT
-  const [view, setView] = useState<CalendarView>("month");
-  const [anchor, setAnchor] = useState<string>("");
+  const [view, setView] = useState<CalendarView>(CALENDAR_PREF_DEFAULTS.calendarView);
+  // Seeded with the local month so the completions fetch can start alongside the initial batch
+  // rather than after it; a server-side simulation date corrects it when /api/state lands.
+  const [anchor, setAnchor] = useState<string>(() => ymd(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   // First day of week for WEEK view only (month view stays Sunday-first). Default Monday;
   // persisted locally since it's a display-only preference.
-  const [weekStart, setWeekStart] = useState<number>(1);
+  const [weekStart, setWeekStart] = useState<number>(CALENDAR_PREF_DEFAULTS.calendarWeekStart);
   // Drop every-day tasks from the day cells so the weekly/monthly ones stand out (default on).
   const [hideDailyTasks, setHideDailyTasks] = useState<boolean>(true);
+  // Phone-only ⋮ menu holding the view options the narrow toolbar has no room for.
+  const [viewMenuOpen, setViewMenuOpen] = useState<boolean>(false);
+  const viewMenuAnchor = useRef<HTMLButtonElement>(null);
+  // The menu that lives in the calendar card's header (desktop month view).
+  const cardMenuAnchor = useRef<HTMLButtonElement>(null);
+  const [cardMenuOpen, setCardMenuOpen] = useState<boolean>(false);
+
+  // TASK EDITOR — the same modal the home page opens, so a task edits identically from either
+  // screen. Saving here just PUTs and refetches; there is no optimistic task list to keep in sync.
+  const [taskForm, setTaskForm] = useState<TaskFormState | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [taskAdvancedOpen, setTaskAdvancedOpen] = useState<boolean>(false);
+  const [savingTask, setSavingTask] = useState<boolean>(false);
+  // Per-difficulty coin values, for the editor's difficulty picker.
+  const [factors, setFactors] = useState<Record<Difficulty, number>>({ easy: 0, medium: 0, hard: 0, max: 0 });
+
+  function openTaskEditor(taskId: string) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    setEditingTaskId(task.id);
+    setTaskAdvancedOpen((task.window_days ?? 1) > 1);
+    setTaskForm(taskToForm(task));
+  }
+
+  async function saveTaskEdits() {
+    if (!taskForm || !editingTaskId) return;
+    const title = taskForm.title.trim();
+    if (!title) return;
+    setSavingTask(true);
+    try {
+      const res = await fetch(`/modules/quest/api/tasks/${editingTaskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description: taskForm.description.trim() || null,
+          difficulty: taskForm.difficulty,
+          kind: taskForm.kind,
+          frequency: taskForm.frequency,
+          repeat_mode: repeatModeApplies(taskForm.frequency) ? taskForm.repeat_mode : null,
+          every_n: Number(taskForm.every_n) || 1,
+          days_of_week: taskForm.days_of_week.length > 0 ? taskForm.days_of_week.join(",") : null,
+          start_date: taskForm.start_date || null,
+          window_days: Math.max(1, Number(taskForm.window_days) || 1),
+          manual_reward_override: taskForm.reward_override.trim() === "" ? null : Number(taskForm.reward_override),
+          reminders: taskForm.reminders,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      setTaskForm(null);
+      setEditingTaskId(null);
+      await Promise.all([refetchTasks(), loadCompletions()]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSavingTask(false);
+    }
+  }
+
+  async function deleteTaskFromEditor(id: string) {
+    setTaskForm(null);
+    setEditingTaskId(null);
+    try {
+      const res = await fetch(`/modules/quest/api/tasks/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+      await Promise.all([refetchTasks(), loadCompletions()]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete");
+    }
+  }
 
   // STATE
   const [loading, setLoading] = useState<boolean>(true);
@@ -227,7 +304,7 @@ export default function QuestCalendarPage() {
   const range = useMemo(() => {
     if (!anchor) return null;
     if (view === "month") {
-      const weeks = buildMonthMatrix(anchor);
+      const weeks = buildMonthMatrix(anchor, weekStart);
       return { from: weeks[0][0].date, to: weeks[weeks.length - 1][6].date };
     }
     const wk = buildWeek(anchor, weekStart);
@@ -244,33 +321,27 @@ export default function QuestCalendarPage() {
     }
   }, []);
 
-  // Restore the saved week-start preference (default Monday) on mount.
+  // Restore every calendar preference on mount — shared with the home page's calendar card.
   useEffect(() => {
-    try {
-      const v = window.localStorage.getItem("quest.calendar.weekStart");
-      if (v !== null && !Number.isNaN(Number(v))) setWeekStart(Number(v));
-    } catch {
-      // localStorage unavailable — keep the Monday default
-    }
-  }, []);
-
-  // Restore the shared "hide daily tasks" preference on mount.
-  useEffect(() => {
-    setHideDailyTasks(readHideDailyPreference());
+    const prefs = readCalendarPrefs();
+    setHideDailyTasks(prefs.hideDailyTasksInCalendar);
+    setView(prefs.calendarView);
+    setWeekStart(prefs.calendarWeekStart);
   }, []);
 
   function changeHideDailyTasks(value: boolean) {
     setHideDailyTasks(value);
-    writeHideDailyPreference(value);
+    writeCalendarPrefs({ hideDailyTasksInCalendar: value });
+  }
+
+  function changeView(value: CalendarView) {
+    setView(value);
+    writeCalendarPrefs({ calendarView: value });
   }
 
   function changeWeekStart(n: number) {
     setWeekStart(n);
-    try {
-      window.localStorage.setItem("quest.calendar.weekStart", String(n));
-    } catch {
-      // ignore persistence failure
-    }
+    writeCalendarPrefs({ calendarWeekStart: n });
   }
 
   // INITIAL LOAD — tasks, settings, balance, and the effective "today" (honors simulation_date).
@@ -292,6 +363,7 @@ export default function QuestCalendarPage() {
         if (cancelled) return;
         setTasks(Array.isArray(tasksData) ? tasksData : []);
         setBalance(Number(balanceData?.balance ?? 0));
+        if (settingsData?.factors) setFactors(settingsData.factors as Record<Difficulty, number>);
         setRetroEnabled(Boolean(settingsData?.retroCompletionEnabled ?? true));
         setRetroMultiplier(Number(settingsData?.retroCompletionMultiplier ?? 0.5));
         setRetroLookbackDays(Number(settingsData?.retroLookbackDays ?? 14));
@@ -310,22 +382,40 @@ export default function QuestCalendarPage() {
   }, []);
 
   // RANGE LOAD — refetch the dated completions whenever the visible range changes.
+  // Fetches a WIDE window (about three months either side of what's visible). The endpoint costs
+  // the same whatever the range, so paying once beats paying per step, and the effect below widens
+  // it again in the background before the visible month reaches the edge.
   const loadCompletions = useCallback(async () => {
     if (!range) return;
+    const from = addDays(range.from, -100);
+    const to = addDays(range.to, 100);
     try {
-      const res = await fetch(`/modules/quest/api/tasks/completions?from=${range.from}&to=${range.to}`);
+      const res = await fetch(`/modules/quest/api/tasks/completions?from=${from}&to=${to}`);
       if (!res.ok) return;
       const data = await res.json();
       setCompletions(Array.isArray(data?.completions) ? data.completions : []);
       setFrozenDays(new Set(Array.isArray(data?.frozenDays) ? data.frozenDays : []));
+      setLoaded({ from, to });
     } catch {
-      // best-effort — grid still renders schedule without completion overlay
+      // best-effort — the grid stays blank rather than showing an unverified overlay
     }
   }, [range]);
 
+  // Covered = what we hold describes the visible range, so it renders with no fetch at all.
+  const overlayReady = !!range && !!loaded && loaded.from <= range.from && loaded.to >= range.to;
+  // Still covered, but close enough to the window's edge that the next step might not be — widen
+  // now, in the background, while the current month is already drawn.
+  const nearEdge = !!range && !!loaded && overlayReady
+    && (range.from < addDays(loaded.from, 40) || range.to > addDays(loaded.to, -40));
+
   useEffect(() => {
+    if (overlayReady && !nearEdge) return;
     loadCompletions();
-  }, [loadCompletions]);
+  }, [loadCompletions, overlayReady, nearEdge]);
+
+  // How many chips fit a day cell at this viewport — re-measured whenever the grid changes shape or
+  // its contents arrive.
+  const chipFit = useChipFit([view, anchor, weekStart, hideDailyTasks, loading, overlayReady]);
 
   // Map task_id -> sorted completion dates (for window-aware done checks).
   const completionsByTask = useMemo(() => {
@@ -343,7 +433,8 @@ export default function QuestCalendarPage() {
   // rule), plus any task carried here via a freeze deferral.
   const dailiesForDay = useCallback(
     (day: string): DayDaily[] => {
-      if (!today) return [];
+      // Hold off until the completion overlay covers this range (see overlayReady).
+      if (!today || !overlayReady) return [];
       const frozen = frozenDays.has(day);
       const out: DayDaily[] = [];
       for (const t of tasks) {
@@ -371,6 +462,7 @@ export default function QuestCalendarPage() {
         out.push({
           task: t,
           state,
+          occStart,
           windowEnd,
           awarded: doneRec ? doneRec.awarded : null,
           late: doneRec ? doneRec.late : false,
@@ -380,7 +472,7 @@ export default function QuestCalendarPage() {
       }
       return out;
     },
-    [tasks, today, completionsByTask, frozenDays],
+    [tasks, today, completionsByTask, frozenDays, overlayReady],
   );
 
   // Todos completed on `day` (read-only history; todos have no schedule of their own).
@@ -396,8 +488,10 @@ export default function QuestCalendarPage() {
 
   // Per-cell task chips, sorted RAREST-FIRST so an infrequent task (e.g. monthly) always claims a
   // chip slot and the daily ones collapse under "+N more".
+  // `rowEnd` is the last day of the week row `day` is drawn in — a spanning bar can only flow its
+  // label as far as that, and restarts on the next row.
   const cellChips = useCallback(
-    (day: string): CellChip[] => {
+    (day: string, rowStart: string, rowEnd: string): CellChip[] => {
       return dailiesForDay(day)
         // "Daily" = the task's Repeats setting, matching the task modal's wording.
         .filter((i) => !hideDailyTasks || i.task.frequency !== "daily")
@@ -405,12 +499,28 @@ export default function QuestCalendarPage() {
           id: i.task.id,
           title: i.task.title,
           state: i.state,
+          span: i.windowEnd > i.occStart
+            ? {
+                isStart: day === i.occStart,
+                isEnd: day === i.windowEnd,
+                lead: day === i.occStart || day === rowStart,
+                cols: dayDiff(day, i.windowEnd < rowEnd ? i.windowEnd : rowEnd) + 1,
+                continues: !!range && i.windowEnd > range.to,
+              }
+            : null,
           kind: entryKind(i.task),
           period: periodDays(i.task),
           movedTo: i.movedTo,
           carriedHere: i.carriedHere,
         }))
-        .sort((a, b) => b.period - a.period || a.title.localeCompare(b.title));
+        .sort((a, b) => {
+          // Spanning occurrences take the top lanes, in the same order, in every cell they cross —
+          // otherwise the bar's continuation in one cell sits a lane below the bar in the next and the
+          // two read as separate bubbles.
+          if (!!a.span !== !!b.span) return a.span ? -1 : 1;
+          if (a.span && b.span && a.span.cols !== b.span.cols) return b.span.cols - a.span.cols;
+          return b.period - a.period || a.title.localeCompare(b.title);
+        });
     },
     [dailiesForDay, hideDailyTasks],
   );
@@ -536,12 +646,11 @@ export default function QuestCalendarPage() {
     );
   }
 
-  const monthWeeks = view === "month" && anchor ? buildMonthMatrix(anchor) : [];
+  const monthWeeks = view === "month" && anchor ? buildMonthMatrix(anchor, weekStart) : [];
   const weekDays = view === "week" && anchor ? buildWeek(anchor, weekStart) : [];
   // Weekday header: month view is always Sunday-first; week view follows the chosen first day.
-  const headerLabels = view === "month"
-    ? WEEKDAY_LABELS
-    : Array.from({ length: 7 }, (_, i) => WEEKDAY_LABELS[(weekStart + i) % 7]);
+  // Both views start their rows on `weekStart`, so the headings rotate to match.
+  const headerLabels = Array.from({ length: 7 }, (_, i) => WEEKDAY_LABELS[(weekStart + i) % 7]);
   const selectedDailies = selectedDate ? dailiesForDay(selectedDate) : [];
   const selectedTodos = selectedDate ? todosForDay(selectedDate) : [];
   const yesterday = today ? addDays(today, -1) : null;
@@ -566,8 +675,9 @@ export default function QuestCalendarPage() {
     return (
       <div key={task.id} className="flex items-center justify-between gap-2 p-2 rounded border border-gray-700">
 
-        {/* TASK INFO */}
-        <div className="min-w-0">
+        {/* TASK INFO — tapping it opens the shared editor (the only route in on a phone, where a day
+            cell is too small to aim at one chip). */}
+        <button type="button" onClick={() => openTaskEditor(task.id)} className="min-w-0 text-left cursor-pointer">
           <div className="flex items-center gap-2 truncate">
             <StateDot state={state} />
             {/* Frozen (excused) occurrences are struck through so they don't read as missed. */}
@@ -590,7 +700,7 @@ export default function QuestCalendarPage() {
               <span className="flex items-center gap-0.5 text-orange-400"><Flame className="w-3 h-3" />+{task.streak_bonus.toFixed(2)}</span>
             )}
           </div>
-        </div>
+        </button>
 
         {/* ACTION */}
         {state === "done" ? (
@@ -632,6 +742,18 @@ export default function QuestCalendarPage() {
     );
   };
 
+  // The ⋮ menu's contents — shared with the home page's calendar card.
+  const viewOptions = (
+    <QuestCalendarMenu
+      view={view}
+      onViewChange={changeView}
+      weekStart={weekStart}
+      onWeekStartChange={changeWeekStart}
+      hideDailyTasks={hideDailyTasks}
+      onHideDailyTasksChange={changeHideDailyTasks}
+    />
+  );
+
   return (
     <div className="page">
       <Toaster position="bottom-center" />
@@ -643,99 +765,112 @@ export default function QuestCalendarPage() {
           </div>
         )}
 
-        {/* TOOLBAR — the page's only chrome: back, the centered view toggle, date nav and the
-            day-detail filter. There is deliberately no page title / icon / balance row; the month
-            grid gets that height. Three grid columns from sm up so the view toggle sits dead
-            centre regardless of how wide the side groups are; wraps centred on a phone. */}
-        <div className="mb-3 px-3 sm:px-4 shrink-0 flex flex-wrap items-center justify-center gap-2 sm:grid sm:grid-cols-[1fr_auto_1fr]">
+        {/* TOOLBAR (PHONE) — one inline row: back, the month controls, and a ⋮ menu holding the
+            view options. The phone has no room for the toggle + filter alongside the date nav. */}
+        <div className="lg:hidden mb-3 px-3 shrink-0 flex items-center justify-between gap-2">
 
-          {/* LEFT — back, week-start, filter */}
-          <div className="flex items-center gap-2 flex-wrap sm:justify-self-start">
+          {/* BACK TO QUEST */}
+          <BackLink
+            fallback="/modules/quest/ui/home"
+            title="Back to Quest"
+            className="btn btn-pill !px-2.5 !py-1.5 shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </BackLink>
 
-            {/* BACK TO QUEST */}
-            <BackLink
-              fallback="/modules/quest/ui/home"
-              title="Back to Quest"
-              className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </BackLink>
-
-            {/* HIDE DAILY TASKS — shares the home page's saved view preference. */}
-            <label className="flex items-center gap-1.5 text-xs text-secondary cursor-pointer shrink-0">
-              <input
-                type="checkbox"
-                checked={hideDailyTasks}
-                onChange={(e) => changeHideDailyTasks(e.target.checked)}
-                className="cursor-pointer"
-              />
-              Hide daily
-            </label>
-          </div>
-
-          {/* VIEW TOGGLE — centred. The active fill is one element that slides between the two
-              halves (equal-width buttons keep the 50% travel honest) rather than jumping. */}
-          <div className="relative flex rounded border border-gray-700 overflow-hidden sm:justify-self-center">
-
-            {/* SLIDING FILL */}
-            <span
-              aria-hidden
-              className="absolute inset-y-0 left-0 w-1/2 bg-blue-600 transition-transform duration-200 ease-out"
-              style={{ transform: view === "month" ? "translateX(100%)" : "translateX(0)" }}
-            />
-
-            {(["week", "month"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`relative z-10 w-[4.5rem] py-1.5 text-sm capitalize cursor-pointer transition-colors ${
-                  view === v ? "text-white" : "text-secondary hover:text-primary"
-                }`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
-
-          {/* DATE NAV — no separate Today button; the label itself jumps back to today. */}
-          <div className="flex items-center gap-2 sm:justify-self-end">
-            <button onClick={() => shiftAnchor(-1)} className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer" title="Previous">
+          {/* DATE NAV — the label jumps back to today. */}
+          <div className="flex items-center gap-1 min-w-0">
+            <button onClick={() => shiftAnchor(-1)} className="p-1.5 text-secondary hover:text-primary cursor-pointer" title="Previous">
               <ChevronLeft className="w-4 h-4" />
             </button>
 
             <button
               onClick={() => today && setAnchor(today)}
               title="Jump to today"
-              className="text-sm font-semibold min-w-[6.5rem] sm:min-w-[10rem] text-center tabular-nums cursor-pointer hover:text-primary"
+              className="text-sm font-semibold min-w-[6.5rem] text-center tabular-nums cursor-pointer hover:text-primary"
             >
               {headingLabel}
             </button>
 
-            <button onClick={() => shiftAnchor(1)} className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer" title="Next">
+            <button onClick={() => shiftAnchor(1)} className="p-1.5 text-secondary hover:text-primary cursor-pointer" title="Next">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+
+          {/* VIEW OPTIONS MENU — the app's shared popover (portalled, so no ancestor can clip it) */}
+          <button
+            ref={viewMenuAnchor}
+            onClick={() => setViewMenuOpen((v) => !v)}
+            title="View options"
+            className={`p-1.5 shrink-0 cursor-pointer ${viewMenuOpen ? "text-primary" : "text-secondary hover:text-primary"}`}
+          >
+            <EllipsisVertical className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* WEEK-START SELECTOR (week view only) — on its own row so switching views never shifts
-            the toolbar's controls out from under the cursor. */}
-        {view === "week" && (
-          <div className="mb-3 px-3 sm:px-4 shrink-0">
-            <select
-              value={weekStart}
-              onChange={(e) => changeWeekStart(Number(e.target.value))}
-              title="First day of week"
-              className="h-8 px-2 rounded border border-gray-600 bg-transparent text-xs text-secondary cursor-pointer"
-            >
-              {WEEK_START_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>Starts {o.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <PopoverMenu open={viewMenuOpen} onClose={() => setViewMenuOpen(false)} anchorRef={viewMenuAnchor} className="popover-menu--wide">
+          {viewOptions}
+        </PopoverMenu>
+
+        {/* TOOLBAR (DESKTOP) — just the way back. The calendar card's own header carries the range
+            stepper and the ⋮ view menu, for both the month and week views. */}
+        <div className="hidden lg:flex mb-3 px-4 shrink-0 items-center">
+          <BackLink
+            fallback="/modules/quest/ui/home"
+            title="Back to Quest"
+            className="btn btn-pill !px-2.5 !py-1.5 shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </BackLink>
+        </div>
 
         {/* CALENDAR GRID */}
         <section className="card quest-cal-grid-card">
+
+          {/* DESKTOP MONTH — the exact widget the home page renders, so both pages show the same
+              calendar. Chips and cells open this page's day detail instead of a task form, and the
+              widget's month nav drives our fetch range via onMonthChange. */}
+          {/* Both views render the shared widget on desktop — same cells, same chrome. */}
+          <div className="quest-cal-desk hidden lg:flex">
+              <QuestCalendarWidget
+                headerActions={
+                  <>
+                    {/* VIEW OPTIONS — in the card's header, where the calendar lives, rather than up
+                        in the page toolbar. The toolbar keeps its own ⋮ for the week view, which
+                        renders the page's grid instead of this widget. */}
+                    <button
+                      ref={cardMenuAnchor}
+                      onClick={() => setCardMenuOpen((v) => !v)}
+                      title="View options"
+                      className={`p-1.5 cursor-pointer ${cardMenuOpen ? "text-primary" : "text-secondary hover:text-primary"}`}
+                    >
+                      <EllipsisVertical className="w-5 h-5" />
+                    </button>
+
+                    <PopoverMenu
+                      open={cardMenuOpen}
+                      onClose={() => setCardMenuOpen(false)}
+                      anchorRef={cardMenuAnchor}
+                      className="popover-menu--wide"
+                    >
+                      {viewOptions}
+                    </PopoverMenu>
+                  </>
+                }
+                tasks={tasks}
+                today={today ?? ymd(new Date())}
+                hideDailyTasks={hideDailyTasks}
+                overlay={{ completions, frozenDays, ready: overlayReady }}
+                view={view}
+                weekStart={weekStart}
+                onSelectDay={(date) => setSelectedDate(date)}
+                onSelectTask={(taskId) => openTaskEditor(taskId)}
+                onMonthChange={(next) => setAnchor(next)}
+              />
+          </div>
+
+          {/* PHONE GRID — the page's own layout, for widths below the widget's. */}
+          <div ref={chipFit.gridRef} className="flex flex-col flex-1 min-h-0 lg:hidden">
 
           {/* WEEKDAY HEADER ROW */}
           <div className="grid grid-cols-7 gap-px mb-1 shrink-0">
@@ -756,8 +891,8 @@ export default function QuestCalendarPage() {
                       dimmed={!cell.inMonth}
                       isToday={cell.date === today}
                       frozen={frozenDays.has(cell.date)}
-                      chips={cellChips(cell.date)}
-                      maxChips={3}
+                      chips={cellChips(cell.date, week[0].date, week[6].date)}
+                      maxChips={chipFit.fit}
                       onClick={() => setSelectedDate(cell.date)}
                     />
                   ))}
@@ -766,7 +901,7 @@ export default function QuestCalendarPage() {
             </div>
           )}
 
-          {/* WEEK VIEW */}
+          {/* WEEK VIEW — the same seven columns as a month row, just on its own. */}
           {view === "week" && (
             <div className="grid grid-cols-7 quest-cal-weeks quest-cal-weeks--single">
               {weekDays.map((d) => (
@@ -776,17 +911,38 @@ export default function QuestCalendarPage() {
                   dimmed={false}
                   isToday={d === today}
                   frozen={frozenDays.has(d)}
-                  chips={cellChips(d)}
-                  maxChips={5}
+                  chips={cellChips(d, weekDays[0], weekDays[6])}
+                  maxChips={chipFit.fit}
                   onClick={() => setSelectedDate(d)}
                 />
               ))}
             </div>
           )}
 
+
+
+            {/* LEGEND — the same one the widget renders, so both screens read alike. */}
+            <div className="calw-legend shrink-0">{QUEST_LEGEND}</div>
+          </div>
         </section>
 
       </div>
+
+      {/* TASK CREATE/EDIT MODAL — the same editor the home page renders. */}
+      {taskForm && (
+        <QuestTaskModal
+          form={taskForm}
+          setForm={setTaskForm}
+          editingTaskId={editingTaskId}
+          advancedOpen={taskAdvancedOpen}
+          setAdvancedOpen={setTaskAdvancedOpen}
+          submitting={savingTask}
+          onClose={() => { setTaskForm(null); setEditingTaskId(null); }}
+          onSubmit={saveTaskEdits}
+          onDelete={(id) => void deleteTaskFromEditor(id)}
+          computedReward={(d) => factors[d] ?? 0}
+        />
+      )}
 
       {/* DAY DETAIL MODAL */}
       {selectedDate && (
@@ -930,36 +1086,58 @@ function DayCell({
   return (
     <button
       onClick={onClick}
-      className={`quest-cal-cell flex flex-col items-stretch text-left border cursor-pointer transition-colors overflow-hidden ${
-        frozen ? "border-cyan-500/50 bg-cyan-500/10"
-          : isToday ? "border-blue-500 bg-blue-500/5"
-          : "border-gray-700 hover:bg-gray-800"
-      } ${dimmed ? "opacity-40" : ""}`}
+      // No cell border: the grid's 1px gaps over a border-coloured backing paint every line once.
+      // A bordered cell on top of that gridline is what produced the doubled rules.
+      className={`quest-cal-cell flex flex-col items-stretch text-left cursor-pointer transition-colors overflow-hidden ${
+        // The state tints are design-system classes, not utilities — see globals.css for why.
+        frozen ? "quest-cal-cell--frozen"
+          : isToday ? "quest-cal-cell--today"
+          : "hover:bg-gray-800"
+      } ${dimmed ? "quest-cal-cell--out" : ""}`}
     >
-      {/* DATE NUMBER */}
-      <div className="flex items-center justify-between shrink-0 leading-none">
-        <span className={`text-xs tabular-nums ${isToday ? "text-blue-400 font-semibold" : "text-gray-400"}`}>{dayNum}</span>
-        {frozen && <Snowflake className="w-3 h-3 text-cyan-400 shrink-0" />}
+      {/* DATE NUMBER — the overflow count rides up here in the corner rather than sitting under the
+          chips, where a tall stack would bury it. */}
+      <div className="flex items-center justify-between shrink-0 leading-none gap-1">
+        <span className={`text-xs tabular-nums ${isToday ? "text-yellow-400 font-semibold" : "text-gray-400"}`}>{dayNum}</span>
+
+        <span className="flex items-center gap-1 shrink-0">
+          {overflow > 0 && (
+            <span className="qcal-more-top" title={`${overflow} more`}>+{overflow}</span>
+          )}
+          {frozen && <Snowflake className="w-3 h-3 text-cyan-400" />}
+        </span>
       </div>
 
       {/* TASK CHIPS — rarest first, coloured by repeat frequency; ❄ = carried in, → = migrated out. */}
       {chips.length > 0 && (
         <div className="qcal-chips mt-0.5">
-          {shown.map((c) => (
-            <span key={c.id} className={chipClass(c)} title={`${c.title} — ${chipStateNote(c)}`}>
-              {c.carriedHere && <Snowflake className="w-2.5 h-2.5 shrink-0" />}
-              <span className="qcal-chip-title">{c.title}</span>
-              {/* Migrated off this day → arrow so it reads "moved", not "missed/incomplete". */}
-              {c.movedTo && <ArrowRight className="w-2.5 h-2.5 shrink-0" />}
-            </span>
-          ))}
+          {shown.map((c) => {
+            const labelled = !c.span || c.span.lead;
+            return (
+              <span
+                key={c.id}
+                className={chipClass(c)}
+                title={`${c.title} — ${chipStateNote(c)}`}
+                // How many of this row's days the bar still covers — the label may run that wide.
+                style={c.span?.lead ? ({ "--qcal-span-cols": c.span.cols } as CSSProperties) : undefined}
+              >
+                {labelled && c.carriedHere && <Snowflake className="w-2.5 h-2.5 shrink-0" />}
+                {/* A non-breaking space keeps an unlabelled middle segment the same height. */}
+                <span className="qcal-chip-title">{labelled ? c.title : "\u00A0"}</span>
+                {/* Migrated off this day → arrow so it reads "moved", not "missed/incomplete". */}
+                {c.movedTo && <ArrowRight className="w-2.5 h-2.5 shrink-0" />}
+
+                {/* Runs past this row — cut by the row break, not finished. */}
+                {c.span?.lead && c.span.continues && (
+                  <ArrowRight className="w-2.5 h-2.5 shrink-0 ml-auto" aria-label="continues" />
+                )}
+              </span>
+            );
+          })}
         </div>
       )}
 
-      {/* OVERFLOW — outside the clipped list so the cell below can never cut it off */}
-      {overflow > 0 && (
-        <span className="qcal-more" title={`${overflow} more`}>+{overflow}<span className="hidden sm:inline"> more</span></span>
-      )}
+
     </button>
   );
 }

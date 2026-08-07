@@ -389,11 +389,19 @@ body {
   border-bottom: 1px solid var(--color-primary);
 }
 
+/* Phones: the 1.5rem wordmark is what actually sets the bar's height (24px text in a 36px line
+   box), so it scales down with the rest of the mobile chrome. */
+@media (max-width: 639px) {
+  .navbar .text-h1 {
+    font-size: 1.15rem;
+  }
+}
+
 /* Measured navbar height, published for the elements that hang off its bottom edge (the nav drawer
    and its backdrop). Kept in sync with components/Navbar.tsx's padding — phones use the tighter
-   py-1 + 24px logo, everything else py-2 + 28px. */
+   py-0.5 + 20px logo + scaled wordmark, everything else py-2 + 28px. */
 :root {
-  --navbar-height: 3.3125rem; /* 53px — phone */
+  --navbar-height: 2.5625rem; /* 41px — phone */
 }
 @media (min-width: 640px) {
   :root {
@@ -921,6 +929,12 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   animation: modal-card-in 250ms ease-out;
 }
 
+/* Taller cap for long forms (the quest task editor) — same visible-viewport basis as .modal-card,
+   just 95% instead of 85%. */
+.modal-card-tall {
+  max-height: calc(var(--visible-vh, var(--app-height, 100dvh)) * 0.95);
+}
+
 .modal-card-full {
   height: calc(var(--visible-vh, var(--app-height, 100dvh)) * 0.85);
   max-height: none;
@@ -1323,6 +1337,93 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
     background: var(--hover-bg);
     color: var(--hover-text);
   }
+}
+
+/* MENU GROUPS — a popover reads best as ONE kind of thing repeated: every choice is a row, its
+   state is a check in a fixed leading column, and captions group them. Embedding a different
+   control (a segmented pill, a <select>) in the same box makes it look like a pile of unrelated
+   widgets rather than a menu. */
+
+/* SECTION CAPTION — a small heading over a group of rows. */
+.popover-caption {
+  padding: 0.5rem 0.75rem 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-gray);
+}
+
+/* COLLAPSIBLE GROUP — a set of rows that comes and goes with the menu's state (the week-start
+   options only exist in week view). It stays MOUNTED and animates instead of popping in, so the
+   menu's height eases open rather than jumping. The 0fr → 1fr grid-row transition is the way to
+   animate to a content-derived height; the inner element does the clipping. */
+.popover-group {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 180ms ease, opacity 140ms ease;
+}
+.popover-group-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.popover-group--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+/* Closed rows are invisible but still in the DOM — keep them out of the pointer/tab order. */
+.popover-group:not(.popover-group--open) .popover-group-inner {
+  pointer-events: none;
+}
+
+/* SEPARATOR between groups. */
+.popover-separator {
+  height: 1px;
+  margin: 0.25rem 0;
+  background: var(--card-border);
+}
+
+/* CHECK COLUMN — fixed width, so every label starts at the same x whether or not it's checked. */
+.popover-item-check {
+  flex: 0 0 auto;
+  width: 1rem;
+  margin-right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--alert-blue-text);
+}
+
+/* RADIO — for a single-choice group (pick one of N), where a check would wrongly suggest each row
+   toggles on its own. Mirrors the app's .unit-option-radio at menu scale, and occupies the same
+   1.5rem leading column as .popover-item-check so labels line up across groups. */
+.popover-item-radio {
+  flex: 0 0 auto;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-right: 0.625rem;
+  border-radius: 9999px;
+  border: 2px solid var(--color-secondary);
+  position: relative;
+  background: transparent;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.popover-item[aria-checked="true"] .popover-item-radio {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+.popover-item[aria-checked="true"] .popover-item-radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 9999px;
+  background: var(--solid-background);
+}
+
+/* Roomier menu, for one carrying captions and checked rows. */
+.popover-menu--wide {
+  width: 12rem;
 }
 
 /* ============================================================
@@ -2513,7 +2614,10 @@ button {
   position: relative;
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 1fr;      /* equal-width slots regardless of label length */
+  /* minmax(0, 1fr), not a bare 1fr: 1fr floors at min-content, so a longer label (Month vs Week)
+     claims a wider slot than its neighbour and the sliding indicator — sized at an exact 1/N —
+     lands off-centre under it. */
+  grid-auto-columns: minmax(0, 1fr);
   width: fit-content;
   padding: 2px;
   border-radius: 999px;
@@ -2536,7 +2640,9 @@ button {
   border: none;
   background: transparent;
   border-radius: 999px !important;
-  padding: 5px 16px;
+  /* 12px, not 16: with equal slots the widest label sets the slot width, and 16px side padding left
+     "Month" without room to centre inside its own pill (it overflowed to the right). */
+  padding: 5px 12px;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
@@ -4489,6 +4595,23 @@ button.list-row:disabled {
   color: var(--color-primary);
 }
 
+/* NAVIGABLE HEADER — three columns so the month stepper is centred over the grid rather than
+   pushed to the right edge; the trailing column is an empty counterweight to the title. */
+.calw-header--centered {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.calw-header--centered > .calw-nav {
+  grid-column: 2;
+  justify-self: center;
+}
+.calw-header--centered > .calw-header-actions {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+}
+
 /* MONTH LABEL — centered month + year above the grid. */
 .calw-month {
   font-size: 0.875rem;
@@ -4919,10 +5042,20 @@ button.list-row:disabled {
    98vh and the day cells grow with it instead of sitting at a fixed height.
    ========================================================================== */
 
+/* This page is sized to the viewport and never scrolls, so the app-wide `scrollbar-gutter: stable`
+   on `.page` (which reserves the classic-scrollbar strip up front to avoid layout shift when a page
+   DOES become scrollable) is pure lost width here — ~15px on Chrome/Windows, 0 on an overlay-
+   scrollbar engine like Firefox Android, which is why it only showed up in one browser. */
+body:has(.quest-cal-page) > .page {
+  scrollbar-gutter: auto;
+}
+
 .quest-cal-page {
   display: flex;
   flex-direction: column;
-  min-height: 98vh;
+  /* Minus the navbar: this column lives inside .page, which is already the viewport MINUS the
+     navbar, so a raw 98vh would overshoot its host and put the page into scroll. */
+  min-height: calc(98vh - var(--navbar-height, 0px));
   /* Edge to edge: the month grid IS the page, so it gets the container's side padding back. The
      toolbar re-adds its own inset so its controls aren't flush against the screen edge. */
   padding-left: 0;
@@ -4943,9 +5076,30 @@ button.list-row:disabled {
 
 /* The grid's own hairline frame is the only border left; drop its side edges so the cells really do
    reach the edge. */
-.quest-cal-weeks {
-  border-left: none;
-  border-right: none;
+/* The grid draws all the rules: 1px gaps over a border-coloured backing, capped top and bottom.
+   Side edges are open so the cells reach the screen edges on a phone. */
+.quest-cal-cell {
+  border: none;
+  --qcal-cell-gap: 1px; /* the grid's hairline gutter */
+}
+
+/* A cell holding a spanning bar lets it run past its own edge and sits above the days it covers.
+   `overflow: visible` alone would also lift the VERTICAL clip, so one chip too many (a rounding
+   difference in the fit measurement between engines) would render below the cell's bottom rule —
+   seen on Firefox Android. clip-path re-imposes the vertical clip while leaving the horizontal
+   escape open: inset() takes per-side values and a negative one extends the region outward. */
+.quest-cal-cell:has(.qcal-chip--span-lead),
+.qcal-day:has(.qcal-chip--span-lead) {
+  overflow: visible;
+  clip-path: inset(0 -100vw 0 0);
+  position: relative;
+  z-index: 1;
+}
+/* The chip list can't clip it horizontally either — same trick. */
+.quest-cal-cell:has(.qcal-chip--span-lead) .qcal-chips,
+.qcal-day:has(.qcal-chip--span-lead) .qcal-chips {
+  overflow: visible;
+  clip-path: inset(0 -100vw 0 0);
 }
 
 /* WEEK ROWS — share the card's leftover height evenly, and the cells fill their row. */
@@ -4960,21 +5114,105 @@ button.list-row:disabled {
 .quest-cal-weeks--single {
   align-items: stretch;
 }
+
 /* CELLS — no margin between them: the 1px gap over a border-coloured backing paints a single
    hairline grid, and the cell itself keeps only enough padding for the day number. */
-.quest-cal-weeks,
-.quest-cal-weeks > * {
+.quest-cal-weeks {
   gap: 1px;
   background: var(--card-border);
 }
+/* Only a MONTH grid's children are week rows that need their own gridline backing. In the week view
+   the grid's children are the day cells themselves — backing those would paint the whole row the
+   gridline colour instead of leaving the cells their own background. */
+.quest-cal-weeks:not(.quest-cal-weeks--single) > * {
+  gap: 1px;
+  background: var(--card-border);
+}
+/* Top and bottom rules only — the outer columns run flush to the screen edges, so there is no
+   border down the left of the first column or the right of the last, and no side margin. */
 .quest-cal-weeks {
-  border: 1px solid var(--card-border);
+  border-top: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--card-border);
+  border-left: 0;
+  border-right: 0;
 }
 .quest-cal-cell {
   min-height: 0;
   height: 100%;
   border-radius: 0;
   padding: 0.125rem;
+  --qcal-cell-pad: 0.125rem;
+}
+
+/* Opaque by DEFAULT: the grid's backing colour paints the hairlines, and a transparent (or faded)
+   cell would let that backing show through as a grey wash. Wrapped in :where() so it carries zero
+   specificity — the per-state tints on the cell (today's gold, a frozen day's cyan) are utility
+   classes and must win over it. */
+:where(.quest-cal-cell) {
+  background: var(--card-bg);
+}
+
+/* STATE TINTS — these live here rather than as utility classes on the element: Tailwind's utilities
+   sit in @layer utilities, and ANY unlayered rule in this file (the default background above) beats
+   a layered one no matter its specificity, so a `bg-yellow-400/15` on the cell would never show.
+   Today's gold matches the shared desktop widget. */
+.quest-cal-cell--today {
+  background: color-mix(in srgb, #facc15 15%, var(--card-bg)); /* yellow-400, as in the widget */
+  box-shadow: inset 0 0 0 1px #facc15;
+}
+.quest-cal-cell--frozen {
+  background: color-mix(in srgb, #06b6d4 12%, var(--card-bg)); /* cyan-500 */
+}
+
+/* OUT-OF-MONTH — fade the contents, never the cell (opacity would reveal the gridline backing). */
+.quest-cal-cell--out .quest-cal-daynum {
+  opacity: 0.45;
+}
+.quest-cal-cell--out .qcal-chip,
+.quest-cal-cell--out .qcal-more {
+  opacity: 0.5;
+}
+
+/* DESKTOP — the calendar page hosts the SAME widget the home page does, so it also gets the card
+   frame and page inset back (the edge-to-edge, frameless treatment is the phone layout's). */
+@media (min-width: 1024px) {
+  /* Same measure and inset as the quest home page, so the embedded widget draws at the same size on
+     both screens rather than being squeezed by the app's default 80rem column. */
+  .quest-cal-page {
+    max-width: 110rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .quest-cal-page > .quest-cal-grid-card {
+    padding: 1.5rem;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+  }
+
+  /* Stretch the embedded widget to fill the card, matching the home page's 95vh shell. */
+  .quest-cal-desk {
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+  }
+  .quest-cal-desk .calw-root {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .quest-cal-desk .calw-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .quest-cal-desk .calw-grid .calw-week {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  .quest-cal-desk .calw-grid .calw-week > * {
+    height: 100%;
+    min-height: 0;
+  }
 }
 
 /* Phones give the grid the rest of the screen too — just with tighter page padding, plus a bottom
@@ -4983,6 +5221,8 @@ button.list-row:disabled {
    inside the 98vh (border-box), so it shortens the grid rather than overflowing the page. */
 @media (max-width: 1023px) {
   .quest-cal-page {
+    /* Slightly shorter than the desktop 98vh — a phone's browser chrome eats into the viewport. */
+    min-height: calc(95vh - var(--navbar-height, 0px));
     padding-top: 1rem;
     padding-bottom: 4rem;
   }
@@ -5025,15 +5265,28 @@ button.list-row:disabled {
   align-items: center;
   gap: 0.1875rem;
   min-width: 0;
+  /* A hairline in the chip's own hue: enough to separate stacked bars and to read as a discrete
+     item against the cell, without competing with the grid's rules. */
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
   padding: 1px 2px;
   font-size: 0.6875rem;
   line-height: 1.25;
   text-align: left;
-  cursor: pointer;
+  /* The cell decides: a chip is only its own target in the home widget (below), where it's a real
+     button. In the page grid the whole cell opens the day preview, so a chip must not advertise
+     itself as separately clickable. */
+  cursor: inherit;
   transition: filter 0.12s ease;
 }
-.qcal-chip:hover {
-  filter: brightness(1.15) saturate(1.1);
+
+/* Only the widget's chips are individually clickable, and only on a device with a real pointer. */
+.qcal-day .qcal-chip {
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .qcal-day .qcal-chip:hover {
+    filter: brightness(1.15) saturate(1.1);
+  }
 }
 .qcal-chip-time {
   flex: 0 0 auto;
@@ -5046,6 +5299,34 @@ button.list-row:disabled {
   white-space: nowrap;
 }
 
+/* SPANNING OCCURRENCE — a completion grace window (window_days > 1) is one occurrence covering
+   several days, drawn the way a calendar draws a multi-day event: the lead segment's bar is widened
+   to cover the days it spans in its week row, and the days it runs over draw nothing.
+   Margins and padding are IDENTICAL to every other chip — a span differs only in width — so nothing
+   sits at a different inset from its neighbours.
+   Width: to cover N cells the bar needs N cell-widths plus the N-1 gutters it crosses. Its own 100%
+   is the cell's content box, so each extra column adds one gutter + the two cell paddings that
+   aren't part of it. --qcal-cell-pad / --qcal-cell-gap are published by the host grid. */
+/* CONTINUATION SEGMENT — the days a bar passes through draw nothing at all; the lead segment's
+   widened bar covers them. They stay in the layout purely to hold the lane, so the chips underneath
+   don't slide up into the bar. */
+.qcal-chip--span-spacer {
+  visibility: hidden;
+}
+
+.qcal-chip--span-lead {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  /* Above the cells it runs across, so no gridline or neighbouring cell paints over the bar. */
+  position: relative;
+  z-index: 2;
+  width: calc(
+    var(--qcal-span-cols, 1) * 100% +
+    (var(--qcal-span-cols, 1) - 1) *
+      (2 * var(--qcal-cell-pad, 0px) + 2 * var(--qcal-cell-border, 0px) + var(--qcal-cell-gap, 0px))
+  );
+}
+
 /* CHIP LIST — clips whole chips as the cell shrinks... */
 .qcal-chips {
   display: flex;
@@ -5055,6 +5336,16 @@ button.list-row:disabled {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+
+/* OVERFLOW COUNT IN THE CORNER — the calendar page puts it beside the day number, where a full
+   stack of chips can never bury it. */
+.qcal-more-top {
+  font-size: 0.625rem;
+  line-height: 1;
+  color: var(--color-gray);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ...while the "+N more" line is pinned to the bottom of the cell, so it can never be the thing
@@ -5088,6 +5379,16 @@ button.list-row:disabled {
   text-underline-offset: 2px;
 }
 
+/* LEGEND ITEM — swatch + label, the same on every screen that shows the calendar. */
+.qcal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  /* Sized here rather than on a host-specific container, so the legend is identical wherever the
+     calendar renders (home card, calendar page desktop, calendar page phone). */
+  font-size: 0.75rem;
+}
+
 /* LEGEND SWATCH — a small block of the chip's fill, outlined in its text colour. */
 .qcal-swatch {
   width: 0.6rem;
@@ -5100,6 +5401,30 @@ button.list-row:disabled {
 .qcal-swatch--monthly { border-color: var(--qcal-monthly-text); background: var(--qcal-monthly-bg); }
 .qcal-swatch--yearly { border-color: var(--qcal-yearly-text); background: var(--qcal-yearly-bg); }
 .qcal-swatch--todo { border-color: var(--qcal-todo-text); background: var(--qcal-todo-bg); }
+
+/* The home widget's cells: the metrics a spanning bar needs to size itself against this grid. */
+.qcal-day {
+  --qcal-cell-pad: 0.25rem; /* matches the cell's lg:p-1 */
+  --qcal-cell-gap: 0.25rem; /* matches .calw-week's gap */
+  --qcal-cell-border: 1px; /* matches the cell's lg:border — a span crosses two of these per column */
+}
+
+/* DAY CELL HOVER — the tint advertises "double-click here to add a task", and that only applies to
+   the cell's blank space: the chips are their own click targets. :has() switches the tint off while
+   the cursor is over a chip, so hovering a task never lights up the whole day. Desktop only (the
+   compact widget has no day boxes). */
+@media (min-width: 1024px) {
+  .qcal-day:hover:not(:has(.qcal-chip:hover)) {
+    background: color-mix(in srgb, var(--color-secondary) 15%, transparent);
+  }
+  /* Today and frozen days keep their own accent, just brighter. */
+  .qcal-day--today:hover:not(:has(.qcal-chip:hover)) {
+    background: color-mix(in srgb, #facc15 25%, transparent); /* yellow-400, matching the cell's base tint */
+  }
+  .qcal-day--frozen:hover:not(:has(.qcal-chip:hover)) {
+    background: color-mix(in srgb, #06b6d4 20%, transparent); /* cyan-500 */
+  }
+}
 
 /* STRETCH — on desktop the calendar owns a 95vh row of its own, and the month grid
    grows to fill it so every week row is a full-height Outlook-style band. Below lg
@@ -5117,9 +5442,7 @@ button.list-row:disabled {
     font-size: 0.8125rem;
     font-weight: 600;
   }
-  .quest-cal-shell .calw-legend {
-    font-size: 0.75rem;
-  }
+
   .quest-cal-shell .calw-root {
     flex: 1 1 auto;
     display: flex;

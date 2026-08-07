@@ -164,7 +164,7 @@ export default function MainNavDrawer() {
     <>
       {/* MENU TRIGGER — icon-only inline button on the far left of the navbar. */}
       <Button
-        className="btn-link !pl-0"
+        className="btn-link !pl-0 !pr-1.5 sm:!pr-2"
         onClick={() => setIsOpen(true)}
         aria-label="Open navigation menu"
         aria-expanded={isOpen}

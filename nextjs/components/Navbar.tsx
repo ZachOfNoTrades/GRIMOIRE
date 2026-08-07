@@ -187,10 +187,11 @@ export default function Navbar({ children }: NavbarProps) {
           to the left edge (px-4 gutter) and the user menu to the right, rather
           than being capped/centered in an 80rem column. Tighter vertical padding
           on phones, where the bar is competing with the content for height. */}
-      <div className="w-full px-4 py-1 sm:py-2 flex items-center justify-between">
+      <div className="w-full px-4 py-0.5 sm:py-2 flex items-center justify-between">
 
-        {/* LEFT SIDE */}
-        <div className="flex items-center gap-2">
+        {/* LEFT SIDE — the wordmark sits tight against the menu button on phones, where the
+            navbar's horizontal room is worth more than the breathing space. */}
+        <div className="flex items-center gap-0 sm:gap-2">
 
           {/* MAIN NAV DRAWER — hamburger menu for all modules */}
           <MainNavDrawer />
@@ -207,7 +208,7 @@ export default function Navbar({ children }: NavbarProps) {
               width={28}
               height={28}
               priority
-              className="w-6 h-6 sm:w-7 sm:h-7"
+              className="w-5 h-5 sm:w-7 sm:h-7"
             />
             GRIMOIRE
           </Link>
