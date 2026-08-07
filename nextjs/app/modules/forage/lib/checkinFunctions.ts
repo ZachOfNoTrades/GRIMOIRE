@@ -106,6 +106,12 @@ export interface MacroDiff {
   current: MacroValues | null;
   proposed: MacroValues;
   latestWeightLb: number | null;
+  // The calorie number the recompute wanted before the per-check-in rate limit
+  // clipped it — null whenever nothing was clipped (no standing target, or the
+  // move was already within the cap). Set, it means `proposed.kcal` is a
+  // deliberate partial step toward `uncappedKcal`, which the wizard says out
+  // loud rather than leaving the user to wonder why the number stopped short.
+  uncappedKcal: number | null;
 }
 
 // Whether two macro sets are the same number-for-number — the check that keeps
@@ -135,7 +141,7 @@ export async function computeMacroDiff(userId: string, program: Program, goal: G
     latestWeightLb,
   });
 
-  const proposed = computeTargets({
+  const computeInput = {
     goal_kind: goal.goal_kind,
     rate_lb_per_week: goal.rate_lb_per_week,
     protein_band: program.protein_band!,
@@ -146,12 +152,21 @@ export async function computeMacroDiff(userId: string, program: Program, goal: G
     shifted_high_days: program.shifted_high_days,
     latest_weight_lb: latestWeightLb,
     maintenance_kcal_override: expenditure.expenditure_kcal,
-  });
+  };
+
+  // Rate-limited against the standing target so one check-in can't move the
+  // budget by hundreds of kcal (see maxCheckInKcalChange). Computed twice rather
+  // than having computeTargets hand back both numbers: kcal is re-derived from
+  // the rounded macro grams at the end, so running the whole function uncapped
+  // is the only way to get an apples-to-apples "what it wanted" figure.
+  const proposed = computeTargets({ ...computeInput, previous_kcal: current?.kcal ?? null });
+  const uncapped = computeTargets(computeInput);
 
   return {
     current: current ? { kcal: current.kcal, protein_g: current.protein_g, carbs_g: current.carbs_g, fat_g: current.fat_g } : null,
     proposed: { kcal: proposed.kcal, protein_g: proposed.protein_g, carbs_g: proposed.carbs_g, fat_g: proposed.fat_g },
     latestWeightLb,
+    uncappedKcal: uncapped.kcal === proposed.kcal ? null : uncapped.kcal,
   };
 }
 

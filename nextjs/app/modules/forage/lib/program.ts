@@ -33,6 +33,12 @@ export interface ComputeInput {
   // this is how the adaptive expenditure estimate (logged intake + weight trend)
   // feeds the target math. Omit / null to fall back to naiveMaintenanceKcal.
   maintenance_kcal_override?: number | null;
+  // The calorie target currently in force, when there is one. Supplying it turns
+  // on the per-check-in rate limit (see maxCheckInKcalChange) so one recompute
+  // can't yank the budget across the room. Only the check-in path passes it —
+  // deliberate resets (new goal, new program, the wizard previews) leave it unset
+  // and get the raw number, because there the jump IS the thing being chosen.
+  previous_kcal?: number | null;
 }
 
 export interface ComputeOutput {
@@ -80,6 +86,32 @@ export function naiveMaintenanceKcal(weightKg: number, trainingKind: TrainingKin
   return weightKg * 30 * TRAINING_MULT[trainingKind];
 }
 
+// How far a single weekly check-in may move the calorie target: 15% of the
+// standing target, but never less than a flat 150 kcal so small budgets can
+// still move meaningfully.
+//
+// Without this, one recompute can hand the user a several-hundred-kcal cliff.
+// Two things drive that, and the cap covers both. The loud one is the
+// expenditure estimator SWITCHING METHODS between check-ins: it needs 10
+// complete logged days and a 14-day weigh-in span inside the intake/weigh-in
+// overlap, and until it has them it falls back to the coarse 30 kcal/kg
+// formula. The week those gates finally pass, maintenance jumps from a
+// bodyweight guess to a measured number in one step — observed 2026-08-07 as
+// 3,211 -> 2,432, i.e. a 775 kcal target drop overnight with nothing about the
+// user having actually changed. The quiet one is ordinary noise in the adaptive
+// estimate itself, where a couple of stray scale readings can shift the fitted
+// trend enough to move maintenance by a few hundred.
+//
+// Clamping doesn't lose the new information — each check-in re-clamps from the
+// updated target, so the budget still walks to wherever the estimator says
+// within a few weeks. It just refuses to get there in one jump.
+export const MAX_CHECKIN_KCAL_CHANGE_PCT = 0.15;
+export const MIN_CHECKIN_KCAL_CHANGE = 150;
+
+export function maxCheckInKcalChange(previousKcal: number): number {
+  return Math.max(MIN_CHECKIN_KCAL_CHANGE, Math.round(previousKcal * MAX_CHECKIN_KCAL_CHANGE_PCT));
+}
+
 export function computeTargets(input: ComputeInput): ComputeOutput {
   // Convert public lb interface to internal kg before applying physiology constants.
   const weightKg = input.latest_weight_lb != null ? lbToKg(input.latest_weight_lb) : 70;
@@ -100,6 +132,16 @@ export function computeTargets(input: ComputeInput): ComputeOutput {
   // Apply floor
   const floor = FLOOR_MIN_KCAL[input.floor_kind];
   let kcal = Math.max(floor, maintenance + dailyDelta);
+
+  // Rate-limit the move away from the standing target, when the caller supplied
+  // one. The floor is re-applied afterwards so the cap can never hold the budget
+  // below it — clamping toward a previous target must not undo a safety limit.
+  if (input.previous_kcal != null && input.previous_kcal > 0) {
+    const maxStep = maxCheckInKcalChange(input.previous_kcal);
+    const lowerBound = input.previous_kcal - maxStep;
+    const upperBound = input.previous_kcal + maxStep;
+    kcal = Math.max(floor, Math.min(upperBound, Math.max(lowerBound, kcal)));
+  }
 
   // Protein from bodyweight
   const protein_g = Math.round(weightKg * PROTEIN_BAND_G_PER_KG[input.protein_band]);

@@ -20,7 +20,7 @@ function todayIso(): string {
 interface WeighInStats { weighInsThisWeek: number; hasTodayWeighIn: boolean; minPerWeek: number; needsWeighIn: boolean; }
 interface PartialLogDay { date: string; loggedKcal: number; targetKcal: number; pctOfTarget: number; }
 interface MacroValues { kcal: number; protein_g: number; carbs_g: number; fat_g: number; }
-interface MacroDiff { current: MacroValues | null; proposed: MacroValues; latestWeightLb: number | null; }
+interface MacroDiff { current: MacroValues | null; proposed: MacroValues; latestWeightLb: number | null; uncappedKcal: number | null; }
 interface NutrientOverride { nutrient_id: string; code: string; floor: number | null; target: number | null; ceiling: number | null; }
 // One card of the user's customized dashboard Nutrition section, averaged over
 // the week the check-in covers. `category` is null for the synthetic macro cards.
@@ -451,6 +451,18 @@ export default function CheckInWizard({
               </p>
 
               <MacroHero diff={preview.macroDiff} />
+
+              {preview.macroDiff.uncappedKcal != null && (
+                /* RATE-LIMITED NOTICE */
+                <div className="alert-blue">
+                  <p className="alert-title">Easing into it</p>
+                  <p className="alert-text">
+                    Your data points at {preview.macroDiff.uncappedKcal.toLocaleString()} kcal, but a
+                    check-in only moves your target so far at once. You&apos;ll keep stepping toward it
+                    at the next check-ins as the estimate holds up.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
