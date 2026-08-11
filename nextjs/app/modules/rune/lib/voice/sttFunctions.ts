@@ -26,7 +26,19 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   try {
     await fs.writeFile(inputPath, audioBuffer);
 
-    // Run whisper-cli
+    // Run whisper-cli.
+    //
+    // Decoding flags are tuned for latency: the default beam search (-bs 5 -bo 5)
+    // plus temperature fallback costs ~10% for no measurable accuracy gain on the
+    // short, single-utterance answers this transcribes. Model choice dominates
+    // everything else — measured on a 3.9s answer (min of 3):
+    //   ggml-tiny.en  0.50s   ggml-base.en  1.04s   ggml-small.en  3.71s
+    // base.en is the default (see WHISPER_MODEL_PATH); small.en is accurate but
+    // its real-time factor of ~0.9 makes long answers miss the latency budget even
+    // with the head-start below. Transcription is kicked off the moment speech ends
+    // rather than when the silence timer expires (see audioRecorder.ts), so on a
+    // normal answer this whole step finishes inside the silence window and costs
+    // nothing on the critical path.
     const transcript = await new Promise<string>((resolve, reject) => {
       const proc = spawn(whisperBinary, [
         "-m", whisperModel,
@@ -34,6 +46,10 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         "--no-timestamps",
         "-np", // No prints except results
         "-l", "en", // Skip language detection
+        "-t", process.env.WHISPER_THREADS || "4",
+        "-bs", "1", // Greedy decode
+        "-bo", "1",
+        "-nf", // No temperature fallback retries
       ], {
         timeout: 30000,
       });

@@ -10,15 +10,26 @@ export class AudioRecorder {
   private recording = false;
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private onSilenceStop: (() => void) | null = null;
+  private onSpeechEnd: ((audio: Blob) => void) | null = null;
+  private onSpeechResume: (() => void) | null = null;
 
   /**
    * Start recording audio from the microphone.
    * Captures raw PCM at 16kHz mono for direct Whisper consumption.
    * Auto-stops after `silenceMs` of post-speech silence if `onStop` is provided.
+   *
+   * `hooks.onSpeechEnd` fires the instant the speaker goes quiet — when the silence
+   * countdown *starts*, not when it expires — and hands over a WAV of everything
+   * captured so far. Because the countdown only runs to completion if no further
+   * speech arrives, that snapshot is the complete answer: everything recorded after
+   * it is silence. Transcribing it during the countdown therefore takes STT off the
+   * critical path entirely. `hooks.onSpeechResume` fires if the speaker starts again
+   * before the countdown expires, which makes that snapshot stale.
    */
   async startRecording(
     onStop?: () => void,
     silenceMs = Number(process.env.NEXT_PUBLIC_SILENCE_TIMEOUT_MS) || 5000,
+    hooks?: { onSpeechEnd?: (audio: Blob) => void; onSpeechResume?: () => void },
   ): Promise<void> {
     if (this.recording) return;
 
@@ -30,6 +41,8 @@ export class AudioRecorder {
     this.pcmChunks = [];
     this.recording = true;
     this.onSilenceStop = onStop ?? null;
+    this.onSpeechEnd = hooks?.onSpeechEnd ?? null;
+    this.onSpeechResume = hooks?.onSpeechResume ?? null;
 
     this.audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     this.sourceNode = this.audioContext.createMediaStreamSource(this.stream);
@@ -70,7 +83,16 @@ export class AudioRecorder {
     // Release mic
     this.releaseStream();
 
-    // Merge PCM chunks into a single buffer
+    const wav = this.snapshotWav();
+    this.pcmChunks = [];
+    return wav;
+  }
+
+  /**
+   * Encode everything captured so far as a WAV, without disturbing the recording.
+   * Used both for the final blob and for the mid-recording speech-end snapshot.
+   */
+  private snapshotWav(): Blob {
     const totalLength = this.pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
     if (totalLength === 0) return new Blob([]);
 
@@ -80,7 +102,6 @@ export class AudioRecorder {
       pcm.set(chunk, offset);
       offset += chunk.length;
     }
-    this.pcmChunks = [];
 
     return this.encodeWav(pcm, SAMPLE_RATE);
   }
@@ -181,6 +202,9 @@ export class AudioRecorder {
         if (this.silenceTimer) {
           clearTimeout(this.silenceTimer);
           this.silenceTimer = null;
+          // Speaking again mid-countdown: the snapshot handed to onSpeechEnd is
+          // now an incomplete answer, so whoever is transcribing it must drop it.
+          this.onSpeechResume?.();
         }
       } else if (speechDetected) {
         // Silence after speech — start countdown
@@ -190,6 +214,9 @@ export class AudioRecorder {
               this.onSilenceStop();
             }
           }, silenceMs);
+          // Hand off the answer-so-far so transcription can run during the
+          // countdown instead of after it.
+          this.onSpeechEnd?.(this.snapshotWav());
         }
       }
 
@@ -205,5 +232,7 @@ export class AudioRecorder {
       this.silenceTimer = null;
     }
     this.analyser = null;
+    this.onSpeechEnd = null;
+    this.onSpeechResume = null;
   }
 }

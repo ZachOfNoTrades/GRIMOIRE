@@ -3,7 +3,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { writeFileSync, existsSync } from "fs";
 import { getEvaluationPrompts } from "../settingsFunctions";
-import { runEvalOnWorker } from "./evalWorker";
+import { EVAL_EFFORT, EVAL_MODEL, runEvalOnWorker } from "./evalWorker";
 
 // Empty MCP config so the CLI skips connecting to MCP servers (the grimoire MCP
 // connection alone adds ~2-3s of startup per spawn). Written once, passed by path
@@ -102,9 +102,11 @@ function callClaude(prompt: string): Promise<string> {
         // Skip MCP server connections — biggest per-spawn startup cost (~2-3s).
         "--strict-mcp-config",
         "--mcp-config", ensureEmptyMcpConfig(),
-        // opus benchmarks fastest here (~7s) and correctly emits the blank Easy explanation;
-        // haiku is slowest locally (~12s), so keep opus.
-        "--model", "opus",
+        // Same model and effort as the warm worker (see evalWorker.ts) so a fallback
+        // spawn grades identically to the fast path — only slower, since this one
+        // pays full CLI startup.
+        "--model", EVAL_MODEL,
+        "--effort", EVAL_EFFORT,
       ],
       {
         timeout: 30000,

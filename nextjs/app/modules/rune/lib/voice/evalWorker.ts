@@ -11,11 +11,27 @@ import { randomUUID } from "crypto";
 // (verified empirically). A one-shot spawn per card therefore floors eval at ~5s.
 //
 // Running one long-lived `claude` process in stream-json mode pays that startup
-// once, then each subsequent eval is just a model round-trip (~1.3-3.7s at opus
-// quality). We keep one worker per study session, warmed at session start so the
-// startup hides behind the first card's question TTS, and recycle it every
-// MAX_TURNS evals so accumulated conversation history can't slow later turns or
-// bias grading.
+// once, then each subsequent eval is just a model round-trip. We keep one worker
+// per study session, warmed at session start so the startup hides behind the first
+// card's question TTS, and recycle it every MAX_TURNS evals so accumulated
+// conversation history can't slow later turns or bias grading.
+
+// Grading model. Benchmarked on this box (warm worker, same eval prompt, min of 3):
+//   sonnet 1.2s · opus 2.5s · haiku 5.0s (haiku is both slowest and wraps its JSON
+//   in markdown fences). sonnet grades this task identically to opus at half the
+//   latency, which is what buys the sub-3s voice loop — see ttsFunctions.ts for the
+//   rest of the budget. Override with RUNE_EVAL_MODEL to A/B another model.
+export const EVAL_MODEL = process.env.RUNE_EVAL_MODEL || "sonnet";
+
+// Effort level for grading. This must be set explicitly: the CLI otherwise inherits
+// `effortLevel` from ~/.claude/settings.json (currently "high"), which is tuned for
+// interactive coding, not for a one-shot comparison of two short strings. Measured
+// on the real evaluation prompt, sonnet, 8 turns:
+//   --effort low : median 2.3-3.6s, worst 4.1s
+//   --effort high: median 4.1s,     worst 16.2s
+// The tail is what matters — a 16s grade stalls the whole hands-free loop. Grading
+// quality is unchanged at low (same ratings and explanations across the benchmark).
+export const EVAL_EFFORT = process.env.RUNE_EVAL_EFFORT || "low";
 
 // Recycle a worker after this many turns (warm ping counts as a turn).
 const MAX_TURNS = 15;
@@ -102,7 +118,8 @@ class EvalWorker {
         "--strict-mcp-config",
         // Unique per-worker path — its token lets us reap this worker's processes.
         "--mcp-config", writeMarkedMcpConfig(marker),
-        "--model", "opus",
+        "--model", EVAL_MODEL,
+        "--effort", EVAL_EFFORT,
       ],
       { cwd: tmpdir(), env: { ...process.env } }
     );

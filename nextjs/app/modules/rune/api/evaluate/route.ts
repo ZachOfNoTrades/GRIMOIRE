@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedUser } from "@/lib/permissions";
 import { evaluateAnswer } from "../../lib/voice/evaluationFunctions";
 import { warmWorker, disposeWorker } from "../../lib/voice/evalWorker";
+import { warmSynthesizer } from "../../lib/voice/ttsFunctions";
 
 // Per-session worker keys are namespaced by the authenticated user so one user's
 // key can never address another user's worker.
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
     // Lifecycle actions (no eval): pre-warm a session worker, or tear it down.
     if (warm && sessionKey) {
       warmWorker(workerKey(userId, sessionKey)); // fire-and-forget; startup hides behind card 1 TTS
+      // Study start is also the right moment to load the Piper voice, so the first
+      // spoken explanation doesn't pay the model load on the critical path.
+      warmSynthesizer();
       return NextResponse.json({ warming: true }, { status: 200 });
     }
     if (dispose && sessionKey) {
