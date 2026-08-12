@@ -2,6 +2,13 @@
 // (lib/notify.ts, removed 2026-07-30) — every user-facing notification now goes to the
 // recipient's own email address instead of a shared #grimoire Discord channel.
 //
+// Two transports, resolved per send (see resolveTransport):
+//   1. The recipient's own Gmail account, via the refresh token their Google sign-in leaves
+//      behind (lib/googleMail.ts). Preferred, because it needs no shared credential — which is
+//      what kept this whole system dark until 2026-08-11.
+//   2. A configured SMTP server, for users with no Gmail connection.
+// With neither, a send is skipped rather than failed, so schedulers stay quiet.
+//
 // Three things every send gets, by contract:
 //   1. A tracking ID (the email_log row's PK) rendered into BOTH the HTML and plain-text bodies,
 //      so a user can quote it and we can find the exact send in dbo.email_log.
@@ -13,7 +20,7 @@
 // caller. Errors are logged and returned as a structured result, never thrown.
 
 import { randomUUID } from 'crypto';
-import nodemailer, { Transporter } from 'nodemailer';
+import nodemailer, { SendMailOptions, Transporter } from 'nodemailer';
 import { getMainConnection } from '@/lib/db';
 import sql from 'mssql';
 import {
@@ -22,6 +29,13 @@ import {
   buildUnsubscribeUrl,
   buildUnsubscribeApiUrl,
 } from '@/lib/emailUnsubscribe';
+import {
+  GmailAuthError,
+  GmailSender,
+  getGmailSender,
+  isGoogleMailConfigured,
+  sendGmailRawMessage,
+} from '@/lib/googleMail';
 
 export { appBaseUrl } from '@/lib/appUrl';
 
@@ -63,17 +77,22 @@ export interface EmailResult {
 
 // ---------------------------------------------------------------- configuration
 
-// Soft-disable when SMTP env is unset (fresh clone, local dev without secrets), mirroring the
-// old isNotifyConfigured() gate so schedulers stay quiet instead of erroring every tick.
-//
 // A half-filled config counts as unconfigured on purpose: if SMTP_USER is set but SMTP_PASSWORD
 // isn't, every scheduler tick would attempt a send, fail auth, and write a 'failed' email_log row
 // once a minute. Staying quiet until the credential lands is the honest state. A relay that needs
 // no auth (no SMTP_USER at all) is still supported.
-export function isEmailConfigured(): boolean {
+export function isSmtpConfigured(): boolean {
   if (!process.env.SMTP_HOST || !emailFrom()) return false;
   if (process.env.SMTP_USER && !process.env.SMTP_PASSWORD) return false;
   return true;
+}
+
+// The cheap, synchronous gate the schedulers tick against: can this app send mail *at all*?
+// Whether a given user can actually be reached is a per-user question now — Gmail delivery needs
+// that user to have granted the send scope — and sendAppEmail answers it per send, returning a
+// skip. Nothing is lost by ticking: a skipped send writes no log row and raises no warning.
+export function isEmailConfigured(): boolean {
+  return isSmtpConfigured() || isGoogleMailConfigured();
 }
 
 function emailFrom(): string | null {
@@ -117,6 +136,39 @@ function getTransporter(): Transporter | null {
   g.__grimoireMailer = transporter;
   g.__grimoireMailerKey = key;
   return transporter;
+}
+
+// Which mailbox a given user's notification goes out through. Their own Gmail wins when it is
+// connected — that is the address they asked these emails to come from, and it needs no shared
+// credential. SMTP covers everyone else. Null means "can't send", not "send failed".
+type ResolvedTransport =
+  | { kind: 'gmail'; sender: GmailSender }
+  | { kind: 'smtp'; transporter: Transporter; from: string }
+  | null;
+
+async function resolveTransport(userId: string): Promise<ResolvedTransport> {
+  if (isGoogleMailConfigured()) {
+    try {
+      const sender = await getGmailSender(userId);
+      if (sender) return { kind: 'gmail', sender };
+    } catch (e) {
+      // A DB blip looking up the token must not take SMTP down with it.
+      console.warn(`Gmail sender lookup failed for user '${userId}':`, e);
+    }
+  }
+  const transporter = getTransporter();
+  const from = emailFrom();
+  if (transporter && from) return { kind: 'smtp', transporter, from };
+  return null;
+}
+
+// Composes a message without sending it. streamTransport hands back the exact RFC 822 bytes the
+// SMTP path would have put on the wire, which is what the Gmail API takes (base64url-encoded), so
+// both transports deliver a byte-identical email.
+async function buildRawMessage(mail: SendMailOptions): Promise<Buffer> {
+  const composer = nodemailer.createTransport({ streamTransport: true, buffer: true });
+  const info = await composer.sendMail(mail);
+  return info.message as Buffer;
 }
 
 // ---------------------------------------------------------------- rendering
@@ -266,13 +318,14 @@ export async function sendAppEmail(payload: AppEmailPayload): Promise<EmailResul
   if (!payload.to) {
     return { ok: false, skipped: true, error: 'no recipient email on file for this user', trackingId: null };
   }
-  const transporter = getTransporter();
-  const from = emailFrom();
-  if (!transporter || !from) {
+  const transport = await resolveTransport(payload.userId);
+  if (!transport) {
     return {
       ok: false,
       skipped: true,
-      error: 'email not configured (SMTP_HOST / EMAIL_FROM missing)',
+      error: isGoogleMailConfigured()
+        ? 'no Gmail account connected — sign in with Google to turn notification emails on'
+        : 'email not configured (SMTP_HOST / EMAIL_FROM missing)',
       trackingId: null,
     };
   }
@@ -283,22 +336,32 @@ export async function sendAppEmail(payload: AppEmailPayload): Promise<EmailResul
   const html = renderHtml(payload, trackingId, unsubscribeUrl);
   const text = renderText(payload, trackingId, unsubscribeUrl);
 
+  // Gmail only accepts a From it owns, so the Gmail path sends from the user's own address — the
+  // same mailbox the notification is going to. Named "Grimoire" so it still reads as the app.
+  const mail: SendMailOptions = {
+    from:
+      transport.kind === 'gmail'
+        ? `"Grimoire" <${transport.sender.address}>`
+        : transport.from,
+    to: payload.toName ? `"${payload.toName.replace(/"/g, '')}" <${payload.to}>` : payload.to,
+    subject: payload.subject,
+    text,
+    html,
+    headers: {
+      // RFC 8058: lets the mail client show a native one-click unsubscribe control. Points at
+      // the API (which acts on POST), not the confirmation page in the body.
+      'List-Unsubscribe': `<${buildUnsubscribeApiUrl(payload.userId, payload.kind)}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      'X-Grimoire-Tracking-Id': trackingId,
+      'X-Grimoire-Notification-Kind': payload.kind,
+    },
+  };
+
   try {
-    const info = await transporter.sendMail({
-      from,
-      to: payload.toName ? `"${payload.toName.replace(/"/g, '')}" <${payload.to}>` : payload.to,
-      subject: payload.subject,
-      text,
-      html,
-      headers: {
-        // RFC 8058: lets the mail client show a native one-click unsubscribe control. Points at
-        // the API (which acts on POST), not the confirmation page in the body.
-        'List-Unsubscribe': `<${buildUnsubscribeApiUrl(payload.userId, payload.kind)}>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        'X-Grimoire-Tracking-Id': trackingId,
-        'X-Grimoire-Notification-Kind': payload.kind,
-      },
-    });
+    const info =
+      transport.kind === 'gmail'
+        ? await sendGmailRawMessage(transport.sender, await buildRawMessage(mail))
+        : await transport.transporter.sendMail(mail);
     await writeEmailLog({
       trackingId,
       userId: payload.userId,
@@ -311,7 +374,10 @@ export async function sendAppEmail(payload: AppEmailPayload): Promise<EmailResul
     });
     return { ok: true, skipped: false, error: null, trackingId };
   } catch (e) {
-    const error = `email send failed: ${(e as Error).message ?? String(e)}`;
+    const detail = (e as Error).message ?? String(e);
+    // A revoked Gmail grant is not a transient send failure — it needs the user to sign in again,
+    // so surface that wording as-is instead of burying it behind "email send failed".
+    const error = e instanceof GmailAuthError ? detail : `email send failed: ${detail}`;
     console.warn(error);
     await writeEmailLog({
       trackingId,

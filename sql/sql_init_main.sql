@@ -104,6 +104,29 @@ BEGIN TRY
         );
     END
 
+    -- =============================
+    -- Google Refresh Tokens (notification email delivery)
+    -- =============================
+    -- Notification emails are sent through the recipient's own Gmail account, using the
+    -- refresh token captured when they sign in with Google (gmail.send scope). Kept out of
+    -- the users table on purpose: this is a live credential, and users rows are handed to
+    -- the settings UI and the user API. See lib/googleMail.ts.
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_google_tokens' AND xtype='U')
+    BEGIN
+        CREATE TABLE user_google_tokens (
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            refresh_token NVARCHAR(512) NOT NULL,
+            -- Space-separated scope list Google actually granted, so the app can tell an
+            -- account that consented to gmail.send from one that only granted sign-in.
+            scope NVARCHAR(1000) NULL,
+            ts_created DATETIME2 NOT NULL CONSTRAINT DF_user_google_tokens_ts_created DEFAULT SYSUTCDATETIME(),
+            ts_updated DATETIME2 NOT NULL CONSTRAINT DF_user_google_tokens_ts_updated DEFAULT SYSUTCDATETIME(),
+
+            CONSTRAINT PK_user_google_tokens PRIMARY KEY (user_id),
+            CONSTRAINT FK_user_google_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+    END
+
     -- Module registrations
     INSERT INTO modules (id, name, slug, description, icon) VALUES
     ('A0000000-0000-0000-0000-000000000001', 'GOLEM', 'golem', 'Workout Tracker', 'Dumbbell'),
