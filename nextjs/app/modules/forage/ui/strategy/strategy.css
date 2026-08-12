@@ -142,6 +142,51 @@
 
 .s-empty-cta { margin-top: 0.75rem; }
 
+/* Weigh-in history — one tappable row per logged weigh-in. Sharp-cornered like
+   the goal history it sits under; the curve only appears on the edit modal. */
+.s-weighin-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.s-weighin-row:hover { background: var(--hover-bg); }
+.s-weighin-date {
+  color: var(--color-secondary);
+  font-size: 0.875rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-weighin-figures {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.s-weighin-bf {
+  color: var(--alert-green-text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.s-weighin-weight {
+  color: var(--color-primary);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.s-weighin-icon { color: var(--color-gray); align-self: center; flex: 0 0 auto; }
+.s-weighin-more { margin-top: 0.75rem; }
+
 /* Check-in picker modal — vertical option list */
 .s-checkin-picker-list {
   display: flex;
@@ -206,11 +251,35 @@
 }
 /* Wraps whichever slide is current — centers short content (weigh-in fields,
    the macro card) in the available body height; modal-body's overflow-y:auto
-   still scrolls a slide whose content runs taller (e.g. a long list). */
-.s-checkin-wizard-body { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+   still scrolls a slide whose content runs taller (e.g. a long list).
+   Centering is done with AUTO MARGINS, not justify-content:center. A centered
+   flex item that overflows its container spills equally off BOTH edges, and the
+   top half lands at a negative offset no scroll can reach (scrollTop >= 0) — on
+   the 9-row dashboard-nutrient slide that permanently ate the lead sentence.
+   Auto margins center the same way but collapse to 0 once space runs out, so
+   the slide's top edge is always reachable. */
+.s-checkin-wizard-body { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; min-height: 0; }
+.s-checkin-wizard-body > * { margin-block: auto; }
 
 .s-checkin-wizard-slide { display: flex; flex-direction: column; gap: 0.75rem; }
 .s-checkin-wizard-lead { color: var(--color-secondary); font-size: 0.875rem; }
+/* Slide heading — names the step, since the modal chrome only ever says
+   "Weekly Check-In" and a bare list of nutrient bars doesn't say what it is or
+   whether it wants an answer. Title and window sit on one row so the heading
+   costs a single line of the (scarce) modal height. */
+.s-checkin-wizard-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.s-checkin-wizard-title { font-size: 1rem; font-weight: 700; color: var(--color-primary); }
+.s-checkin-wizard-range {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--color-secondary);
+  font-variant-numeric: tabular-nums;
+}
 .s-checkin-wizard-footer-row {
   display: flex;
   align-items: center;

@@ -32,6 +32,66 @@ export async function listWeights(userId: string, sinceDate: string | null): Pro
   }
 }
 
+// Most recent weigh-ins that carry a body-fat reading, newest first. Body fat is
+// recorded far less often than weight (an occasional visual estimate, not a daily
+// scale number), so the dashboard's Visual Body Fat card cannot reuse the 30-day
+// weigh-in window listWeights serves the rest of the dashboard from — a user with
+// real readings, just older ones, would see an empty card.
+export async function listBodyFatEntries(userId: string, limit: number): Promise<WeightEntry[]> {
+  let pool;
+  try {
+    pool = await getFoodConnection();
+    const result = await pool
+      .request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .input('limit', sql.Int, limit)
+      .query<any>(
+        `SELECT TOP (@limit) id, user_id, CONVERT(varchar(10), log_date, 23) AS log_date, weight_lb, body_fat_pct
+         FROM weight_log
+         WHERE user_id=@userId AND body_fat_pct IS NOT NULL
+         ORDER BY log_date DESC`
+      );
+    if (result.recordset.length === 0) {
+      console.warn(`No body-fat entries for user_id: '${userId}'`);
+      return [];
+    }
+    return result.recordset.map((r) => ({
+      ...r,
+      weight_lb: Number(r.weight_lb),
+      body_fat_pct: r.body_fat_pct == null ? null : Number(r.body_fat_pct),
+    }));
+  } finally {
+    if (pool) await closeFoodConnection(pool);
+  }
+}
+
+// The most recent forage weigh-in ROW, or null when the user has never logged one
+// here. getLatestWeightLb below is the number the coaching math wants and hides
+// where it came from; this keeps the log_date, which a caller reporting the
+// strategy needs in order to say how stale the bodyweight behind the targets is.
+export async function getLatestWeightEntry(userId: string): Promise<WeightEntry | null> {
+  let pool;
+  try {
+    pool = await getFoodConnection();
+    const r = await pool
+      .request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .query<any>(
+        `SELECT TOP 1 id, user_id, CONVERT(varchar(10), log_date, 23) AS log_date, weight_lb, body_fat_pct
+         FROM weight_log WHERE user_id=@userId ORDER BY log_date DESC`
+      );
+    if (r.recordset.length === 0) return null;
+    const row = r.recordset[0];
+    return {
+      ...row,
+      weight_lb: Number(row.weight_lb),
+      body_fat_pct: row.body_fat_pct == null ? null : Number(row.body_fat_pct),
+    };
+  } finally {
+    if (pool) await closeFoodConnection(pool);
+  }
+}
+
 // Most recent weight on record, or null if the user has never logged one.
 // Canonical source for the check-in coaching math (computeTargets' latest_weight_lb).
 export async function getLatestWeightLb(userId: string): Promise<number | null> {

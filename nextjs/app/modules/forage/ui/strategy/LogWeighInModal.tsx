@@ -63,6 +63,12 @@ export default function LogWeighInModal({
       });
       if (res.ok) {
         const entry = await res.json();
+        // MOVED DATE — the upsert is keyed on (user, date), so re-dating an entry
+        // writes a new row and would otherwise leave the original behind as a
+        // duplicate. Drop the row it was moved off of.
+        if (editing && editing.log_date !== logDate) {
+          await fetch(`/modules/forage/api/weight/${editing.log_date}`, { method: "DELETE" });
+        }
         toast.success("Logged");
         onSaved(entry);
         onClose();
@@ -115,10 +121,13 @@ export default function LogWeighInModal({
       {/* WEIGHT + BODY FAT */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
 
-        {/* WEIGHT */}
+        {/* WEIGHT — autofocused: this is the one field the user opened the modal to
+            type, and the date above it already defaults to today. Safe when editing
+            too, because selectOnFocus selects the existing value rather than
+            appending to it. */}
         <div className="flex flex-col gap-1">
           <label className="text-label" htmlFor="weigh-value">Weight ({unitLabel(weightUnit)})</label>
-          <input id="weigh-value" type="number" inputMode="decimal" step="0.1" className="input-field" value={weightDisplay} onChange={(e) => setWeightDisplay(e.target.value)} onFocus={selectOnFocus} onKeyDown={blurOnEnter} placeholder="0.0" />
+          <input id="weigh-value" autoFocus type="number" inputMode="decimal" step="0.1" className="input-field" value={weightDisplay} onChange={(e) => setWeightDisplay(e.target.value)} onFocus={selectOnFocus} onKeyDown={blurOnEnter} placeholder="0.0" />
         </div>
 
         {/* BODY FAT */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Toaster } from "react-hot-toast";
 import {
@@ -16,6 +16,7 @@ import { WeightEntry } from "../../types/weight";
 import SetGoalWizard from "./SetGoalWizard";
 import SetProgramWizard from "./SetProgramWizard";
 import CheckInWizard from "./CheckInWizard";
+import LogWeighInModal from "./LogWeighInModal";
 import MacroRibbon from "./MacroRibbon";
 import { lbInUnit, unitLabel } from "../../utils/units";
 import { useWeightUnit } from "../../utils/useWeightUnit";
@@ -59,6 +60,10 @@ function daysUntilWeekday(targetWd: number, todayWd: number): number {
   const diff = (targetWd - todayWd + 7) % 7;
   return diff === 0 ? 7 : diff;
 }
+
+// Weigh-ins shown before the "Show all" toggle — a long-running log runs to
+// hundreds of rows, which would bury everything above it.
+const WEIGH_IN_PAGE_SIZE = 10;
 
 const WEEKDAY_LABELS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const GOAL_LABEL: Record<string, string> = {
@@ -105,6 +110,11 @@ function ForageStrategyPageInner() {
   // Bumped after a check-in completes so the bottom bar re-fetches the Strategy
   // tab due-dot in place (completing the wizard doesn't switch tabs).
   const [checkinRefreshKey, setCheckinRefreshKey] = useState(0);
+  // Weigh-in history: the entry being edited (null = modal closed) and whether
+  // the list is showing everything or just the most recent page of it.
+  const [editingWeighIn, setEditingWeighIn] = useState<WeightEntry | null>(null);
+  const [showAllWeighIns, setShowAllWeighIns] = useState(false);
+  const weighInsRef = useRef<HTMLHeadingElement | null>(null);
 
   async function refresh() {
     setIsLoading(true);
@@ -143,6 +153,17 @@ function ForageStrategyPageInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]);
+
+  // Deep-link from the dashboard's Body Metrics cards (?view=weigh-ins). The
+  // history sits below the goal cards, so scroll it into view once the page has
+  // finished loading — a plain #hash can't do this, the scroll container is the
+  // inner .page-scroll rather than the document.
+  useEffect(() => {
+    if (isLoading || searchParams?.get("view") !== "weigh-ins") return;
+    weighInsRef.current?.scrollIntoView({ block: "start" });
+    router.replace("/modules/forage/ui/strategy");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, searchParams, router]);
 
   // Newest-first weigh-ins. Used for goal pctBw and for resolving start/end
   // weights of each goal in the history list.
@@ -470,6 +491,58 @@ function ForageStrategyPageInner() {
               </>
             )}
 
+            {/* WEIGH-IN HISTORY — the "See All" / Body Metrics destination from the
+                dashboard. Also the only place a logged weigh-in (and its body-fat
+                reading) can be corrected or removed after the fact. */}
+            <h2 ref={weighInsRef} className="text-section-title s-section-title s-goal-history-heading">Weigh-In History</h2>
+
+            {sorted.length === 0 ? (
+              /* WEIGH-IN EMPTY */
+              <div className="text-subtle">No weigh-ins logged yet — use the + button to log one.</div>
+            ) : (
+              <>
+                {/* WEIGH-IN LIST */}
+                <div className="s-goal-history-list">
+                  {(showAllWeighIns ? sorted : sorted.slice(0, WEIGH_IN_PAGE_SIZE)).map((w) => (
+                    /* WEIGH-IN ROW */
+                    <button
+                      key={w.log_date}
+                      type="button"
+                      className="s-weighin-row"
+                      onClick={() => setEditingWeighIn(w)}
+                      aria-label={`Edit weigh-in from ${fmtDateLong(w.log_date)}`}
+                    >
+                      {/* DATE */}
+                      <span className="s-weighin-date">{fmtDateLong(w.log_date)}</span>
+
+                      {/* FIGURES */}
+                      <span className="s-weighin-figures">
+
+                        {/* BODY FAT — only when the entry carries a reading */}
+                        {w.body_fat_pct != null && (
+                          <span className="s-weighin-bf">{w.body_fat_pct.toFixed(1)}% BF</span>
+                        )}
+
+                        {/* WEIGHT */}
+                        <span className="s-weighin-weight">
+                          {lbInUnit(w.weight_lb, weightUnit).toFixed(1)} {uLabel}
+                        </span>
+
+                        <Pencil className="w-4 h-4 s-weighin-icon" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* SHOW ALL / SHOW LESS — the list can run to hundreds of entries. */}
+                {sorted.length > WEIGH_IN_PAGE_SIZE && (
+                  <Button className="btn-off s-weighin-more" onClick={() => setShowAllWeighIns((v) => !v)}>
+                    {showAllWeighIns ? "Show less" : `Show all ${sorted.length}`}
+                  </Button>
+                )}
+              </>
+            )}
+
           </>
         )}
 
@@ -519,6 +592,19 @@ function ForageStrategyPageInner() {
           isOpen={checkInWizardOpen}
           onClose={() => setCheckInWizardOpen(false)}
           onComplete={() => { setCheckInWizardOpen(false); refresh(); setCheckinRefreshKey((k) => k + 1); }}
+        />
+      )}
+
+      {/* EDIT WEIGH-IN MODAL — keyed on the entry so its inputs re-seed when a
+          different row is opened (the modal seeds state from props on mount). */}
+      {editingWeighIn && (
+        <LogWeighInModal
+          key={editingWeighIn.log_date}
+          isOpen
+          editing={editingWeighIn}
+          onClose={() => setEditingWeighIn(null)}
+          onSaved={() => { setEditingWeighIn(null); refresh(); }}
+          onDeleted={() => { setEditingWeighIn(null); refresh(); }}
         />
       )}
 

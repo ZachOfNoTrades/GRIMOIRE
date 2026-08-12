@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { listWeights, upsertWeight } from '../../lib/weightFunctions';
+import { listBodyFatEntries, listWeights, upsertWeight } from '../../lib/weightFunctions';
+
+// Cap for ?bodyFat=1 so a stray ?limit= can't ask for the whole weight_log.
+const BODY_FAT_LIMIT_MAX = 90;
+const BODY_FAT_LIMIT_DEFAULT = 7;
 
 export async function GET(request: NextRequest) {
   const session = await getAuthorizedUser(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
+    // BODY-FAT MODE — the newest N weigh-ins that actually carry a body-fat
+    // reading, ignoring the `since` window entirely (see listBodyFatEntries).
+    if (request.nextUrl.searchParams.get('bodyFat') === '1') {
+      const requested = Number(request.nextUrl.searchParams.get('limit'));
+      const limit = Number.isFinite(requested) && requested > 0
+        ? Math.min(Math.floor(requested), BODY_FAT_LIMIT_MAX)
+        : BODY_FAT_LIMIT_DEFAULT;
+      return NextResponse.json(await listBodyFatEntries(session.user.id!, limit));
+    }
     const since = request.nextUrl.searchParams.get('since');
     const weights = await listWeights(session.user.id!, since);
     return NextResponse.json(weights);
