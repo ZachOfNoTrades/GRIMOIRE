@@ -16,9 +16,11 @@ import { MacroTarget } from "../../types/target";
 import { WeightEntry } from "../../types/weight";
 import { Nutrient, ResolvedNutrientTarget } from "../../types/food";
 import { ExpenditureSummary } from "../../types/expenditure";
+import { Goal } from "../../types/goal";
 import { DEFAULT_NUTRITION_CARDS } from "../../types/dashboard";
 import { resolveNutritionCard, ResolvedCard } from "./nutritionCards";
 import { weightTrendSummary, normalizedDomain, WEIGHT_CHART_MIN_SPAN_LB } from "./weightTrend";
+import { goalCardSummary } from "./goalCard";
 import { NutrientMeter, NutrientBand, bandDisplay, ProgramTargetMark } from "../nutrition/nutrientMeter";
 import HelpButton from "@/components/ui/HelpButton";
 import {
@@ -103,11 +105,19 @@ export default function ForageHomeClient({
   const [target, setTarget] = useState<MacroTarget | null>(initialTarget ?? null);
   const [weekData, setWeekData] = useState<Record<string, DailyTotals>>(initialWeekData ?? {});
   const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
+  // Body-fat readings are fetched separately from `weightHistory` because they
+  // are logged occasionally, not daily — filtering them out of the 30-day
+  // weigh-in window leaves the Visual Body Fat card blank for a user who has
+  // readings, just older ones (see the API's ?bodyFat=1 mode).
+  const [bodyFatHistory, setBodyFatHistory] = useState<WeightEntry[]>([]);
   const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
   // Adaptive expenditure (TDEE) from the server's energy-balance model. The
   // dashboard used to label average INTAKE as "Expenditure", which is a
   // different number entirely — this is the real one.
   const [expenditure, setExpenditure] = useState<ExpenditureSummary | null>(null);
+  // Active goal (lose / maintain / gain). Drives the Insights grid's fourth
+  // card, which used to be a goal-agnostic placeholder — see ./goalCard.
+  const [goal, setGoal] = useState<Goal | null>(null);
   // Nutrient reference + resolved bands power the customizable Nutrition cards
   // (micronutrient cards need a label/unit/color and a target). Day-independent.
   const [nutrients, setNutrients] = useState<Nutrient[]>(initialNutrients ?? []);
@@ -215,6 +225,25 @@ export default function ForageHomeClient({
     fetchHistory();
   }, []);
 
+  // Active goal — day-independent and unchanged by logging or a weigh-in (only
+  // the strategy page edits it, and coming back here remounts), so it's a
+  // mount-only fetch rather than part of fetchHistory. A failure leaves it null
+  // and the goal card renders its "No active goal" state.
+  useEffect(() => {
+    let alive = true;
+    fetch("/modules/forage/api/goal")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((g) => {
+        if (alive && g && g.goal_kind) setGoal(g as Goal);
+      })
+      .catch(() => {
+        // non-critical
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Nutrient reference, resolved target bands, and the saved Nutrition card
   // layout are all day-independent — fetch once on mount. Failures fall back to
   // the defaults already seeded in state (macros + sugars + sat fat).
@@ -312,7 +341,7 @@ export default function ForageHomeClient({
             <>
               {/* INSIGHTS & ANALYTICS */}
               <div className="fg-reveal" style={{ animationDelay: "60ms" }}>
-                <InsightsSection weekData={weekData} target={target} weightHistory={weightHistory} totals={totals} expenditure={expenditure} />
+                <InsightsSection weekData={weekData} target={target} weightHistory={weightHistory} totals={totals} expenditure={expenditure} goal={goal} />
               </div>
 
               {/* HABITS */}
@@ -1133,12 +1162,14 @@ function InsightsSection({
   weightHistory,
   totals,
   expenditure,
+  goal,
 }: {
   weekData: Record<string, DailyTotals>;
   target: MacroTarget | null;
   weightHistory: WeightEntry[];
   totals: DailyTotals;
   expenditure: ExpenditureSummary | null;
+  goal: Goal | null;
 }) {
   const weekDays = Object.keys(weekData).sort();
   const weekVals = weekDays.map((d) => weekData[d]?.kcal ?? 0);
@@ -1181,8 +1212,12 @@ function InsightsSection({
   // days only, so skipped days stay neutral rather than reading as a phantom deficit.
   const energyDiff = loggedCount > 0 && target ? loggedKcalTotal - target.kcal * loggedCount : null; // negative = deficit
 
-  // Goal progress placeholder — needs goal data; for now show kcal toward today's target as %
-  const goalPct = target?.kcal ? Math.min(100, Math.round((totals.kcal / target.kcal) * 100)) : 0;
+  // GOAL CARD — shaped by the active goal (maintain → drift inside a hold band,
+  // lose/gain → progress toward the target weight, or pace against the goal
+  // rate). Replaces a placeholder that reported today's kcal-vs-target as
+  // "Goal Progress · Last 3 Days" no matter what the goal actually was.
+  const goalCard = goalCardSummary(goal, weightHistory);
+  const goalColor = goalCard.tone === "onTrack" ? C.green : goalCard.tone === "offTrack" ? C.orange : C.textDim;
 
   return (
     /* INSIGHTS & ANALYTICS */
@@ -1215,9 +1250,9 @@ function InsightsSection({
           <DashedTrend values={weekVals} />
         </InsightCard>
 
-        {/* GOAL PROGRESS */}
-        <InsightCard title="Goal Progress" subtitle="Last 3 Days" value={`${goalPct}`} valueUnit="%">
-          <ProgressBar pct={goalPct} color={C.green} />
+        {/* GOAL — title/reading depend on the active goal (see ./goalCard) */}
+        <InsightCard title={goalCard.title} subtitle={goalCard.subtitle} value={goalCard.value} valueUnit={goalCard.valueUnit}>
+          <ProgressBar pct={goalCard.pct} color={goalColor} />
         </InsightCard>
       </div>
     </div>
