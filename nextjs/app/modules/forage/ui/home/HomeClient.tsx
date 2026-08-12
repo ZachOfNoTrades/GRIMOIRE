@@ -73,6 +73,10 @@ const C = {
   yellowBrown: "var(--fg-fat)",
 };
 
+// How many body-fat readings the Visual Body Fat card plots. Matches the Scale
+// Weight card's 7-point sparkline, but counted in readings rather than days.
+const BODY_FAT_CARD_POINTS = 7;
+
 // Initial data is fetched server-side by the route's page.tsx and passed in so
 // the first paint shows real macros instead of empty placeholders / a spinner.
 // When absent (e.g. an API-key request that isn't a NextAuth session) the
@@ -182,14 +186,19 @@ export default function ForageHomeClient({
   async function fetchHistory() {
     const since = shiftDate(todayIso(), -29);
     try {
-      const [wRes, aRes, xRes] = await Promise.all([
+      const [wRes, bfRes, aRes, xRes] = await Promise.all([
         fetch(`/modules/forage/api/weight?since=${since}`),
+        fetch(`/modules/forage/api/weight?bodyFat=1&limit=${BODY_FAT_CARD_POINTS}`),
         fetch(`/modules/forage/api/entries/active-dates?since=${since}`),
         fetch(`/modules/forage/api/expenditure`),
       ]);
       if (wRes.ok) {
         const w = await wRes.json();
         setWeightHistory(Array.isArray(w) ? w : []);
+      }
+      if (bfRes.ok) {
+        const bf = await bfRes.json();
+        setBodyFatHistory(Array.isArray(bf) ? bf : []);
       }
       if (aRes.ok) {
         const a = await aRes.json();
@@ -363,16 +372,15 @@ export default function ForageHomeClient({
 
               {/* BODY METRICS */}
               <div className="fg-reveal" style={{ animationDelay: "240ms" }}>
-                <BodyMetricsSection weightHistory={weightHistory} onSeeAll={() => router.push("/modules/forage/ui/strategy")} />
-              </div>
-
-              {/* GENERAL */}
-              <div className="fg-reveal" style={{ animationDelay: "300ms" }}>
-                <GeneralSection />
+                <BodyMetricsSection
+                  weightHistory={weightHistory}
+                  bodyFatHistory={bodyFatHistory}
+                  onSeeAll={() => router.push("/modules/forage/ui/strategy?view=weigh-ins")}
+                />
               </div>
 
               {/* MORE */}
-              <div className="fg-reveal" style={{ animationDelay: "360ms" }}>
+              <div className="fg-reveal" style={{ animationDelay: "300ms" }}>
                 <MoreSection onCustomize={() => router.push("/modules/forage/ui/dashboard-customize")} onNutritionData={() => router.push("/modules/forage/ui/settings")} />
               </div>
             </>
@@ -431,8 +439,10 @@ function TopHeader({ date }: { date: string }) {
         title="Nutrition"
         sections={[
           { heading: "Logging food", body: "Add foods to the day's diary to track calories and nutrients. Recent and favorite foods speed up repeat entries; create a food once and reuse it." },
+          { heading: "Fractional amounts", body: "Any food amount can be typed as a fraction instead of a decimal — \"1/8\" for an eighth of a cup, \"1 1/2\" for one and a half servings. It is saved as the exact value (1/8 = 0.125)." },
           { heading: "Targets & strategy", body: "Your active program sets floor / target / ceiling bands for each nutrient. Use the strategy check-in to review intake and adjust as your goals change." },
           { heading: "Nutrition detail", body: "Open the Nutrition page for per-nutrient bars and to set custom floor / target / ceiling overrides — overrides are scoped to the current program and carry forward to new ones." },
+          { heading: "Body metrics", body: "Scale Weight plots your last 7 weigh-ins; Visual Body Fat plots your last 7 body-fat readings, dated — body fat is logged occasionally, so its points can span months. Tap either card (or See All) for the full weigh-in history, where you can edit or delete a past entry." },
         ]}
       />
     </div>
@@ -1677,12 +1687,34 @@ function MacroTile({
 
 /* ─── BODY METRICS ─── */
 
-function BodyMetricsSection({ weightHistory, onSeeAll }: { weightHistory: WeightEntry[]; onSeeAll: () => void }) {
+// "2026-07-08" → "Jul 8" ("Jul 8 '25" once it isn't this year). Body-fat readings
+// can be months apart, so the card dates its latest value rather than implying
+// it is current.
+function shortDate(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const suffix = year === new Date().getFullYear() ? "" : ` '${String(year).slice(2)}`;
+  return `${months[month - 1]} ${day}${suffix}`;
+}
+
+function BodyMetricsSection({
+  weightHistory,
+  bodyFatHistory,
+  onSeeAll,
+}: {
+  weightHistory: WeightEntry[];
+  // Newest-first, already limited to entries that carry a reading — NOT a subset
+  // of weightHistory (that one is windowed to 30 days; body fat is logged far
+  // less often than that).
+  bodyFatHistory: WeightEntry[];
+  onSeeAll: () => void;
+}) {
   const sorted = [...weightHistory].sort((a, b) => a.log_date.localeCompare(b.log_date));
   const last7 = sorted.slice(-7);
   const lastWeight = last7[last7.length - 1] ?? null;
-  const last7BF = last7.filter((w) => w.body_fat_pct != null);
-  const lastBF = last7BF[last7BF.length - 1] ?? null;
+  // Oldest-first so the sparkline reads left-to-right like the weight one.
+  const bodyFatAscending = [...bodyFatHistory].sort((a, b) => a.log_date.localeCompare(b.log_date));
+  const lastBF = bodyFatAscending[bodyFatAscending.length - 1] ?? null;
 
   return (
     /* BODY METRICS */
@@ -1696,8 +1728,25 @@ function BodyMetricsSection({ weightHistory, onSeeAll }: { weightHistory: Weight
 
       {/* 2-CARD GRID */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <BodyMetricCard title="Scale Weight" values={last7.map((w) => w.weight_lb)} value={lastWeight ? lastWeight.weight_lb.toFixed(1) : "—"} unit="lbs" minSpan={WEIGHT_CHART_MIN_SPAN_LB} />
-        <BodyMetricCard title="Visual Body Fat" values={last7BF.map((w) => w.body_fat_pct ?? 0)} value={lastBF?.body_fat_pct != null ? lastBF.body_fat_pct.toFixed(1) : "—"} unit="%" />
+        <BodyMetricCard
+          title="Scale Weight"
+          subtitle="Last 7 Entries"
+          values={last7.map((w) => w.weight_lb)}
+          value={lastWeight ? lastWeight.weight_lb.toFixed(1) : "—"}
+          unit="lbs"
+          minSpan={WEIGHT_CHART_MIN_SPAN_LB}
+          onOpen={onSeeAll}
+        />
+        <BodyMetricCard
+          title="Visual Body Fat"
+          /* READINGS, not entries — body fat is logged on its own cadence, so the
+             7 points here can span a much longer stretch than the weight card's. */
+          subtitle={lastBF ? `Last ${bodyFatAscending.length} Reading${bodyFatAscending.length === 1 ? "" : "s"} · ${shortDate(lastBF.log_date)}` : "No readings yet"}
+          values={bodyFatAscending.map((w) => w.body_fat_pct ?? 0)}
+          value={lastBF?.body_fat_pct != null ? lastBF.body_fat_pct.toFixed(1) : "—"}
+          unit="%"
+          onOpen={onSeeAll}
+        />
       </div>
     </div>
   );
@@ -1705,12 +1754,15 @@ function BodyMetricsSection({ weightHistory, onSeeAll }: { weightHistory: Weight
 
 function BodyMetricCard({
   title,
+  subtitle,
   values,
   value,
   unit,
   minSpan,
+  onOpen,
 }: {
   title: string;
+  subtitle: string;
   values: number[];
   value: string;
   unit: string;
@@ -1718,16 +1770,25 @@ function BodyMetricCard({
   // drawn at full height. Scale Weight stays RAW (unsmoothed) on purpose; it's
   // the counterpart to the smoothed Weight Trend card.
   minSpan?: number;
+  // Opens the weigh-in history. The card has always drawn a chevron; before this
+  // it wasn't wired to anything, so tapping it did nothing.
+  onOpen: () => void;
 }) {
   return (
     /* BODY METRIC CARD */
-    <div className="fg-tile" style={{ borderRadius: 12, padding: 10, display: "flex", flexDirection: "column", gap: 2 }}>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${title} — ${value}${unit}, open weigh-in history`}
+      className="fg-tile"
+      style={{ borderRadius: 12, padding: 10, display: "flex", flexDirection: "column", gap: 2, textAlign: "left", cursor: "pointer", font: "inherit" }}
+    >
 
       {/* TITLE */}
       <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{title}</div>
 
       {/* SUBTITLE */}
-      <div style={{ fontSize: 9, color: C.textMuted }}>Last 7 Entries</div>
+      <div style={{ fontSize: 9, color: C.textMuted }}>{subtitle}</div>
 
       {/* SPARKLINE */}
       <div style={{ height: 38, marginTop: 6 }}>
@@ -1741,62 +1802,7 @@ function BodyMetricCard({
         </span>
         <ChevronRight size={12} style={{ color: C.textDim }} />
       </div>
-    </div>
-  );
-}
-
-/* ─── GENERAL (Steps placeholder) ─── */
-
-function GeneralSection() {
-  // Stubbed Steps card — no data source yet
-  const bars = [0.55, 0.7, 0.62, 0.78, 0.65, 0.5, 0.42];
-  return (
-    /* GENERAL */
-    <div style={{ marginBottom: 18 }}>
-
-      {/* SECTION HEADER */}
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>General</div>
-      </div>
-
-      {/* SINGLE CARD ROW (matches MF layout — one card in left column) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-
-        {/* STEPS CARD */}
-        <div className="fg-tile" style={{ borderRadius: 12, padding: 10, display: "flex", flexDirection: "column", gap: 2 }}>
-
-          {/* TITLE */}
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Steps</div>
-
-          {/* SUBTITLE */}
-          <div style={{ fontSize: 9, color: C.textMuted }}>Last 7 Days</div>
-
-          {/* BAR CHART — narrow vertical bars with rounded tops */}
-          <div style={{ height: 38, marginTop: 6, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 5, padding: "0 2px" }}>
-            {bars.map((h, i) => (
-              <div
-                key={i}
-                style={{
-                  width: 6,
-                  height: `${h * 100}%`,
-                  background: C.protein,
-                  borderRadius: "2px 2px 0 0",
-                  opacity: 0.85,
-                }}
-              />
-            ))}
-          </div>
-
-          {/* DIVIDER + VALUE */}
-          <div style={{ borderTop: `1px solid ${C.divider}`, marginTop: 4, paddingTop: 4, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: C.text, fontVariantNumeric: "tabular-nums" }}>
-              —<span style={{ fontSize: 10, fontWeight: 400, color: C.textMuted, marginLeft: 3 }}>steps</span>
-            </span>
-            <ChevronRight size={12} style={{ color: C.textDim }} />
-          </div>
-        </div>
-      </div>
-    </div>
+    </button>
   );
 }
 
