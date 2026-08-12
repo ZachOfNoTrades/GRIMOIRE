@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Coins, Heart, History, Flame, Repeat, Skull, Sparkles, Bell, Send, CalendarClock, Trophy, Quote, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Settings, Coins, Heart, History, Flame, Repeat, Skull, Sparkles, Bell, Send, CalendarClock, Trophy, Quote, Plus, Pencil, Trash2, Check, X, Dices } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
 import { Difficulty, DIFFICULTY_ORDER } from "../../types/task";
 import {
   DEFAULT_FACTORS,
@@ -1205,6 +1206,11 @@ export default function QuestSettingsPage() {
           <div className="settings-group max-w-md">
             <SettingsToggleRow label="Enabled" checked={digestEnabled} onChange={setDigestEnabled} />
             <SettingsTimeRow label="Send time (local)" value={digestTime} onChange={setDigestTime} />
+          </div>
+
+          {/* EMAIL DELIVERY STATUS — covers every quest notification on this page */}
+          <div className="max-w-md">
+            <EmailDeliveryStatus />
           </div>
 
           <div className="space-y-3 max-w-md mt-3">

@@ -5,6 +5,7 @@ import { Bell, Send, Sparkles, GraduationCap } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
 import {
   DEFAULT_DIGEST_ENABLED,
   DEFAULT_DIGEST_TIME,
@@ -306,6 +307,9 @@ export default function RuneSettingsPage() {
           tomorrow. If nothing is due, the email is skipped silently. Every email carries a tracking
           ID and a one-click unsubscribe link.
         </p>
+
+        {/* EMAIL DELIVERY STATUS */}
+        <EmailDeliveryStatus />
 
         {/* STUDY SESSION SECTION */}
         <h2 className="settings-section-title mt-6">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
 
 export default function ForageCheckinRemindersPage() {
 
@@ -118,6 +119,9 @@ export default function ForageCheckinRemindersPage() {
               once you complete the check-in wizard from the Strategy tab (tap the ring, or the dashboard
               banner, once it&apos;s due).
             </p>
+
+            {/* EMAIL DELIVERY STATUS */}
+            <EmailDeliveryStatus />
 
             {/* TEST BUTTON */}
             <div style={{ marginTop: "1.25rem" }}>
