@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { deleteEntry, updateEntry } from '../../../lib/entryFunctions';
+import {
+  ENTRY_DATE_ERROR,
+  ENTRY_TIME_ERROR,
+  isValidEntryDate,
+  isValidEntryTime,
+} from '../../../lib/entryValidation';
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getAuthorizedUser(request);
@@ -21,8 +27,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   try {
     const body = await request.json();
-    if (body.entry_time && !/^\d{2}:\d{2}(:\d{2})?$/.test(body.entry_time))
-      return NextResponse.json({ error: 'entry_time must be HH:MM or HH:MM:SS' }, { status: 400 });
+    // null means "leave the stored time alone" (a bulk move that keeps each
+    // entry's own time of day); any other value must be a real clock time.
+    if (body.entry_time !== undefined && body.entry_time !== null && !isValidEntryTime(body.entry_time))
+      return NextResponse.json({ error: ENTRY_TIME_ERROR }, { status: 400 });
+    if (body.entry_date !== undefined && !isValidEntryDate(body.entry_date))
+      return NextResponse.json({ error: ENTRY_DATE_ERROR }, { status: 400 });
     if (body.quantity !== undefined && (!Number.isFinite(Number(body.quantity)) || Number(body.quantity) <= 0))
       return NextResponse.json({ error: 'quantity > 0 required' }, { status: 400 });
 

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { listEntries, createEntry, getEntry, computeTotals } from '../../lib/entryFunctions';
+import {
+  ENTRY_DATE_ERROR,
+  ENTRY_TIME_ERROR,
+  isValidEntryDate,
+  isValidEntryTime,
+} from '../../lib/entryValidation';
 
 export async function GET(request: NextRequest) {
   const session = await getAuthorizedUser(request);
@@ -26,8 +32,9 @@ export async function POST(request: NextRequest) {
     const entry_time = (body.entry_time as string | undefined) || null;
     const quantity = Number(body.quantity);
     if (!entry_date) return NextResponse.json({ error: 'entry_date required' }, { status: 400 });
-    if (entry_time && !/^\d{2}:\d{2}(:\d{2})?$/.test(entry_time))
-      return NextResponse.json({ error: 'entry_time must be HH:MM or HH:MM:SS' }, { status: 400 });
+    if (!isValidEntryDate(entry_date)) return NextResponse.json({ error: ENTRY_DATE_ERROR }, { status: 400 });
+    if (entry_time && !isValidEntryTime(entry_time))
+      return NextResponse.json({ error: ENTRY_TIME_ERROR }, { status: 400 });
     if (!Number.isFinite(quantity) || quantity <= 0)
       return NextResponse.json({ error: 'quantity > 0 required' }, { status: 400 });
     if (!body.food_id && !body.quick_add_name) {
