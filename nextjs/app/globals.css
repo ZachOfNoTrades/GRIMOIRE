@@ -2365,6 +2365,28 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   white-space: nowrap;
 }
 
+/* DISABLED DECK ROW — a paused deck still appears in the deck list and in a collection's
+   deck table, sorted below the active ones. A grey badge alone reads the same as any other
+   tag at a glance, so the whole row dims and the name is struck through: the row says
+   "not in play" before you've read a word of it. The strike sits on the name only —
+   striking the counts would make them look wrong rather than inactive. */
+.rune-deck-row-disabled {
+  opacity: 0.55;
+}
+
+.rune-deck-row-disabled .rune-deck-row-name {
+  text-decoration: line-through;
+  color: var(--color-gray);
+}
+
+/* HOVER — bring a disabled row back to full strength while pointed at, so it stays
+   readable when you actually go to click into it. */
+@media (hover: hover) {
+  .rune-deck-row-disabled:hover {
+    opacity: 1;
+  }
+}
+
 
 /* ========================================
    SPECIALS

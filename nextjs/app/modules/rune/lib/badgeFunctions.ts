@@ -3,9 +3,10 @@ import { ModuleBadge } from '@/types/dashboardBadge';
 import { getRuneConnection } from './db';
 
 // Homepage badge for the Rune card: how many cards are due for review right now.
-// The due predicate is deliberately identical to getAllDecks' due_count (non-archived decks,
-// enabled non-draft cards, never-reviewed cards count as due) so the badge and the deck list
-// can never disagree — a card the badge counts is always one the study session will serve.
+// The due predicate is deliberately identical to getAllDecks' due_count (non-archived,
+// non-disabled decks, enabled non-draft cards, never-reviewed cards count as due) so the badge
+// and the deck list can never disagree — a card the badge counts is always one the study session
+// will serve.
 
 export async function getRuneBadges(userId: string): Promise<ModuleBadge[]> {
   const pool = await getRuneConnection();
@@ -15,7 +16,7 @@ export async function getRuneBadges(userId: string): Promise<ModuleBadge[]> {
     .query<{ due_count: number }>(
       `SELECT COUNT(*) AS due_count
        FROM cards c
-       JOIN decks d ON d.id = c.deck_id AND d.is_archived = 0 AND d.user_id = @userId
+       JOIN decks d ON d.id = c.deck_id AND d.is_archived = 0 AND d.is_disabled = 0 AND d.user_id = @userId
        LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId
        WHERE c.user_id = @userId
          AND c.is_disabled = 0

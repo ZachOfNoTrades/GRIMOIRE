@@ -7,21 +7,26 @@ export async function getAllDecks(userId: string): Promise<{ decks: DeckSummary[
   try {
     pool = await getRuneConnection();
 
-    // Favorites first, then alphabetical — the client can re-sort, but this keeps
-    // the default (and any no-JS render) sensible with pinned decks on top.
+    // Active decks first, then favorites, then alphabetical — the client can re-sort, but this
+    // keeps the default (and any no-JS render) sensible with pinned decks on top and paused
+    // decks out of the way at the bottom.
     const query = `
       SELECT
-        d.id, d.name, d.description, d.is_favorite,
+        d.id, d.name, d.description, d.is_favorite, d.is_disabled,
         COUNT(c.id) AS card_count,
         -- Draft cards still count toward card_count but are never "due" — they're excluded from study.
-        COUNT(CASE WHEN c.id IS NOT NULL AND c.is_draft = 0 AND (cp.next_review_at IS NULL OR cp.next_review_at <= GETDATE()) THEN 1 END) AS due_count,
+        -- A blank back is NOT a reason to hold a card back: an answerless card is a legitimate
+        -- self-graded card and studies like any other.
+        -- A disabled deck keeps its card_count but reports 0 due: it's paused, so nothing in it is
+        -- scheduled. This is the same predicate the badge and the digest use, so they can't disagree.
+        COUNT(CASE WHEN c.id IS NOT NULL AND d.is_disabled = 0 AND c.is_draft = 0 AND (cp.next_review_at IS NULL OR cp.next_review_at <= GETDATE()) THEN 1 END) AS due_count,
         MAX(cp.last_reviewed_at) AS last_reviewed_at
       FROM decks d
       LEFT JOIN cards c ON c.deck_id = d.id AND c.is_disabled = 0
       LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId
       WHERE d.is_archived = 0 AND d.user_id = @userId
-      GROUP BY d.id, d.name, d.description, d.is_favorite
-      ORDER BY d.is_favorite DESC, d.name
+      GROUP BY d.id, d.name, d.description, d.is_favorite, d.is_disabled
+      ORDER BY d.is_disabled, d.is_favorite DESC, d.name
     `;
 
     const result = await pool.request()
@@ -32,10 +37,11 @@ export async function getAllDecks(userId: string): Promise<{ decks: DeckSummary[
       console.warn('No decks found');
     }
 
-    // Coerce the BIT to a real boolean so the client's star/sort logic is clean.
+    // Coerce the BITs to real booleans so the client's star/sort logic is clean.
     const decks = result.recordset.map((row) => ({
       ...row,
       is_favorite: !!row.is_favorite,
+      is_disabled: !!row.is_disabled,
     })) as DeckSummary[];
 
     return { decks };
@@ -62,14 +68,15 @@ export async function getDeckById(userId: string, id: string): Promise<Deck> {
         LEFT JOIN cards c ON c.deck_id = d.id AND c.is_disabled = 0
         LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId
         WHERE d.id = @id AND d.user_id = @userId
-        GROUP BY d.id, d.name, d.description, d.source_url, d.is_archived, d.is_favorite, d.user_id, d.created_at, d.modified_at
+        GROUP BY d.id, d.name, d.description, d.source_url, d.is_archived, d.is_disabled, d.is_favorite, d.user_id, d.created_at, d.modified_at
       `);
 
     if (result.recordset.length === 0) {
       throw new Error(`No deck found for id: '${id}'`);
     }
 
-    return result.recordset[0] as Deck;
+    // Coerce the BIT so the deck page can test it without truthiness surprises.
+    return { ...result.recordset[0], is_disabled: !!result.recordset[0].is_disabled } as Deck;
   } catch (error) {
     console.error('Error fetching deck:', error);
     throw error;
@@ -188,6 +195,36 @@ export async function createDeck(userId: string, name: string, description: stri
     return result.recordset[0] as Deck;
   } catch (error) {
     console.error('Error creating deck:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Pause / resume a deck. Disabling never touches the deck's cards or their progress — the
+// schedule is preserved exactly as it was, so re-enabling brings back whatever became due
+// in the meantime rather than resetting anything.
+export async function setDeckDisabled(userId: string, deckId: string, isDisabled: boolean): Promise<void> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('deckId', deckId)
+      .input('disabled', sql.Bit, isDisabled ? 1 : 0)
+      .query(`
+        UPDATE decks
+        SET is_disabled = @disabled, modified_at = GETDATE()
+        WHERE id = @deckId AND user_id = @userId
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No deck found for id: '${deckId}'`);
+    }
+  } catch (error) {
+    console.error('Error updating deck disabled state:', error);
     throw error;
   } finally {
     if (pool) {

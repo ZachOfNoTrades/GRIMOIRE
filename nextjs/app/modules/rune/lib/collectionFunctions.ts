@@ -39,7 +39,8 @@ export async function getAllCollections(userId: string): Promise<{ collections: 
 
     // Counts roll up every live member deck, so the list shows what a collection-wide
     // study session would actually pull. Draft cards count toward card_count but are
-    // never "due" — same rule the deck list uses.
+    // never "due" — same rule the deck list uses. Disabled (paused) member decks drop out
+    // of every count here because a collection session skips their cards entirely.
     const result = await pool.request()
       .input('userId', userId)
       .query(`
@@ -51,7 +52,7 @@ export async function getAllCollections(userId: string): Promise<{ collections: 
           MAX(cp.last_reviewed_at) AS last_reviewed_at
         FROM collections co
         LEFT JOIN collection_decks cd ON cd.collection_id = co.id
-        LEFT JOIN decks d ON d.id = cd.deck_id AND d.is_archived = 0 AND d.user_id = @userId
+        LEFT JOIN decks d ON d.id = cd.deck_id AND d.is_archived = 0 AND d.is_disabled = 0 AND d.user_id = @userId
         LEFT JOIN cards c ON c.deck_id = d.id AND c.is_disabled = 0
         LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId
         WHERE co.user_id = @userId
@@ -91,7 +92,7 @@ export async function getCollectionById(userId: string, id: string): Promise<Col
           MAX(cp.last_reviewed_at) AS last_reviewed_at
         FROM collections co
         LEFT JOIN collection_decks cd ON cd.collection_id = co.id
-        LEFT JOIN decks d ON d.id = cd.deck_id AND d.is_archived = 0 AND d.user_id = @userId
+        LEFT JOIN decks d ON d.id = cd.deck_id AND d.is_archived = 0 AND d.is_disabled = 0 AND d.user_id = @userId
         LEFT JOIN cards c ON c.deck_id = d.id AND c.is_disabled = 0
         LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId
         WHERE co.id = @id AND co.user_id = @userId
@@ -103,28 +104,31 @@ export async function getCollectionById(userId: string, id: string): Promise<Col
     }
 
     // Member decks carry the same summary shape the deck list uses, so the detail
-    // page can show per-deck due counts without a second round of endpoints.
+    // page can show per-deck due counts without a second round of endpoints. Disabled
+    // member decks are still listed here — the user needs to see (and re-enable) them —
+    // but report 0 due, matching the rollup above that leaves them out.
     const decksResult = await pool.request()
       .input('userId', userId)
       .input('id', id)
       .query(`
         SELECT
-          d.id, d.name, d.description, d.is_favorite,
+          d.id, d.name, d.description, d.is_favorite, d.is_disabled,
           COUNT(c.id) AS card_count,
-          COUNT(CASE WHEN c.id IS NOT NULL AND c.is_draft = 0 AND (cp.next_review_at IS NULL OR cp.next_review_at <= GETDATE()) THEN 1 END) AS due_count,
+          COUNT(CASE WHEN c.id IS NOT NULL AND d.is_disabled = 0 AND c.is_draft = 0 AND (cp.next_review_at IS NULL OR cp.next_review_at <= GETDATE()) THEN 1 END) AS due_count,
           MAX(cp.last_reviewed_at) AS last_reviewed_at
         FROM collection_decks cd
         INNER JOIN decks d ON d.id = cd.deck_id AND d.is_archived = 0 AND d.user_id = @userId
         LEFT JOIN cards c ON c.deck_id = d.id AND c.is_disabled = 0
         LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId
         WHERE cd.collection_id = @id
-        GROUP BY d.id, d.name, d.description, d.is_favorite, cd.order_index
+        GROUP BY d.id, d.name, d.description, d.is_favorite, d.is_disabled, cd.order_index
         ORDER BY cd.order_index, d.name
       `);
 
     const decks = decksResult.recordset.map((row) => ({
       ...row,
       is_favorite: !!row.is_favorite,
+      is_disabled: !!row.is_disabled,
     })) as DeckSummary[];
 
     return { ...(collectionResult.recordset[0] as CollectionSummary), decks };
@@ -143,7 +147,8 @@ export async function getCollectionById(userId: string, id: string): Promise<Col
 // exactly like a single deck's card list. The owning deck's name rides along
 // (deck_name): a collection session spans several decks, so the study UI has to
 // be able to say which deck the card on screen came from. The per-deck fetch
-// leaves it undefined — there the session header already names the deck.
+// leaves it undefined — there the session header already names the deck. Disabled member
+// decks are skipped outright: a paused deck contributes no cards to a collection session.
 export async function getCollectionCards(userId: string, id: string): Promise<CardWithProgress[]> {
   let pool;
   try {
@@ -156,7 +161,7 @@ export async function getCollectionCards(userId: string, id: string): Promise<Ca
           d.name AS deck_name,
           (SELECT TOP 1 cr.rating FROM card_reviews cr WHERE cr.card_id = c.id ORDER BY cr.created_at DESC) AS last_rating
         FROM collection_decks cd
-        INNER JOIN decks d ON d.id = cd.deck_id AND d.is_archived = 0 AND d.user_id = @userId
+        INNER JOIN decks d ON d.id = cd.deck_id AND d.is_archived = 0 AND d.is_disabled = 0 AND d.user_id = @userId
         INNER JOIN cards c ON c.deck_id = d.id AND c.user_id = @userId
         LEFT JOIN card_progress cp ON cp.card_id = c.id
         WHERE cd.collection_id = @id

@@ -46,26 +46,27 @@ function calendarToday(): string {
 async function buildSummary(userId: string): Promise<DigestSummary> {
   const pool = await getRuneConnection();
 
-  // Cards due now, grouped by deck. Excludes archived decks and disabled cards.
+  // Cards due now, grouped by deck. Excludes archived decks, decks the user has disabled
+  // (paused decks are never nagged about) and disabled cards.
   const dueRes = await pool.request()
     .input('userId', sql.UniqueIdentifier, userId)
     .query<{ deck_id: string; name: string; due_count: number }>(
       `SELECT d.id AS deck_id, d.name, COUNT(*) AS due_count
        FROM card_progress cp
        JOIN cards c ON c.id = cp.card_id AND c.is_disabled = 0
-       JOIN decks d ON d.id = c.deck_id AND d.is_archived = 0
+       JOIN decks d ON d.id = c.deck_id AND d.is_archived = 0 AND d.is_disabled = 0
        WHERE cp.user_id = @userId AND cp.next_review_at <= GETDATE()
        GROUP BY d.id, d.name
        ORDER BY due_count DESC`
     );
 
-  // New (never-reviewed) cards across non-archived decks.
+  // New (never-reviewed) cards across non-archived, non-disabled decks.
   const newRes = await pool.request()
     .input('userId', sql.UniqueIdentifier, userId)
     .query<{ new_count: number }>(
       `SELECT COUNT(*) AS new_count
        FROM cards c
-       JOIN decks d ON d.id = c.deck_id AND d.is_archived = 0
+       JOIN decks d ON d.id = c.deck_id AND d.is_archived = 0 AND d.is_disabled = 0
        LEFT JOIN card_progress cp ON cp.card_id = c.id
        WHERE c.user_id = @userId AND c.is_disabled = 0 AND cp.id IS NULL`
     );

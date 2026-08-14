@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { getDeckById, updateDeck, deleteDeck, setDeckFavorite } from '../../../lib/deckFunctions';
+import { getDeckById, updateDeck, deleteDeck, setDeckFavorite, setDeckDisabled } from '../../../lib/deckFunctions';
+import { DECK_NAME_MAX_LENGTH, DECK_SOURCE_URL_MAX_LENGTH } from '../../../types/deck';
 
 export async function GET(
   request: Request,
@@ -93,17 +94,38 @@ export async function PATCH(
 
     const { id } = await context.params;
 
-    const body = await request.json();
-
-    // PATCH is a partial update — currently just the favorite toggle.
-    if (typeof body.is_favorite !== 'boolean') {
+    // A truncated or non-JSON body is a bad request, not a server fault — parse it
+    // explicitly so it can't fall through to the catch-all 500 below.
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
       return NextResponse.json(
-        { error: 'is_favorite (boolean) required' },
+        { error: 'Invalid JSON body' },
         { status: 400 }
       );
     }
 
-    await setDeckFavorite(userId!, id, body.is_favorite);
+    // PATCH is a partial update — the favorite star and the disable (pause) toggle. Either
+    // may be sent alone; sending neither is a bad request rather than a silent no-op.
+    const hasFavorite = typeof body.is_favorite === 'boolean';
+    const hasDisabled = typeof body.is_disabled === 'boolean';
+
+    if (!hasFavorite && !hasDisabled) {
+      return NextResponse.json(
+        { error: 'is_favorite (boolean) or is_disabled (boolean) required' },
+        { status: 400 }
+      );
+    }
+
+    if (hasFavorite) {
+      await setDeckFavorite(userId!, id, body.is_favorite as boolean);
+    }
+
+    if (hasDisabled) {
+      await setDeckDisabled(userId!, id, body.is_disabled as boolean);
+    }
+
     return NextResponse.json({ success: true });
 
   } catch (error) {
