@@ -97,13 +97,32 @@ function cardColor(card: DashboardNutrientSummary): string {
   return MACRO_CARD_COLOR[card.key] ?? nutrientColorForCategory(card.key, card.category ?? "other");
 }
 
+// "2026-08-09" -> "Aug 9". Parsed field-by-field rather than via `new Date(iso)`,
+// which reads a bare date as UTC midnight and can render the day before in a
+// negative-offset timezone.
+function shortDate(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return iso;
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// Window line for the dashboard-review slide — the dates the averages cover, so
+// "this past week" is an actual span rather than something to take on faith.
+function dashboardReviewRange(review: DashboardNutrientReview): string {
+  if (!review.startDate || !review.endDate) return "";
+  return `${shortDate(review.startDate)} – ${shortDate(review.endDate)}`;
+}
+
 // Lead copy for the dashboard-review slide. States the divisor outright, since
-// the numbers are per-LOGGED-day averages, not per-calendar-day.
+// the numbers are per-LOGGED-day averages, not per-calendar-day — and says the
+// slide is a read-only recap, because a wizard step full of targets and percents
+// otherwise reads as something waiting to be answered.
 function dashboardReviewLead(review: DashboardNutrientReview): string {
   const days = review.loggedDays;
-  return days === 1
-    ? "Your dashboard nutrients — the one day you logged this past week."
-    : `Your dashboard nutrients — daily average across the ${days} days you logged this past week.`;
+  const divisor = days === 1
+    ? "Averages come from the one day you logged"
+    : `Averages come from the ${days} days you logged`;
+  return `How the nutrients you pinned to your dashboard actually went. ${divisor} — nothing here changes your targets.`;
 }
 
 // Lead copy for the weigh-in slide. States the week's actual coverage — the
@@ -469,6 +488,12 @@ export default function CheckInWizard({
           {currentSlide === "dashboardNutrients" && (
             /* DASHBOARD NUTRIENT REVIEW SLIDE */
             <div className="s-checkin-wizard-slide">
+              {/* SLIDE HEADING */}
+              <div className="s-checkin-wizard-heading">
+                <h3 className="s-checkin-wizard-title">Last Week&apos;s Nutrients</h3>
+                <span className="s-checkin-wizard-range">{dashboardReviewRange(preview.dashboardNutrients)}</span>
+              </div>
+
               <p className="s-checkin-wizard-lead">{dashboardReviewLead(preview.dashboardNutrients)}</p>
 
               {/* NUTRIENT REVIEW LIST */}
