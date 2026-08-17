@@ -183,24 +183,28 @@ function ForageFoodLogInner() {
               and the destructive Delete. On desktop the whole cluster shrinks to its
               natural width (sm:w-auto) so the bar's justify-center centers it; mobile
               spans full width with the leading/trailing groups pushed to the edges. */}
-          <div className="flex items-center justify-between gap-3 w-full sm:w-auto sm:gap-8">
+          <div className="flex items-center justify-between gap-2 w-full min-w-0 sm:w-auto sm:gap-8">
 
-            {/* LEADING — cancel selection + live count */}
-            <div className="flex items-center gap-1.5">
+            {/* LEADING — cancel selection + live count. min-w-0 lets this group be the
+                one that gives way on a narrow phone, so the destructive Delete on the
+                far right can never be pushed past the viewport edge. */}
+            <div className="flex items-center gap-1.5 min-w-0">
 
               {/* CANCEL — leaves selection mode without deleting anything */}
-              <Button className="btn-link" onClick={bulkActions.onClear} disabled={bulkActions.isBusy} aria-label="Cancel selection">
+              <Button className="btn-link shrink-0" onClick={bulkActions.onClear} disabled={bulkActions.isBusy} aria-label="Cancel selection">
                 <X className="w-5 h-5" />
               </Button>
 
-              {/* COUNT — selected total, tabular so it doesn't jump as it changes */}
-              <span className="text-primary whitespace-nowrap" style={{ fontSize: "0.9375rem", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+              {/* COUNT — selected total, tabular so it doesn't jump as it changes. Truncates
+                  rather than overflowing once the actions need the space (<360px). */}
+              <span className="text-primary whitespace-nowrap truncate" style={{ fontSize: "0.9375rem", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
                 {bulkActions.count} selected
               </span>
             </div>
 
-            {/* TRAILING — select-all toggle + delete */}
-            <div className="flex items-center gap-2">
+            {/* TRAILING — select-all toggle + move/copy/delete. shrink-0 keeps every action
+                at its natural size; the leading count absorbs the squeeze instead. */}
+            <div className="flex items-center gap-1 shrink-0 sm:gap-2">
 
               {/* SELECT ALL — toggles every entry logged for the day. Icon-only on
                   phones to save room; the label joins it once there's space (≥sm). */}
@@ -211,20 +215,41 @@ function ForageFoodLogInner() {
 
               {/* MOVE — relocate the selected entries to a chosen day/time. Icon-only
                   on phones; label joins at ≥sm to keep the bar from overflowing. */}
-              <Button className="btn-link" onClick={bulkActions.onMove} disabled={bulkActions.isBusy} aria-label="Move selected">
+              <Button
+                className="btn-link"
+                onClick={bulkActions.onMove}
+                disabled={bulkActions.isBusy}
+                aria-label="Move selected"
+                title="Move the selected entries to another day — set a time to stamp them all at once, or leave it blank to keep each entry's own time"
+              >
                 <CalendarClock className="w-4 h-4" />
                 <span className="hidden sm:inline">Move</span>
               </Button>
 
               {/* COPY — duplicate the selected entries to a chosen day/time. */}
-              <Button className="btn-link" onClick={bulkActions.onCopy} disabled={bulkActions.isBusy} aria-label="Copy selected">
+              <Button
+                className="btn-link"
+                onClick={bulkActions.onCopy}
+                disabled={bulkActions.isBusy}
+                aria-label="Copy selected"
+                title="Copy the selected entries to another day — set a time to stamp them all at once, or leave it blank to keep each entry's own time"
+              >
                 <Copy className="w-4 h-4" />
                 <span className="hidden sm:inline">Copy</span>
               </Button>
 
-              {/* DELETE — removes the selected entries (immediate, matching single-entry delete) */}
-              <Button className="btn-red" onClick={bulkActions.onDelete} disabled={bulkActions.isBusy}>
-                <Trash2 className="w-4 h-4" /> {bulkActions.isDeleting ? "Deleting..." : "Delete"}
+              {/* DELETE — removes the selected entries (immediate, matching single-entry delete).
+                  Icon-only on phones like its siblings; the label joins at ≥sm. Keeping the label
+                  on mobile is what pushed the button off the right edge of the viewport. */}
+              <Button
+                className="btn-red"
+                onClick={bulkActions.onDelete}
+                disabled={bulkActions.isBusy}
+                aria-label={bulkActions.isDeleting ? "Deleting selected" : "Delete selected"}
+                title="Delete the selected entries"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">{bulkActions.isDeleting ? "Deleting..." : "Delete"}</span>
               </Button>
             </div>
           </div>
