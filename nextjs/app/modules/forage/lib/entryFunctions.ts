@@ -628,12 +628,28 @@ export async function listRecentFoodUsage(
   }
 }
 
+// How much an entry logged in the EXACT requested hour counts for, relative to one
+// logged in the hour either side of it (which counts 1). Above 1 so the asked-for
+// hour still decides the order; low enough that a food genuinely eaten across the
+// whole band isn't buried by one that happens to land on the hour.
+const FREQUENT_EXACT_HOUR_WEIGHT = 2;
+
 // Foods the user most often logs AROUND a given hour-of-day — the picker's
 // "Frequent now" suggestions. `hour` is the user's local clock hour (0-23, from
-// the client) and we match entries whose entry_time falls in that clock hour
-// (x:00-x:59) so e.g. an 8am open surfaces the usual 8-o'clock breakfast
-// items. Ranked by how many entries fall in that hour (HAVING >= 2 keeps it to
-// genuinely repeated foods, not one-offs), recency breaking ties. Only entries within
+// the client) and we match entries whose entry_time falls in that hour OR EITHER
+// NEIGHBOURING HOUR (h-1 .. h+1, wrapping at midnight), so e.g. an 8am open
+// surfaces the usual 8-o'clock breakfast items.
+//
+// The neighbours matter: a real meal drifts either side of the clock hour, and an
+// exact-hour bucket splits it in half. Noon was the worst case — the same lunch
+// logged at 11:55 one day and 12:20 the next counted as ONE hit in each bucket,
+// never the >= 2 needed to be "frequent", so the section came up EMPTY at 12PM
+// while showing plenty at 3PM. Widening the band keeps the "genuinely repeated,
+// not a one-off" bar (still HAVING >= 2) without demanding the user eat on the hour.
+//
+// Ranked by a weighted score rather than a raw count, so the band never outvotes the
+// hour the user actually asked for: an entry in the exact hour is worth HOUR_WEIGHT,
+// one in a neighbouring hour is worth 1. Recency breaks ties. Only entries within
 // the last `historyDays` (the user-configurable favorites window, default 30) count,
 // so a food logged at this hour months ago drops off. Each row carries that food's
 // MOST RECENT serving + amount (same shape/semantics as RecentFoodUsage) so a re-add
@@ -646,32 +662,41 @@ export async function listHourlyFrequentFoodUsage(
 ): Promise<RecentFoodUsage[]> {
   let pool;
   try {
-    // Normalise to a single 0-23 clock hour.
+    // Normalise to a single 0-23 clock hour, then take the hour either side of it —
+    // wrapping, so 0 pulls in 23 and 23 pulls in 0.
     const h = ((Math.trunc(hour) % 24) + 24) % 24;
+    const hPrev = (h + 23) % 24;
+    const hNext = (h + 1) % 24;
     // Only count entries logged within the configured history window (days). Floor at
     // 1 so a bad value can't disable the cutoff entirely.
     const days = Number.isFinite(historyDays) ? Math.max(1, Math.round(historyDays)) : 30;
     pool = await getFoodConnection();
-    // freq = every food the user logs >= 2x in this clock hour within the history
-    // window, each with its hit count and most-recent serving + amount. No TOP here:
+    // freq = every food the user logs >= 2x in this hour band within the history
+    // window, each with its weighted score and most-recent serving + amount. No TOP here:
     // we first fold recipe-component foods into their parent recipe (below) so the
     // recipe — not its loose ingredients — claims the slot, THEN apply the limit.
     const result = await pool
       .request()
       .input('userId', sql.UniqueIdentifier, userId)
       .input('hCur', sql.Int, h)
+      .input('hPrev', sql.Int, hPrev)
+      .input('hNext', sql.Int, hNext)
+      .input('hourWeight', sql.Int, FREQUENT_EXACT_HOUR_WEIGHT)
       .input('days', sql.Int, days)
-      .query<{ food_id: string; serving_id: string | null; quantity: number; hits: number }>(
-        // freq = entry counts within the clock hour per food (>= 2 to be "frequent"),
+      .query<{ food_id: string; serving_id: string | null; quantity: number; score: number }>(
+        // freq = entry counts within the hour band per food (>= 2 to be "frequent"),
         // limited to entries whose diary date is within the history window so a food
-        // you ate at this hour months ago drops off. latest = that food's most recent
-        // entry, for the serving + amount default.
-        `SELECT freq.food_id, latest.serving_id, latest.quantity, freq.hits FROM (
-           SELECT e.food_id, COUNT(*) AS hits, MAX(e.ts_logged) AS last_logged
+        // you ate at this hour months ago drops off. `score` weights the exact hour
+        // above its neighbours so the band broadens the pool without reordering it.
+        // latest = that food's most recent entry, for the serving + amount default.
+        `SELECT freq.food_id, latest.serving_id, latest.quantity, freq.score FROM (
+           SELECT e.food_id,
+                  SUM(CASE WHEN DATEPART(HOUR, e.entry_time) = @hCur THEN @hourWeight ELSE 1 END) AS score,
+                  MAX(e.ts_logged) AS last_logged
            FROM food_entries e
            JOIN foods f ON f.id = e.food_id AND f.is_archived = 0
            WHERE e.user_id = @userId AND e.food_id IS NOT NULL AND e.entry_time IS NOT NULL
-             AND DATEPART(HOUR, e.entry_time) = @hCur
+             AND DATEPART(HOUR, e.entry_time) IN (@hPrev, @hCur, @hNext)
              AND e.entry_date >= DATEADD(DAY, -@days, CAST(GETDATE() AS DATE))
            GROUP BY e.food_id
            HAVING COUNT(*) >= 2
@@ -682,15 +707,15 @@ export async function listHourlyFrequentFoodUsage(
            FROM food_entries
            WHERE user_id = @userId AND food_id IS NOT NULL
          ) latest ON latest.food_id = freq.food_id AND latest.rn = 1
-         ORDER BY freq.hits DESC, freq.last_logged DESC`
+         ORDER BY freq.score DESC, freq.last_logged DESC`
       );
-    // Pre-sorted by hits DESC, last_logged DESC. Carry hits so we can re-rank after
-    // folding recipe components in; the stable sort below preserves this tie-order.
+    // Pre-sorted by score DESC, last_logged DESC. Carry the score so we can re-rank
+    // after folding recipe components in; the stable sort below preserves this tie-order.
     const rows = result.recordset.map((r) => ({
       food_id: r.food_id,
       last_serving_id: r.serving_id ?? null,
       last_quantity: Number(r.quantity),
-      hits: Number(r.hits),
+      score: Number(r.score),
     }));
 
     // Map each of the user's active recipes to its resolved ingredient food_ids so we
@@ -709,10 +734,10 @@ export async function listHourlyFrequentFoodUsage(
     // Only act on recipes that are THEMSELVES frequent in this band — that's the
     // signal the user logs them here, so their loose components are "logged via a
     // recipe". This never strips a standalone staple that has no frequent recipe.
-    const freqHits = new Map(rows.map((r) => [r.food_id, r.hits]));
+    const freqScores = new Map(rows.map((r) => [r.food_id, r.score]));
     const componentToRecipes = new Map<string, string[]>(); // ingredient food_id -> frequent recipe food_ids
     for (const { recipe_food_id, ingredient_food_id } of ingredientsResult.recordset) {
-      if (!freqHits.has(recipe_food_id)) continue; // recipe isn't frequent here — leave its parts alone
+      if (!freqScores.has(recipe_food_id)) continue; // recipe isn't frequent here — leave its parts alone
       const list = componentToRecipes.get(ingredient_food_id) ?? [];
       list.push(recipe_food_id);
       componentToRecipes.set(ingredient_food_id, list);
@@ -720,24 +745,24 @@ export async function listHourlyFrequentFoodUsage(
 
     // Suppress each frequent component and let its parent recipe inherit the
     // component's prominence (the user thinks of "my morning banana" AS the sandwich),
-    // so the recipe ranks where the loudest component would have. Effective hits start
-    // at each food's own hits; a recipe is promoted to the max over its covered parts.
-    const effectiveHits = new Map(rows.map((r) => [r.food_id, r.hits]));
+    // so the recipe ranks where the loudest component would have. Effective scores start
+    // at each food's own score; a recipe is promoted to the max over its covered parts.
+    const effectiveScores = new Map(rows.map((r) => [r.food_id, r.score]));
     const suppressed = new Set<string>();
     for (const [componentId, parentRecipeIds] of componentToRecipes) {
-      const componentHits = freqHits.get(componentId);
-      if (componentHits === undefined) continue; // component isn't itself frequent
+      const componentScore = freqScores.get(componentId);
+      if (componentScore === undefined) continue; // component isn't itself frequent
       for (const recipeId of parentRecipeIds) {
         if (recipeId === componentId) continue; // never suppress a recipe in favour of itself
         suppressed.add(componentId);
-        effectiveHits.set(recipeId, Math.max(effectiveHits.get(recipeId) ?? 0, componentHits));
+        effectiveScores.set(recipeId, Math.max(effectiveScores.get(recipeId) ?? 0, componentScore));
       }
     }
 
     return rows
       .filter((r) => !suppressed.has(r.food_id))
-      // Stable sort on effective hits keeps the SQL last_logged tie-break for equals.
-      .sort((a, b) => effectiveHits.get(b.food_id)! - effectiveHits.get(a.food_id)!)
+      // Stable sort on effective scores keeps the SQL last_logged tie-break for equals.
+      .sort((a, b) => effectiveScores.get(b.food_id)! - effectiveScores.get(a.food_id)!)
       .slice(0, limit)
       .map((r) => ({
         food_id: r.food_id,
@@ -749,11 +774,21 @@ export async function listHourlyFrequentFoodUsage(
   }
 }
 
-// Foods the user frequently logs ON THE SAME DIARY DAY as `foodId` — its common
-// pairings ("frequently paired with"). Ranked by how many distinct days the two
-// were eaten together, so the strongest companions surface first. Each row also
-// carries the partner food's own last-logged serving + amount (same shape as
-// RecentFoodUsage) so a re-add reuses what the user actually ate, not "1 serving".
+// How close in the day two entries must be logged to count as ACTUALLY eaten
+// together rather than merely on the same date. A diary day is far too coarse a
+// bucket for this — an all-day staple like water shares its date with everything
+// the user ate, so a same-day count ranks "most-logged food" instead of "usual
+// companion". A meal-sized window is what makes the count a real pairing.
+const PAIR_WINDOW_MINUTES = 90;
+
+// Foods the user frequently logs TOGETHER WITH `foodId` — its common pairings
+// ("frequently paired with"). Ranked by the actual pair count: how many distinct
+// days the two were logged within PAIR_WINDOW_MINUTES of each other, so the things
+// genuinely eaten alongside the anchor outrank the things that merely share its
+// date. Partners that only ever co-occur same-day still appear, but below every
+// real pairing. Each row also carries the partner food's own last-logged serving +
+// amount (same shape as RecentFoodUsage) so a re-add reuses what the user actually
+// ate, not "1 serving".
 export async function listPairedFoodUsage(
   userId: string,
   foodId: string,
@@ -766,25 +801,35 @@ export async function listPairedFoodUsage(
       .request()
       .input('userId', sql.UniqueIdentifier, userId)
       .input('foodId', sql.UniqueIdentifier, foodId)
+      .input('window', sql.Int, PAIR_WINDOW_MINUTES)
       .input('lim', sql.Int, limit)
       .query<{ food_id: string; serving_id: string | null; quantity: number }>(
-        // target_days = the diary days the anchor food was logged on. paired =
-        // every OTHER live food logged on those same days, ranked by distinct
-        // co-occurrence days. latest = each partner's most-recent entry for its
-        // serving/amount seed. JOIN foods + is_archived = 0 drops deleted foods.
-        `WITH target_days AS (
-           SELECT DISTINCT entry_date
+        // anchor = every entry of the anchor food, kept at entry granularity (not
+        // folded to dates) so each partner can be measured against the clock time
+        // the anchor was actually logged. paired = every OTHER live food logged on
+        // one of those days, counted three ways: together_days / together_hits
+        // (within the window of some anchor entry) and pair_days (same date at any
+        // hour, the fallback tier). latest = each partner's most-recent entry for
+        // its serving/amount seed. JOIN foods + is_archived = 0 drops deleted foods.
+        `WITH anchor AS (
+           SELECT entry_date, entry_time
            FROM food_entries
            WHERE user_id = @userId AND food_id = @foodId
          ),
          paired AS (
-           SELECT e.food_id, COUNT(DISTINCT e.entry_date) AS pair_days
-           FROM food_entries e
+           SELECT e.food_id,
+                  COUNT(DISTINCT CASE WHEN ABS(DATEDIFF(MINUTE, a.entry_time, e.entry_time)) <= @window
+                                      THEN e.entry_date END) AS together_days,
+                  COUNT(DISTINCT CASE WHEN ABS(DATEDIFF(MINUTE, a.entry_time, e.entry_time)) <= @window
+                                      THEN e.id END) AS together_hits,
+                  COUNT(DISTINCT e.entry_date) AS pair_days,
+                  MAX(e.ts_logged) AS last_logged
+           FROM anchor a
+           JOIN food_entries e ON e.user_id = @userId
+                              AND e.entry_date = a.entry_date
+                              AND e.food_id IS NOT NULL
+                              AND e.food_id <> @foodId
            JOIN foods f ON f.id = e.food_id AND f.is_archived = 0
-           WHERE e.user_id = @userId
-             AND e.food_id IS NOT NULL
-             AND e.food_id <> @foodId
-             AND e.entry_date IN (SELECT entry_date FROM target_days)
            GROUP BY e.food_id
          ),
          latest AS (
@@ -796,7 +841,7 @@ export async function listPairedFoodUsage(
          SELECT TOP (@lim) p.food_id, l.serving_id, l.quantity
          FROM paired p
          JOIN latest l ON l.food_id = p.food_id AND l.rn = 1
-         ORDER BY p.pair_days DESC, p.food_id`
+         ORDER BY p.together_days DESC, p.together_hits DESC, p.pair_days DESC, p.last_logged DESC, p.food_id`
       );
     return result.recordset.map((r) => ({
       food_id: r.food_id,

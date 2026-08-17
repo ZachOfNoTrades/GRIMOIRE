@@ -92,8 +92,9 @@ export default function ForageFavoritesSettingsPage() {
 
             {/* GROUP NOTE — explains what the window affects */}
             <p className="settings-group-note">
-              The food search shows your frequent foods for the current hour. Only foods logged within
-              this window count, so something you ate at this time long ago stops showing up.
+              The food search shows your frequent foods for the hour you&apos;re logging at, plus the hour
+              either side, so a meal that drifts still counts. Only foods logged within this window
+              count, so something you ate at this time long ago stops showing up.
             </p>
           </div>
         )}
