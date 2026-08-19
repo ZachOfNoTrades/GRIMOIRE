@@ -28,27 +28,37 @@ export const VIRTUAL_PREFIX = "virtual:";
 // family. Returns the input array unchanged when the food has no convertible
 // mass/volume anchor (count-based foods) or already carries every standard unit.
 export function expandVirtualServings(foodId: string, real: FoodServing[]): FoodServing[] {
-  // Anchor on a real convertible row — prefer volume, then mass.
-  const baseRow =
-    real.find((s) => familyOf(s.unit) === "VOLUME" && Number(s.units_per_serving) > 0) ??
-    real.find((s) => familyOf(s.unit) === "MASS" && Number(s.units_per_serving) > 0);
-  if (!baseRow) return real; // count-based food → no standard-unit expansion
+  // Anchor EACH family independently. A food carrying both a mass row and a volume
+  // row (a quick-added food saved as "28 g / 0.25 cup") describes one serving two
+  // ways, so both expansions are valid and the user gets weights AND volumes.
+  // Anchoring on a single preferred family instead meant such a food offered its
+  // extrapolated volumes but no extrapolated weights at all.
+  const anchors = (["VOLUME", "MASS"] as const)
+    .map((fam) => real.find((s) => familyOf(s.unit) === fam && Number(s.units_per_serving) > 0))
+    .filter((s): s is FoodServing => !!s);
+  if (anchors.length === 0) return real; // count-based food → no standard-unit expansion
 
-  const fam = familyOf(baseRow.unit);
-  const order = fam === "MASS" ? STANDARD_MASS_UNITS : STANDARD_VOLUME_UNITS;
-  const base = fam === "MASS" ? MASS_G : VOLUME_ML;
-  // Base-family amount in one serving, e.g. ml-per-serving = ups(ml) × ml-per-ml.
-  const perServingBase = Number(baseRow.units_per_serving) * (baseFactor(baseRow.unit) ?? 1);
+  // Units already stored on the food, across every family — never shadow a real row.
   const existing = new Set(real.map((s) => normUnit(s.unit)));
+  const virtuals: FoodServing[] = [];
 
-  const virtuals: FoodServing[] = order
-    .filter((u) => !existing.has(u))
-    .map((u) => ({
-      id: `${VIRTUAL_PREFIX}${baseRow.id}:${u}`,
-      food_id: foodId,
-      unit: displayUnit(u),
-      units_per_serving: Math.round((perServingBase / base[u]) * 1e4) / 1e4,
-    }));
+  for (const baseRow of anchors) {
+    const fam = familyOf(baseRow.unit);
+    const order = fam === "MASS" ? STANDARD_MASS_UNITS : STANDARD_VOLUME_UNITS;
+    const base = fam === "MASS" ? MASS_G : VOLUME_ML;
+    // Base-family amount in one serving, e.g. ml-per-serving = ups(ml) × ml-per-ml.
+    const perServingBase = Number(baseRow.units_per_serving) * (baseFactor(baseRow.unit) ?? 1);
+    for (const u of order) {
+      if (existing.has(u)) continue;
+      existing.add(u); // guard against two anchors both claiming a unit
+      virtuals.push({
+        id: `${VIRTUAL_PREFIX}${baseRow.id}:${u}`,
+        food_id: foodId,
+        unit: displayUnit(u),
+        units_per_serving: Math.round((perServingBase / base[u]) * 1e4) / 1e4,
+      });
+    }
+  }
 
   return virtuals.length === 0 ? real : [...real, ...virtuals];
 }

@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { selectOnFocus } from "@/lib/inputBehavior";
 import { Food } from "../types/food";
 import { FoodAvatar } from "./FoodAvatar";
-import { fmtAmount } from "../lib/format";
+import { fmtAmount, parseAmount } from "../lib/format";
+import { AmountField } from "./AmountField";
+import { ServingUnitOptions } from "./ServingUnitOptions";
 
 // A staged plate item: the virtual-unit food plus the drafted amount + unit.
 export type FoodRecordEntry = { food: Food; servingId: string | null; quantity: string };
@@ -121,7 +123,7 @@ export function FoodRecordRow({
   const entryServing = entry ? entry.food.servings.find((s) => s.id === entry.servingId) ?? null : null;
   const shownServing = inCollection ? entryServing : (lastServing ?? defaultServing);
   const shownQuantity = inCollection
-    ? Number(entry?.quantity)
+    ? parseAmount(entry?.quantity)
     : lastServing && food.last_quantity != null
       ? food.last_quantity
       : Number(shownServing?.units_per_serving) || 1;
@@ -228,14 +230,11 @@ export function FoodRecordRow({
         /* INLINE AMOUNT EDITOR — animates in where the + button was */
         <div className="fg-inline-qty">
 
-          {/* AMOUNT INPUT */}
-          <input
-            type="number"
-            step="0.1"
-            inputMode="decimal"
+          {/* AMOUNT INPUT — fraction-capable ("1/8"); see AmountField */}
+          <AmountField
             className="input-field fg-inline-amt"
             value={entry.quantity}
-            onChange={(e) => onUpdateQuantity(entry.food.id, e.target.value)}
+            onValueChange={(next) => onUpdateQuantity(entry.food.id, next)}
             onBlur={(e) => onCommitQuantity?.(entry.food.id, e.target.value)}
             onFocus={selectOnFocus}
             aria-label="Amount"
@@ -249,9 +248,7 @@ export function FoodRecordRow({
             aria-label="Unit"
           >
             {entry.food.servings.length === 0 && <option value="" disabled>—</option>}
-            {entry.food.servings.map((s) => (
-              <option key={s.id} value={s.id}>{s.unit}</option>
-            ))}
+            <ServingUnitOptions servings={entry.food.servings} />
           </select>
         </div>
       ) : (
