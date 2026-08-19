@@ -888,11 +888,18 @@ function EnergyBalancePage({ weekData, target, expenditure }: { weekData: Record
   // Only the days actually logged feed the Nutrition − baseline balance, so skipped
   // days stay neutral instead of reading as a phantom full-target deficit.
   const loggedDays = Object.keys(weekData).filter((d) => isDayLogged(weekData[d]));
-  const loggedCount = loggedDays.length;
   const weekTotalKcal = loggedDays.reduce((s, d) => s + (weekData[d]?.kcal ?? 0), 0);
+  // Per-day expenditure lookup. The estimate now moves day to day, so the
+  // Expenditure baseline sums each logged day's OWN estimate rather than
+  // multiplying today's figure by the day count — the two only agree when the
+  // estimate happened to be flat all week. Days the series doesn't reach back to
+  // fall back to the headline figure.
+  const expenditureByDate = new Map((expenditure?.daily ?? []).map((point) => [point.date, point.expenditure_kcal]));
+  const baselineForDate = (date: string) =>
+    mode === "expenditure" ? expenditureByDate.get(date) ?? dailyExpenditure : dailyTarget;
   // Aggregate week-level
   const nutritionWeek = Math.round(weekTotalKcal);
-  const baselineWeek = Math.round(dailyBaseline * loggedCount);
+  const baselineWeek = Math.round(loggedDays.reduce((s, d) => s + baselineForDate(d), 0));
   const difference = nutritionWeek - baselineWeek;
 
   return (
@@ -1198,15 +1205,52 @@ function InsightsSection({
   // This card used to show average daily INTAKE under the "Expenditure" title,
   // which is a different quantity: intake is what went in, expenditure is what
   // was burned, and the gap between them is the whole point of the diary.
-  const expenditureKcal = expenditure?.expenditure_kcal ?? null;
+  // DAILY ESTIMATES — the card used to plot this week's intake against the one
+  // flat TDEE figure, which said nothing about whether the estimate itself was
+  // rising or falling. The server now returns a trailing per-day series (the
+  // same balance re-run over the window ending each day), so the line IS the
+  // expenditure estimate over time and the dashed reference becomes average
+  // intake — the card still reads "what I burn vs what I ate", just with the
+  // burn side moving.
+  //
+  // The series is only worth plotting when the BALANCE model is talking: an
+  // account too new for it returns one repeated bodyweight-formula figure, which
+  // draws a dead-flat line saying nothing, so that case keeps the old intake
+  // sparkline against the flat estimate.
+  const expenditureSeries = expenditure?.daily ?? [];
+  const expenditureSeriesVals = expenditureSeries.map((point) => point.expenditure_kcal);
+  const hasDailyExpenditure =
+    expenditureSeries.length >= 2 && expenditureSeries.some((point) => point.method === "adaptive");
+  const expenditureDrift = hasDailyExpenditure
+    ? expenditureSeriesVals[expenditureSeriesVals.length - 1] - expenditureSeriesVals[0]
+    : null;
+
+  // Read the headline off the series' last point when there is one. That point is
+  // today's estimate — carried forward from the previous day if today's own
+  // window fell short of the balance model's data gates — so the big number and
+  // the chart's right-hand end can never disagree.
+  const expenditureKcal = hasDailyExpenditure
+    ? expenditureSeriesVals[expenditureSeriesVals.length - 1]
+    : expenditure?.expenditure_kcal ?? null;
+
   // Subtitles stay short enough to hold one line in a half-width card at 320px
   // — a wrapped subtitle eats the sparkline's height on the narrowest phones.
+  // With a series present the subtitle mirrors the Weight Trend card's
+  // "span · change" shape so the two cards read the same way, but abbreviated
+  // ("10d", no thousands separator): the spelled-out "10 days · −184 kcal" is
+  // 125px against the 109px a half-width card leaves at 320px, and wraps.
   const expenditureLabel =
     expenditure == null
       ? "Estimating…"
-      : expenditure.method === "adaptive"
-        ? `${expenditure.window_days}-day balance`
-        : "Bodyweight only";
+      : expenditureDrift != null
+        ? `${expenditureSeriesVals.length}d · ${
+            expenditureDrift === 0
+              ? "steady"
+              : `${expenditureDrift > 0 ? "+" : "−"}${Math.abs(expenditureDrift)} kcal`
+          }`
+        : expenditure.method === "adaptive"
+          ? `${expenditure.window_days}-day balance`
+          : "Bodyweight only";
 
   // WEIGHT TREND — smoothed and tolerance-normalized, so scale noise doesn't
   // read as a move. See ./weightTrend for the reasoning.
@@ -1243,11 +1287,16 @@ function InsightsSection({
          widths, so the rows never look mismatched. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "1fr", gap: 10 }}>
 
-        {/* EXPENDITURE — value is the TDEE estimate; the sparkline is this
-           week's intake against it, so the card reads as "what I burn vs what
-           I ate" rather than one number with no reference. */}
+        {/* EXPENDITURE — value is today's TDEE estimate; the line is the trailing
+           DAILY estimates and the dashed reference is average intake, so the card
+           reads as "what I burn (day by day) vs what I ate". Without a series the
+           old reading is kept: this week's intake against the flat estimate. */}
         <InsightCard title="Expenditure" subtitle={expenditureLabel} value={expenditureKcal != null ? expenditureKcal.toLocaleString() : "—"} valueUnit={expenditureKcal != null ? "kcal" : ""}>
-          <SquareLine values={loggedVals} color={C.orange} reference={expenditureKcal} />
+          {hasDailyExpenditure ? (
+            <SquareLine values={expenditureSeriesVals} color={C.orange} reference={expenditure?.avg_intake_kcal ?? null} />
+          ) : (
+            <SquareLine values={loggedVals} color={C.orange} reference={expenditureKcal} />
+          )}
         </InsightCard>
 
         {/* WEIGHT TREND */}
