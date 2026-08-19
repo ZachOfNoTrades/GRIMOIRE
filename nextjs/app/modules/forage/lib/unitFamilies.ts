@@ -106,3 +106,46 @@ const UNIT_DISPLAY_LABELS: Record<string, string> = {
 export function displayUnit(unit: string): string {
   return UNIT_DISPLAY_LABELS[unit] ?? unit;
 }
+
+// ============================================================
+// UNIT TYPES — the display grouping used by every UOM dropdown.
+//
+// Same three buckets as UnitFamily, but lowercase and persisted: per-user custom
+// units (forage_user_units.unit_type) store one of these so a made-up unit can be
+// filed under Weight/Volume even though it can never convert. For any unit the
+// caller has no stored type for, unitTypeOf() derives it from the family tables.
+// ============================================================
+
+export type UnitType = 'mass' | 'volume' | 'count';
+
+export const UNIT_TYPES: UnitType[] = ['mass', 'volume', 'count'];
+
+// Group headings, in the order dropdowns render them.
+export const UNIT_TYPE_LABELS: Record<UnitType, string> = {
+  mass: 'Weight',
+  volume: 'Volume',
+  count: 'Count & other',
+};
+
+// Derive a unit's type from the conversion tables. Anything we can't measure
+// (slice, piece, serving, and every custom unit) falls through to 'count'.
+export function unitTypeOf(unit: string): UnitType {
+  const fam = familyOf(unit);
+  return fam === 'MASS' ? 'mass' : fam === 'VOLUME' ? 'volume' : 'count';
+}
+
+// Split a list into <optgroup>-ready buckets, preserving each bucket's input
+// order and dropping empty buckets. `typeOf` lets callers override the derived
+// type (e.g. with a user's stored unit_type). Returns [] for an empty input.
+export function groupByUnitType<T>(
+  items: T[],
+  typeOf: (item: T) => UnitType
+): Array<{ type: UnitType; label: string; items: T[] }> {
+  const buckets: Record<UnitType, T[]> = { mass: [], volume: [], count: [] };
+  for (const item of items) buckets[typeOf(item)].push(item);
+  return UNIT_TYPES.filter((t) => buckets[t].length > 0).map((t) => ({
+    type: t,
+    label: UNIT_TYPE_LABELS[t],
+    items: buckets[t],
+  }));
+}

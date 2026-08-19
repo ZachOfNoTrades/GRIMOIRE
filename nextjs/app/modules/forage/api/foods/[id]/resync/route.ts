@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "This food isn't yours to edit" }, { status: 403 });
     }
 
-    const units = await listUnits();
+    const units = await listUnits(session.user.id!);
     const knownUnits = new Set(units.map((u) => u.name.toLowerCase()));
     const draft = await extractFoodFromUrl({ url: food.source_url, knownUnits });
 

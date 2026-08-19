@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         mimeType: file.type || 'image/jpeg',
       }))
     );
-    const draft = await parseLabelImage({ images });
+    const draft = await parseLabelImage({ images, userId: session.user.id });
     return NextResponse.json(draft);
   } catch (error: any) {
     console.error('Error in POST /forage/api/label-ocr:', error);

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const units = await listUnits();
+    const units = await listUnits(session.user.id!);
     const knownUnits = new Set(units.map((u) => u.name.toLowerCase()));
     const draft = await extractFoodFromUrl({ url: url.trim(), knownUnits });
     return NextResponse.json(draft);

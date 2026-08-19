@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       if (!match) {
         return NextResponse.json({ error: "That product's nutrition couldn't be read" }, { status: 404 });
       }
-      const units = await listUnits();
+      const units = await listUnits(session.user.id!);
       const knownUnits = new Set(units.map((u) => u.name.toLowerCase()));
       return NextResponse.json({
         ...buildDraftFromMatch(match, knownUnits),

@@ -135,8 +135,11 @@ function runTesseract(imagePath: string): Promise<string> {
 // MIME, oversize, tesseract crash).
 export async function parseLabelImage(opts: {
   images: { imageBytes: Buffer; mimeType: string }[];
+  // Whose unit catalog the parser is allowed to emit. Passing it lets a scan land
+  // on one of the user's own custom units ("stick") instead of dropping it.
+  userId?: string | null;
 }): Promise<LabelOcrDraft> {
-  const { images } = opts;
+  const { images, userId } = opts;
 
   if (images.length === 0) {
     throw new Error('No image provided');
@@ -178,7 +181,7 @@ export async function parseLabelImage(opts: {
   writeFileSync(latestImagePath, images[0].imageBytes);
   console.log(`[ForageOCR] latest copy: ${latestImagePath}`);
 
-  const units = await listUnits();
+  const units = await listUnits(userId);
   const knownUnits = new Set(units.map((u) => u.name.toLowerCase()));
 
   // BARCODE — decode a UPC/EAN off the uploaded image(s) with zbarimg (the same

@@ -90,6 +90,31 @@ BEGIN TRY
     END
 
     -- =============================
+    -- Forage User Units — per-user, free-text units of measure that extend the
+    -- shared food_units catalog ("stick", "scoop", "sleeve"). Merged with
+    -- food_units by listUnits(userId); only the owning user ever sees them.
+    -- `unit_type` is a DISPLAY grouping ('mass'|'volume'|'count') deciding which
+    -- <optgroup> the unit falls under. It does NOT feed the conversion math in
+    -- lib/unitFamilies.ts — a made-up unit has no defined size, so it never
+    -- converts, whichever group it displays under.
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='forage_user_units' AND xtype='U')
+    BEGIN
+        CREATE TABLE forage_user_units (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            name NVARCHAR(32) NOT NULL,
+            unit_type VARCHAR(8) NOT NULL DEFAULT 'count',
+            display_order INT NOT NULL DEFAULT 0,
+            ts_created DATETIME2 NOT NULL DEFAULT GETDATE(),
+            CONSTRAINT UQ_forage_user_units_user_name UNIQUE (user_id, name),
+            CONSTRAINT CK_forage_user_units_type CHECK (unit_type IN ('mass','volume','count'))
+        );
+
+        CREATE INDEX IX_forage_user_units_user ON forage_user_units (user_id, display_order, name);
+    END
+
+    -- =============================
     -- Food Servings — unit conversions for a food.
     -- Each row encodes "1 serving of this food = <units_per_serving> of <unit>".
     -- The "serving" itself is the canonical reference; macros on foods are per-serving.
