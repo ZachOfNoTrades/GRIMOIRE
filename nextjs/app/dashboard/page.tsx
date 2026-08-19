@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRowNav } from "@/lib/useRowNav";
 import { useSession } from "next-auth/react";
 import { Module } from "@/types/module";
 import { ModuleBadgeMap } from "@/types/dashboardBadge";
@@ -18,7 +18,7 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const firstName = session?.user?.name?.split(" ")[0] || "";
 
-  const router = useRouter();
+  const rowNav = useRowNav();
 
   // Fetch modules
   useEffect(() => {
@@ -104,7 +104,7 @@ export default function DashboardPage() {
               <div
                 key={module.id}
                 className="module-card group"
-                onClick={() => router.push(`/modules/${module.slug}/ui/home`)}
+                {...rowNav(`/modules/${module.slug}/ui/home`)}
               >
                 {/* ICON */}
                 <div className="module-card-icon mb-3 sm:mb-4 group-hover:scale-105 transition-transform">

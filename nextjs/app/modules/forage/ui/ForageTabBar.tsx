@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Apple, Plus } from "lucide-react";
 import "./ForageTabBar.css";
@@ -45,10 +46,10 @@ export default function ForageTabBar({
     <div className="fg-tabbar" role="navigation" aria-label="Forage sections">
 
       {/* DASHBOARD */}
-      <TabItem label="Dashboard" active={active === "dashboard"} icon={<DashboardIcon active={active === "dashboard"} />} onClick={() => router.push(ROUTES.dashboard)} />
+      <TabItem label="Dashboard" active={active === "dashboard"} icon={<DashboardIcon active={active === "dashboard"} />} href={ROUTES.dashboard} />
 
       {/* FOOD LOG */}
-      <TabItem label="Food Log" active={active === "foodlog"} icon={<Apple size={22} strokeWidth={1.8} />} onClick={() => router.push(ROUTES.foodlog)} />
+      <TabItem label="Food Log" active={active === "foodlog"} icon={<Apple size={22} strokeWidth={1.8} />} href={ROUTES.foodlog} />
 
       {/* FAB + */}
       <button type="button" aria-label="Quick add" className="fg-tabbar-fab" onClick={handleAdd}>
@@ -56,23 +57,24 @@ export default function ForageTabBar({
       </button>
 
       {/* STRATEGY — shows a due-dot when the weekly check-in is due. */}
-      <TabItem label="Strategy" active={active === "strategy"} alert={strategyAlert} icon={<StrategyIcon active={active === "strategy"} />} onClick={() => router.push(ROUTES.strategy)} />
+      <TabItem label="Strategy" active={active === "strategy"} alert={strategyAlert} icon={<StrategyIcon active={active === "strategy"} />} href={ROUTES.strategy} />
 
       {/* MORE */}
-      <TabItem label="More" active={active === "more"} icon={<MoreIcon active={active === "more"} />} onClick={() => router.push(ROUTES.more)} />
+      <TabItem label="More" active={active === "more"} icon={<MoreIcon active={active === "more"} />} href={ROUTES.more} />
     </div>
   );
 }
 
-function TabItem({ label, icon, active, alert = false, onClick }: { label: string; icon: React.ReactNode; active: boolean; alert?: boolean; onClick: () => void }) {
+function TabItem({ label, icon, active, alert = false, href }: { label: string; icon: React.ReactNode; active: boolean; alert?: boolean; href: string }) {
   return (
-    /* TAB ITEM — aria-label spells out the alert for screen readers since the dot is decorative. */
-    <button
-      type="button"
+    /* TAB ITEM — a real <Link> so middle-click / cmd-click opens the section in a
+       new tab. aria-label spells out the alert for screen readers since the dot
+       is decorative. */
+    <Link
+      href={href}
       className="fg-tabbar-item"
       data-active={active ? "true" : undefined}
       aria-label={alert ? `${label} — check-in due` : undefined}
-      onClick={onClick}
     >
       {/* ICON + DUE DOT — wrapper is the positioning context for the badge. */}
       <span className="fg-tabbar-icon-wrap">
@@ -82,7 +84,7 @@ function TabItem({ label, icon, active, alert = false, onClick }: { label: strin
 
       {/* LABEL */}
       <span className="fg-tabbar-label">{label}</span>
-    </button>
+    </Link>
   );
 }
 

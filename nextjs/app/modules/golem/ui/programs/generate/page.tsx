@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, Loader2, Zap, Sparkles, ListChecks, Plus, Trash2, LayoutTemplate, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/linkButton";
 import toast from "react-hot-toast";
 import { useGenerationJob } from "@/lib/useGenerationJob";
 import ArchetypeBuilder from "@/app/modules/golem/components/ArchetypeBuilder";
@@ -436,13 +437,13 @@ export default function GenerateProgramWizardPage() {
                     // EMPTY STATE — no templates exist
                     <div className="flex flex-col gap-3 items-start">
                       <p className="text-secondary">You don&apos;t have any program templates yet.</p>
-                      <Button
+                      <LinkButton
                         className="btn-off"
-                        onClick={() => router.push("/modules/golem/ui/templates")}
+                        href="/modules/golem/ui/templates"
                       >
                         <LayoutTemplate className="w-4 h-4" />
                         <span>Manage templates</span>
-                      </Button>
+                      </LinkButton>
                     </div>
                   ) : (
 
@@ -584,10 +585,10 @@ export default function GenerateProgramWizardPage() {
                       </Button>
 
                       {/* OPEN FULL EDITOR */}
-                      <Button className="btn-link !pl-0" onClick={() => router.push("/modules/golem/ui/archetypes")}>
+                      <LinkButton className="btn-link !pl-0" href="/modules/golem/ui/archetypes">
                         <ListChecks className="w-4 h-4" />
                         <span>Manage day archetypes</span>
-                      </Button>
+                      </LinkButton>
                     </div>
                   ) : (
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
+import { useRowNav } from "@/lib/useRowNav";
 import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Loader2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PopoverMenu from "@/components/PopoverMenu";
@@ -28,6 +29,8 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
   const menuButtonRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
+
+  const rowNav = useRowNav();
 
   // GENERATION JOB HOOK
   const { startPolling: startGenerateWeekPolling } = useGenerationJob({
@@ -404,7 +407,7 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
                                 <div
                                   key={session.id}
                                   className={`sub-card cursor-pointer ${session.is_current && !session.is_completed ? 'status-active' : ''} ${session.is_completed ? 'status-completed' : ''}`}
-                                  onClick={() => router.push(`/modules/golem/ui/session/${session.id}`)}
+                                  {...rowNav(`/modules/golem/ui/session/${session.id}`)}
                                 >
 
                                   {/* SESSION ROW */}

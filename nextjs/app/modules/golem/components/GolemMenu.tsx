@@ -2,7 +2,7 @@
 
 import type { LucideIcon } from 'lucide-react';
 import { ChevronRight } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import '../ui/settings/settings.css';
 
 // A single navigable menu row (icon tile + label + optional hint + chevron).
@@ -31,8 +31,6 @@ export default function GolemMenu({
   animate?: boolean;
   startDelayMs?: number;
 }) {
-  const router = useRouter();
-
   // Running index so the stagger delay is continuous across every section.
   let rowIndex = 0;
 
@@ -54,18 +52,13 @@ export default function GolemMenu({
               const delay = startDelayMs + rowIndex * 45;
               rowIndex += 1;
 
-              return (
-                /* MENU ROW */
-                <button
-                  key={item.label}
-                  type="button"
-                  className={`gs-row ${animate ? 'gs-animate' : ''}`}
-                  style={animate ? { animationDelay: `${delay}ms` } : undefined}
-                  onClick={() => {
-                    if (item.onClick) item.onClick();
-                    else if (item.href) router.push(item.href);
-                  }}
-                >
+              // A row that only navigates renders as a real <Link>, so middle-click /
+              // cmd-click open it in a new tab. Rows with their own handler stay
+              // buttons — there is no URL for the browser to open.
+              const rowClass = `gs-row ${animate ? 'gs-animate' : ''}`;
+              const rowStyle = animate ? { animationDelay: `${delay}ms` } : undefined;
+              const rowBody = (
+                <>
 
                   {/* ICON TILE */}
                   <span className="gs-icon">
@@ -80,6 +73,26 @@ export default function GolemMenu({
 
                   {/* CHEVRON */}
                   <ChevronRight className="gs-row-chev w-5 h-5" />
+                </>
+              );
+
+              return !item.onClick && item.href ? (
+
+                /* MENU ROW — pure navigation */
+                <Link key={item.label} href={item.href} className={rowClass} style={rowStyle}>
+                  {rowBody}
+                </Link>
+              ) : (
+
+                /* MENU ROW — runs a handler */
+                <button
+                  key={item.label}
+                  type="button"
+                  className={rowClass}
+                  style={rowStyle}
+                  onClick={item.onClick}
+                >
+                  {rowBody}
                 </button>
               );
             })}

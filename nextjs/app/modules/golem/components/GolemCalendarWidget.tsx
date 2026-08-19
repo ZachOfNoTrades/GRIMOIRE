@@ -1,7 +1,7 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { CalendarDays } from "lucide-react";
 import CalendarMonthWidget, {
   buildWidgetMonth,
@@ -44,7 +44,6 @@ function sessionDetail(s: GolemCalendarSession): string {
 }
 
 export default function GolemCalendarWidget({ today }: { today?: string }) {
-  const router = useRouter();
 
   // DATA
   const [sessions, setSessions] = useState<GolemCalendarSession[]>([]);
@@ -189,11 +188,10 @@ export default function GolemCalendarWidget({ today }: { today?: string }) {
               return (
 
                 /* AGENDA ITEM */
-                <button
+                <Link
                   key={s.id}
-                  type="button"
                   className="calw-agenda-item"
-                  onClick={() => router.push(`/modules/golem/ui/session/${s.id}`)}
+                  href={`/modules/golem/ui/session/${s.id}`}
                 >
 
                   {/* STATE BAR */}
@@ -211,7 +209,7 @@ export default function GolemCalendarWidget({ today }: { today?: string }) {
                     {/* DETAIL LINE */}
                     <span className="calw-agenda-time">{sessionDetail(s)}</span>
                   </div>
-                </button>
+                </Link>
               );
             })
           ) : (

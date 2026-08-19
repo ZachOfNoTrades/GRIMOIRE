@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { ArrowLeft, MapPin, Plus, Trash2, Edit3, Check, Dumbbell, Star, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/linkButton";
 import { useConfirm } from "@/lib/useConfirm";
 import { usePrompt } from "@/lib/usePrompt";
 import type {
@@ -332,13 +333,13 @@ export default function GolemLocationsPage() {
                 <div className="sub-card-content flex flex-wrap items-center gap-2">
 
                   {/* ENABLED EXERCISES */}
-                  <Button
-                    onClick={() => router.push(`/modules/golem/ui/exercises?location=${loc.id}`)}
+                  <LinkButton
+                    href={`/modules/golem/ui/exercises?location=${loc.id}`}
                     className="btn-blue"
                   >
                     <Dumbbell className="w-4 h-4" />
                     <span>Enabled Exercises</span>
-                  </Button>
+                  </LinkButton>
 
                   {/* EDIT EQUIPMENT — bodyweight-only locations ignore equipment */}
                   {!loc.bodyweight_only && (

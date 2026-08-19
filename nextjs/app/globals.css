@@ -2696,6 +2696,16 @@ button {
   }
 }
 
+/* Module card press state — the tap's own acknowledgement. Navigation into a
+   module still costs a server render; this fires on pointer-down so the card
+   reacts on contact instead of only once the next route paints. Touch has no
+   hover, so :active is the only feedback a phone ever gets here. */
+.module-card:active:not(.module-card-disabled) {
+  background: var(--hover-bg);
+  border-color: var(--color-primary);
+  transition-duration: 0ms;
+}
+
 /* CRT visual effects (scanline overlay, vignette, text-shadow glow on titles
    and buttons, navbar glow, blinking title cursor) were removed 2026-05-22
    for paint perf. The terminal palette and uppercase / letter-spaced titles

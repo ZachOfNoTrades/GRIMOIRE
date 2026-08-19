@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useRowNav } from "@/lib/useRowNav";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/linkButton";
 import { Clock, Dumbbell, Layers, Play, Plus, Zap, History, BarChart3, Settings, CalendarDays } from "lucide-react";
 import { Program } from "../../types/program";
 import { WorkoutSession } from "../../types/workoutSession";
@@ -24,6 +26,8 @@ export default function GolemHomePage() {
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const router = useRouter();
+
+  const rowNav = useRowNav();
 
   // LOAD DATA
   useEffect(() => {
@@ -131,7 +135,7 @@ export default function GolemHomePage() {
             title="Workout Tracker"
             sections={[
               { heading: "Getting started", body: "Tap New Session to log a workout freehand, or Generate Program to build a structured multi-week plan the app fills in for you." },
-              { heading: "During a workout", body: "Open the active session to add exercises and log each set (weight × reps), then mark it complete. The pre-workout view suggests today's targets from your program." },
+              { heading: "During a workout", body: "Open the active session to add exercises and log each set (weight × reps), then mark it complete. The pre-workout view suggests today's targets from your program. A session generated more than a week ago shows a warning — its exercises and loads came from your history as it was back then, so regenerate it for up-to-date targets." },
               { heading: "Review & configure", body: "Browse the Exercise Library, Calendar, Workout History, and Weekly Volume (sets per muscle vs. landmarks). Locations, templates, archetypes, and your profile live in Settings." },
             ]}
           />
@@ -151,20 +155,20 @@ export default function GolemHomePage() {
           </Button>
 
           {/* GENERATE PROGRAM BUTTON */}
-          <Button
+          <LinkButton
             className="btn-blue"
-            onClick={() => router.push("/modules/golem/ui/programs/generate")}
+            href="/modules/golem/ui/programs/generate"
           >
             <Zap className="w-4 h-4" />
             Generate Program
-          </Button>
+          </LinkButton>
         </div>
 
         {/* CURRENT SESSION CARD */}
         {(isLoading || currentSession) && (
           <div
             className="card cursor-pointer mb-6"
-            onClick={() => currentSession && router.push(`/modules/golem/ui/session/${currentSession.id}`)}
+            {...(currentSession ? rowNav(`/modules/golem/ui/session/${currentSession.id}`) : {})}
           >
 
             {/* HEADER */}
@@ -210,7 +214,7 @@ export default function GolemHomePage() {
         {(isLoading || currentProgram) && (
           <div
             className="card cursor-pointer mb-6"
-            onClick={() => currentProgram && router.push(`/modules/golem/ui/programs/${currentProgram.id}`)}
+            {...(currentProgram ? rowNav(`/modules/golem/ui/programs/${currentProgram.id}`) : {})}
           >
 
             {/* HEADER */}

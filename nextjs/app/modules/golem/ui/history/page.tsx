@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
+import { useRowNav } from "@/lib/useRowNav";
 import { ArrowLeft, History, LayoutList, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkoutSessionHistoryItem } from "../../types/workoutSession";
@@ -18,6 +19,7 @@ export default function HistoryPage() {
 
   const sessionsTableRef = useRef<PaginatedTableHandle>(null);
   const router = useRouter();
+  const rowNav = useRowNav();
 
 
   return (
@@ -86,7 +88,7 @@ export default function HistoryPage() {
                 <tr
                   key={program.id}
                   className="table-row-clickable"
-                  onClick={() => router.push(`/modules/golem/ui/programs/${program.id}`)}
+                  {...rowNav(`/modules/golem/ui/programs/${program.id}`)}
                 >
                   <td className="table-cell !pl-5 !pr-0 text-center">{program.is_current && <div className="dot-blue inline-block" />}</td>
                   <td className="table-cell w-full truncate max-w-0">{program.name}</td>
@@ -126,7 +128,7 @@ export default function HistoryPage() {
                 <tr
                   key={session.id}
                   className="table-row-clickable"
-                  onClick={() => router.push(`/modules/golem/ui/session/${session.id}`)}
+                  {...rowNav(`/modules/golem/ui/session/${session.id}`)}
                 >
                   {/* NAME */}
                   <td className="table-cell w-full truncate max-w-0">{session.name}</td>

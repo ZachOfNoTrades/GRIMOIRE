@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
@@ -333,11 +334,10 @@ export default function GolemCalendarPage() {
                   {selectedSessions.map((s) => (
 
                     /* SESSION ROW */
-                    <button
+                    <Link
                       key={s.id}
-                      type="button"
                       className="card cursor-pointer"
-                      onClick={() => router.push(`/modules/golem/ui/session/${s.id}`)}
+                      href={`/modules/golem/ui/session/${s.id}`}
                     >
 
                       {/* ROW CONTENT */}
@@ -365,7 +365,7 @@ export default function GolemCalendarPage() {
                           <span className="badge badge-gray">In progress</span>
                         )}
                       </div>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               )}
