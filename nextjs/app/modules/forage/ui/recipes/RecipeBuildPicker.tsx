@@ -21,12 +21,20 @@ export default function RecipeBuildPicker({
   onAi,
   onImportUrl,
   importing,
+  busy = false,
+  zIndex,
 }: {
   onClose: () => void;
   onScratch: () => void;
   onAi: () => void;
   onImportUrl: (url: string) => void;
   importing: boolean;
+  /* True while the chosen method's blank-recipe POST is in flight — keeps a
+     double-tap on Next from creating two recipes. */
+  busy?: boolean;
+  /* Stacking order, for hosts that open the picker from inside another modal
+     (the food logger) — without it the picker renders behind its opener. */
+  zIndex?: number;
 }) {
   // INPUT
   const [method, setMethod] = useState<BuildMethod>("scratch");
@@ -47,12 +55,13 @@ export default function RecipeBuildPicker({
       isOpen={true}
       onClose={importing ? () => {} : onClose}
       disableClose={importing}
+      zIndex={zIndex}
       title={step === "method" ? "Create Recipe" : "Import from website"}
       footer={
         step === "method" ? (
           /* NEXT */
-          <Button className="btn-blue" onClick={handleNext} style={{ width: "100%" }}>
-            Next
+          <Button className="btn-blue" onClick={handleNext} disabled={busy} style={{ width: "100%" }}>
+            {busy ? "Creating…" : "Next"}
           </Button>
         ) : (
           /* IMPORT */

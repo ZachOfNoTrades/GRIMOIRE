@@ -13,7 +13,7 @@ import { FoodEntry } from "../types/entry";
 import LogWeighInModal from "./strategy/LogWeighInModal";
 import ForageTabBar, { type ForageTab } from "./ForageTabBar";
 import RecipeBuildPicker from "./recipes/RecipeBuildPicker";
-import { Recipe } from "../types/recipe";
+import { useRecipeBuilder } from "./recipes/useRecipeBuilder";
 import "./ForageTabBar.css";
 
 /* ─── FORAGE BOTTOM BAR ───
@@ -68,8 +68,9 @@ export default function ForageBottomBar({
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
   const [addPicker, setAddPicker] = useState<"search" | "scan" | "quick" | null>(null);
-  const [recipePickerOpen, setRecipePickerOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+  // Recipe creation — shared with the Recipes page and the food logger's Recipes
+  // tab so every entry point offers the identical build-method flow.
+  const recipeBuilder = useRecipeBuilder();
   // Autohide: the search pill collapses on scroll-down and reveals on scroll-up
   // / near the top, mirroring the global navbar. (Only the pill — the tab bar
   // stays put.) `searchHidden` drives the CSS; `searchHiddenRef` mirrors it so
@@ -213,63 +214,6 @@ export default function ForageBottomBar({
     };
   }, [showSearch, searchSlotHeight]);
 
-  // Create an empty recipe row and return it. Both "build from scratch" and the
-  // photo-AI path start here; the editor disposes of it on exit if left empty.
-  // (Mirrors the recipes page so Shortcuts → New Recipe offers the same picker.)
-  async function createBlankRecipe(): Promise<Recipe | null> {
-    try {
-      const res = await fetch(`/modules/forage/api/recipes`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "New recipe", serving_count: 1, ingredients: [] }),
-      });
-      if (!res.ok) {
-        toast.error("Failed to create recipe");
-        return null;
-      }
-      return (await res.json()) as Recipe;
-    } catch {
-      toast.error("Failed to create recipe");
-      return null;
-    }
-  }
-
-  // Build from scratch — empty editor.
-  async function handleRecipeScratch() {
-    const created = await createBlankRecipe();
-    if (created) router.push(`/modules/forage/ui/recipes/${created.id}`);
-  }
-
-  // Import with AI — empty editor that auto-opens the photo picker (?ai=1).
-  async function handleRecipeAi() {
-    const created = await createBlankRecipe();
-    if (created) router.push(`/modules/forage/ui/recipes/${created.id}?ai=1`);
-  }
-
-  // Import from website — server scrapes + resolves, then we open the result.
-  async function handleRecipeImportUrl(url: string) {
-    setIsImporting(true);
-    const toastId = toast.loading("Importing recipe…");
-    try {
-      const res = await fetch(`/modules/forage/api/recipes/import-url`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data?.error || "Failed to import recipe", { id: toastId });
-        return;
-      }
-      toast.success("Recipe imported", { id: toastId });
-      setRecipePickerOpen(false);
-      router.push(`/modules/forage/ui/recipes/${(data as Recipe).id}`);
-    } catch {
-      toast.error("Failed to import recipe", { id: toastId });
-    } finally {
-      setIsImporting(false);
-    }
-  }
 
   return (
     <>
@@ -353,22 +297,14 @@ export default function ForageBottomBar({
           onDescribe={() => { setShortcutsOpen(false); setAddPicker("quick"); }}
           onRecipes={() => { setShortcutsOpen(false); router.push("/modules/forage/ui/recipes"); }}
           onEditDay={() => { setShortcutsOpen(false); toast("Edit Day isn't implemented yet"); }}
-          onNewRecipe={() => { setShortcutsOpen(false); setRecipePickerOpen(true); }}
+          onNewRecipe={() => { setShortcutsOpen(false); recipeBuilder.openPicker(); }}
           onNewFood={() => { setShortcutsOpen(false); router.push("/modules/forage/ui/library/new"); }}
           onCustomize={() => toast("Customizing shortcuts isn't implemented yet")}
         />
       )}
 
       {/* RECIPE BUILD PICKER — Shortcuts → New Recipe: choose scratch / URL / AI. */}
-      {recipePickerOpen && (
-        <RecipeBuildPicker
-          onClose={() => setRecipePickerOpen(false)}
-          onScratch={handleRecipeScratch}
-          onAi={handleRecipeAi}
-          onImportUrl={handleRecipeImportUrl}
-          importing={isImporting}
-        />
-      )}
+      {recipeBuilder.pickerOpen && <RecipeBuildPicker {...recipeBuilder.pickerProps} />}
 
       {/* WEIGH-IN MODAL — logs today's weight; refresh on save/delete. */}
       <LogWeighInModal
