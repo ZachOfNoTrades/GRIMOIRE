@@ -86,26 +86,28 @@ export function naiveMaintenanceKcal(weightKg: number, trainingKind: TrainingKin
   return weightKg * 30 * TRAINING_MULT[trainingKind];
 }
 
-// How far a single weekly check-in may move the calorie target: 15% of the
+// How far a single weekly check-in may move the calorie target: 10% of the
 // standing target, but never less than a flat 150 kcal so small budgets can
 // still move meaningfully.
 //
-// Without this, one recompute can hand the user a several-hundred-kcal cliff.
-// Two things drive that, and the cap covers both. The loud one is the
-// expenditure estimator SWITCHING METHODS between check-ins: it needs 10
-// complete logged days and a 14-day weigh-in span inside the intake/weigh-in
-// overlap, and until it has them it falls back to the coarse 30 kcal/kg
-// formula. The week those gates finally pass, maintenance jumps from a
-// bodyweight guess to a measured number in one step — observed 2026-08-07 as
-// 3,211 -> 2,432, i.e. a 775 kcal target drop overnight with nothing about the
-// user having actually changed. The quiet one is ordinary noise in the adaptive
-// estimate itself, where a couple of stray scale readings can shift the fitted
-// trend enough to move maintenance by a few hundred.
+// This is a SAFETY RAIL, not the easing mechanism. It used to be doing both
+// jobs and was bad at the second: at 15% of a 2,790 kcal target the "cap" still
+// permitted a 418 kcal weekly move, and because the underlying expenditure
+// estimate was a single-window snapshot that oscillated by several hundred kcal,
+// the capped target tracked that sawtooth almost 1:1 — clipping each swing
+// without damping any of them, and re-anchoring on the clipped value every week.
+// The easing now lives where the noise is, in the estimator: expenditure is
+// blended across 28/56/90-day horizons and averaged over a trailing window (see
+// lib/expenditure), which holds its week-to-week movement near 100 kcal on real
+// data. With that in place this cap only has to catch pathologies the estimator
+// can't — a bodyweight-formula fallback for an account with no history, or a
+// deliberate goal change routed through the check-in path — so it can afford to
+// be tighter.
 //
 // Clamping doesn't lose the new information — each check-in re-clamps from the
 // updated target, so the budget still walks to wherever the estimator says
 // within a few weeks. It just refuses to get there in one jump.
-export const MAX_CHECKIN_KCAL_CHANGE_PCT = 0.15;
+export const MAX_CHECKIN_KCAL_CHANGE_PCT = 0.1;
 export const MIN_CHECKIN_KCAL_CHANGE = 150;
 
 export function maxCheckInKcalChange(previousKcal: number): number {

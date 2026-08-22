@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { getLatestWeightLb } from '../../lib/weightFunctions';
 import { getActiveProgram } from '../../lib/programFunctions';
-import { estimateExpenditure } from '../../lib/expenditure';
+import { estimateExpenditure, DAILY_SERIES_DAYS } from '../../lib/expenditure';
 import { FLOOR_MIN_KCAL } from '../../lib/program';
 import { TrainingKind } from '../../types/program';
 import { ExpenditureSummary } from '../../types/expenditure';
@@ -29,6 +29,9 @@ export async function GET(request: NextRequest) {
     const expenditure = await estimateExpenditure(session.user.id!, {
       trainingKind,
       latestWeightLb: weightLb,
+      // The dashboard card plots the trailing daily estimates; the wizard only
+      // reads expenditure_kcal and simply ignores the extra series.
+      dailySeriesDays: DAILY_SERIES_DAYS,
     });
 
     const summary: ExpenditureSummary = {
@@ -41,8 +44,12 @@ export async function GET(request: NextRequest) {
       avg_intake_kcal: expenditure.avg_intake_kcal,
       weight_trend_lb_per_week: expenditure.weight_trend_lb_per_week,
       window_days: expenditure.window_days,
+      coverage: expenditure.coverage,
+      smoothing_days: expenditure.smoothing_days,
+      horizons: expenditure.horizons,
       balance_start_date: expenditure.balance_start_date,
       balance_end_date: expenditure.balance_end_date,
+      daily: expenditure.daily,
     };
 
     return NextResponse.json(summary);
