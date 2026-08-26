@@ -355,6 +355,45 @@ async function advanceProgramCurrent(
   }
 }
 
+// Resolve the user's active program inside an OPEN transaction. Same rule as getCurrentProgramId()
+// in programFunctions, but reusing the caller's transaction rather than opening a second pool (which
+// would deadlock against the uncommitted writes the caller is making).
+async function getActiveProgramIdTx(transaction: any, userId: string): Promise<string | null> {
+  const result = await transaction.request()
+    .input('userId', userId)
+    .query(`SELECT TOP 1 id FROM programs WHERE is_current = 1 AND is_archived = 0 AND user_id = @userId`);
+
+  return result.recordset[0]?.id ?? null;
+}
+
+// A standalone (one-off) session BORROWS the single current-session pointer from the active program
+// rather than evicting it. Only the program's session-level is_current is parked here — its program,
+// block, and week flags stay set, so the program is still the current program the whole time the
+// one-off workout is in progress, and restoreProgramSessionPointer() can hand the pointer back.
+async function parkProgramSessionPointer(transaction: any, programId: string): Promise<void> {
+  await transaction.request()
+    .input('programId', programId)
+    .query(`
+      UPDATE ws
+      SET ws.is_current = 0, ws.modified_at = GETDATE()
+      FROM workout_sessions ws
+      JOIN weeks w ON ws.week_id = w.id
+      JOIN blocks b ON w.block_id = b.id
+      WHERE b.program_id = @programId AND ws.is_current = 1
+    `);
+}
+
+// Give the current-session pointer back to the active program once a standalone session stops being
+// current (completed, reset, or deleted). Without this, finishing a one-off workout leaves the account
+// with zero current sessions and nothing to advance from. Lands on the lowest incomplete block → week →
+// session, exactly as completing a program session does.
+async function restoreProgramSessionPointer(transaction: any, userId: string): Promise<void> {
+  const activeProgramId = await getActiveProgramIdTx(transaction, userId);
+  if (!activeProgramId) return; // no program to fall back to — a standalone-only user stays pointer-less
+
+  await advanceProgramCurrent(transaction, activeProgramId);
+}
+
 // Propagates status changes from a session to sibling sessions, parent week, and parent block.
 //
 // Rules:
@@ -365,14 +404,30 @@ async function advanceProgramCurrent(
 // 5. Starting a non-current session: becomes current, starts timer.
 //
 // On completion for all cases: the lowest-order uncompleted session in the week becomes current.
+// 6. Standalone (one-off) session becoming current: borrows the pointer from the active program;
+//    on stopping being current, hands it back to the program's next incomplete session.
 async function updateStatus(
   transaction: any,
+  userId: string,
   id: string,
   current: { week_id: string | null; order_index: number | null; is_current: boolean; is_completed: boolean },
   isCurrent: boolean,
   isCompleted: boolean,
 ): Promise<void> {
-  if (!current.week_id) return; // standalone session, no propagation needed
+
+  // --- Standalone session: no week/block/program hierarchy to propagate through, but it still competes
+  // for the single current-session pointer that getCurrentWorkoutSession reads. Borrow it on the way in
+  // and hand it back on the way out, so finishing a one-off workout lands on the program's next session
+  // instead of leaving the user with nothing current at all.
+  if (!current.week_id) {
+    if (isCurrent && !current.is_current) {
+      const activeProgramId = await getActiveProgramIdTx(transaction, userId);
+      if (activeProgramId) await parkProgramSessionPointer(transaction, activeProgramId);
+    } else if (current.is_current && !isCurrent) {
+      await restoreProgramSessionPointer(transaction, userId);
+    }
+    return;
+  }
 
   // Get parent hierarchy
   const hierarchyResult = await transaction.request()
@@ -501,7 +556,7 @@ export async function updateWorkoutSession(
       const current = currentResult.recordset[0];
 
       // Propagate status changes to siblings, parent week, and parent block
-      await updateStatus(transaction, id, current, isCurrent, isCompleted);
+      await updateStatus(transaction, userId, id, current, isCurrent, isCompleted);
 
       // Update the session
       await transaction.request()
@@ -585,17 +640,24 @@ export async function setWorkoutSessionAsCurrent(userId: string, id: string): Pr
 
       // Deactivate any OTHER program that is still flagged current (clears its session/week/block/program
       // flags), then activate the target's program. This mirrors the program switch done by activateProgram.
-      const otherCurrentPrograms = await transaction.request()
-        .input('userId', userId)
-        .input('targetProgramId', targetProgramId)
-        .query(`
-          SELECT id FROM programs
-          WHERE is_current = 1 AND user_id = @userId
-            AND (@targetProgramId IS NULL OR id != @targetProgramId)
-        `);
+      //
+      // Only when the target actually belongs to a program. Picking a STANDALONE session is not a program
+      // switch — it is a one-off workout slotted in alongside the plan — so the active program keeps every
+      // flag and updateStatus below merely parks its session pointer. Clearing the program here instead
+      // (targetProgramId being NULL, nothing re-activates it) is what used to strand the user with no
+      // current program AND no current session once the one-off workout was completed.
+      if (targetProgramId) {
+        const otherCurrentPrograms = await transaction.request()
+          .input('userId', userId)
+          .input('targetProgramId', targetProgramId)
+          .query(`
+            SELECT id FROM programs
+            WHERE is_current = 1 AND user_id = @userId AND id != @targetProgramId
+          `);
 
-      for (const program of otherCurrentPrograms.recordset) {
-        await clearProgramCurrentFlags(transaction, userId, program.id);
+        for (const program of otherCurrentPrograms.recordset) {
+          await clearProgramCurrentFlags(transaction, userId, program.id);
+        }
       }
 
       // Clear any lingering current flag on standalone sessions (no program) other than the target, so the
@@ -616,7 +678,7 @@ export async function setWorkoutSessionAsCurrent(userId: string, id: string): Pr
       }
 
       // Propagate the become-current change up to the parent week and block (preserve completion state)
-      await updateStatus(transaction, id, current, true, !!current.is_completed);
+      await updateStatus(transaction, userId, id, current, true, !!current.is_completed);
 
       // Flag this session as current
       await transaction.request()
@@ -651,7 +713,7 @@ export async function deleteWorkoutSession(userId: string, id: string): Promise<
         .input('userId', userId)
         .input('id', id)
         .query(`
-          SELECT ws.id, b.program_id
+          SELECT ws.id, ws.is_current, b.program_id
           FROM workout_sessions ws
           LEFT JOIN weeks w ON ws.week_id = w.id
           LEFT JOIN blocks b ON w.block_id = b.id
@@ -663,6 +725,7 @@ export async function deleteWorkoutSession(userId: string, id: string): Promise<
       }
 
       const programId: string | null = sessionLookup.recordset[0].program_id ?? null;
+      const wasCurrent: boolean = !!sessionLookup.recordset[0].is_current;
 
       // Delete sets for all segments in this session
       await transaction.request()
@@ -705,9 +768,12 @@ export async function deleteWorkoutSession(userId: string, id: string): Promise<
           DELETE FROM workout_sessions WHERE id = @id
         `);
 
-      // Advance the current pointer to the next incomplete session (program sessions only)
+      // Advance the current pointer to the next incomplete session
       if (programId) {
         await advanceProgramCurrent(transaction, programId);
+      } else if (wasCurrent) {
+        // Standalone session that held the pointer — give it back to the active program
+        await restoreProgramSessionPointer(transaction, userId);
       }
 
       await transaction.commit();
@@ -739,7 +805,7 @@ export async function resetWorkoutSession(userId: string, id: string): Promise<v
       const currentResult = await transaction.request()
         .input('userId', userId)
         .input('id', id)
-        .query(`SELECT id, week_id, order_index FROM workout_sessions WHERE id = @id AND user_id = @userId`);
+        .query(`SELECT id, week_id, order_index, is_current FROM workout_sessions WHERE id = @id AND user_id = @userId`);
 
       if (currentResult.recordset.length === 0) {
         throw new Error(`No workout session found for id: '${id}'`);
@@ -788,6 +854,12 @@ export async function resetWorkoutSession(userId: string, id: string): Promise<v
                 modified_at = GETDATE()
             WHERE id = @id
           `);
+
+        // The reset just dropped is_current — hand the pointer back to the active program rather than
+        // leaving the account with nothing current.
+        if (current.is_current) {
+          await restoreProgramSessionPointer(transaction, userId);
+        }
 
         await transaction.commit();
         return;
