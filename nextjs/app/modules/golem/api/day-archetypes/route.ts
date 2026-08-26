@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { getDayArchetypes, createDayArchetype } from '../../lib/dayArchetypeFunctions';
-import { coerceDaySlotInput } from '../../lib/daySlotInput';
+import { coerceDaySlotInput, DaySlotInputError } from '../../lib/daySlotInput';
 
 // GET: list the user's day archetypes.
 export async function GET(request: Request) {
@@ -38,7 +38,10 @@ export async function POST(request: Request) {
       slots,
     });
     return NextResponse.json({ id }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
+    // Caller error (bad UUID in a slot, or a reference to a row that doesn't exist) → 400, not a 500.
+    if (error instanceof DaySlotInputError) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error?.number === 547) return NextResponse.json({ error: 'a slot references an exercise or muscle group that does not exist' }, { status: 400 });
     console.error('Error in POST /api/day-archetypes:', error);
     return NextResponse.json({ error: 'Failed to create day archetype' }, { status: 500 });
   }
