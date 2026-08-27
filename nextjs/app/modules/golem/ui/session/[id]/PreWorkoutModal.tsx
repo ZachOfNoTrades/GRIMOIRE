@@ -427,15 +427,15 @@ export default function PreWorkoutModal({
                                                                 {rows.map((row) => row.logged ? (
 
                                                                     // LOGGED SET ROW
-                                                                    <p key={row.logged.id} className={!row.logged.is_completed ? 'text-secondary' : ''}>
+                                                                    <p key={row.num} className={!row.logged.is_completed ? 'text-secondary' : ''}>
                                                                         <span>{formatSetLine(row.logged)}</span>
                                                                         {row.logged.rpe !== null && <span> @ {row.logged.rpe}RPE</span>}
-                                                                        {row.logged.notes && <span className="text-secondary"> - {row.logged.notes}</span>}
+                                                                        {row.logged.notes && <span className="text-secondary break-words whitespace-pre-wrap"> - {row.logged.notes}</span>}
                                                                     </p>
                                                                 ) : row.target ? (
 
                                                                     // TARGET SET ROW
-                                                                    <p key={row.target.id} className="text-secondary">
+                                                                    <p key={row.num} className="text-secondary">
                                                                         <span>{formatSetLine(row.target)}</span>
                                                                         {row.target.rpe !== null && <span> @ {row.target.rpe}RPE</span>}
                                                                     </p>
@@ -474,7 +474,7 @@ export default function PreWorkoutModal({
                                                     ) : (
                                                         <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
                                                             {target.sets.map((set) => (
-                                                                <p key={set.id} className="text-secondary">
+                                                                <p key={`${set.is_warmup ? 'w' : 's'}-${set.set_number}`} className="text-secondary">
                                                                     <span>{formatSetLine(set)}</span>
                                                                     {set.rpe !== null && <span> @ {set.rpe}RPE</span>}
                                                                 </p>
