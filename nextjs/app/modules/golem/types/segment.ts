@@ -33,6 +33,9 @@ export interface TargetSegmentSet {
   // Client-only: when a logged set's weight diverges from this prescribed weight, the divergent value is
   // carried onto the following sets here so their placeholder shows "new (old)". Never persisted.
   carried_weight?: number | null;
+  // Client-only: same carry-forward for RPE — logging a set at a different effort bumps the remaining
+  // sets' prescribed RPE so the plan tracks what actually happened. Never persisted.
+  carried_rpe?: number | null;
 }
 
 export interface Segment {

@@ -74,7 +74,7 @@ function generateDay(day, db, block) {
     const cands = candidatesFor(db, s.def.targetMuscle);
     const ctx = { volumeGapByMuscle: new Map([[s.def.targetMuscle, block.volumeGap]]), alreadyChosenMuscleSets: chosenMuscleSets, noveltyTriggered: false, weights: DEFAULT_WEIGHTS, freshnessHalfLifeDays: 28, continuityTargetSessions: 5 };
     const slotWithDedup = { ...s.def, excludeExerciseIds: [...s.def.excludeExerciseIds, ...chosenIds] };
-    const picked = selectForSlot(cands, slotWithDedup, ctx);
+    const { picked } = selectForSlot(cands, slotWithDedup, ctx);
     if (!picked) continue;
     const ex = db[picked.candidate.exerciseId];
     chosenIds.push(ex.id);

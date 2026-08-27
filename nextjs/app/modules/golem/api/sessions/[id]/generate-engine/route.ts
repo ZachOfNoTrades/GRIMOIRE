@@ -24,7 +24,7 @@ export async function POST(
     await getWorkoutSessionById(userId!, id);
 
     // Run the deterministic engine (selection scorer + loading engine)
-    const { segments, plan } = await generateSessionTargetsWithEngine(userId!, id);
+    const { segments, plan, warnings } = await generateSessionTargetsWithEngine(userId!, id);
 
     if (segments.length === 0) {
       return NextResponse.json({ error: 'Engine produced no targets — check the day archetype slots' }, { status: 422 });
@@ -47,7 +47,10 @@ export async function POST(
         timeSeconds: s.working[0]?.timeSeconds ?? null,
         rationale: s.rationale,
         baseline: s.isBaseline,
+        pinWarning: s.pinWarning,
       })),
+      // Pinned exercises that were overridden or substituted — surfaced so a silent swap can't happen.
+      warnings,
     }, { status: 200 });
 
   } catch (error: any) {

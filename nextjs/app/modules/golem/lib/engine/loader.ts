@@ -7,6 +7,9 @@ import type { TopSet } from './progression';
 
 // Most recent completed top working set for an exercise (best set of the latest session that used it).
 // Drives the progression decision. Returns null if the exercise has no logged weighted+rep history.
+// `days_since` rides along because HOW LONG AGO that set happened is part of the progression decision:
+// without it the engine progresses off a months-old top set as if it were last week (see layoffRetention
+// in progression.ts). Measured server-side with GETDATE() so it shares the clock every other query uses.
 export async function getRecentTopSet(userId: string, exerciseId: string): Promise<TopSet | null> {
   let pool;
   try {
@@ -15,7 +18,8 @@ export async function getRecentTopSet(userId: string, exerciseId: string): Promi
       .input('userId', userId)
       .input('exerciseId', exerciseId)
       .query(`
-        SELECT TOP 1 sss.weight, sss.reps, sss.rpe, sss.time_seconds
+        SELECT TOP 1 sss.weight, sss.reps, sss.rpe, sss.time_seconds,
+               DATEDIFF(day, ws.started_at, GETDATE()) AS days_since
         FROM session_segment_sets sss
         JOIN session_segments ss ON sss.session_segment_id = ss.id
         JOIN workout_sessions ws ON ss.session_id = ws.id
@@ -35,7 +39,13 @@ export async function getRecentTopSet(userId: string, exerciseId: string): Promi
       return null;
     }
     const row = result.recordset[0];
-    return { weight: row.weight ?? 0, reps: row.reps ?? 0, rpe: row.rpe, timeSeconds: row.time_seconds ?? null };
+    return {
+      weight: row.weight ?? 0,
+      reps: row.reps ?? 0,
+      rpe: row.rpe,
+      timeSeconds: row.time_seconds ?? null,
+      daysSince: row.days_since ?? null,
+    };
   } catch (error) {
     console.error('Error fetching recent top set:', error);
     throw error;

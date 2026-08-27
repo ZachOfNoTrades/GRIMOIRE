@@ -70,16 +70,23 @@ export async function getSlotDefinitions(userId: string, dayArchetypeId: string)
         // time_effort → only timed exercises; rep-based models → only rep-loggable (non-timed) exercises.
         // Warmup slots accept either (a warmup can be timed or rep-based), so they impose no timed requirement.
         requireTimed: isWarmup ? undefined : isTimeEffort,
+        timeRange: r.time_low_seconds != null && r.time_high_seconds != null
+          ? [Number(r.time_low_seconds), Number(r.time_high_seconds)]
+          : null,
       };
-      // The time range is a CARDIO-only concept (a prescribed dose). Strength holds get no guardrails —
-      // timeRange stays null so nextTimeEffort drives purely off logged history (self-report on cold start).
+      // An AUTHORED time range is a prescribed dose and is honoured for any category. It used to be read
+      // for Cardio only, on the theory that a strength hold should progress off history without a ceiling
+      // — but that silently discarded the range on every timed Strength slot, so a carry or plank slot
+      // written as "3 x 40-60s" generated with no duration at all (self-report) on a cold start.
+      // Leaving the range blank still opens the uncapped, history-driven path.
       const timeRange: [number, number] | null =
-        isTimeEffort && r.category_filter === 'Cardio' && r.time_low_seconds != null && r.time_high_seconds != null
+        isTimeEffort && r.time_low_seconds != null && r.time_high_seconds != null
           ? [Number(r.time_low_seconds), Number(r.time_high_seconds)]
           : null;
       return {
         slot,
         isWarmup,
+        isOptional: !!r.is_optional,
         progression: {
           model: r.progression_model as ProgressionModel,
           repRange: [r.rep_low, r.rep_high] as [number, number],
@@ -119,6 +126,32 @@ const EQUIPMENT_AVAILABLE_SQL = `
   ) THEN 1 ELSE 0 END
 `;
 
+// Companion to EQUIPMENT_AVAILABLE_SQL: the NAMES of the required equipment the location doesn't have.
+// Empty string when the exercise is available (or no location is set). Lets a blocked pin say
+// "missing equipment: Loop Bands" instead of an opaque 'equipment' code. STRING_AGG over a DISTINCT
+// subquery because one exercise can require the same equipment via more than one row.
+const MISSING_EQUIPMENT_SQL = `
+  ISNULL((
+    SELECT STRING_AGG(m.name, ', ')
+    FROM (
+      SELECT DISTINCT eq.name
+      FROM exercise_equipment ee
+      JOIN equipment eq ON eq.id = ee.equipment_id
+      WHERE ee.exercise_id = p.id AND ee.is_required = 1
+        AND @locationId IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM location_equipment le
+          WHERE le.location_id = @locationId AND le.equipment_id = ee.equipment_id
+        )
+    ) m
+  ), '')
+`;
+
+// Split the comma-joined STRING_AGG output back into a name array (empty string → []).
+function splitNames(value: string | null | undefined): string[] {
+  return (value ?? '').split(',').map((n) => n.trim()).filter(Boolean);
+}
+
 // Candidate pool for a target muscle: every exercise that is a PRIMARY mover for it, enabled at the
 // governing location, with recency + recent-history for scoring, gated on the location's equipment.
 export async function getCandidatesForMuscle(
@@ -155,13 +188,19 @@ export async function getCandidatesForMuscle(
         SELECT p.id, p.name, p.category, p.is_timed,
           (SELECT STRING_AGG(mg2.name, ',') FROM exercise_muscle_groups m2 JOIN muscle_groups mg2 ON mg2.id = m2.muscle_group_id WHERE m2.exercise_id = p.id AND m2.is_primary = 1) AS primary_muscles,
           (SELECT STRING_AGG(mg3.name, ',') FROM exercise_muscle_groups m3 JOIN muscle_groups mg3 ON mg3.id = m3.muscle_group_id WHERE m3.exercise_id = p.id) AS all_muscles,
-          rec.days_since, rec.sessions_120,
-          ${EQUIPMENT_AVAILABLE_SQL} AS equipment_available
+          rec.days_since, rec.sessions_120, rec.typical_time,
+          ${EQUIPMENT_AVAILABLE_SQL} AS equipment_available,
+          ${MISSING_EQUIPMENT_SQL} AS missing_equipment
         FROM primaries p
         OUTER APPLY (
           SELECT DATEDIFF(day, MAX(ws.started_at), GETDATE()) AS days_since,
-                 COUNT(DISTINCT CASE WHEN ws.started_at >= DATEADD(day,-120,GETDATE()) THEN ws.id END) AS sessions_120
-          FROM session_segments ss JOIN workout_sessions ws ON ss.session_id = ws.id
+                 COUNT(DISTINCT CASE WHEN ws.started_at >= DATEADD(day,-120,GETDATE()) THEN ws.id END) AS sessions_120,
+                 -- Mean duration this exercise is actually trained at, for durationFit in the scorer.
+                 -- Working sets only: a warmup piece says nothing about the dose the movement is used for.
+                 AVG(CAST(NULLIF(sss.time_seconds, 0) AS float)) AS typical_time
+          FROM session_segments ss
+          JOIN workout_sessions ws ON ss.session_id = ws.id
+          LEFT JOIN session_segment_sets sss ON sss.session_segment_id = ss.id AND sss.is_warmup = 0 AND sss.is_completed = 1
           WHERE ss.exercise_id = p.id AND ws.user_id = @userId AND ws.is_completed = 1
         ) rec
       `);
@@ -175,7 +214,9 @@ export async function getCandidatesForMuscle(
       daysSinceUsed: r.days_since ?? null,
       historySessions: r.sessions_120 ?? 0,
       equipmentAvailable: !!r.equipment_available,
+      missingEquipment: splitNames(r.missing_equipment),
       isTimed: !!r.is_timed,
+      typicalTimeSeconds: r.typical_time != null ? Number(r.typical_time) : null,
     }));
   } catch (error) {
     console.error('Error fetching candidates for muscle:', error);
@@ -222,13 +263,19 @@ export async function getCandidatesByCategory(
         SELECT p.id, p.name, p.category, p.is_timed,
           (SELECT STRING_AGG(mg2.name, ',') FROM exercise_muscle_groups m2 JOIN muscle_groups mg2 ON mg2.id = m2.muscle_group_id WHERE m2.exercise_id = p.id AND m2.is_primary = 1) AS primary_muscles,
           (SELECT STRING_AGG(mg3.name, ',') FROM exercise_muscle_groups m3 JOIN muscle_groups mg3 ON mg3.id = m3.muscle_group_id WHERE m3.exercise_id = p.id) AS all_muscles,
-          rec.days_since, rec.sessions_120,
-          ${EQUIPMENT_AVAILABLE_SQL} AS equipment_available
+          rec.days_since, rec.sessions_120, rec.typical_time,
+          ${EQUIPMENT_AVAILABLE_SQL} AS equipment_available,
+          ${MISSING_EQUIPMENT_SQL} AS missing_equipment
         FROM pool p
         OUTER APPLY (
           SELECT DATEDIFF(day, MAX(ws.started_at), GETDATE()) AS days_since,
-                 COUNT(DISTINCT CASE WHEN ws.started_at >= DATEADD(day,-120,GETDATE()) THEN ws.id END) AS sessions_120
-          FROM session_segments ss JOIN workout_sessions ws ON ss.session_id = ws.id
+                 COUNT(DISTINCT CASE WHEN ws.started_at >= DATEADD(day,-120,GETDATE()) THEN ws.id END) AS sessions_120,
+                 -- Mean duration this exercise is actually trained at, for durationFit in the scorer.
+                 -- Working sets only: a warmup piece says nothing about the dose the movement is used for.
+                 AVG(CAST(NULLIF(sss.time_seconds, 0) AS float)) AS typical_time
+          FROM session_segments ss
+          JOIN workout_sessions ws ON ss.session_id = ws.id
+          LEFT JOIN session_segment_sets sss ON sss.session_segment_id = ss.id AND sss.is_warmup = 0 AND sss.is_completed = 1
           WHERE ss.exercise_id = p.id AND ws.user_id = @userId AND ws.is_completed = 1
         ) rec
       `);
@@ -242,7 +289,9 @@ export async function getCandidatesByCategory(
       daysSinceUsed: r.days_since ?? null,
       historySessions: r.sessions_120 ?? 0,
       equipmentAvailable: !!r.equipment_available,
+      missingEquipment: splitNames(r.missing_equipment),
       isTimed: !!r.is_timed,
+      typicalTimeSeconds: r.typical_time != null ? Number(r.typical_time) : null,
     }));
   } catch (error) {
     console.error('Error fetching candidates by category:', error);

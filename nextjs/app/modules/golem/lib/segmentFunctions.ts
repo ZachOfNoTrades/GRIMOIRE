@@ -1,5 +1,5 @@
 import { getGolemConnection, closeGolemConnection } from './db';
-import { SegmentWithSets, TargetSegment, GeneratedSegment } from '../types/segment';
+import { SegmentWithSets, SegmentSet, TargetSegment, GeneratedSegment } from '../types/segment';
 
 export async function getSegmentsAndTargets(userId: string, sessionId: string): Promise<{
   exercises: SegmentWithSets[];
@@ -553,6 +553,161 @@ export async function createGeneratedTargets(
     }
   } catch (error) {
     console.error('Error creating generated targets:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// TARGETED SINGLE-ROW SETTERS
+//
+// updateSegments() above is a wholesale reconcile: it takes the session's ENTIRE segment array and
+// deletes anything absent from it. That is right for the app's session editor (which always holds
+// the full array) but unusable for a caller that only wants to annotate one row — omitting the rest
+// would delete them. These setters address one segment / one set by id, leaving every sibling row
+// untouched, and are what the MCP note-writing tools are built on.
+// -----------------------------------------------------------------------------
+
+// Free-text note columns are nullable, and "empty" must have exactly ONE representation or readers
+// have to test for both. Trim, then collapse a blank result to null, so clearing a note through any
+// caller (empty string, spaces, explicit null) always lands as NULL.
+function normalizeNote(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+// Fields on a single logged set that a targeted update may change. Every key is optional and only
+// the keys actually PRESENT are written, so clearing `notes` never disturbs `rpe`. Distinguishing
+// "absent" from "explicit null" is the whole point — null means clear, undefined means leave alone.
+export interface SetFieldUpdate {
+  notes?: string | null;
+  reps?: number | null;
+  weight?: number;
+  rpe?: number | null;
+  time_seconds?: number | null;
+  distance?: number | null;
+  is_completed?: boolean;
+}
+
+// Set (or clear, with null) the notes on ONE logged session segment. Ownership is enforced through
+// the parent workout_sessions row, the same way getSegmentsAndTargets scopes its read. Returns the
+// updated row; throws when no segment matches for this user.
+export async function updateSegmentNotes(
+  userId: string,
+  segmentId: string,
+  notes: string | null,
+): Promise<{ id: string; session_id: string; exercise_name: string; notes: string | null; modified_at: Date }> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('segmentId', segmentId)
+      .input('notes', normalizeNote(notes))
+      .query(`
+        UPDATE se
+        SET notes = @notes, modified_at = GETDATE()
+        OUTPUT inserted.id, inserted.session_id, inserted.notes, inserted.modified_at
+        FROM session_segments se
+        WHERE se.id = @segmentId
+          AND EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.id = se.session_id AND ws.user_id = @userId)
+      `);
+
+    if (result.recordset.length === 0) {
+      throw new Error(`No session segment found for id: '${segmentId}'`);
+    }
+
+    // Fetch the exercise name separately — OUTPUT cannot reference a joined table.
+    const nameResult = await pool.request()
+      .input('segmentId', segmentId)
+      .query(`
+        SELECT e.name AS exercise_name
+        FROM session_segments se
+        INNER JOIN exercises e ON e.id = se.exercise_id
+        WHERE se.id = @segmentId
+      `);
+
+    return { ...result.recordset[0], exercise_name: nameResult.recordset[0]?.exercise_name ?? null };
+  } catch (error) {
+    console.error('Error updating session segment notes:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
+// Update selected fields on ONE logged set. Ownership walks set -> segment -> session. Returns the
+// updated row; throws when no set matches for this user or when `updates` names no known field.
+export async function updateSessionSet(
+  userId: string,
+  setId: string,
+  updates: SetFieldUpdate,
+): Promise<SegmentSet> {
+  // Whitelist of updatable columns -> the mssql input name carrying the value. Anything not listed
+  // here (id, session_segment_id, set_number, is_warmup, timestamps) is deliberately not settable.
+  const COLUMN_INPUTS: { column: string; key: keyof SetFieldUpdate; input: string }[] = [
+    { column: 'notes', key: 'notes', input: 'notes' },
+    { column: 'reps', key: 'reps', input: 'reps' },
+    { column: 'weight', key: 'weight', input: 'weight' },
+    { column: 'rpe', key: 'rpe', input: 'rpe' },
+    { column: 'time_seconds', key: 'time_seconds', input: 'timeSeconds' },
+    { column: 'distance', key: 'distance', input: 'distance' },
+    { column: 'is_completed', key: 'is_completed', input: 'isCompleted' },
+  ];
+
+  const present = COLUMN_INPUTS.filter(({ key }) => updates[key] !== undefined);
+  if (present.length === 0) {
+    throw new Error('No updatable fields supplied for set update');
+  }
+
+  let pool;
+  try {
+    pool = await getGolemConnection();
+
+    const request = pool.request()
+      .input('userId', userId)
+      .input('setId', setId);
+
+    for (const { key, input } of present) {
+      const value = updates[key];
+      // weight is NOT NULL in the schema; a null there would fail the constraint, so coerce to 0
+      // the same way the app's own upsert path relies on a concrete number.
+      if (key === 'weight') {
+        request.input(input, value ?? 0);
+      } else if (key === 'notes') {
+        request.input(input, normalizeNote(value as string | null));
+      } else {
+        request.input(input, value);
+      }
+    }
+
+    const setClause = present.map(({ column, input }) => `${column} = @${input}`).join(', ');
+
+    const result = await request.query(`
+      UPDATE ses
+      SET ${setClause}, modified_at = GETDATE()
+      OUTPUT inserted.id, inserted.session_segment_id, inserted.set_number, inserted.is_warmup,
+             inserted.reps, inserted.weight, inserted.rpe, inserted.time_seconds, inserted.distance,
+             inserted.notes, inserted.is_completed, inserted.created_at, inserted.modified_at
+      FROM session_segment_sets ses
+      INNER JOIN session_segments se ON se.id = ses.session_segment_id
+      WHERE ses.id = @setId
+        AND EXISTS (SELECT 1 FROM workout_sessions ws WHERE ws.id = se.session_id AND ws.user_id = @userId)
+    `);
+
+    if (result.recordset.length === 0) {
+      throw new Error(`No session set found for id: '${setId}'`);
+    }
+
+    return result.recordset[0];
+  } catch (error) {
+    console.error('Error updating session set:', error);
     throw error;
   } finally {
     if (pool) {

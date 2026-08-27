@@ -24,6 +24,7 @@ export default function SessionEngineControls({ sessionId, currentArchetypeId, c
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false); // existing targets, no logged data → overwrite?
   const [blockerOpen, setBlockerOpen] = useState(false); // logged data present → cannot generate
+  const [pinWarnings, setPinWarnings] = useState<string[]>([]); // pins the engine couldn't apply cleanly
 
   // Load the user's archetypes for the picker.
   useEffect(() => {
@@ -80,7 +81,12 @@ export default function SessionEngineControls({ sessionId, currentArchetypeId, c
       const data = await gen.json();
       if (!gen.ok) { toast.error(data.error || 'Generation failed'); return; }
 
-      toast.success('Session generated');
+      // Pinned exercises encode deliberate choices (often injury constraints), so a pin the engine
+      // couldn't apply cleanly is reported rather than swallowed by the success toast.
+      const warnings: string[] = Array.isArray(data.warnings) ? data.warnings : [];
+      setPinWarnings(warnings);
+      if (warnings.length > 0) toast(`Generated with ${warnings.length} pin warning${warnings.length > 1 ? 's' : ''}`, { icon: '⚠️' });
+      else toast.success('Session generated');
       onGenerated?.(); // refreshes the session segment list to show the injected exercises
     } catch {
       toast.error('Generation failed');
@@ -119,6 +125,22 @@ export default function SessionEngineControls({ sessionId, currentArchetypeId, c
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             <span>{busy ? 'Working…' : 'Assign & Generate'}</span>
           </Button>
+
+          {/* PIN WARNINGS — persists after the toast so the substitution/override stays reviewable. */}
+          {pinWarnings.length > 0 && (
+            <div className="alert-yellow">
+              {/* TITLE */}
+              <div className="alert-title">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Pinned exercise{pinWarnings.length > 1 ? 's' : ''} not applied cleanly</span>
+              </div>
+
+              {/* WARNING LIST */}
+              <ul className="alert-text list-disc pl-5">
+                {pinWarnings.map((warning, index) => <li key={index}>{warning}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 

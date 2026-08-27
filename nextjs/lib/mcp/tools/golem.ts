@@ -531,7 +531,7 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
     'golem_generate_session_with_engine',
     {
       description:
-        "Generate a workout session's concrete exercises and sets from its assigned day archetype using the DETERMINISTIC engine (selection scorer + loading engine — no LLM, runs instantly). REPLACES any existing targets for the session. The session must already have a day archetype assigned (set it via golem_create_session's dayArchetypeId or golem_apply_plan_change session_updates day_archetype_id). Returns the generated plan (one row per slot: role, exercise, sets, reps/weight/time, rationale, baseline flag). Use golem_get_session afterward to see the persisted segments.",
+        "Generate a workout session's concrete exercises and sets from its assigned day archetype using the DETERMINISTIC engine (selection scorer + loading engine — no LLM, runs instantly). REPLACES any existing targets for the session. The session must already have a day archetype assigned (set it via golem_create_session's dayArchetypeId or golem_apply_plan_change session_updates day_archetype_id). Returns the generated plan (one row per slot: role, exercise, sets, reps/weight/time, rationale, baseline flag, pinWarning) plus a top-level `warnings` array. A slot's pinned exercise is NEVER dropped silently: if its required equipment isn't registered at the active location the pin is kept anyway and warned about (fix the location's equipment list); if it's on hold, disabled there, contraindicated, or otherwise ineligible it is substituted and warned about. Always relay a non-empty `warnings` array to the user. Use golem_get_session afterward to see the persisted segments.",
       inputSchema: { sessionId: z.string().describe('Workout session UUID to generate exercises into (from golem_list_sessions / golem_get_current_session).') },
     },
     async ({ sessionId }) => {
@@ -539,7 +539,7 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
       await getWorkoutSessionById(userId, sessionId);
 
       // Run the deterministic engine.
-      const { segments, plan } = await generateSessionTargetsWithEngine(userId, sessionId);
+      const { segments, plan, warnings } = await generateSessionTargetsWithEngine(userId, sessionId);
       if (segments.length === 0) {
         return json({ success: false, error: 'Engine produced no targets — check the day archetype slots assigned to this session.' });
       }
@@ -561,7 +561,11 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
           timeSeconds: s.working[0]?.timeSeconds ?? null,
           rationale: s.rationale,
           baseline: s.isBaseline,
+          pinWarning: s.pinWarning,
         })),
+        // Non-empty when a slot's pinned_exercise_id could not be taken cleanly: kept despite missing
+        // equipment at the location, or substituted. Report these — never treat the plan as clean.
+        warnings,
       });
     },
   );

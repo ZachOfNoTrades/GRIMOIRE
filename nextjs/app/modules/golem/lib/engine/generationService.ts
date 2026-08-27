@@ -14,6 +14,10 @@ import type { GeneratedSegment } from '../../types/segment';
 export interface EngineGenerationResult {
   segments: GeneratedSegment[];
   plan: GeneratedSlot[];
+  // Pin warnings raised while filling the day — a slot's pinned exercise was kept despite missing
+  // equipment, substituted, or its slot dropped. Empty on a clean generation. Callers MUST surface
+  // these: silently swapping a pinned lift is how a contraindicated movement reaches the athlete.
+  warnings: string[];
 }
 
 // Generate a session's targets deterministically. Throws if the session has no day archetype assigned
@@ -71,15 +75,23 @@ export async function generateSessionTargetsWithEngine(
   const volumeGapByMuscle = new Map<string, number>();
   for (const d of slotDefinitions) if (d.slot.targetMuscle) volumeGapByMuscle.set(d.slot.targetMuscle, 0.5);
 
-  const plan = generateDay(slotDefinitions, candidatesBySlotIndex, historyByExerciseId, {
-    volumeGapByMuscle,
-    noveltyTriggered: false, // v1: demand triggers (staleness/plateau) wired in a later pass
-    weights: DEFAULT_WEIGHTS,
-    freshnessHalfLifeDays: 28,
-    continuityTargetSessions: 5,
-  });
+  const { slots: plan, warnings } = generateDay(
+    slotDefinitions,
+    candidatesBySlotIndex,
+    historyByExerciseId,
+    {
+      volumeGapByMuscle,
+      noveltyTriggered: false, // v1: demand triggers (staleness/plateau) wired in a later pass
+      weights: DEFAULT_WEIGHTS,
+      freshnessHalfLifeDays: 28,
+      continuityTargetSessions: 5,
+    },
+    // Location names make a pin warning actionable ("missing equipment at Station" → go fix that
+    // location's equipment list) rather than a generic complaint.
+    { locationLabel: activeLocation?.name ?? null, warmupLocationLabel: activeWarmupLocation?.name ?? activeLocation?.name ?? null },
+  );
 
   // Stamp the originating archetype onto each segment (provenance link shown in the segment modal).
   const segments = generatedSlotsToSegments(plan).map((s) => ({ ...s, day_archetype_id: dayArchetypeId }));
-  return { segments, plan };
+  return { segments, plan, warnings };
 }

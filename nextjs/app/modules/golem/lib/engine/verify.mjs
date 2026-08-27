@@ -1,9 +1,9 @@
 // Dev verification harness for the deterministic engine — NOT part of the app build (.mjs, not in tsconfig include).
-// Run: node --experimental-strip-types app/modules/golem/lib/engine/verify.mjs
+// Run: node --import ./app/modules/golem/lib/engine/ts-resolve.mjs --experimental-strip-types app/modules/golem/lib/engine/verify.mjs
 // Asserts the grounded cases from the live-data simulation (plan §0 / §-sim).
 import assert from 'node:assert';
 import { loadForRepsAtRpe, estimate1RM } from './oneRepMax.ts';
-import { nextDoubleProgression, nextTimeEffort, decideLoad } from './progression.ts';
+import { nextDoubleProgression, nextTimeEffort, nextLinear, decideLoad, layoffRetention, LAYOFF_GRACE_DAYS, LAYOFF_MAX_DECAY } from './progression.ts';
 import { warmupRamp } from './warmup.ts';
 import { realizedProgressionRate, detectPlateau, mondayOf, weeklyVolumeByMuscle } from './volume.ts';
 import { selectForSlot, scoreCandidate, DEFAULT_WEIGHTS } from './selection.ts';
@@ -161,7 +161,7 @@ const ctx = () => ({ volumeGapByMuscle: new Map([['Quads', 0.6]]), alreadyChosen
 
 check('selection — secondary Quads slot (Hack Squat is the primary, deduped) → Leg Press wins on continuity', () => {
   const slot = { role: 'secondary', targetMuscle: 'Quads', categoryFilter: 'Strength', rotationCadence: 'per_session', pinnedExerciseId: null, excludeExerciseIds: ['hack'] };
-  const best = selectForSlot(quadPool, slot, ctx());
+  const best = selectForSlot(quadPool, slot, ctx()).picked;
   assert.strictEqual(best.candidate.name, 'Leg Press', `winner=${best?.candidate.name}`);
   // Cardio filtered, dedup'd primary excluded
   assert.strictEqual(scoreCandidate(quadPool.find((c) => c.exerciseId === 'stair'), slot, ctx()).score, -Infinity, 'Stair Climber filtered (Cardio)');
@@ -173,15 +173,54 @@ check('selection — demand-driven novelty: Leg Press used 3d ago + trigger → 
   const pool = quadPool.map((c) => (c.exerciseId === 'legpress' ? { ...c, daysSinceUsed: 3 } : c));
   const c2 = ctx(); c2.noveltyTriggered = true;
   const slot = { role: 'secondary', targetMuscle: 'Quads', categoryFilter: 'Strength', rotationCadence: 'per_session', pinnedExerciseId: null, excludeExerciseIds: ['hack'] };
-  const best = selectForSlot(pool, slot, c2);
+  const best = selectForSlot(pool, slot, c2).picked;
   assert.notStrictEqual(best.candidate.name, 'Leg Press', 'should rotate away from the just-used Leg Press');
   console.log(`        → rotated to ${best.candidate.name} (staleness trigger)`);
 });
 
 check('selection — pinned primary slot keeps its exercise (specificity)', () => {
   const slot = { role: 'primary', targetMuscle: 'Quads', categoryFilter: 'Strength', rotationCadence: 'per_block', pinnedExerciseId: 'hack', excludeExerciseIds: [] };
-  const best = selectForSlot(quadPool, slot, ctx());
-  assert.strictEqual(best.candidate.name, 'Hack Squat Machine', `pinned winner=${best?.candidate.name}`);
+  const { picked, pinOutcome } = selectForSlot(quadPool, slot, ctx());
+  assert.strictEqual(picked.candidate.name, 'Hack Squat Machine', `pinned winner=${picked?.candidate.name}`);
+  assert.strictEqual(pinOutcome, undefined, 'a cleanly-honored pin reports no outcome');
+});
+
+// ── Pin never dropped silently (Notion todo 3c6f6cc9 — a pin encodes an injury constraint, so a
+//    substitution the user can't see is worse than a hard failure). ──────────────────────────────
+
+check('selection — pin whose equipment is missing at the location is KEPT, with a warning', () => {
+  const pool = quadPool.map((c) => (c.exerciseId === 'hack' ? { ...c, equipmentAvailable: false, missingEquipment: ['Hack Squat Machine'] } : c));
+  const slot = { role: 'primary', targetMuscle: 'Quads', categoryFilter: 'Strength', rotationCadence: 'never', pinnedExerciseId: 'hack', excludeExerciseIds: [] };
+  const { picked, pinOutcome } = selectForSlot(pool, slot, ctx());
+  assert.strictEqual(picked.candidate.name, 'Hack Squat Machine', `pin should still win, got ${picked?.candidate.name}`);
+  assert.strictEqual(pinOutcome.honored, true, 'equipment is an advisory blocker → pin honored');
+  assert.strictEqual(pinOutcome.reason, 'equipment');
+  assert.deepStrictEqual(pinOutcome.detail, ['Hack Squat Machine'], 'names the missing equipment');
+  console.log(`        → kept ${picked.candidate.name}; missing: ${pinOutcome.detail.join(', ')}`);
+});
+
+check('selection — contraindicated pin is substituted, and SAYS SO', () => {
+  const slot = { role: 'primary', targetMuscle: 'Quads', categoryFilter: 'Strength', rotationCadence: 'never', pinnedExerciseId: 'backsq', excludeExerciseIds: [], contraindicatedMuscles: ['Lower Back'] };
+  const { picked, pinOutcome } = selectForSlot(quadPool, slot, ctx());
+  assert.notStrictEqual(picked.candidate.exerciseId, 'backsq', 'a contraindicated pin must NOT be emitted');
+  assert.strictEqual(pinOutcome.honored, false, 'safety blockers win over the pin');
+  assert.strictEqual(pinOutcome.reason, 'contraindicated');
+  assert.deepStrictEqual(pinOutcome.detail, ['Lower Back']);
+  console.log(`        → substituted ${picked.candidate.name} (Back Squat recruits Lower Back)`);
+});
+
+check('selection — pin absent from the candidate pool reports not_in_pool (never a silent free-pick)', () => {
+  const slot = { role: 'primary', targetMuscle: 'Quads', categoryFilter: 'Strength', rotationCadence: 'never', pinnedExerciseId: 'battleropes', excludeExerciseIds: [] };
+  const { picked, pinOutcome } = selectForSlot(quadPool, slot, ctx());
+  assert.ok(picked, 'the slot still fills');
+  assert.strictEqual(pinOutcome.reason, 'not_in_pool');
+  assert.strictEqual(pinOutcome.honored, false);
+});
+
+check('selection — a per_session slot ignores its pin entirely (no spurious warning)', () => {
+  const slot = { role: 'primary', targetMuscle: 'Quads', categoryFilter: 'Strength', rotationCadence: 'per_session', pinnedExerciseId: 'battleropes', excludeExerciseIds: [] };
+  const { pinOutcome } = selectForSlot(quadPool, slot, ctx());
+  assert.strictEqual(pinOutcome, undefined, 'rotation_cadence per_session means the pin is not in play');
 });
 
 check('selection — archetype fit: a PRIMARY slot favors the compound (Back Squat) over isolation (Leg Ext)', () => {
@@ -206,6 +245,144 @@ check('selection — archetype fit: a UNILATERAL slot favors Bulgarian Split Squ
   const legpress = scoreCandidate(quadPool.find((c) => c.exerciseId === 'legpress'), slot, ctx()).score;
   assert.ok(bulgarian > legpress, `unilateral movement should win a unilateral slot (bulgarian ${bulgarian.toFixed(3)} vs legpress ${legpress.toFixed(3)})`);
   console.log(`        → unilateral slot: Bulgarian Split Squat ${bulgarian.toFixed(3)} > Leg Press ${legpress.toFixed(3)}`);
+});
+
+// ── Regressions found by the 10-archetype generation simulation (devtools/engine-sim) ─────────────────
+// Each of these reproduced a plan the engine actually produced for a real archetype.
+
+const carrySlot = (over = {}) => ({ role: 'carry', targetMuscle: 'Forearms', categoryFilter: 'Strength',
+  rotationCadence: 'per_session', pinnedExerciseId: null, excludeExerciseIds: [], ...over });
+const cand = (id, name, over = {}) => ({ exerciseId: id, name, category: 'Strength',
+  primaryMuscles: ['Forearms'], allMuscles: ['Forearms', 'Traps'], daysSinceUsed: null, historySessions: 0,
+  equipmentAvailable: true, isTimed: true, ...over });
+
+check('selection — a carry slot rejects a dead hang AND a curl, and takes the actual carry', () => {
+  const pool = [cand('hang', 'Bar Hang'), cand('curl', 'Reverse Dumbbell Curl'), cand('fw', "Farmer's Walk")];
+  const picked = selectForSlot(pool, carrySlot(), ctx()).picked;
+  assert.strictEqual(picked?.candidate.exerciseId, 'fw', `picked ${picked?.candidate.name}`);
+  console.log(`        → ${picked.candidate.name} (hang and curl both hard-filtered as not_a_carry)`);
+});
+
+check('selection — a carry slot with no real carry in the pool picks NOTHING (caller warns)', () => {
+  const picked = selectForSlot([cand('hang', 'Bar Hang'), cand('shrug', 'Dumbbell Shrug')], carrySlot(), ctx()).picked;
+  assert.strictEqual(picked, null, 'a pool of non-carries must not fill a carry slot');
+  console.log('        → slot left unfilled rather than filled wrongly');
+});
+
+check('selection — tied candidates resolve deterministically, not by pool order', () => {
+  const pool = [cand('a', "Farmer's Walk"), cand('b', 'Sandbag Shoulder Carry'), cand('c', 'Sled Push')];
+  const fwd = selectForSlot(pool, carrySlot(), ctx()).picked.candidate.exerciseId;
+  const rev = selectForSlot([...pool].reverse(), carrySlot(), ctx()).picked.candidate.exerciseId;
+  assert.strictEqual(fwd, rev, `pool order changed the pick (${fwd} vs ${rev})`);
+  console.log(`        → same pick (${fwd}) whichever order the database returns the pool in`);
+});
+
+check('selection — duration fit: a 30-min aerobic slot prefers the modality trained for 20 min over one trained for 3', () => {
+  const slot = { role: 'conditioning', targetMuscle: null, categoryFilter: 'Cardio', rotationCadence: 'per_session',
+    pinnedExerciseId: null, excludeExerciseIds: [], timeRange: [1800, 2700] };
+  const c = (id, name, typ) => ({ exerciseId: id, name, category: 'Cardio', primaryMuscles: [], allMuscles: [],
+    daysSinceUsed: 7, historySessions: 1, equipmentAvailable: true, isTimed: true, typicalTimeSeconds: typ });
+  const run = scoreCandidate(c('run', 'Treadmill Run', 1200), slot, ctx()).score;
+  const rope = scoreCandidate(c('rope', 'Jump Rope', 180), slot, ctx()).score;
+  assert.ok(run > rope, `long-duration modality should win a long slot (run ${run.toFixed(3)} vs rope ${rope.toFixed(3)})`);
+  const short = { ...slot, timeRange: [30, 45] };
+  const runS = scoreCandidate(c('run', 'Treadmill Run', 1200), short, ctx()).score;
+  const ropeS = scoreCandidate(c('rope', 'Jump Rope', 180), short, ctx()).score;
+  assert.ok(ropeS > runS, `short-interval modality should win a short slot (rope ${ropeS.toFixed(3)} vs run ${runS.toFixed(3)})`);
+  console.log(`        → 30min: run ${run.toFixed(3)} > rope ${rope.toFixed(3)};  45s: rope ${ropeS.toFixed(3)} > run ${runS.toFixed(3)}`);
+});
+
+check('progression — a heavy 5-rep history landing in a 12-20 slot re-anchors to 12 at a lighter load', () => {
+  const state = { model: 'double_progression', repRange: [12, 20], targetRpe: 8, loadStepPct: 0.05, roundToStep: 5, setTarget: 3 };
+  const d = nextDoubleProgression(state, { weight: 205, reps: 5, rpe: 8, timeSeconds: null });
+  assert.strictEqual(d.reps, 12, `reps=${d.reps} — must move INTO the authored range, not climb to 6`);
+  assert.ok(d.load < 205, `load=${d.load} — 12 reps at a 5-rep load is not performable`);
+  console.log(`        → 12 reps @ ${d.load} (was 6 @ 205)`);
+});
+
+check('progression — a 5-rep history in a 3-5 slot is untouched by the re-anchor', () => {
+  const state = { model: 'double_progression', repRange: [3, 5], targetRpe: 8, loadStepPct: 0.05, roundToStep: 5, setTarget: 3 };
+  const d = nextDoubleProgression(state, { weight: 205, reps: 5, rpe: 8, timeSeconds: null });
+  assert.strictEqual(d.reps, 3, `reps=${d.reps}`);
+  assert.ok(d.load > 205, `hitting the top of the range should still step the load (got ${d.load})`);
+  console.log(`        → 3 reps @ ${d.load} (normal double progression, unaffected)`);
+});
+
+check('progression — an authored time range is honoured for a STRENGTH hold, not just Cardio', () => {
+  const state = { model: 'time_effort', repRange: [1, 1], targetRpe: null, loadStepPct: 0, roundToStep: 5, setTarget: 3, timeRange: [40, 60] };
+  const d = nextTimeEffort(state, { weight: 0, reps: 0, rpe: null, timeSeconds: 0 });
+  assert.strictEqual(d.timeSeconds, 40, `cold start must prescribe the authored floor, got ${d.timeSeconds}`);
+  console.log(`        → ${d.timeSeconds}s prescribed on a cold start (was null / self-report)`);
+});
+
+// LAYOFF REGRESSION — a stale top set must never be progressed off. Grounded in the live case that
+// filed this: Machine Chest Press 130x7 @RPE8 logged 2026-06-17, generated again 2026-08-26 (71 days),
+// which produced 3x4 @135 — heavier than it had ever been trained.
+check('layoff — 130x7 @RPE8 last done 71 days ago regresses instead of stepping to 135', () => {
+  const state = { model: 'double_progression', repRange: [4, 6], targetRpe: 8, loadStepPct: 0.04, roundToStep: 5, setTarget: 3 };
+  const stale = { weight: 130, reps: 7, rpe: 8, timeSeconds: null, daysSince: 71 };
+  const d = nextDoubleProgression(state, stale, { plateau: false });
+  assert.ok(d.load < 130, `load=${d.load} — a 71-day layoff must come back lighter, not at 135`);
+  assert.strictEqual(d.load, 100, `load=${d.load}`);
+  assert.strictEqual(d.reps, 6, `reps=${d.reps} — hold the rep target, don't reset the cycle`);
+  console.log(`        → ${d.reps} reps @ ${d.load} (was 4 @ 135)`);
+});
+
+check('layoff — the plateau override cannot re-add load through a layoff', () => {
+  const state = { model: 'double_progression', repRange: [4, 6], targetRpe: 8, loadStepPct: 0.04, roundToStep: 5, setTarget: 3 };
+  const stale = { weight: 130, reps: 7, rpe: 8, timeSeconds: null, daysSince: 71 };
+  const d = nextDoubleProgression(state, stale, { plateau: true });
+  assert.strictEqual(d.load, 100, `load=${d.load} — a layoff reliably trips plateau detection; it must not win`);
+});
+
+check('layoff — inside the grace window nothing changes (recent history progresses as before)', () => {
+  const state = { model: 'double_progression', repRange: [4, 6], targetRpe: 8, loadStepPct: 0.04, roundToStep: 5, setTarget: 3 };
+  const fresh = { weight: 130, reps: 7, rpe: 8, timeSeconds: null, daysSince: LAYOFF_GRACE_DAYS };
+  const d = nextDoubleProgression(state, fresh, { plateau: false });
+  assert.strictEqual(d.load, 135, `load=${d.load} — 21 days out is still fresh, expect the normal load step`);
+  assert.strictEqual(d.reps, 4, `reps=${d.reps}`);
+});
+
+check('layoff — an unknown date behaves exactly as before (daysSince null)', () => {
+  const state = { model: 'double_progression', repRange: [4, 6], targetRpe: 8, loadStepPct: 0.04, roundToStep: 5, setTarget: 3 };
+  const d = nextDoubleProgression(state, { weight: 130, reps: 7, rpe: 8, timeSeconds: null, daysSince: null }, { plateau: false });
+  assert.strictEqual(d.load, 135, `load=${d.load}`);
+});
+
+check('layoff — regression is floored at LAYOFF_MAX_DECAY, however long the gap', () => {
+  assert.strictEqual(layoffRetention(LAYOFF_GRACE_DAYS), 1, 'grace boundary must not regress');
+  assert.ok(layoffRetention(400) === 1 - LAYOFF_MAX_DECAY, `retention=${layoffRetention(400)}`);
+  const state = { model: 'double_progression', repRange: [4, 6], targetRpe: 8, loadStepPct: 0.04, roundToStep: 5, setTarget: 3 };
+  const d = nextDoubleProgression(state, { weight: 130, reps: 5, rpe: 8, timeSeconds: null, daysSince: 400 }, { plateau: false });
+  assert.strictEqual(d.load, 90, `load=${d.load} — 130 x 0.70 = 91 → 90 at a 5 lb step`);
+});
+
+check('layoff — a below-range history re-anchors to the floor at the DECAYED e1RM', () => {
+  const state = { model: 'double_progression', repRange: [12, 20], targetRpe: 8, loadStepPct: 0.05, roundToStep: 5, setTarget: 3 };
+  const fresh = nextDoubleProgression(state, { weight: 205, reps: 5, rpe: 8, timeSeconds: null, daysSince: 7 });
+  const stale = nextDoubleProgression(state, { weight: 205, reps: 5, rpe: 8, timeSeconds: null, daysSince: 71 });
+  assert.strictEqual(stale.reps, 12, `reps=${stale.reps} — still moves into the authored range`);
+  assert.ok(stale.load < fresh.load, `stale ${stale.load} must be lighter than fresh ${fresh.load}`);
+  console.log(`        → 12 reps @ ${stale.load} after a layoff (vs ${fresh.load} fresh)`);
+});
+
+check('layoff — linear progression regresses instead of taking its step', () => {
+  const state = { model: 'linear', repRange: [5, 5], targetRpe: null, loadStepPct: 0.05, roundToStep: 5, setTarget: 3 };
+  const d = nextLinear(state, { weight: 200, reps: 5, rpe: null, timeSeconds: null, daysSince: 60 }, true);
+  assert.ok(d.load < 200, `load=${d.load} — met-target-last-time was met BEFORE the gap`);
+});
+
+check('layoff — a stale timed hold comes back shorter, not longer', () => {
+  const state = { model: 'time_effort', repRange: [1, 1], targetRpe: null, loadStepPct: 0, roundToStep: 5, setTarget: 3, timeRange: null };
+  const d = nextTimeEffort(state, { weight: 0, reps: 0, rpe: null, timeSeconds: 120, daysSince: 71 });
+  assert.ok(d.timeSeconds < 120, `timeSeconds=${d.timeSeconds}`);
+  console.log(`        → ${d.timeSeconds}s (was 120s, 71 days ago)`);
+});
+
+check('layoff — a stale CARDIO effort never drops below its authored floor', () => {
+  const state = { model: 'time_effort', repRange: [1, 1], targetRpe: null, loadStepPct: 0, roundToStep: 5, setTarget: 3, timeRange: [600, 900] };
+  const d = nextTimeEffort(state, { weight: 0, reps: 0, rpe: null, timeSeconds: 620, daysSince: 200 });
+  assert.strictEqual(d.timeSeconds, 600, `timeSeconds=${d.timeSeconds} — clamp to the prescribed floor`);
 });
 
 console.log(`\n${pass} checks passed.`);
