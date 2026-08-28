@@ -19,6 +19,9 @@ export interface WorkoutSession {
   is_completed: boolean;
   created_at: Date;
   modified_at: Date;
+  // Set only on the read that trimmed an abandoned clock (see lib/staleSessionTimer): how many idle
+  // seconds were discarded, so the UI can tell the user why the timer jumped back. Never persisted.
+  timer_trimmed_seconds?: number;
 }
 
 // A workout session row enriched with its program context for the unified history feed.

@@ -1,6 +1,7 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { WorkoutSession, WorkoutSessionHistoryItem } from '../types/workoutSession';
 import { clearProgramCurrentFlags } from './programFunctions';
+import { reconcileStaleSessionTimer } from './staleSessionTimer';
 
 export async function getAllWorkoutSessions(userId: string, page?: number, pageSize?: number, scope: 'all' | 'standalone' = 'all'): Promise<{ sessions: WorkoutSessionHistoryItem[]; totalCount: number }> {
   let pool;
@@ -193,7 +194,9 @@ export async function getCurrentWorkoutSession(userId: string): Promise<WorkoutS
       return null;
     }
 
-    return result.recordset[0];
+    // The golem home card is usually the first thing loaded after coming back to the app, which
+    // makes it the earliest chance to trim a clock left running since yesterday.
+    return await reconcileStaleSessionTimer(pool, userId, result.recordset[0]);
   } catch (error) {
     console.error('Error fetching current workout session:', error);
     throw error;
@@ -222,7 +225,9 @@ export async function getWorkoutSessionById(userId: string, id: string): Promise
       throw new Error(`No workout session found for id: '${id}'`);
     }
 
-    const session = result.recordset[0];
+    // Opening a session is the other place an abandoned clock surfaces, so trim it here too before
+    // the page can render (or the user can Finish and stamp) an all-night duration.
+    const session = await reconcileStaleSessionTimer(pool, userId, result.recordset[0]);
 
     // Bundle the assigned archetype's slots with the session so the empty-session slot preview renders
     // immediately with the session details (no follow-up /day-archetypes round trip → no lag). Same query
@@ -954,6 +959,97 @@ export async function getTemplateIdForSession(userId: string, sessionId: string)
     return result.recordset[0].template_id;
   } catch (error) {
     console.error('Error fetching template id for session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SESSION NARRATIVE FIELDS (targeted, completion-agnostic)
+//
+// updateWorkoutSession() above rewrites the whole row and drives is_current/is_completed status
+// propagation, so it is the wrong tool for "just add a note". The feedback path
+// (applyExternalChange session_updates) deliberately SKIPS completed sessions, which froze a
+// finished session's write-up from anything but the app. These four columns are pure annotation —
+// they never affect scheduling or the engine — so they stay writable after completion.
+// -----------------------------------------------------------------------------
+
+// Same one-representation-for-empty rule as the segment/set note setters: trim, and store a blank
+// as NULL rather than an empty string, so a cleared field reads back identically however it was cleared.
+function normalizeNote(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+// Every key optional; only keys PRESENT are written, so null clears one field without touching the
+// rest. undefined = leave alone.
+export interface SessionNotesUpdate {
+  description?: string | null;
+  pre_survey_notes?: string | null;
+  review?: string | null;
+  analysis?: string | null;
+}
+
+// Set (or clear) any of a session's narrative fields, including on a COMPLETED session. Returns the
+// updated columns; throws when no session matches for this user or when `updates` names no field.
+export async function updateSessionNotes(
+  userId: string,
+  sessionId: string,
+  updates: SessionNotesUpdate,
+): Promise<{
+  id: string;
+  name: string;
+  is_completed: boolean;
+  description: string | null;
+  pre_survey_notes: string | null;
+  review: string | null;
+  analysis: string | null;
+  modified_at: Date;
+}> {
+  const COLUMN_INPUTS: { column: string; key: keyof SessionNotesUpdate; input: string }[] = [
+    { column: 'description', key: 'description', input: 'description' },
+    { column: 'pre_survey_notes', key: 'pre_survey_notes', input: 'preSurveyNotes' },
+    { column: 'review', key: 'review', input: 'review' },
+    { column: 'analysis', key: 'analysis', input: 'analysis' },
+  ];
+
+  const present = COLUMN_INPUTS.filter(({ key }) => updates[key] !== undefined);
+  if (present.length === 0) {
+    throw new Error('No updatable fields supplied for session notes update');
+  }
+
+  let pool;
+  try {
+    pool = await getGolemConnection();
+
+    const request = pool.request()
+      .input('userId', userId)
+      .input('sessionId', sessionId);
+
+    for (const { key, input } of present) {
+      request.input(input, normalizeNote(updates[key]));
+    }
+
+    const setClause = present.map(({ column, input }) => `${column} = @${input}`).join(', ');
+
+    const result = await request.query(`
+      UPDATE workout_sessions
+      SET ${setClause}, modified_at = GETDATE()
+      OUTPUT inserted.id, inserted.name, inserted.is_completed, inserted.description,
+             inserted.pre_survey_notes, inserted.review, inserted.analysis, inserted.modified_at
+      WHERE id = @sessionId AND user_id = @userId
+    `);
+
+    if (result.recordset.length === 0) {
+      throw new Error(`No workout session found for id: '${sessionId}'`);
+    }
+
+    return result.recordset[0];
+  } catch (error) {
+    console.error('Error updating workout session notes:', error);
     throw error;
   } finally {
     if (pool) {
