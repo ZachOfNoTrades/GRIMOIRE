@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, use } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp } from "lucide-react";
+import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -23,10 +23,16 @@ import LocationPickerModal from "../../locations/LocationPickerModal";
 import { PreSurvey } from "../../../types/preSurvey";
 import SessionTimer from "../../../components/SessionTimer";
 import RestTimer from "../../../components/RestTimer";
-import { formatDuration, formatDateLong, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
+import { formatDuration, formatDateLong, formatLastUsed, secondsToHHMMSS, hhmmssToSeconds } from "../../../utils/format";
 import { generateUUID } from "../../../utils/id";
 import { useGenerationJob } from "@/lib/useGenerationJob";
 import { useConfirm } from "@/lib/useConfirm";
+
+// A generated plan is a snapshot: the engine picked its exercises and prescribed its loads from the
+// training history as it stood the moment it ran. Once that snapshot is this many days old the picture
+// behind it has moved on — sessions logged since, e1RM drift, freshness/atrophy decay — so the session
+// page flags it as possibly out of date and worth regenerating.
+const STALE_GENERATION_DAYS = 7;
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -124,6 +130,26 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const warmupUnlinkedTargets = unlinkedTargetSegments.filter((t) => t.is_warmup);
   const workingUnlinkedTargets = unlinkedTargetSegments.filter((t) => !t.is_warmup);
   const hasWarmupSection = warmupLoggedSegments.length > 0 || warmupUnlinkedTargets.length > 0;
+
+  // GENERATION AGE — engine-generated targets carry the archetype they came from (provenance) plus the
+  // timestamp they were written; a generation replaces every target at once, so the newest of those is
+  // when this session's plan was last generated. Targets without an archetype (manual adds, LLM) don't
+  // count — they say nothing about when the engine last ran.
+  // An unparseable, epoch-zero, or future stamp describes nothing real (a clock-skewed client would
+  // otherwise read "-1d ago"), so it is ignored rather than rendered — no readout, no warning.
+  const engineGeneratedAt = targetSegments.reduce<number | null>((newest, target) => {
+    if (!target.day_archetype_id) return newest;
+    const generatedMs = new Date(target.created_at).getTime();
+    if (!Number.isFinite(generatedMs) || generatedMs <= 0 || generatedMs > Date.now()) return newest;
+    return newest === null || generatedMs > newest ? generatedMs : newest;
+  }, null);
+  const generationAgeDays = engineGeneratedAt === null ? null : Math.floor((Date.now() - engineGeneratedAt) / (1000 * 60 * 60 * 24));
+  // Only worth flagging while the plan is still ahead of the user: an unfinished session that still has
+  // unworked targets. A completed session (or one whose targets are all logged) is history, not a plan.
+  const isGenerationStale = generationAgeDays !== null
+    && generationAgeDays >= STALE_GENERATION_DAYS
+    && !session?.is_completed
+    && unlinkedTargetSegments.length > 0;
 
   // Interleave logged segments and unlinked targets by effective order_index
   const combinedWarmupItems = [
@@ -228,6 +254,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     loadUserProfile();
   }, [id]);
 
+  // STALE-CLOCK REFETCH — the abandoned-session case is a page left open while the phone sleeps, so
+  // the mount fetch already happened hours ago and nothing would re-read the trimmed duration the
+  // server writes (lib/staleSessionTimer). Re-reading the session whenever the tab comes back to the
+  // foreground is what makes the trim visible without a manual reload.
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.visibilityState === "visible") void fetchSession();
+    };
+    document.addEventListener("visibilitychange", handleVisible);
+    return () => document.removeEventListener("visibilitychange", handleVisible);
+  }, [id]);
+
   // Load the session-relevant user profile settings: preferred distance display units (per band) for the
   // per-set distance input, and whether the between-sets rest timer is enabled.
   const loadUserProfile = async () => {
@@ -322,6 +360,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       if (response.ok) {
         const data = await response.json();
         setSession(data);
+
+        // A trimmed clock makes the timer jump backwards by hours, which reads as lost data unless
+        // we say why. The server only sets this on the read that actually did the trimming, so this
+        // fires once per abandonment, not on every poll.
+        if (data.timer_trimmed_seconds > 0) {
+          toast(`Timer was idle for ${formatDuration(data.timer_trimmed_seconds)} — duration set to ${formatDuration(data.duration ?? 0)} from your last logged set.`, { icon: "\u23F1\uFE0F", duration: 6000 });
+        }
       }
     } catch (error) {
       console.error("Error fetching session:", error);
@@ -993,6 +1038,28 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
+        {/* STALE GENERATION WARNING — this plan was generated from history that is now days old, so its
+            exercise picks and loads may no longer reflect what has been trained (or lost) since. Sits above
+            the cards so it is the first thing seen on both mobile and desktop. Advisory only: regenerating
+            is the user's call, from the Engine Generation panel. */}
+        {isGenerationStale && engineGeneratedAt !== null && (
+          <div className="alert-yellow mb-4" data-testid="generation-staleness">
+
+            {/* TITLE */}
+            <p className="alert-title">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>Generated {formatLastUsed(new Date(engineGeneratedAt))}</span>
+            </p>
+
+            {/* EXPLANATION */}
+            <p className="alert-text">
+              This plan is {generationAgeDays} days old. Its exercises and loads were calculated from your
+              training history at that time, so anything logged since — plus recovery and atrophy over the
+              gap — isn&apos;t accounted for. Regenerate from the Engine Generation panel for up-to-date targets.
+            </p>
+          </div>
+        )}
+
         {/* CARDS */}
         <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] lg:gap-6 lg:items-start">
 
@@ -1245,6 +1312,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     <div>
                       <label className="text-secondary">Day Archetype</label>
                       <p className="text-primary break-words">{session.day_archetype_name}</p>
+
+                      {/* GENERATED — when the engine last built this session's targets, so the plan's age is
+                          always readable here, not only once it crosses the staleness threshold above. */}
+                      {engineGeneratedAt !== null && (
+                        <p className={`text-sm break-words ${isGenerationStale ? "text-alert-yellow" : "text-secondary"}`}>
+                          Generated {formatLastUsed(new Date(engineGeneratedAt))}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1572,18 +1647,18 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                       {rows.map((row) => row.logged ? (
 
                                         // LOGGED SET ROW
-                                        <p key={row.logged.id} className={!row.logged.is_completed ? 'text-secondary' : ''}>
+                                        <p key={row.num} className={!row.logged.is_completed ? 'text-secondary' : ''}>
                                           <span>{row.logged.time_seconds != null && row.logged.time_seconds > 0
                                             ? <>{row.logged.weight > 0 ? `${row.logged.weight}lb x ` : ""}{row.logged.time_seconds < 60 ? `${row.logged.time_seconds}s` : `${Math.floor(row.logged.time_seconds / 60)}:${String(row.logged.time_seconds % 60).padStart(2, "0")}`}</>
                                             : <>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</>
                                           }</span>
                                           {row.logged.rpe !== null && <span> @ {row.logged.rpe}RPE</span>}
-                                          {row.logged.notes && <span className="text-secondary"> - {row.logged.notes}</span>}
+                                          {row.logged.notes && <span className="text-secondary break-words whitespace-pre-wrap"> - {row.logged.notes}</span>}
                                         </p>
                                       ) : row.target ? (
 
                                         // TARGET SET ROW
-                                        <p key={row.target.id} className="text-secondary">
+                                        <p key={row.num} className="text-secondary">
                                           <span>{row.target.time_seconds != null && row.target.time_seconds > 0
                                             ? <>{!isSwapped && row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
                                             : isSwapped
@@ -1634,7 +1709,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                                 // SETS
                                 <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
                                   {target.sets.map((set) => (
-                                    <p key={set.id} className="text-secondary">
+                                    <p key={`${set.is_warmup ? 'w' : 's'}-${set.set_number}`} className="text-secondary">
                                       <span>{set.time_seconds != null && set.time_seconds > 0
                                         ? <>{set.weight > 0 ? `${set.weight}lb x ` : ""}{set.time_seconds < 60 ? `${set.time_seconds}s` : `${Math.floor(set.time_seconds / 60)}:${String(set.time_seconds % 60).padStart(2, "0")}`}</>
                                         : <>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</>
@@ -1748,23 +1823,24 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                             <p className="text-secondary">No sets recorded</p>
                           ) : (
 
-                            // SETS
+                            // SETS — keyed by set identity (kind + number), never by record id: a logged set and
+                            // its target carry the SAME id for engine-planned sets, so id keys can collide here.
                             <div className="flex flex-col gap-0 [&>p]:leading-tight [&>p]:py-px">
                               {rows.map((row) => row.logged ? (
 
                                 // WORKING / WARMUP SET ROW — warmups distinguished by a lighter font weight
-                                <p key={row.logged.id} className={`${row.isWarmup ? 'font-extralight ' : ''}${!row.logged.is_completed ? 'text-secondary' : ''}`}>
+                                <p key={`${row.isWarmup ? 'w' : 's'}-${row.num}`} className={`${row.isWarmup ? 'font-extralight ' : ''}${!row.logged.is_completed ? 'text-secondary' : ''}`}>
                                   <span>{row.logged.time_seconds != null && row.logged.time_seconds > 0
                                     ? <>{row.logged.weight > 0 ? `${row.logged.weight}lb x ` : ""}{row.logged.time_seconds < 60 ? `${row.logged.time_seconds}s` : `${Math.floor(row.logged.time_seconds / 60)}:${String(row.logged.time_seconds % 60).padStart(2, "0")}`}</>
                                     : <>{row.logged.weight > 0 ? `${row.logged.weight}lb` : "BW"} x {row.logged.reps}</>
                                   }</span>
                                   {row.logged.rpe !== null && <span> @ {row.logged.rpe}RPE</span>}
-                                  {row.logged.notes && <span className="text-secondary"> - {row.logged.notes}</span>}
+                                  {row.logged.notes && <span className="text-secondary break-words whitespace-pre-wrap"> - {row.logged.notes}</span>}
                                 </p>
                               ) : row.target ? (
 
                                 // TARGET SET ROW — warmups distinguished by a lighter font weight
-                                <p key={row.target.id} className={`text-secondary${row.isWarmup ? ' font-extralight' : ''}`}>
+                                <p key={`${row.isWarmup ? 'w' : 's'}-${row.num}`} className={`text-secondary${row.isWarmup ? ' font-extralight' : ''}`}>
                                   <span>{row.target.time_seconds != null && row.target.time_seconds > 0
                                     ? <>{!isSwapped && row.target.weight > 0 ? `${row.target.weight}lb x ` : ""}{row.target.time_seconds < 60 ? `${row.target.time_seconds}s` : `${Math.floor(row.target.time_seconds / 60)}:${String(row.target.time_seconds % 60).padStart(2, "0")}`}</>
                                     : isSwapped
@@ -1822,7 +1898,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
                           {/* SET ROWS — warmups (prefixed "W") first, then working; query already orders is_warmup DESC, set_number */}
                           {target.sets.map((set) => (
-                            <p key={set.id} className={`text-secondary${set.is_warmup ? ' font-extralight' : ''}`}>
+                            <p key={`${set.is_warmup ? 'w' : 's'}-${set.set_number}`} className={`text-secondary${set.is_warmup ? ' font-extralight' : ''}`}>
                               <span>{set.time_seconds != null && set.time_seconds > 0
                                 ? <>{set.weight > 0 ? `${set.weight}lb x ` : ""}{set.time_seconds < 60 ? `${set.time_seconds}s` : `${Math.floor(set.time_seconds / 60)}:${String(set.time_seconds % 60).padStart(2, "0")}`}</>
                                 : <>{set.weight > 0 ? `${set.weight}lb` : "BW"} x {set.reps}</>
