@@ -8,7 +8,7 @@
 import { unlinkSync } from 'fs';
 import { callLLM, readLLMOutput, parseLLMResponse } from './llmFunctions';
 import { loadPromptFile } from './promptLoader';
-import { getUserProfile } from './userProfileFunctions';
+import { getProfileContext, getUserProfile } from './userProfileFunctions';
 import { getAllMuscleGroups } from './muscleGroupFunctions';
 import { getDayArchetypes, createDayArchetype, createDaySlot } from './dayArchetypeFunctions';
 import { createProgramFromSkeleton } from './archetypeProgramSkeleton';
@@ -200,7 +200,7 @@ export async function generateArchetypeProgram(
 
   try {
     // CONTEXT — profile, muscle vocabulary, and the user's existing archetype library
-    const profileContext = (await getUserProfile(userId)).profile_prompt;
+    const profileContext = await getProfileContext(userId);
     const muscleGroups = await getAllMuscleGroups();
     const existing = await getDayArchetypes(userId); // warns (not errors) when the library is empty
     const muscleNames = muscleGroups.map((m) => m.name);

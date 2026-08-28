@@ -1,6 +1,7 @@
 import sql from 'mssql';
 import { getFoodConnection, closeFoodConnection } from './db';
 import { WeightEntry } from '../types/weight';
+import { getLatestBodyMassLb, mirrorBodyCompositionSafe } from '@/lib/health/bridge';
 
 export async function listWeights(userId: string, sinceDate: string | null): Promise<WeightEntry[]> {
   let pool;
@@ -102,10 +103,16 @@ export async function getLatestWeightLb(userId: string): Promise<number | null> 
       .request()
       .input('userId', sql.UniqueIdentifier, userId)
       .query<any>(`SELECT TOP 1 weight_lb FROM weight_log WHERE user_id=@userId ORDER BY log_date DESC`);
-    return r.recordset.length === 0 ? null : Number(r.recordset[0].weight_lb);
+    if (r.recordset.length > 0) return Number(r.recordset[0].weight_lb);
   } finally {
     if (pool) await closeFoodConnection(pool);
   }
+
+  // FORAGE HAS NO WEIGH-IN — fall back to the app-level health store, which is
+  // where a Google Health Connect import or another module's reading lands.
+  // Without this, importing a year of weights still leaves the check-in math
+  // with no bodyweight to work from.
+  return getLatestBodyMassLb(userId);
 }
 
 export async function upsertWeight(
@@ -135,11 +142,26 @@ export async function upsertWeight(
                 INSERTED.weight_lb, INSERTED.body_fat_pct;`
       );
     const row = result.recordset[0];
-    return {
+    const entry: WeightEntry = {
       ...row,
       weight_lb: Number(row.weight_lb),
       body_fat_pct: row.body_fat_pct == null ? null : Number(row.body_fat_pct),
     };
+
+    // MIRROR TO THE MASTER HEALTH STORE — so golem, the health page and a
+    // Health Connect export all see this weigh-in. Keyed on the weight_log row
+    // id, so re-saving the same day updates instead of duplicating. Deliberately
+    // not awaited: weight_log has already committed and is the source of truth,
+    // so a health-store hiccup must not fail the user's weigh-in.
+    mirrorBodyCompositionSafe(userId, {
+      measuredAt: `${entry.log_date}T12:00:00Z`,
+      weightLb: entry.weight_lb,
+      bodyFatPct: entry.body_fat_pct,
+      source: 'forage',
+      sourceRef: String(entry.id),
+    });
+
+    return entry;
   } finally {
     if (pool) await closeFoodConnection(pool);
   }

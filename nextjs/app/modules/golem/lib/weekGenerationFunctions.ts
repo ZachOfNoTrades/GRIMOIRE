@@ -2,7 +2,7 @@ import { getGolemConnection, closeGolemConnection } from './db';
 import { CreateProgramSession } from '../types/program';
 import { getTemplateIdForProgram } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
-import { getUserProfile } from './userProfileFunctions';
+import { getProfileContext, getUserProfile } from './userProfileFunctions';
 import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
 
 // Sets the first session (by order_index) in a week as is_current
@@ -77,7 +77,7 @@ export async function generateNextWeek(userId: string, programId: string, weekId
 
   // Load user profile for LLM context
   const userProfile = await getUserProfile(userId);
-  const profileContext = userProfile.profile_prompt;
+  const profileContext = await getProfileContext(userId);
 
   let pool;
   try {

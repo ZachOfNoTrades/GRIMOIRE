@@ -1,5 +1,6 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { UserProfile } from '../types/userProfile';
+import { describeHealthContext, getHealthContext } from '@/lib/health/bridge';
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {
   let pool;
@@ -96,4 +97,28 @@ export async function updateUserProfile(
       await closeGolemConnection(pool);
     }
   }
+}
+
+// Golem's LLM profile context: the user's own free-text profile prompt plus the
+// shared body facts from the app-level master health store (lib/health).
+//
+// Golem keeps its own database and never reads forage's — a weigh-in logged in
+// forage reaches golem because forage mirrors it into the health store, which
+// is the single place both modules read. Health facts are appended rather than
+// replacing the prompt so a user's own wording always leads.
+export async function getProfileContext(userId: string): Promise<string | null> {
+  const profile = await getUserProfile(userId);
+  const ownPrompt = profile.profile_prompt?.trim() || null;
+
+  let healthLine: string | null = null;
+  try {
+    healthLine = describeHealthContext(await getHealthContext(userId));
+  } catch (error) {
+    // The health store is supplementary context — never block generation on it.
+    console.error('Failed to load health context for golem profile context:', error);
+  }
+
+  if (!healthLine) return ownPrompt;
+  const healthSection = `Health profile: ${healthLine}.`;
+  return ownPrompt ? `${ownPrompt}\n\n${healthSection}` : healthSection;
 }

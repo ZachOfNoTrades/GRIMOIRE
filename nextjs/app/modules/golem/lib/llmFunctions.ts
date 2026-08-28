@@ -8,7 +8,7 @@ import { GenerateProgramResult, ValidationResult } from '../types/llm';
 import { getAllExercises } from './exerciseFunctions';
 import { createProgram, getFirstWeekId } from './programFunctions';
 import { getProgramTemplateById } from './programTemplateFunctions';
-import { getUserProfile } from './userProfileFunctions';
+import { getProfileContext, getUserProfile } from './userProfileFunctions';
 import { generateNextWeekPlanWithLlm } from './llmWeekGenerationFunctions';
 import { insertSessionsIntoWeek, setFirstSessionAsCurrent } from './weekGenerationFunctions';
 import { assemblePrompt, loadPromptFile } from './promptLoader';
@@ -348,7 +348,7 @@ export async function generateProgramFromTemplate(userId: string, templateId: st
     // Load template and user profile
     const template = await getProgramTemplateById(userId, templateId);
     const userProfile = await getUserProfile(userId);
-    const profileContext = userProfile.profile_prompt;
+    const profileContext = await getProfileContext(userId);
 
     // STAGE 1: Generate program structure via LLM
     console.log('[GenerateProgram] Stage 1: Generating program structure...');
