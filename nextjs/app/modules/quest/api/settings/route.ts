@@ -15,6 +15,7 @@ import {
   getDigestConfig,
   getBonusNotifConfig,
   getAllDailiesBonusConfig,
+  getGambleWeekStartDay,
   upsertSettings,
 } from '../../lib/settingsFunctions';
 import { DIFFICULTY_ORDER, Difficulty } from '../../types/task';
@@ -45,13 +46,14 @@ import {
   DEFAULT_ALL_DAILIES_BONUS_AMOUNT,
 } from '../../types/settings';
 import { validateFormula } from '../../lib/formulaEvaluator';
+import { DEFAULT_GAMBLE_WEEK_START_DAY, normalizeWeekStartDay } from '../../lib/gambleConfig';
 
 export async function GET(request: Request) {
   const session = await getAuthorizedUser(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const userId = session.user.id!;
-    const [factors, damageFactor, coinDamage, healthDamage, streakFactor, streakCap, neglectFactor, neglectCap, advanced, bonus, digest, bonusNotif, allDailiesBonus, settings] = await Promise.all([
+    const [factors, damageFactor, coinDamage, healthDamage, streakFactor, streakCap, neglectFactor, neglectCap, advanced, bonus, digest, bonusNotif, allDailiesBonus, gambleWeekStartDay, settings] = await Promise.all([
       getFactors(userId),
       getDamageFactor(userId),
       getCoinDamage(userId),
@@ -65,6 +67,7 @@ export async function GET(request: Request) {
       getDigestConfig(userId),
       getBonusNotifConfig(userId),
       getAllDailiesBonusConfig(userId),
+      getGambleWeekStartDay(userId),
       getSettings(userId),
     ]);
     return NextResponse.json({
@@ -98,6 +101,7 @@ export async function GET(request: Request) {
       allDailiesBonusEnabled: allDailiesBonus.enabled,
       allDailiesBonusAmount: allDailiesBonus.amount,
       allDailiesBonusLastAwardedDate: allDailiesBonus.lastAwardedDate,
+      gambleWeekStartDay,
       simulationDate: settings?.simulation_date ?? null,
     });
   } catch (error) {
@@ -402,6 +406,26 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Weekday the short-rest escalation resets on. Only a number (or a non-blank numeric string, the
+    // shape a form control sends) is accepted — bare Number() would quietly turn '', [1] and true
+    // into a valid-looking 0 or 1.
+    const rawWeekStartDay = body?.gambleWeekStartDay;
+    let gambleWeekStartDay: number;
+    if (rawWeekStartDay === undefined || rawWeekStartDay === null) {
+      gambleWeekStartDay = existing
+        ? normalizeWeekStartDay(existing.gamble_week_start_day)
+        : DEFAULT_GAMBLE_WEEK_START_DAY;
+    } else {
+      const numeric =
+        typeof rawWeekStartDay === 'number' ? rawWeekStartDay
+          : typeof rawWeekStartDay === 'string' && rawWeekStartDay.trim() !== '' ? Number(rawWeekStartDay)
+            : NaN;
+      if (!Number.isInteger(numeric) || numeric < 0 || numeric > 6) {
+        return NextResponse.json({ error: 'gambleWeekStartDay must be an integer 0 (Sunday) to 6 (Saturday)' }, { status: 400 });
+      }
+      gambleWeekStartDay = numeric;
+    }
+
     const saved = await upsertSettings(session.user.id!, {
       factors: parsedFactors as QuestFactors,
       damageFactor,
@@ -431,6 +455,7 @@ export async function PUT(request: NextRequest) {
       retroLookbackDays,
       allDailiesBonusEnabled,
       allDailiesBonusAmount,
+      gambleWeekStartDay,
     });
 
     return NextResponse.json({
@@ -480,6 +505,7 @@ export async function PUT(request: NextRequest) {
       allDailiesBonusEnabled: Boolean(saved.all_dailies_bonus_enabled),
       allDailiesBonusAmount: Number(saved.all_dailies_bonus_amount),
       allDailiesBonusLastAwardedDate: saved.all_dailies_bonus_last_awarded_date ?? null,
+      gambleWeekStartDay: normalizeWeekStartDay(saved.gamble_week_start_day),
     });
   } catch (error) {
     console.error('Error in PUT /quest/api/settings:', error);

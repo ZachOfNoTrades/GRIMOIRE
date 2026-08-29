@@ -74,7 +74,7 @@ import {
 import { Debt } from "../../types/debt";
 import { Mantra } from "../../types/mantra";
 import { evaluateFormula } from "../../lib/formulaEvaluator";
-import { GAMBLE_COST, GAMBLE_DIE_SIDES } from "../../lib/gambleConfig";
+import { DEFAULT_GAMBLE_WEEK_START_DAY, GAMBLE_COST_STEP, GAMBLE_DIE_SIDES, gambleCostForRoll, weekStartDayName } from "../../lib/gambleConfig";
 import HelpButton from "@/components/ui/HelpButton";
 import {
   addDays,
@@ -557,6 +557,12 @@ export default function QuestHomePage() {
   // Bumped on each roll so the die wrapper remounts and replays its settle animation every time,
   // even when two rolls land on the same number.
   const [gambleRollSeq, setGambleRollSeq] = useState(0);
+  // Short rests already rolled this quest week — the server is authoritative (it resets on the
+  // user's week-start day). Each one makes the next roll cost GAMBLE_COST_STEP more.
+  const [gambleRollsThisWeek, setGambleRollsThisWeek] = useState(0);
+  // Weekday the escalation resets on (0 = Sunday ... 6 = Saturday), from quest settings.
+  const [gambleWeekStartDay, setGambleWeekStartDay] = useState(DEFAULT_GAMBLE_WEEK_START_DAY);
+  const gambleCost = gambleCostForRoll(gambleRollsThisWeek);
   // Holds the face-cycling interval so it can be cleared if the component unmounts mid-roll.
   const gambleCycleRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [rewardTipHoverId, setRewardTipHoverId] = useState<string | null>(null);
@@ -722,6 +728,10 @@ export default function QuestHomePage() {
       if (stRes.ok) {
         const data = await stRes.json();
         setState(data.state);
+        // Short-rest price escalates per roll and resets with the quest week — always take the
+        // server's count rather than assuming it's still whatever this tab last saw.
+        setGambleRollsThisWeek(Number(data.gambleRollsThisWeek ?? 0));
+        setGambleWeekStartDay(Number(data.gambleWeekStartDay ?? DEFAULT_GAMBLE_WEEK_START_DAY));
         // The state endpoint no longer applies damage inline — damage now runs when the user
         // acknowledges the previous-day review. The reviewPending flag drives the modal below.
         if (data.reviewPending && typeof data.today === "string") {
@@ -1925,8 +1935,8 @@ export default function QuestHomePage() {
       toast("Already at full health", { icon: "❤️" });
       return;
     }
-    if (balance < GAMBLE_COST) {
-      toast.error("Not enough coins for a short rest");
+    if (balance < gambleCost) {
+      toast.error(`Not enough coins — this short rest costs ${gambleCost}`);
       return;
     }
     setError(null);
@@ -1961,8 +1971,9 @@ export default function QuestHomePage() {
       setGambleResult({ roll: data.roll, healed: data.healed });
       setBalance(data.balance);
       setState(data.state);
+      setGambleRollsThisWeek(Number(data.rollsThisWeek ?? gambleRollsThisWeek + 1));
       setGambleRolling(false);
-      toast(`Rolled ${data.roll} · +${data.healed} HP`, { icon: "🎲" });
+      toast(`Rolled ${data.roll} · +${data.healed} HP · −${data.spent}`, { icon: "🎲" });
     } catch {
       stopCycle();
       setGambleRolling(false);
@@ -2264,7 +2275,7 @@ export default function QuestHomePage() {
               {/* SHORT REST (GAMBLE FOR HEALTH) BUTTON — rolls a d20 to recover HP for coins */}
               <button
                 onClick={openGamble}
-                title={`Short rest — gamble ${GAMBLE_COST} coins to roll for HP`}
+                title={`Short rest — gamble ${gambleCost} coins to roll for HP`}
                 className="ml-0.5 p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/20 cursor-pointer shrink-0"
               >
                 <Dices className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -2301,8 +2312,9 @@ export default function QuestHomePage() {
               className="btn-link shrink-0"
               sections={[
                 { heading: "The loop", body: "Complete tasks and tap habits to earn coins. Spend coins on rewards. Overdue or neglected work chips away at your health." },
-                { heading: "Health & coins", body: "The header tracks your HP and coin balance. A short rest gambles coins on a die roll to recover health when you're low." },
+                { heading: "Health & coins", body: "The header tracks your HP and coin balance. A short rest gambles coins on a die roll to recover health when you're low. Each rest costs more than the last, and the price resets at the start of your quest week (set the day in Quest settings)." },
                 { heading: "Organize", body: "Add tasks with difficulties, due dates, and subtasks; recurring habits surface each day they're scheduled. Calendar and Settings live in the header icons." },
+                { heading: "Spending shortcuts", body: "In the Rewards tab you can add a reward, debt, or ad-hoc spend without leaving the keyboard: Enter moves from the name to the amount, and Enter on the last field submits the row." },
               ]}
             />
           </div>
@@ -3764,8 +3776,15 @@ export default function QuestHomePage() {
             </h2>
 
             {/* SUBTITLE */}
-            <p className="text-secondary text-sm mb-4">
-              Gamble <span className="text-yellow-500 font-semibold">{GAMBLE_COST}</span> coins to roll a d{GAMBLE_DIE_SIDES} and recover that many HP.
+            <p className="text-secondary text-sm mb-1">
+              Gamble <span className="text-yellow-500 font-semibold">{gambleCost}</span> coins to roll a d{GAMBLE_DIE_SIDES} and recover that many HP.
+            </p>
+
+            {/* ESCALATION NOTE — each rest this week raises the next one's price; resets weekly */}
+            <p className="text-secondary text-xs mb-4 opacity-80">
+              {gambleRollsThisWeek === 0
+                ? `Each rest this week costs ${GAMBLE_COST_STEP} more than the last. Resets ${weekStartDayName(gambleWeekStartDay)}.`
+                : `${gambleRollsThisWeek} rest${gambleRollsThisWeek === 1 ? "" : "s"} this week — next costs +${GAMBLE_COST_STEP}. Resets ${weekStartDayName(gambleWeekStartDay)}.`}
             </p>
 
             {/* DIE — d20 silhouette; tumbles while rolling, pops on settle */}
@@ -3818,7 +3837,7 @@ export default function QuestHomePage() {
             <div className="flex gap-2">
               <button
                 onClick={rollGamble}
-                disabled={gambleRolling || balance < GAMBLE_COST || state.health >= state.max_health}
+                disabled={gambleRolling || balance < gambleCost || state.health >= state.max_health}
                 className="flex-1 px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
                 <Dices className="w-4 h-4" />
@@ -3826,7 +3845,7 @@ export default function QuestHomePage() {
                   ? "Rolling…"
                   : state.health >= state.max_health
                     ? "Fully rested"
-                    : `Roll · −${GAMBLE_COST}`}
+                    : `Roll · −${gambleCost}`}
               </button>
               <button
                 onClick={closeGamble}
@@ -3838,8 +3857,8 @@ export default function QuestHomePage() {
             </div>
 
             {/* INSUFFICIENT-COINS HINT */}
-            {balance < GAMBLE_COST && state.health < state.max_health && (
-              <p className="text-red-400 text-xs mt-2">Not enough coins — a short rest costs {GAMBLE_COST}.</p>
+            {balance < gambleCost && state.health < state.max_health && (
+              <p className="text-red-400 text-xs mt-2">Not enough coins — this short rest costs {gambleCost}.</p>
             )}
           </div>
         </div>

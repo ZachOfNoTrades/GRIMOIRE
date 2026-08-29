@@ -5,8 +5,10 @@ import {
   setUserState,
   adjustBalanceTo,
   getReviewCompletionCache,
+  getGambleRollsThisWeek,
 } from '../../lib/userStateFunctions';
-import { getCurrentDate } from '../../lib/settingsFunctions';
+import { getCurrentDate, getGambleWeekStartDay } from '../../lib/settingsFunctions';
+import { gambleCostForRoll } from '../../lib/gambleConfig';
 
 export async function GET(request: Request) {
   const session = await getAuthorizedUser(request);
@@ -21,7 +23,21 @@ export async function GET(request: Request) {
     // after a debug clearTodayReview repops it. The client decides whether to honour the cache
     // by matching its `date` against the current review date.
     const reviewCompletion = await getReviewCompletionCache(session.user.id!);
-    return NextResponse.json({ state, damage: null, reviewPending, today, reviewCompletion });
+    // Short-rest price for the next roll — it climbs with each roll already made this quest week,
+    // so the client can't derive it from a constant. The week-start day rides along so the overlay
+    // can name the day the escalation resets on.
+    const gambleRollsThisWeek = await getGambleRollsThisWeek(session.user.id!, today);
+    const gambleWeekStartDay = await getGambleWeekStartDay(session.user.id!);
+    return NextResponse.json({
+      state,
+      damage: null,
+      reviewPending,
+      today,
+      reviewCompletion,
+      gambleRollsThisWeek,
+      gambleCost: gambleCostForRoll(gambleRollsThisWeek),
+      gambleWeekStartDay,
+    });
   } catch (error) {
     console.error('Error in GET /quest/api/state:', error);
     return NextResponse.json({ error: 'Failed to load state' }, { status: 500 });

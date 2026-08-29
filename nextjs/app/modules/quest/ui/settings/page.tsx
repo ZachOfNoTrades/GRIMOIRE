@@ -39,6 +39,13 @@ import {
   DifficultyMap,
 } from "../../types/settings";
 import { Mantra, MANTRA_MAX_LENGTH } from "../../types/mantra";
+import {
+  DEFAULT_GAMBLE_WEEK_START_DAY,
+  GAMBLE_COST,
+  GAMBLE_COST_STEP,
+  WEEKDAY_NAMES,
+  normalizeWeekStartDay,
+} from "../../lib/gambleConfig";
 import { validateFormula } from "../../lib/formulaEvaluator";
 
 interface LedgerEntry {
@@ -109,6 +116,8 @@ export default function QuestSettingsPage() {
   const [retroLookbackInput, setRetroLookbackInput] = useState<string>(String(DEFAULT_RETRO_LOOKBACK_DAYS));
   const [allDailiesBonusEnabled, setAllDailiesBonusEnabled] = useState<boolean>(DEFAULT_ALL_DAILIES_BONUS_ENABLED);
   const [allDailiesBonusAmountInput, setAllDailiesBonusAmountInput] = useState<string>(String(DEFAULT_ALL_DAILIES_BONUS_AMOUNT));
+  // Weekday the short-rest price escalation resets on (0 = Sunday ... 6 = Saturday).
+  const [gambleWeekStartDay, setGambleWeekStartDay] = useState<number>(DEFAULT_GAMBLE_WEEK_START_DAY);
   // Mantras are saved by their own endpoints the moment you add/edit/delete one, so they are
   // deliberately NOT part of `fingerprint()` / the "Save Settings" button.
   const [newMantraInput, setNewMantraInput] = useState<string>("");
@@ -164,6 +173,7 @@ export default function QuestSettingsPage() {
     rlb: retroLookbackInput,
     adbe: allDailiesBonusEnabled,
     adba: allDailiesBonusAmountInput,
+    gwsd: gambleWeekStartDay,
     fid: forceDraftId,
     sd: simulationDate,
     h: health,
@@ -214,6 +224,7 @@ export default function QuestSettingsPage() {
           setRetroLookbackInput(String(data.retroLookbackDays ?? DEFAULT_RETRO_LOOKBACK_DAYS));
           setAllDailiesBonusEnabled(Boolean(data.allDailiesBonusEnabled ?? DEFAULT_ALL_DAILIES_BONUS_ENABLED));
           setAllDailiesBonusAmountInput(String(data.allDailiesBonusAmount ?? DEFAULT_ALL_DAILIES_BONUS_AMOUNT));
+          setGambleWeekStartDay(normalizeWeekStartDay(data.gambleWeekStartDay));
           setSimulationDate(data.simulationDate ?? "");
         } else {
           setError("Failed to load settings");
@@ -661,6 +672,7 @@ export default function QuestSettingsPage() {
             retroLookbackDays: retroLookback,
             allDailiesBonusEnabled,
             allDailiesBonusAmount,
+            gambleWeekStartDay,
           }),
         }),
       );
@@ -1461,6 +1473,39 @@ export default function QuestSettingsPage() {
           </label>
           <p className="text-xs text-secondary mt-3">
             Save via the Difficulty Settings button above.
+          </p>
+        </section>
+
+        {/* SHORT REST CARD — when the escalating short-rest price rolls back to its base cost */}
+        <section className="card mb-6">
+          <h2 className="text-card-title mb-2">
+            <Dices className="w-5 h-5 text-red-500" />
+            Short Rest
+          </h2>
+          <p className="text-secondary text-sm mb-4">
+            Each short rest costs {GAMBLE_COST_STEP} coins more than the last one you rolled, and the
+            price only falls back to {GAMBLE_COST} when a new quest week begins. Pick the day your
+            week starts on.
+          </p>
+
+          {/* WEEK START DAY — no autofocus: this is one field among many on a settings form, and
+              stealing focus on load would scroll the page to this card */}
+          <label className="flex flex-col gap-1 w-fit">
+            <span className="text-xs text-secondary">Week starts on</span>
+            <select
+              value={gambleWeekStartDay}
+              onChange={(e) => setGambleWeekStartDay(Number(e.target.value))}
+              className="h-9 px-2 rounded border border-gray-600 bg-transparent text-sm"
+            >
+              {WEEKDAY_NAMES.map((name, index) => (
+                <option key={name} value={index}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-xs text-secondary mt-3">
+            Short-rest prices reset every {WEEKDAY_NAMES[normalizeWeekStartDay(gambleWeekStartDay)]}. Save via the Difficulty Settings button above.
           </p>
         </section>
 

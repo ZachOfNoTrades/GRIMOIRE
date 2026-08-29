@@ -61,6 +61,9 @@ export interface QuestSettings {
   all_dailies_bonus_enabled: boolean;
   all_dailies_bonus_amount: number;
   all_dailies_bonus_last_awarded_date: string | null;
+  // Weekday the quest week starts on (0 = Sunday ... 6 = Saturday). Currently the reset boundary
+  // for the short-rest ("gamble for health") price escalation.
+  gamble_week_start_day: number;
   ts_created: Date;
   ts_modified: Date;
 }

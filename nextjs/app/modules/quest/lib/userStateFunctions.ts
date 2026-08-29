@@ -2,11 +2,11 @@ import sql from 'mssql';
 import { getQuestConnection } from './db';
 import { UserState } from '../types/userState';
 import { Difficulty, Frequency } from '../types/task';
-import { getDamageFactor, getCurrentDate, getHealthDamage, getNeglectFactor, getNeglectCap, getAdvancedMode } from './settingsFunctions';
+import { getDamageFactor, getCurrentDate, getHealthDamage, getNeglectFactor, getNeglectCap, getAdvancedMode, getGambleWeekStartDay } from './settingsFunctions';
 import { isOccurrenceOn, occurrenceWindowEndingOn } from './taskFunctions';
 import { evaluateFormula } from './formulaEvaluator';
 import { isFrozenDay } from './freezeDayFunctions';
-import { GAMBLE_COST, GAMBLE_DIE_SIDES } from './gambleConfig';
+import { GAMBLE_DIE_SIDES, gambleCostForRoll, gambleWeekStart } from './gambleConfig';
 
 export async function ensureUserState(userId: string): Promise<UserState> {
   const pool = await getQuestConnection();
@@ -156,23 +156,57 @@ export async function applyHeal(userId: string, amount: number): Promise<UserSta
 }
 
 export type GambleResult =
-  | { ok: true; roll: number; healed: number; spent: number; balance: number; state: UserState }
-  | { ok: false; reason: 'insufficient' | 'full_health'; balance: number; state: UserState };
+  | { ok: true; roll: number; healed: number; spent: number; balance: number; state: UserState; rollsThisWeek: number; nextCost: number }
+  | { ok: false; reason: 'insufficient' | 'full_health'; balance: number; state: UserState; cost: number; rollsThisWeek: number };
 
-// "Gamble for health" — a DnD short-rest: pay GAMBLE_COST coins to roll a d20 and recover that
-// many HP (capped at the missing amount). It's a gamble — a low roll wastes the coins, a high
-// roll is a big heal. The die is rolled HERE (server-side) so the outcome can't be tampered with
-// from the client; the overlay animation only lands on the number we return. Coin debit + heal
-// happen in one transaction with the same UPDLOCK/HOLDLOCK balance read the reward-spend path
-// uses, so concurrent spends can't race the balance. Writes a ref_type='gamble' ledger row;
-// because it does NOT touch quest_damage_log, a later clearTodayReview leaves the heal intact.
+// How many short rests the user has already rolled in the CURRENT quest WEEK. The counter is
+// stamped with the day of the most recent roll (quest_user_state.gamble_rolls_date), so a stamp
+// from before this week's start day simply reads as zero — the weekly reset is implicit and needs
+// no scheduled job. The week starts on quest_settings.gamble_week_start_day (Monday by default).
+// Pass `today` when the caller already resolved it (getCurrentDate hits quest_settings for the
+// simulation date).
+export async function getGambleRollsThisWeek(userId: string, today?: string): Promise<number> {
+  const pool = await getQuestConnection();
+  await ensureUserState(userId);
+  const day = today ?? await getCurrentDate(userId);
+  const weekStart = gambleWeekStart(day, await getGambleWeekStartDay(userId));
+  const res = await pool.request()
+    .input('userId', sql.UniqueIdentifier, userId)
+    .query<{ rolls_count: number; rolls_date: string | null }>(
+      `SELECT gamble_rolls_count AS rolls_count,
+              CONVERT(VARCHAR(10), gamble_rolls_date, 23) AS rolls_date
+       FROM quest_user_state WHERE user_id = @userId`
+    );
+  const row = res.recordset[0];
+  return row && row.rolls_date && row.rolls_date >= weekStart ? Number(row.rolls_count) : 0;
+}
+
+/** Coins the user's NEXT short rest costs right now (escalates with each roll already made this week). */
+export async function getGambleCost(userId: string, today?: string): Promise<number> {
+  return gambleCostForRoll(await getGambleRollsThisWeek(userId, today));
+}
+
+// "Gamble for health" — a DnD short-rest: pay coins to roll a d20 and recover that many HP (capped
+// at the missing amount). It's a gamble — a low roll wastes the coins, a high roll is a big heal.
+// The price ESCALATES within a WEEK: the Nth roll costs gambleCostForRoll(N - 1) (2, 4, 6, ...), so
+// leaning on short rests gets expensive fast; the counter resets on the user's week-start day
+// (quest_settings.gamble_week_start_day, Monday by default). The die is
+// rolled HERE (server-side) so the outcome can't be tampered with from the client; the overlay
+// animation only lands on the number we return. Coin debit + heal + roll-counter bump happen in one
+// transaction with the same UPDLOCK/HOLDLOCK balance read the reward-spend path uses, so concurrent
+// rolls can neither race the balance nor buy two rolls at the same price. Writes a ref_type='gamble'
+// ledger row; because it does NOT touch quest_damage_log, a later clearTodayReview leaves the heal intact.
 export async function gambleForHealth(userId: string): Promise<GambleResult> {
   const pool = await getQuestConnection();
   const state = await ensureUserState(userId);
+  const today = await getCurrentDate(userId);
+  // First day of the quest week `today` falls in — rolls stamped on or after it still escalate.
+  const weekStart = gambleWeekStart(today, await getGambleWeekStartDay(userId));
   // Nothing to recover — don't let the user burn coins on a no-op heal.
   if (state.health >= state.max_health) {
     const balance = await getCurrentBalance(pool.request(), userId);
-    return { ok: false, reason: 'full_health', balance, state };
+    const rollsThisWeek = await getGambleRollsThisWeek(userId, today);
+    return { ok: false, reason: 'full_health', balance, state, cost: gambleCostForRoll(rollsThisWeek), rollsThisWeek };
   }
   const tx = pool.transaction();
   await tx.begin();
@@ -183,9 +217,23 @@ export async function gambleForHealth(userId: string): Promise<GambleResult> {
         `SELECT ISNULL(SUM(delta), 0) AS balance FROM quest_ledger WITH (UPDLOCK, HOLDLOCK) WHERE user_id = @userId`
       );
     const balance = balRow.recordset[0]?.balance ?? 0;
-    if (balance < GAMBLE_COST) {
+    // Re-read the week's roll counter under the same lock so two concurrent rolls can't both price
+    // themselves off the same count. A stamp from before this week's start means the week's first roll.
+    const rollsRow = await tx.request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .query<{ rolls_count: number; rolls_date: string | null }>(
+        `SELECT gamble_rolls_count AS rolls_count,
+                CONVERT(VARCHAR(10), gamble_rolls_date, 23) AS rolls_date
+         FROM quest_user_state WITH (UPDLOCK, HOLDLOCK) WHERE user_id = @userId`
+      );
+    const priorRow = rollsRow.recordset[0];
+    const rollsThisWeek = priorRow && priorRow.rolls_date && priorRow.rolls_date >= weekStart
+      ? Number(priorRow.rolls_count)
+      : 0;
+    const cost = gambleCostForRoll(rollsThisWeek);
+    if (balance < cost) {
       await tx.rollback();
-      return { ok: false, reason: 'insufficient', balance, state };
+      return { ok: false, reason: 'insufficient', balance, state, cost, rollsThisWeek };
     }
     // Roll 1..GAMBLE_DIE_SIDES and heal up to the missing HP (overage beyond max is the gamble's risk).
     const roll = 1 + Math.floor(Math.random() * GAMBLE_DIE_SIDES);
@@ -194,26 +242,37 @@ export async function gambleForHealth(userId: string): Promise<GambleResult> {
     // Debit the coins.
     await tx.request()
       .input('userId', sql.UniqueIdentifier, userId)
-      .input('delta', sql.Decimal(10, 2), -GAMBLE_COST)
-      .input('reason', sql.NVarChar(500), `Short rest — rolled ${roll}, healed ${healed} HP`)
+      .input('delta', sql.Decimal(10, 2), -cost)
+      .input('reason', sql.NVarChar(500), `Short rest #${rollsThisWeek + 1} this week — rolled ${roll}, healed ${healed} HP`)
       .query(
         `INSERT INTO quest_ledger (user_id, delta, reason, ref_type, ref_id)
          VALUES (@userId, @delta, @reason, 'gamble', NULL)`
       );
-    // Apply the heal.
+    // Apply the heal and stamp the week's roll counter against today (which prices the next roll).
     const updated = await tx.request()
       .input('userId', sql.UniqueIdentifier, userId)
       .input('health', sql.Int, newHealth)
+      .input('rollsThisWeek', sql.Int, rollsThisWeek + 1)
+      .input('today', sql.Date, today)
       .query<UserState>(
         `UPDATE quest_user_state
-         SET health = @health, ts_modified = GETDATE()
+         SET health = @health, gamble_rolls_count = @rollsThisWeek, gamble_rolls_date = @today, ts_modified = GETDATE()
          OUTPUT INSERTED.health, INSERTED.max_health,
                 CONVERT(VARCHAR(10), INSERTED.last_damage_check_date, 23) AS last_damage_check_date,
                 CONVERT(VARCHAR(10), INSERTED.last_review_ack_date, 23) AS last_review_ack_date
          WHERE user_id = @userId`
       );
     await tx.commit();
-    return { ok: true, roll, healed, spent: GAMBLE_COST, balance: balance - GAMBLE_COST, state: updated.recordset[0] };
+    return {
+      ok: true,
+      roll,
+      healed,
+      spent: cost,
+      balance: balance - cost,
+      state: updated.recordset[0],
+      rollsThisWeek: rollsThisWeek + 1,
+      nextCost: gambleCostForRoll(rollsThisWeek + 1),
+    };
   } catch (e) {
     await tx.rollback();
     throw e;
