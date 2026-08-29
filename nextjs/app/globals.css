@@ -2458,6 +2458,26 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   padding: 2rem 0;
 }
 
+/* Route-level loading fallback (components/RouteLoading via app/modules/loading.tsx).
+   Held invisible for the first 180ms so a navigation that resolves quickly shows
+   nothing at all — only a genuinely slow route ever fades a spinner in. `both`
+   applies the 0-opacity from-state during the delay, so there is no pre-flash. */
+.route-loading {
+  padding: 4rem 0;
+  animation: route-loading-in 160ms ease-out 180ms both;
+}
+
+@keyframes route-loading-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loading {
+    animation: none;
+  }
+}
+
 /* Highlight flash — used when scrolling to a specific card (e.g. clicking a stat to find its session) */
 @keyframes highlight-flash {
   0% { box-shadow: 0 0 0 2px var(--btn-blue-bg); }
