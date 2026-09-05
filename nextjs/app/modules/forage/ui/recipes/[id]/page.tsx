@@ -11,7 +11,12 @@ import Modal from "@/components/Modal";
 import { Recipe, RecipeIngredient, RecipeIngredientInput } from "../../../types/recipe";
 import { Food, FoodServing, FoodNutrient } from "../../../types/food";
 import { resolveFoodIcon, FOOD_ICONS } from "../../../lib/foodIcons";
+import { FoodAvatar } from "../../../components/FoodAvatar";
+import { RECIPE_NAME_MAX } from "../../../lib/recipeConstants";
+import { parseAmount } from "../../../lib/format";
+import { AmountField } from "../../../components/AmountField";
 import { expandVirtualServings, resolveServingForSave } from "../../../lib/virtualUnits";
+import { ServingUnitOptions } from "../../../components/ServingUnitOptions";
 import { AddEntryModal, FoodNutrientBreakdown, RecipeUsageList, useNutrients, prefetchNutrientTargets } from "../../_diary";
 
 interface DraftIngredient extends RecipeIngredient {
@@ -66,6 +71,11 @@ export default function ForageRecipeDetailPage() {
   const aiTriggeredRef = useRef(false);
   const deletedRef = useRef(false);
   const disposeRef = useRef<{ id: string; dispose: boolean }>({ id: recipeId, dispose: false });
+  // Name handed over by the opener via ?name= (the food logger seeds it with the
+  // recipe search that found nothing, so the user doesn't retype it). It's a
+  // draft value only — never saved on arrival — and counts as "still blank" below,
+  // so backing straight out of a seeded recipe still auto-disposes the row.
+  const seededNameRef = useRef<string>("");
 
   // A recipe is disposable only if BOTH the saved row and the current draft are
   // still the untouched blank default — no ingredients, no icon, default/blank
@@ -74,7 +84,8 @@ export default function ForageRecipeDetailPage() {
   // recipes (real name + ingredients) are always kept.
   function isBlank(name: string, ingredientCount: number, icon: string | null): boolean {
     const n = name.trim().toLowerCase();
-    return ingredientCount === 0 && !icon && (n === "" || n === "new recipe");
+    const seeded = seededNameRef.current.trim().toLowerCase();
+    return ingredientCount === 0 && !icon && (n === "" || n === "new recipe" || (!!seeded && n === seeded));
   }
   function recipeIsDisposable(): boolean {
     if (!recipe) return false;
@@ -180,6 +191,14 @@ export default function ForageRecipeDetailPage() {
       // real content opened any other way stays read-only.
       const editParams =
         typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      // ?name= pre-fills the name of a still-blank recipe (never overwrites one
+      // that already has content), so a "Create \"chicken chili\"" hand-off from
+      // the logger lands with the name already typed.
+      const seededName = (editParams?.get("name") ?? "").trim();
+      if (seededName && isBlank(data.name, data.ingredients.length, data.icon)) {
+        seededNameRef.current = seededName;
+        setName(seededName);
+      }
       const wantsEdit =
         isBlank(data.name, data.ingredients.length, data.icon) ||
         editParams?.get("ai") === "1" ||
@@ -517,6 +536,7 @@ export default function ForageRecipeDetailPage() {
                       onFocus={selectOnFocus}
                       onKeyDown={blurOnEnter}
                       placeholder="Enter recipe name"
+                      maxLength={RECIPE_NAME_MAX}
                       style={{ flex: 1, minWidth: 0 }}
                     />
                   </div>
@@ -631,7 +651,6 @@ export default function ForageRecipeDetailPage() {
                 )}
 
                 {ingredients.map((row) => {
-                  const RowIcon = resolveFoodIcon(row.food_icon ?? null);
 
                   // VIEW ROW — read-only and tappable: the whole row opens the
                   // ingredient's food detail page. Placeholder rows (no resolved
@@ -649,8 +668,12 @@ export default function ForageRecipeDetailPage() {
                         aria-label={navigable ? `Open ${row.food_name} details` : undefined}
                       >
 
-                        {/* ICON */}
-                        <RowIcon className="fg-ing-icon" />
+                        {/* AVATAR — the ingredient food's product photo, its icon as fallback */}
+                        <FoodAvatar
+                          food={{ id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null }}
+                          variant="inline"
+                          className="fg-ing-icon"
+                        />
 
                         {/* BODY — name/brand stacked above the derived macros */}
                         <div className="fg-ing-titles">
@@ -702,8 +725,12 @@ export default function ForageRecipeDetailPage() {
                       {/* NAME TIER — icon + full-width food name (wraps for readability) */}
                       <div className="fg-ing-head">
 
-                        {/* ICON */}
-                        <RowIcon className="fg-ing-icon" />
+                        {/* AVATAR — the ingredient food's product photo, its icon as fallback */}
+                        <FoodAvatar
+                          food={{ id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null }}
+                          variant="inline"
+                          className="fg-ing-icon"
+                        />
 
                         {/* NAME + BRAND */}
                         <div className="fg-ing-titles">
@@ -740,21 +767,18 @@ export default function ForageRecipeDetailPage() {
                         {/* QTY / UNIT */}
                         <div className="fg-ing-qty">
 
-                          {/* AMOUNT */}
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min="0.001"
-                            step="0.1"
+                          {/* AMOUNT — fraction-capable so a recipe amount can be typed
+                              the way it reads on the card ("1/8", "1 1/2"); see AmountField */}
+                          <AmountField
                             className="input-field fg-ing-amt"
-                            value={row.__quantityText ?? row.quantity}
+                            value={String(row.__quantityText ?? row.quantity)}
                             onFocus={selectOnFocus}
                             onKeyDown={blurOnEnter}
-                            onChange={(e) => {
+                            aria-label="Amount"
+                            onValueChange={(raw) => {
                               // Keep the raw text so the field can be empty/partial
-                              // ("", ".", "1.") instead of snapping to 0 mid-edit.
-                              const raw = e.target.value;
-                              const newQ = Number(raw);
+                              // ("", ".", "1.", "1/") instead of snapping to 0 mid-edit.
+                              const newQ = parseAmount(raw);
                               // Only rescale macros for a usable positive number;
                               // otherwise just hold the text and leave quantity be.
                               if (raw === "" || !Number.isFinite(newQ) || newQ <= 0) {
@@ -802,9 +826,7 @@ export default function ForageRecipeDetailPage() {
                                 });
                               }}
                             >
-                              {row.food_servings!.map((s) => (
-                                <option key={s.id} value={s.id}>{s.unit}</option>
-                              ))}
+                              <ServingUnitOptions servings={row.food_servings!} />
                             </select>
                           ) : (
                             <span className="fg-ing-unit-static">

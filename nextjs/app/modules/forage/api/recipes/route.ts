@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { listRecipes, createRecipe, RecipeSort } from '../../lib/recipeFunctions';
+import { listRecipes, createRecipe, parseRecipeInput, RecipeSort } from '../../lib/recipeFunctions';
 
 export async function GET(request: NextRequest) {
   const session = await getAuthorizedUser(request);
@@ -26,15 +26,10 @@ export async function POST(request: NextRequest) {
   const session = await getAuthorizedUser(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-    const body = await request.json();
-    const name = (body.name ?? '').trim();
-    if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
-    const recipe = await createRecipe(session.user.id!, {
-      name,
-      serving_count: Number(body.serving_count ?? 1),
-      icon: typeof body.icon === 'string' && body.icon.trim() ? body.icon.trim() : null,
-      ingredients: Array.isArray(body.ingredients) ? body.ingredients : [],
-    });
+    const body = await request.json().catch(() => null);
+    const parsed = parseRecipeInput(body);
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const recipe = await createRecipe(session.user.id!, parsed.input);
     return NextResponse.json(recipe, { status: 201 });
   } catch (error) {
     console.error('Error in POST /forage/api/recipes:', error);

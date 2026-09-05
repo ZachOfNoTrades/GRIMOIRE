@@ -1,8 +1,14 @@
 import sql from 'mssql';
 import { getFoodConnection, closeFoodConnection } from './db';
-import { escapeLike } from './foodFunctions';
+import {
+  buildSearchLikeSql,
+  buildSearchTokenPattern,
+  SEARCH_PARAM_WIDTH,
+  SEARCH_TOKEN_MAX_CHARS,
+} from './foodFunctions';
 import { Recipe, RecipeIngredient, RecipeIngredientInput, CreateRecipeInput } from '../types/recipe';
 import { FoodNutrient, FoodServing } from '../types/food';
+import { RECIPE_NAME_MAX, RECIPE_SERVINGS_MAX } from './recipeConstants';
 
 // A recipe is stored as TWO rows working in concert:
 //   * `foods` row, source='recipe' — carries the display name + icon + computed
@@ -81,6 +87,7 @@ async function hydrateIngredients(
         ri.id, ri.display_order, ri.ingredient_food_id, ri.serving_id, ri.quantity,
         ri.placeholder_name, ri.placeholder_quantity_text,
         f.name AS food_name, f.brand AS food_brand, f.icon AS food_icon,
+        f.image_updated_at AS food_image_updated_at,
         fs.unit AS serving_unit, fs.units_per_serving
       FROM forage_recipe_ingredients ri
       LEFT JOIN foods f ON f.id = ri.ingredient_food_id
@@ -148,6 +155,7 @@ async function hydrateIngredients(
       food_name: r.food_name,
       food_brand: r.food_brand,
       food_icon: r.food_icon,
+      food_image_updated_at: r.food_image_updated_at ?? null,
       serving_unit: r.serving_unit,
       units_per_serving: unitsPerServing,
       kcal: servings * (m['kcal'] ?? 0),
@@ -199,11 +207,19 @@ export async function listRecipes(
       // tabs, and a mobile keyboard readily appends a trailing space — a raw
       // `LIKE '%shake %'` then matched nothing while the foods tab still found
       // "Shake". Tokens also let "protein shake" match "Shake, protein".
-      const tokens = search.trim().split(/\s+/).filter(Boolean);
-      tokens.forEach((token, index) => {
+      // Same punctuation-insensitive comparison as listFoods, so a recipe named
+      // "Ben & Jerry's Shake" is found by "bens shake" — see buildSearchTokenPattern.
+      const tokens = search.trim().split(/\s+/).map(buildSearchTokenPattern).filter((t) => t.term);
+      // Recipes live in the same nvarchar(255) `foods.name`, so the same cap
+      // applies — see SEARCH_TOKEN_MAX_CHARS.
+      if (tokens.some(({ term }) => term.length > SEARCH_TOKEN_MAX_CHARS)) {
+        console.warn(`No recipes found for user_id: '${userId}' (search token over ${SEARCH_TOKEN_MAX_CHARS} chars)`);
+        return [];
+      }
+      tokens.forEach(({ pattern, normalized }, index) => {
         const param = `q${index}`;
-        req.input(param, sql.NVarChar(255), `%${escapeLike(token)}%`);
-        where += ` AND f.name LIKE @${param} ESCAPE '\\'`;
+        req.input(param, sql.NVarChar(SEARCH_PARAM_WIDTH), pattern);
+        where += ` AND ${buildSearchLikeSql('f.name', param, normalized)}`;
       });
     }
     // Always join each recipe's most-recent log time (MAX ts_logged over this
@@ -228,7 +244,7 @@ export async function listRecipes(
       SELECT TOP 200
         f.id, f.user_id, f.name, f.brand, f.source, f.usda_fdc_id, f.barcode_upc,
         ${FOOD_MACRO_SELECT},
-        f.is_favorite, f.is_archived, f.icon, f.ts_created, lu.last_used,
+        f.is_favorite, f.is_archived, f.icon, f.ts_created, f.ts_updated, lu.last_used,
         r.servings AS serving_count
       FROM foods f
       INNER JOIN forage_recipes r ON r.food_id = f.id
@@ -544,6 +560,46 @@ async function ensureCanonicalServing(
     .request()
     .input('foodId', sql.UniqueIdentifier, recipeFoodId)
     .query(`INSERT INTO food_servings (food_id, unit, units_per_serving) VALUES (@foodId, 'serving', 1)`);
+}
+
+
+/**
+ * Validate an untrusted request body into a CreateRecipeInput. Returns an error
+ * string rather than throwing so the API can answer 400 instead of 500: a
+ * wrong-typed `name` (e.g. an object) used to reach `.trim()` and a non-numeric
+ * `serving_count` used to reach the DECIMAL column as NaN — both surfaced as
+ * "Failed to create recipe" 500s.
+ */
+export function parseRecipeInput(body: unknown): { input: CreateRecipeInput } | { error: string } {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Body must be an object' };
+  }
+  const raw = body as Record<string, unknown>;
+
+  if (raw.name !== undefined && raw.name !== null && typeof raw.name !== 'string') {
+    return { error: 'Name must be text' };
+  }
+  const name = (typeof raw.name === 'string' ? raw.name : '').trim();
+  if (!name) return { error: 'Name is required' };
+  if (name.length > RECIPE_NAME_MAX) {
+    return { error: `Name must be ${RECIPE_NAME_MAX} characters or fewer` };
+  }
+
+  const rawServings = raw.serving_count ?? 1;
+  const servingCount =
+    typeof rawServings === 'number' ? rawServings : Number(String(rawServings).trim());
+  if (!Number.isFinite(servingCount) || servingCount <= 0 || servingCount > RECIPE_SERVINGS_MAX) {
+    return { error: `Servings must be a number between 0 and ${RECIPE_SERVINGS_MAX}` };
+  }
+
+  return {
+    input: {
+      name,
+      serving_count: servingCount,
+      icon: typeof raw.icon === 'string' && raw.icon.trim() ? raw.icon.trim() : null,
+      ingredients: Array.isArray(raw.ingredients) ? raw.ingredients : [],
+    },
+  };
 }
 
 export async function createRecipe(userId: string, input: CreateRecipeInput): Promise<Recipe> {

@@ -3,10 +3,12 @@ import { getAuthorizedUser } from '@/lib/permissions';
 import { listPairedFoodUsage } from '../../../../lib/entryFunctions';
 import { getFood } from '../../../../lib/foodFunctions';
 
-// GET /modules/forage/api/foods/[id]/paired — foods this user frequently logs on
-// the same diary day as food [id] ("frequently paired with"). Returns hydrated
-// Food objects (recency order preserved) with each partner's last-logged serving +
-// amount attached, so the diary's pairing strip can re-add them at the usual size.
+// GET /modules/forage/api/foods/[id]/paired — foods this user frequently logs
+// alongside food [id] ("frequently paired with"), ranked by how often the two were
+// actually logged together (within a meal-sized window), not merely on the same
+// date. Returns hydrated Food objects (pairing-strength order preserved) with each
+// partner's last-logged serving + amount attached, so the diary's pairing strip can
+// re-add them at the usual size.
 // Scoped to the caller's own entries, so an unknown/other-user food yields [].
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getAuthorizedUser(request);

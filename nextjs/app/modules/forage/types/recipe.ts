@@ -19,6 +19,9 @@ export interface RecipeIngredient {
   food_name?: string | null;
   food_brand?: string | null;
   food_icon?: string | null;
+  // Mirrors foods.image_updated_at so an ingredient row can render the food's
+  // stored product photo (icon only as the fallback) without a second fetch.
+  food_image_updated_at?: string | null;
   serving_unit?: string | null;
   units_per_serving?: number | null;
   // Per-row macro contribution at this quantity. Zero on unresolved placeholders.
@@ -42,10 +45,12 @@ export interface RecipeIngredient {
 export interface Recipe extends Food {
   serving_count: number;
   ingredients: RecipeIngredient[];
-  // Sort keys for the diary picker's Recipes tab (sorted client-side). `ts_created`
-  // is when the recipe was built; `last_used` is the most recent time it was logged
-  // (MAX food_entries.ts_logged), null if never logged. Both hydrated by listRecipes.
+  // Sort keys for the recipe lists (sorted client-side). `ts_created` is when the
+  // recipe was built; `ts_updated` is when it was last edited (bumped by every
+  // recipe write); `last_used` is the most recent time it was logged
+  // (MAX food_entries.ts_logged), null if never logged. All hydrated by listRecipes.
   ts_created?: string | null;
+  ts_updated?: string | null;
   last_used?: string | null;
 }
 

@@ -1,19 +1,30 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { Plus, Search, ChefHat, ChevronRight, ArrowDownUp, Flame } from "lucide-react";
+import { Plus, ChefHat, ChevronRight, ArrowDownUp, Flame } from "lucide-react";
+import { SearchField } from "@/components/SearchField";
 import { Button } from "@/components/ui/button";
 import { Recipe } from "../../types/recipe";
 import { resolveFoodIcon } from "../../lib/foodIcons";
+import { normalizeSearchTerm } from "../../lib/searchNormalize";
 import RecipeBuildPicker from "./RecipeBuildPicker";
+import { useRecipeBuilder } from "./useRecipeBuilder";
 
-type SortKey = "modified" | "name" | "kcal";
+type SortKey = "modified" | "created" | "name" | "kcal";
+
+// Newest-first on an ISO timestamp; rows with no timestamp sort last. Shared by
+// the "Modified" and "Created" orders so both break ties the same way.
+function byTimeDesc(a?: string | null, b?: string | null): number {
+  const ta = a ? Date.parse(a) : NaN;
+  const tb = b ? Date.parse(b) : NaN;
+  const va = Number.isNaN(ta) ? -Infinity : ta;
+  const vb = Number.isNaN(tb) ? -Infinity : tb;
+  return vb - va;
+}
 
 export default function ForageRecipesPage() {
-  const router = useRouter();
-
   // DATA
   const [recipes, setRecipes] = useState<Recipe[]>([]);
 
@@ -23,8 +34,9 @@ export default function ForageRecipesPage() {
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+  // Recipe creation — shared with the (+) Shortcuts sheet and the food logger's
+  // Recipes tab so every entry point offers the identical build-method flow.
+  const recipeBuilder = useRecipeBuilder();
 
   async function loadRecipes() {
     setIsLoading(true);
@@ -44,83 +56,46 @@ export default function ForageRecipesPage() {
   }, []);
 
   const visibleRecipes = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    // Matches the server-side recipe search (listRecipes): every whitespace token
+    // must appear in the name, with punctuation stripped from both sides so
+    // "bens shake" still finds "Ben & Jerry's Shake".
+    const tokens = normalizeSearchTerm(search.trim().toLowerCase()).split(/\s+/).filter(Boolean);
     let filtered = recipes;
-    if (q) filtered = recipes.filter((r) => r.name.toLowerCase().includes(q));
+    if (tokens.length) {
+      filtered = recipes.filter((r) => {
+        const name = normalizeSearchTerm(r.name.toLowerCase());
+        return tokens.every((token) => name.includes(token));
+      });
+    }
 
+    // Every order is applied here rather than leaning on the API's order, which is
+    // `last_used` — that made the "Modified" label a lie about what it sorted by.
     const sorted = [...filtered];
     if (sortBy === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === "kcal") sorted.sort((a, b) => b.kcal_per_serving - a.kcal_per_serving);
+    else if (sortBy === "created")
+      sorted.sort((a, b) => byTimeDesc(a.ts_created, b.ts_created) || a.name.localeCompare(b.name));
+    else sorted.sort((a, b) => byTimeDesc(a.ts_updated, b.ts_updated) || a.name.localeCompare(b.name));
 
     return sorted;
   }, [recipes, search, sortBy]);
 
-  // Create an empty recipe row and return it. Both "build from scratch" and the
-  // photo-AI path start here; the editor disposes of it on exit if left empty.
-  async function createBlankRecipe(): Promise<Recipe | null> {
-    try {
-      const res = await fetch(`/modules/forage/api/recipes`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "New recipe", serving_count: 1, ingredients: [] }),
-      });
-      if (!res.ok) {
-        toast.error("Failed to create recipe");
-        return null;
-      }
-      return (await res.json()) as Recipe;
-    } catch {
-      toast.error("Failed to create recipe");
-      return null;
-    }
-  }
-
-  // Build from scratch — empty editor.
-  async function handleScratch() {
-    const created = await createBlankRecipe();
-    if (created) router.push(`/modules/forage/ui/recipes/${created.id}`);
-  }
-
-  // Import with AI — empty editor that auto-opens the photo picker (?ai=1).
-  async function handleAi() {
-    const created = await createBlankRecipe();
-    if (created) router.push(`/modules/forage/ui/recipes/${created.id}?ai=1`);
-  }
-
-  // Import from website — server scrapes + resolves, then we open the result.
-  async function handleImportUrl(url: string) {
-    setIsImporting(true);
-    const toastId = toast.loading("Importing recipe…");
-    try {
-      const res = await fetch(`/modules/forage/api/recipes/import-url`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data?.error || "Failed to import recipe", { id: toastId });
-        return;
-      }
-      toast.success("Recipe imported", { id: toastId });
-      setPickerOpen(false);
-      router.push(`/modules/forage/ui/recipes/${(data as Recipe).id}`);
-    } catch {
-      toast.error("Failed to import recipe", { id: toastId });
-    } finally {
-      setIsImporting(false);
-    }
-  }
-
   function cycleSortBy() {
     setSortBy((prev) => {
-      if (prev === "modified") return "name";
+      if (prev === "modified") return "created";
+      if (prev === "created") return "name";
       if (prev === "name") return "kcal";
       return "modified";
     });
   }
 
-  const sortLabel = sortBy === "modified" ? "Modified" : sortBy === "name" ? "Name" : "Calories";
+  const SORT_LABELS: Record<SortKey, string> = {
+    modified: "Modified",
+    created: "Created",
+    name: "Name",
+    kcal: "Calories",
+  };
+  const sortLabel = SORT_LABELS[sortBy];
 
   return (
     /* PAGE */
@@ -150,7 +125,7 @@ export default function ForageRecipesPage() {
             </button>
 
             {/* NEW RECIPE */}
-            <Button className="btn-blue" onClick={() => setPickerOpen(true)} aria-label="New recipe" style={{ padding: "0.375rem 0.625rem" }}>
+            <Button className="btn-blue" onClick={recipeBuilder.openPicker} disabled={recipeBuilder.isStarting} aria-label="New recipe" style={{ padding: "0.375rem 0.625rem" }}>
               <Plus className="w-4 h-4" />
             </Button>
           </div>
@@ -166,19 +141,13 @@ export default function ForageRecipesPage() {
             top instead sidesteps the whole lvh/dvh question, and matches the sibling
             food-library page's filter placement. */}
         <div className="flex flex-col gap-1" style={{ marginBottom: "0.75rem" }}>
-          <div style={{ position: "relative" }}>
-            <Search className="w-4 h-4" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--color-gray)", pointerEvents: "none" }} />
-            <input
-              id="recipes-search"
-              type="search"
-              className="input-field"
-              placeholder="Filter recipes"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoCapitalize="words"
-              style={{ paddingLeft: "2.25rem" }}
-            />
-          </div>
+          <SearchField
+            id="recipes-search"
+            value={search}
+            onChange={setSearch}
+            placeholder="Filter recipes"
+            autoCapitalize="words"
+          />
         </div>
 
         {/* RECIPE LIST */}
@@ -204,10 +173,10 @@ export default function ForageRecipesPage() {
             const RecipeIcon = resolveFoodIcon(recipe.icon);
             return (
               /* RECIPE ROW */
-              <button
+              <Link
                 key={recipe.id}
                 className="sub-card"
-                onClick={() => router.push(`/modules/forage/ui/recipes/${recipe.id}`)}
+                href={`/modules/forage/ui/recipes/${recipe.id}`}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
@@ -241,7 +210,7 @@ export default function ForageRecipesPage() {
 
                 {/* CHEVRON */}
                 <ChevronRight className="w-4 h-4 text-muted" style={{ flexShrink: 0 }} />
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -251,15 +220,7 @@ export default function ForageRecipesPage() {
       </div>
 
       {/* BUILD METHOD PICKER */}
-      {pickerOpen && (
-        <RecipeBuildPicker
-          onClose={() => setPickerOpen(false)}
-          onScratch={handleScratch}
-          onAi={handleAi}
-          onImportUrl={handleImportUrl}
-          importing={isImporting}
-        />
-      )}
+      {recipeBuilder.pickerOpen && <RecipeBuildPicker {...recipeBuilder.pickerProps} />}
     </div>
   );
 }

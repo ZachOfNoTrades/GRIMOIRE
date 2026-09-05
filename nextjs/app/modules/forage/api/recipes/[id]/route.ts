@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { getRecipe, updateRecipe, archiveRecipe } from '../../../lib/recipeFunctions';
+import { getRecipe, updateRecipe, archiveRecipe, parseRecipeInput } from '../../../lib/recipeFunctions';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getAuthorizedUser(request);
@@ -23,15 +23,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await params;
   try {
-    const body = await request.json();
-    const name = (body.name ?? '').trim();
-    if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
-    const recipe = await updateRecipe(session.user.id!, id, {
-      name,
-      serving_count: Number(body.serving_count ?? 1),
-      icon: typeof body.icon === 'string' && body.icon.trim() ? body.icon.trim() : null,
-      ingredients: Array.isArray(body.ingredients) ? body.ingredients : [],
-    });
+    const body = await request.json().catch(() => null);
+    const parsed = parseRecipeInput(body);
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const recipe = await updateRecipe(session.user.id!, id, parsed.input);
     return NextResponse.json(recipe);
   } catch (error: any) {
     if (error?.message?.startsWith('No recipe found')) {
