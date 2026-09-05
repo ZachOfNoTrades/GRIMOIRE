@@ -27,6 +27,24 @@ function sessionToAuthUser(session: Session): AuthUser {
   };
 }
 
+// Which client channel a write arrived on. Recorded alongside the row it created or
+// modified so the UI can attribute it ("Created … via MCP"). Kept here next to
+// getAuthorizedUser because the two read the same headers to decide.
+export type RequestChannel = 'web' | 'api' | 'mcp';
+
+// Classifies an incoming API-route request as 'web' or 'api'. Mirrors getAuthorizedUser's
+// dispatch: a request carrying an X-API-Key or Authorization header authenticated as a
+// programmatic caller, anything else fell through to the browser's NextAuth cookie.
+//
+// 'mcp' is never returned here — MCP tool handlers call the lib functions directly (see
+// lib/mcp/tools/*), never through these routes, so they pass 'mcp' themselves. A request
+// whose Bearer token is an `mcp_at_` MCP OAuth token only ever reaches /api/mcp.
+export function getRequestChannel(request: Request): RequestChannel {
+  if (request.headers.get('x-api-key')) return 'api';
+  if (request.headers.get('authorization')) return 'api';
+  return 'web';
+}
+
 // Verifies the current session exists and the user is authorized.
 // Returns the session or null if unauthorized. Use this for routes that must be
 // browser-only (e.g. API key management itself).

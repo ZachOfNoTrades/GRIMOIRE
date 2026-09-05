@@ -41,11 +41,21 @@ BEGIN TRY
             category NVARCHAR(100) NULL,
             source NVARCHAR(50) NULL,
             source_id NVARCHAR(500) NULL,
+            -- The user's own citation for where the card's material came from: a URL to
+            -- paste, or free text like "Per Chief's lecture". Rendered under the notes on
+            -- the study card's answer face. Distinct from `source`/`source_id`, which are
+            -- internal provenance (which pipeline produced the content, and its row key).
+            source_ref NVARCHAR(500) NULL,
             order_index INT NOT NULL,
             is_disabled BIT DEFAULT 0,
             is_draft BIT DEFAULT 0, -- draft cards are hidden from study sessions and excluded from the deck's due count
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
+            -- Which client channel wrote the card ('web' | 'api' | 'mcp'). Distinct from `source`,
+            -- which records where the card's CONTENT came from. Nullable: pre-2026-09-03 rows
+            -- have no recoverable channel.
+            created_via NVARCHAR(20) NULL,
+            modified_via NVARCHAR(20) NULL,
 
             CONSTRAINT FK_cards_deck FOREIGN KEY (deck_id) REFERENCES decks(id)
         );

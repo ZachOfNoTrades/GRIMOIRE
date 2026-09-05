@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedUser } from '@/lib/permissions';
+import { getAuthorizedUser, getRequestChannel } from '@/lib/permissions';
 import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { getDeckById } from '../../../../lib/deckFunctions';
@@ -155,7 +155,7 @@ export async function PUT(
       }
     }
 
-    const result = await applyRefinedCards(userId!, id, refinedCards);
+    const result = await applyRefinedCards(userId!, id, refinedCards, getRequestChannel(request));
     return NextResponse.json(result);
 
   } catch (error: any) {

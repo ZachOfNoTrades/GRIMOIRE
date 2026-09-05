@@ -2,6 +2,7 @@ import { unlinkSync } from 'fs';
 import { spawn } from 'child_process';
 import { getDeckById } from './deckFunctions';
 import { getCardsByDeckId, updateCard } from './cardFunctions';
+import type { RequestChannel } from '@/lib/permissions';
 import { callLLM, readLLMOutput } from './llmFunctions';
 import { loadPromptFile } from './promptLoader';
 import { fetchNotionPageContent } from './notionFunctions';
@@ -136,6 +137,7 @@ export async function refineCard(
   userId: string,
   cardId: string,
   feedback: string,
+  via: RequestChannel = 'web',
 ): Promise<RefineCardPayload> {
   // Fetch the card to get current content
   const { getCardById } = await import('./cardFunctions');
@@ -170,8 +172,10 @@ export async function refineCard(
     throw new Error('Refined card must have front and back fields');
   }
 
-  // Update the card in the database
-  await updateCard(userId, cardId, parsed.front, parsed.back, parsed.notes || null);
+  // Update the card in the database. category / isDraft / sourceRef are passed as
+  // undefined so updateCard leaves them alone — refine only rewrites the card's text,
+  // and must not clear a category, draft flag, or user-typed citation as a side effect.
+  await updateCard(userId, cardId, parsed.front, parsed.back, parsed.notes || null, undefined, undefined, undefined, via);
 
   console.log(`[RefineCard] Card updated successfully`);
   return parsed;

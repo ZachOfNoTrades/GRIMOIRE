@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedUser } from '@/lib/permissions';
+import { getAuthorizedUser, getRequestChannel } from '@/lib/permissions';
 import { getDeckById } from '../../../../../lib/deckFunctions';
 import { getCardById } from '../../../../../lib/cardFunctions';
 import { refineCard } from '../../../../../lib/refineFunctions';
@@ -40,7 +40,7 @@ export async function POST(
     // Verify card ownership
     await getCardById(userId!, cardId);
 
-    const result = await refineCard(userId!, cardId, feedback.trim());
+    const result = await refineCard(userId!, cardId, feedback.trim(), getRequestChannel(request));
 
     return NextResponse.json(result);
 

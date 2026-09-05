@@ -5,6 +5,7 @@ import { loadPromptFile } from './promptLoader';
 import { fetchNotionPageContent } from './notionFunctions';
 import { createDeck } from './deckFunctions';
 import { insertCards } from './cardFunctions';
+import type { RequestChannel } from '@/lib/permissions';
 
 export interface GenerateDeckResult {
   deckId: string;
@@ -20,6 +21,7 @@ export async function generateDeckFromNotion(
   deckDescription: string | null,
   notionUrl: string,
   customPrompt: string | null,
+  via: RequestChannel = 'web',
 ): Promise<GenerateDeckResult> {
   const startTime = Date.now();
   const heartbeat = setInterval(() => {
@@ -46,6 +48,7 @@ export async function generateDeckFromNotion(
       deckName,
       notionPage.content,
       customPrompt,
+      via,
     );
 
     const totalSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -68,6 +71,7 @@ export async function generateDeckFromDescription(
   deckName: string,
   deckDescription: string | null,
   customPrompt: string | null,
+  via: RequestChannel = 'web',
 ): Promise<GenerateDeckResult> {
   const startTime = Date.now();
   const heartbeat = setInterval(() => {
@@ -92,6 +96,7 @@ export async function generateDeckFromDescription(
       deckName,
       description,
       customPrompt,
+      via,
     );
 
     const totalSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -115,6 +120,7 @@ async function generateAndInsertCards(
   deckName: string,
   notionContent: string,
   customPrompt: string | null,
+  via: RequestChannel = 'web',
 ): Promise<number> {
   // Get starting order_index for new cards
   let pool;
@@ -157,7 +163,7 @@ async function generateAndInsertCards(
   }
 
   // Insert cards into database
-  return await insertCards(userId, deckId, payload.cards, 'notion');
+  return await insertCards(userId, deckId, payload.cards, 'notion', via);
 }
 
 // Generates cards via LLM from a topic description and inserts them into the deck.
@@ -167,6 +173,7 @@ async function generateAndInsertCardsFromDescription(
   deckName: string,
   description: string,
   customPrompt: string | null,
+  via: RequestChannel = 'web',
 ): Promise<number> {
   // Get starting order_index for new cards
   let pool;
@@ -209,5 +216,5 @@ async function generateAndInsertCardsFromDescription(
   }
 
   // Insert cards into database
-  return await insertCards(userId, deckId, payload.cards, 'description');
+  return await insertCards(userId, deckId, payload.cards, 'description', via);
 }

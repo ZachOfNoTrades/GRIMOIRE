@@ -1,3 +1,11 @@
+// Column widths for the free-text card fields that are NOT nvarchar(max). They live here,
+// not in cardFunctions, because the card modal (a client component) needs them for its
+// maxLength caps — and importing anything from cardFunctions drags `mssql` into the
+// browser bundle. The API layer and the MCP schemas use them to reject over-length input
+// up front with a 400 instead of letting it reach the driver as a truncation 500.
+export const CARD_SOURCE_REF_MAX = 500;
+export const CARD_CATEGORY_MAX = 200;
+
 export interface CardWithProgress {
   id: string;
   deck_id: string;

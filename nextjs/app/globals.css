@@ -5575,6 +5575,27 @@ body:has(.quest-cal-page) > .page {
   padding: 0.25rem 0.5rem;
 }
 
+/* SOURCE — the user's citation, rendered under the notes on the study card's
+   answer face. A hairline rule separates it from the notes above without adding
+   another boxed section: the two read as one trailing block of context, and the
+   "Source" caption is what tells them apart. Borrows --card-border so it tracks
+   both colour schemes (#1a1a1a light / #333 dark) instead of hardcoding a grey. */
+.rune-card-source {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--card-border);
+}
+
+/* A pasted URL is one unbroken token with no space to wrap at, so the default
+   `overflow-wrap: normal` lets it set the block's min-content width and drag the
+   whole card past the viewport — measured at 4517px wide from a 500-char source at
+   every width 320-412px, with no document scrollbar to reveal it (the card clips).
+   Applied to BOTH renders of the source (study answer face and deck-detail), which
+   is why it's its own class rather than living under .rune-card-source. */
+.rune-card-source-text {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
 /* IMAGE — capped so a pasted full-resolution photo doesn't blow out the card.
    Clicking it opens the full-screen preview below, hence the zoom cursor. */
 .card-content-image {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedUser } from '@/lib/permissions';
+import { getAuthorizedUser, getRequestChannel } from '@/lib/permissions';
 import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
 import { generateDeckFromNotion, generateDeckFromDescription } from '../../../lib/generationFunctions';
@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
     // Notion URL is optional — if not provided, generate from description
     const hasNotionUrl = notionUrl && typeof notionUrl === 'string' && notionUrl.trim().length > 0;
 
+    // Resolved before the fire-and-forget block: generation outlives the request, and
+    // reading headers off a consumed Request afterwards isn't safe.
+    const via = getRequestChannel(request);
+
     const job = createJob(userId!, "/modules/rune/api/decks/generate");
 
     // Fire-and-forget
@@ -46,12 +50,14 @@ export async function POST(request: NextRequest) {
               deckDescription?.trim() || null,
               notionUrl.trim(),
               customPrompt?.trim() || null,
+              via,
             )
           : await generateDeckFromDescription(
               userId!,
               deckName.trim(),
               deckDescription?.trim() || null,
               customPrompt?.trim() || null,
+              via,
             );
 
         await logGeneration(userId!, "/modules/rune/api/decks/generate");
