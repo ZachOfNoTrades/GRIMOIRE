@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { SearchField, SMART_MATCH_HINT } from "@/components/SearchField";
 import type {
   Equipment,
   EquipmentOption,
@@ -14,6 +15,7 @@ import type {
 import EquipmentOptionsModal from "./EquipmentOptionsModal";
 import { CATEGORY_ICONS, CATEGORY_LABELS, CATEGORY_ORDER } from "./equipmentCategories";
 import "./equipmentModal.css";
+import { makeSearchMatcher } from "@/lib/searchMatch";
 
 interface LocationEquipmentModalProps {
   isOpen: boolean;
@@ -164,13 +166,16 @@ export default function LocationEquipmentModal({
   // Total selected for header summary.
   const totalSelected = selectionMap.size;
   const isSearching = search.trim().length > 0;
-  const searchLower = search.trim().toLowerCase();
+  // Equipment names are unit-heavy ("45 lb plate", '20" box'), so matching runs
+  // through the shared normalizer — "45 pound" and "20 inch" find them too.
+  // See lib/searchMatch.ts.
+  const matchesSearch = makeSearchMatcher(search.trim());
 
   // Resolve each category to its visible rows once, so we can tell "nothing anywhere
   // matched the search" apart from "every matching category is just collapsed".
   const renderableCategories = CATEGORY_ORDER.map((cat) => {
     const items = (categorized.get(cat) ?? []).slice().sort((a, b) => a.sort_order - b.sort_order);
-    const searched = isSearching ? items.filter((e) => e.name.toLowerCase().includes(searchLower)) : items;
+    const searched = isSearching ? items.filter((e) => matchesSearch(e.name)) : items;
     const visible = filter === "selected" ? searched.filter((e) => isSelected(e.id)) : searched;
     return { cat, items, visible, selectedInCat: items.filter((e) => isSelected(e.id)).length };
   }).filter((c) => c.visible.length > 0);
@@ -205,13 +210,12 @@ export default function LocationEquipmentModal({
             </div>
 
             {/* SEARCH — the catalog spans 9 categories, this jumps straight to one item */}
-            <input
-              type="text"
-              placeholder="Search equipment..."
+            <SearchField
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="input-field"
-              aria-label="Search equipment"
+              onChange={setSearch}
+              placeholder="Search equipment..."
+              ariaLabel="Search equipment"
+              matchHint={SMART_MATCH_HINT}
             />
           </div>
         }

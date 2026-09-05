@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { SearchField } from "@/components/SearchField";
 import { ExerciseSummary } from "../../../types/exercise";
 import ExerciseListItem from "./ExerciseListItem";
 
@@ -40,16 +40,11 @@ export default function MuscleGroupView({
     <div className="flex flex-col gap-2 h-full">
 
       {/* SEARCH INPUT */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search exercises..."
-          className="input-field !pl-9"
-        />
-      </div>
+      <SearchField
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search exercises..."
+      />
 
       {/* SHOW DISABLED TOGGLE */}
       <label className="flex items-center gap-1.5 ml-auto cursor-pointer text-secondary">

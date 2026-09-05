@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { BackLink } from "@/components/BackLink";
-import { useRouter } from "next/navigation";
+import { useRowNav } from "@/lib/useRowNav";
 import { ArrowLeft, FileText, Plus } from "lucide-react";
+import { SearchField } from "@/components/SearchField";
 import { Button } from "@/components/ui/button";
 import { ProgramTemplateSummary } from "../../types/programTemplate";
 import AddTemplateModal from "./AddTemplateModal";
@@ -27,7 +28,7 @@ export default function TemplatesPage() {
     return searchWords.every((word) => normalizedName.includes(word));
   });
 
-  const router = useRouter();
+  const rowNav = useRowNav();
 
   // LOAD DATA
   useEffect(() => {
@@ -91,12 +92,11 @@ export default function TemplatesPage() {
             <div className="flex items-center gap-2">
 
               {/* SEARCH BAR */}
-              <input
-                type="text"
-                placeholder="Search..."
+              <SearchField
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input-field"
+                onChange={setSearchTerm}
+                placeholder="Search..."
+                ariaLabel="Search templates"
               />
 
               {/* ADD BUTTON */}
@@ -156,7 +156,7 @@ export default function TemplatesPage() {
                     <tr
                       key={template.id}
                       className="table-row-clickable"
-                      onClick={() => router.push(`/modules/golem/ui/templates/${template.id}`)}
+                      {...rowNav(`/modules/golem/ui/templates/${template.id}`)}
                     >
                       <td className="table-cell">{template.name}</td>
                       <td className="table-cell text-secondary">{template.description || "—"}</td>

@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { BackLink } from "@/components/BackLink";
-import { useRouter } from "next/navigation";
+import { useRowNav } from "@/lib/useRowNav";
 import { ArrowLeft, Dumbbell, Plus, MapPin } from "lucide-react";
+import { SearchField } from "@/components/SearchField";
 import { Button } from "@/components/ui/button";
 import { Exercise } from "../../types/exercise";
 import { Location } from "../../types/location";
@@ -26,7 +27,7 @@ export default function ExercisesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const tableRef = useRef<PaginatedTableHandle>(null);
-  const router = useRouter();
+  const rowNav = useRowNav();
 
   // Load locations and pick the initial one: URL ?location= param, else active, else default, else first.
   useEffect(() => {
@@ -116,12 +117,11 @@ export default function ExercisesPage() {
               </div>
 
               {/* SEARCH BAR */}
-              <input
-                type="text"
-                placeholder="Search..."
+              <SearchField
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input-field"
+                onChange={setSearchTerm}
+                placeholder="Search..."
+                ariaLabel="Search exercises"
               />
 
               {/* ADD BUTTON */}
@@ -173,7 +173,7 @@ export default function ExercisesPage() {
                 <tr
                   key={exercise.id}
                   className="table-row-clickable"
-                  onClick={() => router.push(`/modules/golem/ui/exercises/${exercise.id}?location=${selectedLocationId}`)}
+                  {...rowNav(`/modules/golem/ui/exercises/${exercise.id}?location=${selectedLocationId}`)}
                 >
                   <td className="table-cell">{exercise.name}</td>
                 </tr>

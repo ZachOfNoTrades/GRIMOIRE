@@ -1,5 +1,6 @@
 import sql from 'mssql';
 import { getFoodConnection, closeFoodConnection } from './db';
+import { SEARCH_IGNORED_CHARS, normalizeSearchTerm } from './searchNormalize';
 import { Food, FoodNutrient, FoodServing, FoodNutrientRanking, FoodUsageStats } from '../types/food';
 
 interface CreateFoodInput {
@@ -200,6 +201,64 @@ export function escapeLike(value: string): string {
   return value.replace(/[\\%_[]/g, (char) => `\\${char}`);
 }
 
+// Widest a single search token may be. `foods.name` and `foods.brand` are both
+// nvarchar(255), so a longer token cannot match any row — but mssql *rejects* a
+// value wider than the declared parameter rather than truncating it (TDS 8016,
+// then "String or binary data would be truncated" once the parameter is widened
+// to MAX), so an over-long term used to 500 the search route instead of simply
+// finding nothing. Callers short-circuit to an empty result, which is the answer
+// the LIKE would have produced anyway.
+export const SEARCH_TOKEN_MAX_CHARS = 255;
+
+// The escaped pattern is the token plus a leading/trailing '%' and up to one
+// backslash per character, so it can be a little over twice the token — 1024
+// clears that worst case while staying under the 4000-char nvarchar(max) cliff.
+export const SEARCH_PARAM_WIDTH = 1024;
+
+// SQL half of the search normalization (the JS half is normalizeSearchTerm in
+// searchNormalize, which is client-safe): wrap a column in nested REPLACEs so it
+// is compared with the same characters removed. Cheap enough that the constants
+// below are built once at module load rather than per request.
+export function buildNormalizedColumnSql(column: string): string {
+  return SEARCH_IGNORED_CHARS.reduce(
+    // A literal single quote is doubled inside a T-SQL string; N'' keeps the
+    // comparison on the nvarchar side so no implicit collation cast happens.
+    (expression, char) => `REPLACE(${expression},N'${char.replace(/'/g, "''")}',N'')`,
+    column
+  );
+}
+
+// These DBs are Latin1_General_CI_AS_KS_WS / SQL_Latin1_General_CP1_CI_AS — neither
+// is supplementary-character aware, so a surrogate pair (any emoji) has no defined
+// weight and `LIKE '%🦃%'` matched EVERY row: searching one emoji returned the whole
+// library. Comparing under the _SC collation gives the pair a real weight, so it
+// matches only where it actually appears. Same case-insensitive/accent-sensitive
+// rules as the column's own collation, so nothing else about matching changes.
+export const SEARCH_COLLATION = 'Latin1_General_100_CI_AS_SC';
+
+// Build the `<column> LIKE @param` fragment for one token, applying the search
+// collation to the column side (which fixes the comparison's collation for both
+// operands). `normalized` picks the punctuation-stripped column expression.
+export function buildSearchLikeSql(column: string, param: string, normalized: boolean): string {
+  const expression = normalized ? buildNormalizedColumnSql(column) : column;
+  return `${expression} COLLATE ${SEARCH_COLLATION} LIKE @${param} ESCAPE '\\'`;
+}
+
+// Turn one user-typed token into the LIKE pattern to bind. A token that is ENTIRELY
+// punctuation ("-", "&") normalizes to nothing, which would match every row — those
+// fall back to the raw column/token so the old literal behaviour is preserved.
+// `term` is what actually gets matched, so callers length-check THAT rather than the
+// raw token: "-------heb" is 10 characters of nothing plus a 3-character search.
+export function buildSearchTokenPattern(token: string): {
+  pattern: string;
+  normalized: boolean;
+  term: string;
+} {
+  const normalized = normalizeSearchTerm(token);
+  const term = normalized || token;
+  return { pattern: `%${escapeLike(term)}%`, normalized: !!normalized, term };
+}
+
 // Normalize a user-supplied source link for storage: trim, require an http(s)
 // URL, cap at the column width. Anything else (blank, "not a url", a javascript:
 // scheme) becomes null rather than being rejected — the link is a convenience
@@ -231,12 +290,21 @@ export async function listFoods(
       // Token-based search: split the query on whitespace and require EVERY token
       // to appear (as a substring) in name OR brand. This lets "colby jack" match
       // "Colby & monterey jack natural cheese slices" even though the words aren't
-      // contiguous — a plain `LIKE '%colby jack%'` would miss it.
-      const tokens = search.trim().split(/\s+/).filter(Boolean);
-      tokens.forEach((token, index) => {
+      // contiguous — a plain `LIKE '%colby jack%'` would miss it. Both the token
+      // and the columns are punctuation-stripped first, so "turkey heb" finds
+      // "Reserve Turkey Breast, Cracked Peppercorn" by H-E-B.
+      const tokens = search.trim().split(/\s+/).map(buildSearchTokenPattern).filter((t) => t.term);
+      // An over-long token can't match a 255-char column; answer that directly
+      // rather than handing mssql a value it will reject (SEARCH_TOKEN_MAX_CHARS).
+      if (tokens.some(({ term }) => term.length > SEARCH_TOKEN_MAX_CHARS)) {
+        console.warn(`No foods found for user_id: '${userId}' (search token over ${SEARCH_TOKEN_MAX_CHARS} chars)`);
+        return [];
+      }
+      tokens.forEach(({ pattern, normalized }, index) => {
         const param = `q${index}`;
-        req.input(param, sql.NVarChar(255), `%${escapeLike(token)}%`);
-        where += ` AND (name LIKE @${param} ESCAPE '\\' OR brand LIKE @${param} ESCAPE '\\')`;
+        req.input(param, sql.NVarChar(SEARCH_PARAM_WIDTH), pattern);
+        where += ` AND (${buildSearchLikeSql('name', param, normalized)}`
+          + ` OR ${buildSearchLikeSql('brand', param, normalized)})`;
       });
     }
     if (barcode) {

@@ -1265,6 +1265,78 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   padding: 0.375rem 0.25rem;
 }
 
+/* Search Fields (components/SearchField.tsx)
+   ------------------------------------------------------------------
+   One styled search box for the whole app. The clear affordance used to be
+   whatever the browser felt like drawing: `type="search"` gets Chromium's
+   ::-webkit-search-cancel-button — a bright unthemed glyph that belongs to no
+   part of this design system — while Gecko (Firefox / Firefox Android, the
+   primary target) draws nothing at all, so half the app had a clear button and
+   half had none depending on the engine. The rule below kills the native glyph
+   for EVERY search input, not just .search-field-input, so a stray raw
+   <input type="search"> added later can't reintroduce the inconsistency. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-field {
+  position: relative;
+  width: 100%;
+}
+
+.search-field-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-gray);
+  pointer-events: none;
+}
+
+/* Right padding is reserved unconditionally rather than only while the clear
+   button is mounted: making it conditional reflows the text the instant the
+   first character lands, which reads as the field twitching mid-type. */
+.search-field-input {
+  padding-left: 2.25rem;
+  padding-right: 2.25rem;
+}
+
+/* 2.25rem square hit target on the field's right edge — comfortably past the
+   24px minimum for touch while still fitting inside the 42px-tall input. */
+.search-field-clear {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  /* --color-secondary, not the --color-gray the magnifier uses: the magnifier is
+     decoration and should sit back with the placeholder, but this is a control
+     the user has to find and press, and gray on --input-bg is barely legible in
+     dark mode. */
+  color: var(--color-secondary);
+  cursor: pointer;
+}
+
+.search-field-clear:hover {
+  color: var(--color-primary);
+}
+
+.search-field-clear:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(59 130 246); /* matches .input-field:focus */
+}
+
 /* Dropdown Fields */
 .dropdown-field {
   background: var(--input-bg);
@@ -3258,7 +3330,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 0.9375rem;
   color: var(--color-secondary);
 }
-.bottom-action-bar-pill-scan {
+/* Trailing round buttons inside the pill (barcode scan, and the clear button
+   the food search grows once it has text) — same shape so the pill reads as one
+   control however many of them are showing. */
+.bottom-action-bar-pill-scan,
+.bottom-action-bar-pill-clear {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -3272,9 +3348,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   transition: background 120ms ease;
 }
-.bottom-action-bar-pill-scan:hover {
+.bottom-action-bar-pill-scan:hover,
+.bottom-action-bar-pill-clear:hover {
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
+
+/* Muted until hovered: the clear button sits next to the text the user is
+   reading, so it should not compete with it the way the scan action does. */
+.bottom-action-bar-pill-clear { color: var(--color-secondary); }
+.bottom-action-bar-pill-clear:hover { color: var(--color-primary); }
 
 .timeline-chip-brand {
   margin-top: 0.125rem;
@@ -5833,25 +5915,125 @@ body:has(.quest-cal-page) > .page {
   gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
-.erow-search {
+/* The search box itself is now the shared SearchField (.search-field*), which
+   carries its own relative box, magnifier and clear button — .erow-search /
+   -icon and their padding override lived here only to hand-roll that same
+   arrangement per list. */
+/* Filter dropdown + sort toggle share one line: the dropdown takes the width,
+   the toggle rides the right edge (and right-aligns alone when there is no
+   filter). Stacking them as two full-width selects read as a settings block
+   and cost the list a whole row of height. */
+.erow-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* Wraps rather than squeezing: below ~360px the select plus both controls no
+     longer fit, and a flex-shrunk <select> silently truncates its own longest
+     option ("All Categories" -> "All Categor…"). Dropping the controls to their
+     own line costs one row of height only on the widths that actually need it. */
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+/* Sort + view travel together so a wrap moves the pair, not one of them. */
+.erow-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+/* The flex sizing lives on the wrapper (which is what the row lays out) rather
+   than the <select>: the basis is the width at which "All Categories" still fits
+   next to the chevron; below that the row wraps (above) rather than truncating the
+   option text. `min-width:0` lets it shrink beside the sort/view controls. */
+.erow-filter-select-wrap {
   position: relative;
-  width: 100%;
+  display: flex;
+  /* 11.5rem, not 10: the basis has to cover the 1.5rem of extra right padding the
+     drawn chevron needs on top of the 10rem the option text itself wants, or
+     Chromium clips it to "All Categorie" instead of wrapping the row. */
+  flex: 1 1 11.5rem;
+  min-width: 0;
 }
-.erow-search-icon {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--color-gray);
-  pointer-events: none;
-}
-.erow-search .input-field {
-  padding-left: 2.25rem;
-}
-/* Full-width on its own line; `width:100%` (from `.input-field`) keeps the
-   dropdown from ballooning to its longest option's width. */
+/* `width:100%` (from `.input-field`) keeps the dropdown from ballooning to its
+   longest option's width; `min-width:0` lets it shrink beside the toggle. */
 .erow-filter-select {
   width: 100%;
+  min-width: 0;
+  /* The native dropmarker is painted flush against the right border and is not
+     movable — `padding-right` shrinks the text box but leaves the arrow where it
+     is — so it is suppressed and redrawn as the chevron below. */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  /* 0.75rem inset + 1rem glyph + 0.5rem gap: the option text stops before the
+     chevron instead of sliding under it. */
+  padding-right: 2.25rem;
+}
+/* FILTER CHEVRON — sits at the same 0.75rem inset as the field's text (and as
+   the search icon on the row above), so the arrow has real breathing room from
+   the border instead of touching it. Click-through to the <select>. */
+.erow-filter-select-chev {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  /* The field's own text colour, not the muted grey the search icon uses: the
+     native dropmarker this stands in for tracked `color`, and dimming it to grey
+     would read as the dropdown having gone disabled in the dark theme. */
+  color: var(--color-primary);
+  pointer-events: none;
+}
+/* SORT TOGGLE — compact icon+label button that cycles the sort order, matching
+   the forage food logger's Recipes tab and the Recipes page control. Borderless
+   on purpose: it is a quiet re-order affordance, not a form field. */
+.erow-sort-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  white-space: nowrap;
+}
+/* VIEW TOGGLE — segmented rows/table switch on the same toolbar row. Framed
+   (unlike the borderless sort toggle) because it is a persistent two-state
+   selection rather than a one-shot re-order: the frame is what makes "which of
+   these two am I in" readable at a glance. `margin-left: auto` only bites when
+   the sort toggle is absent — otherwise sort's own auto-margin already pushed
+   the pair to the right edge. */
+.erow-view-toggle {
+  display: flex;
+  flex-shrink: 0;
+  margin-left: auto;
+  border: 1px solid var(--card-border);
+}
+.erow-sort-toggle + .erow-view-toggle {
+  margin-left: 0;
+}
+.erow-view-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3125rem 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-gray);
+}
+.erow-view-option + .erow-view-option {
+  border-left: 1px solid var(--card-border);
+}
+.erow-view-option:hover {
+  color: var(--color-primary);
+}
+.erow-view-option.is-active {
+  background: var(--table-header-bg);
+  color: var(--color-primary);
 }
 .erow-search-empty {
   text-align: center;

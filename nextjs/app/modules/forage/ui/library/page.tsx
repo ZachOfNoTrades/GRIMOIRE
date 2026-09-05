@@ -1,16 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BackLink } from "@/components/BackLink";
-import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { ArrowLeft, ChevronRight, Plus, Search, Apple } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, Apple } from "lucide-react";
+import { SearchField } from "@/components/SearchField";
 import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/linkButton";
 import { Food } from "../../types/food";
 import { FoodAvatar } from "../../components/FoodAvatar";
 
 export default function ForageLibraryPage() {
-  const router = useRouter();
 
   // DATA
   const [foods, setFoods] = useState<Food[]>([]);
@@ -67,27 +68,21 @@ export default function ForageLibraryPage() {
           </div>
 
           {/* NEW FOOD — dedicated create wizard page. */}
-          <Button className="btn-blue" onClick={() => router.push("/modules/forage/ui/library/new")}>
+          <LinkButton className="btn-blue" href="/modules/forage/ui/library/new">
             <Plus className="w-4 h-4" /> New
-          </Button>
+          </LinkButton>
         </div>
 
         {/* SEARCH */}
         <div className="flex flex-col gap-1 mb-4">
           <label className="text-label" htmlFor="library-search">Search</label>
-          <div style={{ position: "relative" }}>
-            <Search className="w-4 h-4" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--color-gray)", pointerEvents: "none" }} />
-            <input
-              id="library-search"
-              type="search"
-              className="input-field"
-              placeholder="Search foods…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoCapitalize="words"
-              style={{ paddingLeft: "2.25rem" }}
-            />
-          </div>
+          <SearchField
+            id="library-search"
+            value={search}
+            onChange={setSearch}
+            placeholder="Search foods…"
+            autoCapitalize="words"
+          />
         </div>
 
         {/* FOOD LIST */}
@@ -105,11 +100,10 @@ export default function ForageLibraryPage() {
           {!isLoading && foods.map((food) => {
             return (
               /* FOOD ITEM CARD */
-              <button
+              <Link
                 key={food.id}
-                type="button"
                 className="sub-card"
-                onClick={() => router.push(`/modules/forage/ui/library/${food.id}`)}
+                href={`/modules/forage/ui/library/${food.id}`}
                 style={{
                   padding: "0.75rem",
                   display: "flex",
@@ -141,7 +135,7 @@ export default function ForageLibraryPage() {
 
                 {/* CHEVRON */}
                 <ChevronRight className="w-4 h-4" style={{ flexShrink: 0, color: "var(--color-gray)" }} />
-              </button>
+              </Link>
             );
           })}
         </div>
