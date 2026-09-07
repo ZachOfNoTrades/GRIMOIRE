@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, Pencil, Save, Ban, ChevronLeft, ChevronRight, X, LayoutGrid } from "lucide-react";
 import toast from "react-hot-toast";
@@ -18,6 +18,7 @@ import SetTab from "./SetTab";
 import HistoryTab from "./HistoryTab";
 import StatsTab from "./StatsTab";
 import InfoTab from "./InfoTab";
+import { useWindowCache } from "@/lib/useWindowCache";
 
 const tabs = [
   { id: "sets", label: "Sets" },
@@ -70,14 +71,16 @@ export default function EditSegmentModal({
   const [historyEndDate, setHistoryEndDate] = useState("");
 
   // DATA
-  const [exerciseHistory, setExerciseHistory] = useState<ExerciseHistoryEntry[]>([]);
-  const [totalHistoryCount, setTotalHistoryCount] = useState(0);
+  // History is cached per (exercise, window) by useWindowCache below; this holds
+  // WHICH exercise the range filter currently describes. It lags the edited
+  // segment by one render on an exercise swap — deliberately, so the swap's
+  // filter reset lands before any request is made for the new exercise.
+  const [historyExerciseId, setHistoryExerciseId] = useState<string | null>(null);
   const [exerciseDetail, setExerciseWithMuscleGroups] = useState<ExerciseWithMuscleGroups | null>(null);
 
   // STATE
   const [activeTab, setActiveTab] = useState("sets");
   const [highlightSessionId, setHighlightSessionId] = useState<string | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [isExercisePickerOpen, setIsExercisePickerOpen] = useState(false);
   const [isExercisePickerEditMode, setIsExercisePickerEditMode] = useState(false);
@@ -149,29 +152,58 @@ export default function EditSegmentModal({
     }
   };
 
-  // Fetch exercise history with date range params
-  const fetchHistory = async (exerciseId: string, startDate = "", endDate = "") => {
-    if (!exerciseId) return;
-    setHistoryLoading(true);
-
+  // Fetch one exercise's history for one window. The cache key packs both, since
+  // swapping the exercise and changing the range are the same kind of change to
+  // what's on screen.
+  const fetchHistory = useCallback(async (cacheKey: string) => {
+    const [exerciseId, startDate, endDate] = cacheKey.split("|");
     const params = new URLSearchParams();
     if (startDate) params.set("startDate", startDate);
     if (endDate) params.set("endDate", endDate);
     const queryString = params.toString();
     const url = `/modules/golem/api/exercises/${exerciseId}/history${queryString ? `?${queryString}` : ""}`;
 
-    fetch(url)
-      .then((response) => {
-        if (!response.ok) throw new Error("Failed to fetch history");
-        return response.json();
-      })
-      .then((data) => {
-        setExerciseHistory(data.history);
-        setTotalHistoryCount(data.totalCount);
-      })
-      .catch((error) => console.error("Error fetching exercise history:", error))
-      .finally(() => setHistoryLoading(false));
-  };
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch history");
+    const data = await response.json();
+    return {
+      history: (Array.isArray(data.history) ? data.history : []) as ExerciseHistoryEntry[],
+      totalCount: Number(data.totalCount ?? 0),
+    };
+  }, []);
+
+  // Resolved history window. The custom range passes its own bounds through —
+  // empty until both are picked, which reads as all-time and so shares the "All"
+  // preset's cache entry.
+  const { startDate: historyWindowStart, endDate: historyWindowEnd } = historyRange === "custom"
+    ? { startDate: historyStartDate, endDate: historyEndDate }
+    : getDateRangeParams(historyRange);
+  const historyKey = historyExerciseId
+    ? `${historyExerciseId}|${historyWindowStart}|${historyWindowEnd}`
+    : null;
+
+  // Warm the other presets for the SAME exercise behind the active one, so
+  // 6M → 1Y → All swaps the list in one frame instead of blanking it.
+  const historyPrefetchKeys = useMemo(() => {
+    if (!historyExerciseId) return [];
+    return (["6m", "1y", "all"] as HistoryRange[]).map((preset) => {
+      const { startDate, endDate } = getDateRangeParams(preset);
+      return `${historyExerciseId}|${startDate}|${endDate}`;
+    });
+  }, [historyExerciseId]);
+
+  const { data: historyData, dataKey: historyDataKey, isLoading: historyIdle, isRefreshing: historyWarming } =
+    useWindowCache(historyKey, fetchHistory, { prefetchKeys: historyPrefetchKeys });
+
+  // Holding the PREVIOUS window's rows while a new one loads is the whole point
+  // for a range change — but NOT across an exercise swap, where the old
+  // exercise's sessions would simply be the wrong data. Only reuse a cached
+  // payload that belongs to the exercise on screen; otherwise fall back to the
+  // loading placeholder (or, once the fetch has settled and failed, the empty state).
+  const historyMatchesExercise = !!historyDataKey && !!historyExerciseId && historyDataKey.startsWith(`${historyExerciseId}|`);
+  const exerciseHistory = historyMatchesExercise && historyData ? historyData.history : [];
+  const totalHistoryCount = historyMatchesExercise && historyData ? historyData.totalCount : 0;
+  const historyLoading = !historyMatchesExercise && (historyIdle || historyWarming);
 
   // Fetch exercise detail data
   const fetchDetail = async (exerciseId: string) => {
@@ -204,9 +236,9 @@ export default function EditSegmentModal({
         setHistoryEndDate("");
       }
 
-      // Fetch exercise data in background on modal open
-      const { startDate, endDate } = getDateRangeParams("6m");
-      fetchHistory(segment.exercise_id, startDate, endDate);
+      // Point the history filter at this exercise; the cache below loads it (and
+      // warms the other ranges) on its own.
+      setHistoryExerciseId(segment.exercise_id);
       fetchDetail(segment.exercise_id);
 
       // Create a mutable clone of the given segment to avoid unsaved edits
@@ -296,8 +328,7 @@ export default function EditSegmentModal({
     setHistoryRange("6m");
     setHistoryStartDate("");
     setHistoryEndDate("");
-    const { startDate, endDate } = getDateRangeParams("6m");
-    fetchHistory(currentExerciseId, startDate, endDate);
+    setHistoryExerciseId(currentExerciseId);
     fetchDetail(currentExerciseId);
   }, [currentExerciseId]);
 
@@ -394,20 +425,19 @@ export default function EditSegmentModal({
     onSave(updatedSegment);
   };
 
+  // Both handlers only move the filter — the cache reacts to the resolved window,
+  // serving an already-warmed range in the same frame as the change.
   const handleRangeChange = (newRange: HistoryRange) => {
     setHistoryRange(newRange);
     if (newRange !== "custom") {
       setHistoryStartDate("");
       setHistoryEndDate("");
-      const { startDate, endDate } = getDateRangeParams(newRange);
-      fetchHistory(editedSegment.exercise_id, startDate, endDate);
     }
   };
 
   const handleCustomDateChange = (startDate: string, endDate: string) => {
     setHistoryStartDate(startDate);
     setHistoryEndDate(endDate);
-    fetchHistory(editedSegment.exercise_id, startDate, endDate);
   };
 
   // Resolve the display unit for this exercise's distance band from the user's preferences.

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Program, ProgramBlock, ProgramWeek } from "../../types/program";
 import { WeeklyMuscleGroupVolume } from "../../types/volumeLandmark";
+import { useWindowCache } from "@/lib/useWindowCache";
 
 interface WeekOption {
   weekId: string;
@@ -17,14 +18,13 @@ export default function VolumePage() {
 
   // DATA
   const [program, setProgram] = useState<Program | null>(null);
-  const [volumeData, setVolumeData] = useState<WeeklyMuscleGroupVolume[]>([]);
+  // (Per-week volume is cached by week id via useWindowCache below.)
 
   // INPUT
   const [selectedWeekId, setSelectedWeekId] = useState<string>("");
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingVolume, setIsLoadingVolume] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
 
@@ -42,28 +42,55 @@ export default function VolumePage() {
     }
   }
 
+  // Volume for ONE week — the unit the cache below keys on.
+  const fetchVolumeData = useCallback(async (weekId: string) => {
+    const response = await fetch(`/modules/golem/api/volume/weekly?weekId=${weekId}`);
+    if (!response.ok) throw new Error(`volume/weekly ${response.status}`);
+    const data = await response.json();
+    return (Array.isArray(data) ? data : []) as WeeklyMuscleGroupVolume[];
+  }, []);
+
+  // Warm the OTHER weeks in the background, nearest to the selection first — the
+  // weeks a user steps to are the adjacent ones, so those are ready by the time
+  // they reach the dropdown, and the far tail keeps loading quietly behind them.
+  const prefetchWeekIds = useMemo(() => {
+    const ids = weekOptions.map((o) => o.weekId);
+    const at = ids.indexOf(selectedWeekId);
+    if (at < 0) return ids;
+    return ids
+      .map((id, i) => ({ id, distance: Math.abs(i - at) }))
+      .filter((w) => w.distance > 0)
+      .sort((a, b) => a.distance - b.distance)
+      .map((w) => w.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [program, selectedWeekId]);
+
+  // Each week's bars are kept once fetched, so stepping through the dropdown —
+  // forwards or back to a week already seen — swaps the chart in one frame
+  // instead of tearing it down to a spinner and rebuilding it (see useWindowCache).
+  const { data: volumeData, isLoading: isLoadingVolume } = useWindowCache(
+    selectedWeekId || null,
+    fetchVolumeData,
+    { prefetchKeys: prefetchWeekIds },
+  );
+
   // Find the max bar value for scaling
+  const weekVolume = volumeData ?? [];
   const maxBarValue = Math.max(
-    ...volumeData.map((v) => Math.max(v.working_sets, v.mrv ?? 0)),
+    ...weekVolume.map((v) => Math.max(v.working_sets, v.mrv ?? 0)),
     1
   );
 
   // Filter muscle groups: show all, or only those with data or configured landmarks
   const filteredVolume = showAll
-    ? volumeData
-    : volumeData.filter((v) => v.working_sets > 0 || v.mev !== null || v.mrv !== null);
+    ? weekVolume
+    : weekVolume.filter((v) => v.working_sets > 0 || v.mev !== null || v.mrv !== null);
 
   // LOAD PROGRAM
   useEffect(() => {
     fetchProgram();
   }, []);
 
-  // LOAD VOLUME DATA WHEN WEEK CHANGES
-  useEffect(() => {
-    if (selectedWeekId) {
-      fetchVolumeData(selectedWeekId);
-    }
-  }, [selectedWeekId]);
 
   const fetchProgram = async () => {
     setIsLoading(true);
@@ -99,20 +126,6 @@ export default function VolumePage() {
     }
   };
 
-  const fetchVolumeData = async (weekId: string) => {
-    setIsLoadingVolume(true);
-    try {
-      const response = await fetch(`/modules/golem/api/volume/weekly?weekId=${weekId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setVolumeData(data);
-      }
-    } catch (error) {
-      console.error("Error fetching volume data:", error);
-    } finally {
-      setIsLoadingVolume(false);
-    }
-  };
 
   // Get bar color based on volume vs landmarks
   const getBarColor = (v: WeeklyMuscleGroupVolume): string => {
