@@ -47,6 +47,21 @@ export function blurOnEnter(e: React.KeyboardEvent<HTMLInputElement>) {
   }
 }
 
+// Run a submit action on Enter, for the LAST field of a short create form that
+// has an explicit submit button (quest's reward/debt/ad-hoc rows). It blurs first
+// so the on-screen keyboard closes exactly like blurOnEnter, then fires the
+// action — the values already live in React state, so blurring can't lose them.
+// Use focusOnEnter for the earlier fields of the sequence and this for the last.
+export function submitOnEnter(submit: () => void) {
+  return (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      e.currentTarget.blur();
+      submit();
+    }
+  };
+}
+
 // Blur the currently-focused <input>/<textarea> as soon as the user scrolls a
 // given surface, so on mobile the on-screen keyboard drops out of the way the
 // moment they start panning (matching the native scroll-to-dismiss feel).

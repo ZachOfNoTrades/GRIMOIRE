@@ -57,6 +57,7 @@ import {
   DifficultyMap,
 } from "../../types/settings";
 import { Habit } from "../../types/habit";
+import { selectOnFocus, focusOnEnter, submitOnEnter } from "@/lib/inputBehavior";
 import QuestCalendarWidget from "../../components/QuestCalendarWidget";
 import QuestTaskModal from "../../components/QuestTaskModal";
 import PopoverMenu from "@/components/PopoverMenu";
@@ -3061,19 +3062,25 @@ export default function QuestHomePage() {
               {/* REWARD CREATE FORM — wraps rather than squeezing the name field in a narrow column */}
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 mb-3">
                 <input
+                  id="quest-reward-name"
                   type="text"
                   placeholder="Reward name"
+                  maxLength={255}
                   value={newRewardName}
                   onChange={(e) => setNewRewardName(e.target.value)}
+                  onKeyDown={focusOnEnter("quest-reward-cost")}
                   className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <input
+                  id="quest-reward-cost"
                   type="number"
                   placeholder="Cost"
                   min={1}
                   value={newRewardCost}
                   onChange={(e) => setNewRewardCost(e.target.value)}
+                  onFocus={selectOnFocus}
+                  onKeyDown={submitOnEnter(addReward)}
                   className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
@@ -3142,19 +3149,25 @@ export default function QuestHomePage() {
               {/* DEBT CREATE FORM — wraps rather than squeezing the name field in a narrow column */}
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 mb-3">
                 <input
+                  id="quest-debt-name"
                   type="text"
                   placeholder="Debt name"
+                  maxLength={255}
                   value={newDebtName}
                   onChange={(e) => setNewDebtName(e.target.value)}
+                  onKeyDown={focusOnEnter("quest-debt-amount")}
                   className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <input
+                  id="quest-debt-amount"
                   type="number"
                   placeholder="Amount"
                   min={1}
                   value={newDebtAmount}
                   onChange={(e) => setNewDebtAmount(e.target.value)}
+                  onFocus={selectOnFocus}
+                  onKeyDown={submitOnEnter(addDebt)}
                   className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
@@ -3224,19 +3237,25 @@ export default function QuestHomePage() {
 
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
                 <input
+                  id="quest-adhoc-amount"
                   type="number"
                   placeholder="Amount"
                   min={1}
                   value={adhocAmount}
                   onChange={(e) => setAdhocAmount(e.target.value)}
+                  onFocus={selectOnFocus}
+                  onKeyDown={focusOnEnter("quest-adhoc-note", { select: false })}
                   className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
                 <input
+                  id="quest-adhoc-note"
                   type="text"
                   placeholder="What did you buy?"
+                  maxLength={500}
                   value={adhocNote}
                   onChange={(e) => setAdhocNote(e.target.value)}
+                  onKeyDown={submitOnEnter(spendAdhoc)}
                   className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
                 />
 
