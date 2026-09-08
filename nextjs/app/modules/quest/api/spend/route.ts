@@ -9,6 +9,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const amount = Number(body.amount);
     const note = (body.note ?? '').toString().trim();
+    // The note is written to quest_ledger.reason, NVARCHAR(500) — reject over-length here
+    // rather than letting the driver overflow the column and surface as a 500.
+    if (note.length > 500) {
+      return NextResponse.json({ error: 'Note must be 500 characters or fewer' }, { status: 400 });
+    }
     if (!Number.isInteger(amount) || amount <= 0) {
       return NextResponse.json({ error: 'Amount must be a positive integer' }, { status: 400 });
     }

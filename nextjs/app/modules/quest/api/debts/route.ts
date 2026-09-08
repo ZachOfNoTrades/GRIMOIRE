@@ -22,6 +22,11 @@ export async function POST(request: NextRequest) {
     const name = (body.name ?? '').trim();
     const amount = Number(body.amount);
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    // quest_debts.name is NVARCHAR(255) — reject over-length here rather than letting the
+    // driver overflow the column and surface as a 500.
+    if (name.length > 255) {
+      return NextResponse.json({ error: 'Name must be 255 characters or fewer' }, { status: 400 });
+    }
     if (!Number.isInteger(amount) || amount <= 0) {
       return NextResponse.json({ error: 'Amount must be a positive integer' }, { status: 400 });
     }
