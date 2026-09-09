@@ -5,27 +5,13 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { formatRelativePast, formatRelativeFuture } from "@/lib/format";
 import { CardWithProgress, CardReview } from "../../../../types/card";
+import { ratingLabel, ratingBadgeClass } from "../../../../lib/rating";
+import RatingTrendChart from "../../../../components/RatingTrendChart";
 
 interface CardHistoryModalProps {
   card: CardWithProgress | null;
   deckId: string;
   onClose: () => void;
-}
-
-// Map rating number to its display label — same 1-4 scale the study session rates on.
-function ratingToLabel(rating: number): string {
-  if (rating === 1) return "Again";
-  if (rating === 2) return "Hard";
-  if (rating === 3) return "Good";
-  return "Easy";
-}
-
-// Map rating number to a design-system badge class (red -> blue, worst to best).
-function ratingToBadgeClass(rating: number): string {
-  if (rating === 1) return "badge-red";
-  if (rating === 2) return "badge-yellow";
-  if (rating === 3) return "badge-green";
-  return "badge-blue";
 }
 
 // Exact timestamp for a review — the relative label ("3d ago") carries the row,
@@ -174,6 +160,15 @@ export default function CardHistoryModal({ card, deckId, onClose }: CardHistoryM
         </div>
       )}
 
+      {/* RECALL TREND — the ratings below as a trajectory. Above the table because the
+          shape answers "is this card sticking?" at a glance, which is the question the
+          table only answers by being read row by row. */}
+      {!isLoading && !loadFailed && reviews.length > 1 && (
+        <div className="mb-4">
+          <RatingTrendChart reviews={reviews} />
+        </div>
+      )}
+
       {/* REVIEW TABLE — newest first, matching the API's ordering. Two columns only:
           a third (response time) pushed the table past the modal's edge on a phone,
           and it's blank for every review predating response-time capture — so it
@@ -203,8 +198,8 @@ export default function CardHistoryModal({ card, deckId, onClose }: CardHistoryM
                     </p>
                   </td>
                   <td className="table-cell-compact !text-right">
-                    <span className={`${ratingToBadgeClass(review.rating)} inline-flex items-center gap-1 w-fit`}>
-                      {ratingToLabel(review.rating)}
+                    <span className={`${ratingBadgeClass(review.rating)} inline-flex items-center gap-1 w-fit`}>
+                      {ratingLabel(review.rating)}
                     </span>
                   </td>
                 </tr>

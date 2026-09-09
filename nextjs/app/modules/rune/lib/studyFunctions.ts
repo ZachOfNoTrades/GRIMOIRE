@@ -1,4 +1,5 @@
 import { getRuneConnection, closeRuneConnection } from './db';
+import { DeckStudySession } from '../types/study';
 
 // Anki-style interval fuzz: spreads intervals by a small random amount so cards
 // learned together in one session don't all resurface on the exact same day
@@ -239,6 +240,77 @@ export async function completeStudySession(userId: string, studySessionId: strin
       `);
   } catch (error) {
     console.error('Error completing study session:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Every past study session that touched a deck, newest first — the deck page's history.
+//
+// Driven off card_reviews joined back to their session rather than off study_sessions
+// directly, so a COLLECTION session (deck_id NULL) shows up here too, reporting only the
+// slice of it that reviewed this deck's cards. Without that a deck studied mainly through
+// a collection would report an empty history while its own "Last Reviewed" stat — which
+// reads card_progress, and so counts collection reviews — said "Yesterday".
+//
+// Sessions that recorded no rating for this deck (opened and abandoned, or a collection
+// run that never reached it) fall out naturally: they have no rows to group.
+export async function getDeckStudySessions(userId: string, deckId: string): Promise<DeckStudySession[]> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('deckId', deckId)
+      .query(`
+        SELECT TOP 500
+          ss.id,
+          ss.started_at,
+          ss.completed_at,
+          col.name AS collection_name,
+          COUNT(cr.id) AS reviews,
+          COUNT(DISTINCT cr.card_id) AS cards,
+          SUM(CASE WHEN cr.rating = 1 THEN 1 ELSE 0 END) AS again,
+          SUM(CASE WHEN cr.rating = 2 THEN 1 ELSE 0 END) AS hard,
+          SUM(CASE WHEN cr.rating = 3 THEN 1 ELSE 0 END) AS good,
+          SUM(CASE WHEN cr.rating = 4 THEN 1 ELSE 0 END) AS easy,
+          SUM(CASE WHEN cr.rating >= 3 THEN 1 ELSE 0 END) AS correct,
+          -- Duration, best available: the session's own recorded duration when it was
+          -- started here AND finished; the span from its start to its last rating when it
+          -- was started here but abandoned; and for a collection session, the span of this
+          -- deck's own ratings inside it (the rest of that session studied other decks).
+          CASE
+            WHEN ss.deck_id = @deckId AND ss.duration IS NOT NULL THEN ss.duration
+            WHEN ss.deck_id = @deckId THEN DATEDIFF(SECOND, ss.started_at, MAX(cr.created_at))
+            ELSE DATEDIFF(SECOND, MIN(cr.created_at), MAX(cr.created_at))
+          END AS duration_seconds,
+          CASE WHEN ss.deck_id = @deckId AND ss.duration IS NOT NULL THEN 1 ELSE 0 END AS is_duration_exact,
+          AVG(CAST(cr.response_time_ms AS FLOAT)) AS avg_response_ms
+        FROM card_reviews cr
+        JOIN cards c ON c.id = cr.card_id
+        JOIN study_sessions ss ON ss.id = cr.study_session_id
+        LEFT JOIN collections col ON col.id = ss.collection_id
+        WHERE c.deck_id = @deckId AND cr.user_id = @userId AND ss.user_id = @userId
+        GROUP BY ss.id, ss.started_at, ss.completed_at, ss.duration, ss.deck_id, col.name
+        ORDER BY ss.started_at DESC
+      `);
+
+    if (result.recordset.length === 0) {
+      console.warn(`No study sessions found for deck id: '${deckId}'`);
+    }
+
+    // Coerce the BIT so the client can test it without truthiness surprises, and round the
+    // FLOAT average — a mean of three int millisecond readings is otherwise 4283.333333.
+    return result.recordset.map((row) => ({
+      ...row,
+      is_duration_exact: !!row.is_duration_exact,
+      avg_response_ms: row.avg_response_ms == null ? null : Math.round(row.avg_response_ms),
+    })) as DeckStudySession[];
+  } catch (error) {
+    console.error('Error fetching deck study sessions:', error);
     throw error;
   } finally {
     if (pool) {
