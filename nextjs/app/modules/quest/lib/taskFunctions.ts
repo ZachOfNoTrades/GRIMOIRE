@@ -283,7 +283,9 @@ function mostRecentOccurrenceOnOrBefore(task: OccurrenceShape, dateYMD: string):
   return null;
 }
 
-function effectiveStreak(task: { streak_count: number; streak_last_date: string | null; kind: TaskKind } & OccurrenceShape, today: string): number {
+// Exported so freezeDay can ask the same question the reward path asks: "is this streak alive as
+// of date X?" — the freeze sweep must not advance a streak marker past a genuine break.
+export function effectiveStreak(task: { streak_count: number; streak_last_date: string | null; kind: TaskKind } & OccurrenceShape, today: string): number {
   if (task.kind !== 'daily') return 0;
   if (!task.streak_count || !task.streak_last_date) return 0;
   // Streaks count one occurrence per scheduled occurrence (window_days=1 ⇒ one per day). Compare

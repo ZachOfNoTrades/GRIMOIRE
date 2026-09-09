@@ -1,8 +1,8 @@
 import sql from 'mssql';
 import { getQuestConnection } from './db';
 import { getCurrentDate } from './settingsFunctions';
-import { activeOccurrenceStart } from './taskFunctions';
-import { Frequency } from '../types/task';
+import { activeOccurrenceStart, effectiveStreak } from './taskFunctions';
+import { Frequency, RepeatMode, TaskKind } from '../types/task';
 
 export interface FrozenDay {
   frozen_date: string;
@@ -198,23 +198,57 @@ export async function freezeDay(userId: string, dateYMD: string, options: Freeze
       reversedTaskCount += 1;
     }
 
-    // Streak preservation: advance streak_last_date to @date for every active daily whose
-    // streak runs up to (or through) the frozen day. Without this, effectiveStreak() on the
-    // day after the freeze would see streak_last_date < expectedPreviousOccurrence(today) and
-    // return 0 — i.e. the streak would silently break across the frozen day. Tasks whose
-    // streak_last_date is already at or past @date (e.g. completed on a later day) keep their
-    // existing value so we don't drag streak markers backwards.
-    await tx.request()
+    // Streak preservation: advance streak_last_date to @date for every active daily whose streak
+    // was STILL ALIVE going into the frozen day. Without this, effectiveStreak() on the day after
+    // the freeze would see streak_last_date < expectedPreviousOccurrence(today) and return 0 —
+    // i.e. the streak would silently break across the frozen day.
+    //
+    // The aliveness gate is the point: a bare `streak_count > 0` sweep also advances dailies whose
+    // streak died weeks earlier, and since every later freeze drags the marker forward again, a
+    // long-dead streak reads as live forever (McGill Big 3: completed once on 2026-08-24, missed
+    // 08-25..27 unfrozen, yet streak_last_date walked to 2026-09-07). Aliveness is per-task cadence
+    // math, so the candidates are filtered in JS with effectiveStreak — the same predicate the
+    // reward path uses — and only the survivors are written back. Evaluating it AT @date is what
+    // makes "the freeze excuses @date" work: @date's own occurrence window is still open at @date,
+    // so the test reduces to "was the previous occurrence satisfied?".
+    //
+    // Tasks whose streak_last_date is already at or past @date (e.g. completed on a later day) are
+    // excluded by the query so we don't drag streak markers backwards.
+    const streakRes = await tx.request()
       .input('userId', sql.UniqueIdentifier, userId)
       .input('date', sql.Date, dateYMD)
-      .query(
-        `UPDATE quest_tasks
-         SET streak_last_date = @date
+      .query<{ id: string; streak_count: number; streak_last_date: string | null; kind: TaskKind; frequency: Frequency; days_of_week: string | null; every_n: number; start_date: string | null; repeat_mode: RepeatMode | null; window_days: number | null }>(
+        `SELECT id, streak_count,
+                CONVERT(VARCHAR(10), streak_last_date, 23) AS streak_last_date,
+                kind, frequency, days_of_week, every_n,
+                CONVERT(VARCHAR(10), start_date, 23) AS start_date,
+                repeat_mode, window_days
+         FROM quest_tasks
          WHERE user_id = @userId
            AND kind = 'daily'
            AND streak_count > 0
            AND (streak_last_date IS NULL OR streak_last_date < @date)`
       );
+    // deferred_to_date is deliberately not selected: it is a one-shot carry-over marker, not part of
+    // the base cadence a streak is measured against, and freezeDay rewrites it below anyway.
+    const aliveIds = streakRes.recordset
+      .filter((t) => effectiveStreak(t, dateYMD) > 0)
+      .map((t) => t.id);
+    if (aliveIds.length > 0) {
+      const streakReq = tx.request().input('date', sql.Date, dateYMD);
+      const streakValues: string[] = [];
+      aliveIds.forEach((id, i) => {
+        const name = `kid${i}`;
+        streakReq.input(name, sql.UniqueIdentifier, id);
+        streakValues.push(`SELECT @${name} AS id`);
+      });
+      await streakReq.query(
+        `UPDATE t
+         SET streak_last_date = @date
+         FROM quest_tasks t
+         INNER JOIN (${streakValues.join(' UNION ALL ')}) src ON src.id = t.id`
+      );
+    }
 
     // Damage processed for @date by processDailyDamageCheck (which stamps target_date = the
     // missed-dailies date) needs to be undone: restore the HP, drop the death-zeroing ledger
