@@ -2350,6 +2350,660 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 }
 
+/* RUNE DECK TABLE VIEW — the alternate "see every front and back at once" shape of
+   the deck's card list (ExpandableRowList's renderTable). Two full-text columns need
+   width, so the page container drops its gutters and its 80rem cap while the table is
+   showing; the list view keeps the comfortable reading measure it always had. */
+.page-container.rune-deck-container--wide {
+  max-width: none;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+@media (max-width: 640px) and (hover: none) {
+  /* Touch phones already run `.page-container` with zero side padding —
+     reclaiming nothing there, so leave it flush rather than adding padding
+     back. A narrow desktop window keeps the 0.75rem gutter above, matching
+     `.page-container`'s own device test. */
+  .page-container.rune-deck-container--wide {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* ========================================
+   DATE RANGE SELECTOR
+   ======================================== */
+
+/* The app's date filter (components/DateRangeSelector): a full-width segmented
+   control plus an optional custom start/end row. Layout only — color comes from
+   the theme tokens and the global `.input-field` class. Promoted here from
+   forage's page-scoped nutritionRange.css when rune's study history became the
+   third caller; the class names lost their `nutr-` prefix in the move. */
+
+.range-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Segmented control — equal-width segments share one rounded track. */
+.range-pills {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--hover-bg);
+}
+
+.range-pill {
+  flex: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  padding: 7px 4px;
+  /* 8px, not 10: the track rounds at 10px and pads 2px, so the segment's own
+     radius has to be the track's minus that padding or the active fill's corner
+     cuts across the curve it sits inside. Rounded here is an intentional
+     exception to the sharp-corner button reset further down (same call as
+     .segmented-toggle-pill), and a segment is a <button>, so without
+     !important that reset squares the active fill inside a rounded track. */
+  border-radius: 8px !important;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.range-pill.is-active {
+  background: var(--card-bg);
+  color: var(--color-primary);
+}
+
+@media (hover: hover) {
+  .range-pill:not(.is-active):hover { color: var(--color-primary); }
+}
+
+/* Custom start/end row, revealed only for the "Custom" segment. */
+.range-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.range-date {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.range-sep {
+  font-size: 12px;
+  color: var(--color-secondary);
+}
+
+/* RUNE CHARTS — the deck history's two trend charts and a card's recall trend.
+   Layout only; every fill is a theme token set inline by the component (see
+   lib/rating.ts), so the charts follow light/dark with the rest of the app. */
+.rune-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rune-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Title on the left, the hovered point's readout on the right — the readout
+   replaces a floating tooltip, which is unusable on a phone. */
+.rune-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.rune-chart-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gray);
+}
+
+.rune-chart-readout {
+  font-size: 0.75rem;
+  color: var(--color-secondary);
+}
+
+.rune-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+  touch-action: pan-y; /* a vertical swipe still scrolls the page over the chart */
+}
+
+/* Legend — always present for the stacked chart, so a segment's rating is named
+   rather than inferred from its color. */
+.rune-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--color-secondary);
+}
+
+.rune-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.rune-chart-swatch {
+  width: 0.6rem;
+  height: 0.6rem;
+  flex: none;
+}
+
+/* RUNE DECK STUDY HISTORY — the past-sessions table under the card list. Four short
+   columns, so the base `.table-cell` gutter (1.5rem a side = 12rem across the row) is
+   most of a 320px screen. Tighten it and let the cells wrap onto a second line instead
+   of pushing the table into a sideways scroll. Top-align because the cells are two and
+   three lines tall and their first lines are what should line up. */
+.rune-session-table td,
+.rune-session-table th {
+  padding: 0.5rem 0.75rem;
+  white-space: normal;
+  vertical-align: top;
+}
+
+@media (max-width: 640px) {
+  .rune-session-table td,
+  .rune-session-table th {
+    padding: 0.5rem 0.375rem;
+  }
+
+  .rune-session-table td {
+    font-size: 0.85rem;
+  }
+
+  /* Below ~640px the row's natural minimum width — four uppercase headers plus a
+     collection badge — is wider than a 320px phone, so the auto layout pushed the
+     Time column into the container's horizontal scroll, where it was off screen and
+     easy to miss entirely. Fix the layout and give each column a share of the width
+     instead, so every cell wraps inside the viewport. */
+  .rune-session-table {
+    table-layout: fixed;
+  }
+
+  /* Shares chosen against the widest thing each column can be asked to hold at
+     320px: the collection badge, "unique", the word CORRECT, and "~16m 28s". */
+  .rune-session-table th.rune-session-col-when { width: 30%; }
+  .rune-session-table th.rune-session-col-cards { width: 22%; }
+  .rune-session-table th.rune-session-col-correct { width: 24%; }
+  .rune-session-table th.rune-session-col-time { width: 24%; }
+
+  /* A fixed column can't widen for a nowrap badge, so let a two-word collection
+     name wrap, and spend less of the narrowest column on the badge's own gutter,
+     rather than paint out through the cell's edge. */
+  .rune-session-table .badge-gray {
+    white-space: normal;
+    padding: 0.125rem 0.375rem;
+  }
+}
+
+/* One session's share of Again / Hard / Good / Easy. The segments are grown in
+   proportion to their counts (flex-grow, set inline from the data) and borrow the study
+   session's own rating colours, so a red-heavy row means here exactly what a red-heavy
+   progress bar meant while studying. */
+.rune-rating-bar {
+  display: flex;
+  height: 5px;
+  gap: 1px;
+  margin-top: 0.375rem;
+  min-width: 1.5rem;
+  overflow: hidden;
+  background: var(--progress-bar-bg);
+}
+
+/* ============================================================
+   RUNE DECK — CARD TABLE
+   The alternate "read the whole deck at once" shape of a deck's card list. Four columns:
+   a gutter carrying the card's place in the deck, the two prose columns the view exists
+   for, and the row's actions. Deliberately plain — no zebra striping, no hover row tint:
+   the eye is reading a question across into its answer, and a horizontal band drawn under
+   both of them fights that read.
+   ============================================================ */
+
+/* Front and back are free text, so these cells wrap and top-align — the base `.table-cell`
+   is built for short single-line values and sets `nowrap`. */
+.rune-card-table {
+  table-layout: fixed;
+}
+.rune-card-cell {
+  white-space: normal;
+  vertical-align: top;
+  overflow-wrap: anywhere; /* an unbroken URL or long token can't push the column wide */
+  padding: 0.75rem 1rem;
+}
+
+/* The base `.table-container` scrolls its own overflow, which makes the sticky header below
+   stick to a box that never scrolls — i.e. not at all. Nothing here can overflow sideways
+   (fixed layout, `overflow-wrap: anywhere`, and the phone layout stacks), so hand the scroll
+   back to the page and let the header stick to the window. */
+.rune-card-table-container {
+  overflow: visible;
+}
+
+/* STICKY HEADER — a deck is long and both columns are prose; without this, "Front" and
+   "Back" are gone one flick into the read. Set on the cells as well as the section: sticky
+   on <thead> alone is newer than sticky on <th>. */
+.rune-card-table thead.table-header,
+.rune-card-table thead.table-header th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--table-header-bg);
+}
+
+/* Fixed layout takes its column widths from the header row, so the two narrow columns need
+   real widths — a `w-0` header collapsed them. Front and Back split whatever is left. */
+.rune-card-table th.rune-card-col-gutter,
+.rune-card-cell--gutter {
+  /* Wide enough for the grip beside a three-digit ordinal — a deck runs to hundreds of
+     cards, and a gutter sized to "9" clips the grip off the row that needs it most. */
+  width: 4.25rem;
+}
+.rune-card-table th.rune-card-col-actions,
+.rune-card-cell--actions {
+  width: 5.5rem;
+}
+.rune-card-cell--gutter,
+.rune-card-cell--actions {
+  white-space: nowrap;
+}
+/* The full-width `.table-header-cell` gutter is too generous once a column is only as wide
+   as its controls. */
+.rune-card-table th.rune-card-col-gutter,
+.rune-card-table th.rune-card-col-actions,
+.rune-card-cell--gutter {
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+}
+
+/* GUTTER — the card's place in the deck, and the grip that changes it. The ordinal is set
+   as a margin note, not a column of data: small, muted, tabular so the digits line up down
+   a long deck. */
+.rune-card-gutter {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-left: -0.375rem;
+}
+.rune-card-ord {
+  font-size: 0.6875rem;
+  color: var(--color-gray);
+  font-variant-numeric: tabular-nums;
+}
+.rune-card-grip {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-gray);
+  cursor: grab;
+  /* Without this the browser claims the gesture for scrolling and the drag never starts on
+     a touch screen — the same reason the quest task list sets it on its handle. */
+  touch-action: none;
+}
+.rune-card-grip:hover {
+  color: var(--color-primary);
+}
+.rune-card-grip:active {
+  cursor: grabbing;
+}
+
+/* ACTIONS — quiet until the row is engaged. Two icons on every row of a long deck read as
+   texture across the whole table; at rest they recede, and the row under the pointer (or
+   holding focus) brings its own forward. Never hidden outright: the insert action is the
+   row's own affordance and has to be findable without hovering, which a touch screen can't. */
+.rune-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.125rem;
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+}
+.rune-card-row:hover .rune-card-actions,
+.rune-card-row:focus-within .rune-card-actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .rune-card-actions {
+    opacity: 1;
+  }
+}
+
+/* Per-cell heading, shown only in the stacked mobile layout below (where the real <thead>
+   is gone and each cell needs to say which half it is). */
+.rune-card-cell-head {
+  display: none;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gray);
+  margin-bottom: 0.25rem;
+}
+
+/* THE TWO TIERS — every cell is a content line (the question, or the answer) with an
+   optional annotation line under it: the card's tags under the front, its notes under the
+   back. Two tiers rather than two more columns, so the question stays level with its answer
+   across the row and a card carrying neither is one line tall. */
+.rune-card-cellbody {
+  /* Sized and padded identically to the editor that replaces it — see below. The negative
+     margin cancels that padding so read-mode text still sits on the cell's own edge. */
+  padding: 0.375rem 0.5rem;
+  margin: -0.375rem -0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+/* One type size across the tier, whatever CardContent was handed: `.text-primary` is 1rem and
+   `.text-secondary` 0.9rem, and a front that changed size when it became an editor was half
+   of what made opening a cell feel abrupt. Colour still distinguishes them. */
+.rune-card-cellbody .text-primary,
+.rune-card-cellbody .text-secondary,
+.rune-card-sub .text-secondary {
+  font-size: inherit;
+}
+
+.rune-card-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+/* The notes line reads as an aside on the answer — quieter than the answer, with its own
+   glyph so it is never mistaken for more of the back. */
+.rune-card-sub--note {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  color: var(--color-gray);
+}
+.rune-card-sub--note > svg {
+  margin-top: 0.3125rem;
+}
+/* The nested note body drops the pull-out margin the top-tier cells use: those cancel their
+   own padding so read-mode text sits on the cell's edge, but this one is already indented
+   behind the note glyph, and the overhang pushed it past the cell on a phone. */
+.rune-card-sub--note .rune-card-cellbody {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: inherit;
+}
+.rune-card-sub--note .rich-card-editor--bare {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+/* TAG — the compact chip the annotation tier is built from. Smaller than the app's `.badge-*`
+   on purpose: a badge sized for a detail panel is out of scale repeated down every row of a
+   table, where it competes with the card text it is filing. Same colour tokens, so a category
+   still reads blue and a held-back card still reads yellow. */
+.rune-card-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.0625rem 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rune-card-tag--category {
+  background: var(--badge-blue-bg);
+  color: var(--badge-blue-text);
+}
+.rune-card-tag--draft {
+  background: var(--badge-yellow-bg);
+  color: var(--badge-yellow-text);
+}
+
+/* SHEET EDIT — the table view's one-button edit mode. A cell holds rendered markdown until it
+   is opened, so what says "write here" is a dashed line under the text, the way a form rules a
+   line for an answer. A dashed box around every cell of a deck would be louder than the deck;
+   the box appears under the pointer, and the open cell gets the curved solid border the app
+   gives anything actually under edit.
+
+   Opening a cell must not move anything. The static body and the editor that replaces it carry
+   the same padding, border width, radius, type size and line-height, so the swap changes only
+   the border's colour and style — the words stay exactly where they were. */
+.rune-card-celledit {
+  cursor: text;
+  border-style: dashed;
+  border-bottom-color: var(--color-gray);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.rune-card-celledit:hover {
+  border-color: var(--card-border);
+}
+.rune-card-celledit:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  border-style: solid;
+}
+.rune-card-cell .rich-card-editor--bare {
+  margin: -0.375rem -0.5rem;
+  border-color: var(--color-primary);
+  border-radius: 0.375rem;
+  /* The card editor's field fill would read as a second surface inside the row; the cell keeps
+     the table's own background and lets the border do the work. */
+  background: transparent;
+  transition: border-color 120ms ease;
+}
+.rune-card-cell .rich-card-editor--bare .rich-card-editor-content {
+  min-height: 0;
+  max-height: 18rem;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.rune-card-sub--note .rich-card-editor--bare .rich-card-editor-content {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+/* CATEGORY + DRAFT — the annotation tier's edit-mode contents, in the slot the tags occupy
+   when reading, so the table keeps its shape on the way into edit. */
+.rune-sheet-input {
+  width: auto;
+  flex: 1 1 8rem;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 0.375rem;
+  padding: 0.1875rem 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  /* A one-line field: the resize grip Gecko draws on a text input has nothing to resize. */
+  resize: none;
+  transition: border-color 120ms ease;
+}
+.rune-sheet-draft-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--color-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Rows the save would write — edited, or newly added — are marked while the sheet is open:
+   with every row editable at once, the count in the toolbar needs somewhere to point. */
+.rune-card-row--dirty > .rune-card-cell:first-child {
+  box-shadow: inset 2px 0 0 0 var(--color-primary);
+}
+
+/* DRAG — the dragged row recedes and a rule marks where it would land. The rows are prose
+   and vary in height, so nothing is reshuffled under the finger mid-gesture; the rule says
+   where the release goes and the order settles once. */
+.rune-card-row--dragging > .rune-card-cell {
+  opacity: 0.4;
+}
+.rune-card-row--drop > td {
+  border-top: 2px solid var(--color-primary);
+}
+.rune-card-row--drop-end > td {
+  border-top: 2px solid var(--color-primary);
+  padding: 0;
+  height: 0;
+}
+
+/* ADD ROW — the table's own last line. In a view built to read a whole deck at once, the
+   place to write the next card is at the bottom of the deck, not in a bar above the search
+   field. The dashed rule says it isn't a card yet. */
+.rune-card-row--add > td {
+  padding: 0;
+}
+.rune-card-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-top: 1px dashed var(--card-border);
+  color: var(--color-secondary);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.rune-card-add:hover {
+  color: var(--color-primary);
+  background: var(--table-header-bg);
+}
+
+/* The line under Start Study Session that says the session follows the card list's filter. */
+.rune-study-scope-note {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-gray);
+  text-align: center;
+}
+
+/* ============================================================
+   RUNE CSV IMPORT — the deck's bulk card-add flow (ImportCardsModal)
+   ============================================================ */
+
+/* Dropzone. Dashed, like every other "nothing here yet, put something in" surface in the
+   app, and it accepts a dropped file as well as a click. */
+.rune-import-dropzone {
+  border: 2px dashed var(--card-border);
+  padding: 2rem 1rem;
+  text-align: center;
+  transition: border-color 120ms ease;
+}
+.rune-import-dropzone:hover {
+  border-color: var(--input-border);
+}
+
+/* One column of the file against what it holds. The name takes the width it can and the
+   picker keeps a fixed one, so a file with long header names doesn't squeeze the control. */
+.rune-import-map-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+@media (max-width: 640px) {
+  .rune-import-map-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+}
+
+/* File and card previews hold free text, so their cells wrap and top-align rather than
+   taking `.table-cell`'s single-line `nowrap`. Capped in height so one enormous card can't
+   push the rest of the preview off the modal. */
+.rune-import-preview-cell {
+  white-space: normal;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  font-size: 0.8125rem;
+  max-width: 22rem;
+}
+
+.rune-card-reorder-hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-gray);
+}
+
+/* MOBILE — a side-by-side two-column table on a phone is either unreadably narrow or a
+   horizontal scroll. Stack each card into one block instead (gutter, then front over back),
+   which keeps the whole deck readable in one vertical sweep — the point of the view — with
+   no sideways scrolling to discover. */
+@media (max-width: 640px) {
+  .rune-card-table,
+  .rune-card-table tbody,
+  .rune-card-table tr,
+  .rune-card-table td {
+    display: block;
+    width: auto;
+  }
+  .rune-card-table thead {
+    display: none;
+  }
+  .rune-card-table tr.table-row {
+    padding: 0.5rem 0;
+  }
+  .rune-card-cell {
+    padding: 0.375rem 0.75rem;
+  }
+  .rune-card-cell-head {
+    display: block;
+  }
+  /* The gutter and the action row read as their own lines above and below the card's text
+     rather than as zero-width columns. */
+  .rune-card-cell--gutter,
+  .rune-card-cell--actions {
+    width: auto;
+  }
+  .rune-card-cell--gutter {
+    padding-bottom: 0;
+  }
+  .rune-card-gutter {
+    margin-left: 0;
+  }
+  .rune-card-table .table-empty {
+    display: block;
+  }
+  /* Category and the draft toggle stack on a phone — side by side they squeeze the category
+     box below a readable width once the toggle's label is accounted for. */
+  .rune-card-sub .rune-sheet-input {
+    flex-basis: 100%;
+  }
+}
+
 /* RUNE STUDY (in-session) MOBILE RUNOFF — `.page-container` carries no
    horizontal padding on phones, so every row of the study chrome rendered
    edge-to-edge with zero slack. On real Firefox-Android that clipped text off

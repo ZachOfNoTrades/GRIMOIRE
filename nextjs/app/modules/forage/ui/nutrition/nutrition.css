@@ -56,12 +56,15 @@
   margin-bottom: 16px;
 }
 
-/* Caption under the range selector in range mode: "Daily average over N days". */
+/* Caption under the range selector in range mode: "Daily average over N days".
+   Sits BELOW the selector — the old -8px pull-up was measured against a
+   pills-only selector and overlapped the custom range's date inputs by 8px
+   (the caption struck through the start field) whenever "Custom" was active. */
 .nutr-avg-note {
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--color-secondary);
-  margin-top: -8px;
+  margin-top: 6px;
   margin-bottom: 16px;
 }
 

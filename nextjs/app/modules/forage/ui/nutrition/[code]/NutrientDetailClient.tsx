@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/BackLink";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Nutrient, ResolvedNutrientTarget, FoodNutrientRanking, NutrientDailyPoint } from "../../../types/food";
-import { NutritionRange, getNutritionRangeParams } from "../../../utils/dateRange";
-import NutritionRangeSelector from "../NutritionRangeSelector";
+import { NutritionRange, NUTRITION_RANGE_OPTIONS, getNutritionRangeParams, windowKeyFor, parseWindowKey, presetWindowKeys } from "../../../utils/dateRange";
+import DateRangeSelector from "@/components/DateRangeSelector";
 import NutrientTrendChart from "./NutrientTrendChart";
 import { useAppHeight } from "@/lib/useAppHeight";
+import { useWindowCache } from "@/lib/useWindowCache";
 import SegmentedToggle, { SegmentedOption } from "@/components/ui/SegmentedToggle";
 import "./detail.css";
 
@@ -46,7 +47,6 @@ const BASIS_LABEL: Record<FoodNutrientRanking["basis"], string> = {
 };
 
 export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient }) {
-  const router = useRouter();
 
   // Lock the shell to the real visible viewport (Firefox Android handling lives
   // in lib/useAppHeight), matching the other forage screens.
@@ -65,15 +65,8 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
   // DATA — the active daily goal for this macro (null until loaded / non-macro).
   const [macroGoal, setMacroGoal] = useState<number | null>(null);
 
-  // DATA — foods richest in this nutrient (user's foods + the shared library),
-  // highest amount first, each in its own backing reference.
-  const [topFoods, setTopFoods] = useState<FoodNutrientRanking[]>([]);
-  // DATA — this nutrient's per-logged-day average intake over the selected range,
-  // with the day count used as the divisor (null until loaded).
-  const [avgIntake, setAvgIntake] = useState<{ value: number; loggedDays: number } | null>(null);
-  // DATA — this nutrient's per-day intake over the window (one point per logged
-  // day), for the daily-intake trend chart.
-  const [dailySeries, setDailySeries] = useState<NutrientDailyPoint[]>([]);
+  // (The window-scoped data — foods richest in this nutrient, the average intake
+  // line and the daily trend — is cached per range by useWindowCache below.)
 
   // INPUT — log-date window shared by the average-intake line and the "foods
   // highest" list (both restricted to foods the user logged in the window).
@@ -83,18 +76,65 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
-  const [loadingFoods, setLoadingFoods] = useState(true);
   // STATE — which metric the foods list is ranked/valued by (per-serving density,
   // daily average, or period total). All three derive from the one fetch (amount +
   // total_consumed) plus the logged-day count, so the toggle re-sorts client-side
   // with no refetch.
   const [foodSort, setFoodSort] = useState<FoodSort>("serving");
-  // STATE — flips true after the first foods load finishes and never back, so the
-  // foods section (heading + range selector + toggle) stays hidden until the page
-  // has data, then remains visible across range-change reloads.
-  const [foodsLoadedOnce, setFoodsLoadedOnce] = useState(false);
   // A custom range is incomplete until both ends are picked — don't fetch yet.
   const rangeReady = !(range === "custom" && (!customStartDate || !customEndDate));
+  const { startDate: winStart, endDate: winEnd } = getNutritionRangeParams(range, customStartDate, customEndDate);
+  // The selected window as a cache key (null while a custom range is half-picked).
+  const activeKey = rangeReady ? windowKeyFor(range, winStart, winEnd) : null;
+  // Warm every preset in the background once the selected one has landed.
+  const prefetchKeys = useMemo(() => presetWindowKeys(), []);
+
+  // Foods-highest list + average intake + daily trend for ONE window, all three
+  // scoped to the same range so they land together.
+  const loadWindow = useCallback(async (cacheKey: string) => {
+    const { startDate, endDate } = parseWindowKey(cacheKey);
+
+    // Ranked foods — startDate/endDate are optional on this route (absent ⇒ all-time).
+    const foodParams = new URLSearchParams({ nutrient_id: nutrient.id, limit: String(FOODS_LIMIT) });
+    if (startDate) foodParams.set("startDate", startDate);
+    if (endDate) foodParams.set("endDate", endDate);
+
+    // A failed summary throws rather than resolving to `{ error }`, which would
+    // read out as a genuine zero intake for the window.
+    const [foods, summary, series] = await Promise.all([
+      fetch(`/modules/forage/api/foods-by-nutrient?${foodParams.toString()}`).then((r) => (r.ok ? r.json() : [])),
+      // nutrition-summary returns every code (incl. macros) under `micros`.
+      fetch(`/modules/forage/api/nutrition-summary?startDate=${startDate}&endDate=${endDate}`).then((r) => {
+        if (!r.ok) throw new Error(`nutrition-summary ${r.status}`);
+        return r.json();
+      }),
+      fetch(`/modules/forage/api/nutrient-daily?code=${encodeURIComponent(nutrient.code)}&startDate=${startDate}&endDate=${endDate}`).then((r) => (r.ok ? r.json() : [])),
+    ]);
+
+    return {
+      topFoods: (Array.isArray(foods) ? foods : []) as FoodNutrientRanking[],
+      // This nutrient's per-logged-day average intake, with the day count used
+      // as the divisor.
+      avgIntake: { value: Number(summary?.totals?.micros?.[nutrient.code] ?? 0), loggedDays: Number(summary?.loggedDays ?? 0) },
+      // Per-day intake over the window (one point per logged day).
+      dailySeries: (Array.isArray(series) ? series : []) as NutrientDailyPoint[],
+    };
+  }, [nutrient.id, nutrient.code]);
+
+  // Same cache-and-warm treatment as the nutrition overview: every visited window
+  // is kept and the un-selected presets load behind the active one, so changing
+  // the range swaps the average line, the trend chart and the foods list together
+  // instead of collapsing the whole section to a spinner and rebuilding it.
+  const { data: windowData, isLoading: windowLoading } = useWindowCache(activeKey, loadWindow, { prefetchKeys });
+  const topFoods = windowData?.topFoods ?? [];
+  const avgIntake = windowData?.avgIntake ?? null;
+  const dailySeries = windowData?.dailySeries ?? [];
+
+  // First paint holds until BOTH initial fetches land (the band/goal AND the foods
+  // window), behind ONE spinner. The two sections used to gate independently, so a
+  // page load painted two spinners stacked on top of each other. Once loaded the
+  // section stays put across range changes — there is no second spinner any more.
+  const initialLoading = isLoading || windowLoading;
 
   // The active sort metric for a row, and the list re-sorted + sliced by it. The API
   // hands back the union of both metrics' top-N, so slicing here yields the true
@@ -133,48 +173,6 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
     return () => { alive = false; };
   }, [nutrient.code, isMacro]);
 
-  // Foods-highest list + this nutrient's average intake, both scoped to the same
-  // selected window. Skipped until a custom range has both ends picked.
-  useEffect(() => {
-    if (!rangeReady) return;
-    let alive = true;
-    setLoadingFoods(true);
-    const { startDate, endDate } = getNutritionRangeParams(range, customStartDate, customEndDate);
-
-    // Ranked foods — startDate/endDate are optional on this route (absent ⇒ all-time).
-    const foodParams = new URLSearchParams({ nutrient_id: nutrient.id, limit: String(FOODS_LIMIT) });
-    if (startDate) foodParams.set("startDate", startDate);
-    if (endDate) foodParams.set("endDate", endDate);
-    const foodsReq = fetch(`/modules/forage/api/foods-by-nutrient?${foodParams.toString()}`)
-      .then((r) => r.json())
-      .then((foods: FoodNutrientRanking[]) => {
-        if (!alive || !Array.isArray(foods)) return;
-        setTopFoods(foods);
-      });
-
-    // Average daily intake of this nutrient over the window. nutrition-summary
-    // returns every code (incl. macros) under `micros`.
-    const summaryReq = fetch(`/modules/forage/api/nutrition-summary?startDate=${startDate}&endDate=${endDate}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!alive) return;
-        const value = Number(data?.totals?.micros?.[nutrient.code] ?? 0);
-        setAvgIntake({ value, loggedDays: Number(data?.loggedDays ?? 0) });
-      });
-
-    // Per-day intake trend over the same window (one point per logged day).
-    const dailyReq = fetch(`/modules/forage/api/nutrient-daily?code=${encodeURIComponent(nutrient.code)}&startDate=${startDate}&endDate=${endDate}`)
-      .then((r) => r.json())
-      .then((series: NutrientDailyPoint[]) => {
-        if (!alive) return;
-        setDailySeries(Array.isArray(series) ? series : []);
-      });
-
-    Promise.all([foodsReq, summaryReq, dailyReq])
-      .catch((e) => console.error(e))
-      .finally(() => { if (alive) { setLoadingFoods(false); setFoodsLoadedOnce(true); } });
-    return () => { alive = false; };
-  }, [nutrient.id, nutrient.code, range, customStartDate, customEndDate, rangeReady]);
 
   // Effective markers. Macros: a single daily goal (no floor/ceiling). Micros:
   // the resolved band when loaded, else the nutrient's own FDA defaults so the
@@ -210,8 +208,8 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">{nutrient.name}</h1>
 
-        {isLoading ? (
-          /* LOADING */
+        {initialLoading ? (
+          /* LOADING — one spinner for the whole page (band block + foods section) */
           <div className="loading-container"><div className="loading-spinner" /></div>
         ) : (
           <>
@@ -239,26 +237,17 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
             {/* SOURCE NOTE — where these values come from and where to change them */}
             <p className="nutr-detail-note">
               {isMacro ? (
-                <>This is your daily {nutrient.name.toLowerCase()} goal. It can be changed from the <button type="button" className="nutr-detail-link" onClick={() => router.push("/modules/forage/ui/strategy")}>strategy menu</button>.</>
+                <>This is your daily {nutrient.name.toLowerCase()} goal. It can be changed from the <Link className="nutr-detail-link" href="/modules/forage/ui/strategy">strategy menu</Link>.</>
               ) : isManual ? (
-                <>These are custom values set by the active program. They can be edited from the <button type="button" className="nutr-detail-link" onClick={() => router.push("/modules/forage/ui/strategy")}>strategy menu</button>.</>
+                <>These are custom values set by the active program. They can be edited from the <Link className="nutr-detail-link" href="/modules/forage/ui/strategy">strategy menu</Link>.</>
               ) : (
-                <>These values are based on the FDA daily value recommendations. Custom values can be set in the <button type="button" className="nutr-detail-link" onClick={() => router.push("/modules/forage/ui/strategy")}>strategy menu</button>.</>
+                <>These values are based on the FDA daily value recommendations. Custom values can be set in the <Link className="nutr-detail-link" href="/modules/forage/ui/strategy">strategy menu</Link>.</>
               )}
             </p>
-          </>
-        )}
 
-        {/* FOODS HIGHEST IN THIS NUTRIENT */}
-        <div className="nutr-detail-foods">
+            {/* FOODS HIGHEST IN THIS NUTRIENT */}
+            <div className="nutr-detail-foods">
 
-          {!foodsLoadedOnce ? (
-            /* SECTION LOADING — hold back the header (incl. the range selector) and
-               everything below it until the first foods load lands, so nothing pops
-               in before the page has data */
-            <div className="loading-container"><div className="loading-spinner" /></div>
-          ) : (
-            <>
               {/* SECTION HEADER — title + log-date range selector */}
               <div className="nutr-detail-foods-header">
 
@@ -266,7 +255,8 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
                 <h2 className="nutr-detail-foods-head">Foods highest in {nutrient.name}</h2>
 
                 {/* RANGE FILTER — scopes both the average intake + the foods list */}
-                <NutritionRangeSelector
+                <DateRangeSelector
+                  options={NUTRITION_RANGE_OPTIONS}
                   range={range}
                   customStartDate={customStartDate}
                   customEndDate={customEndDate}
@@ -276,7 +266,7 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
               </div>
 
               {/* AVERAGE INTAKE — this nutrient's per-logged-day average over the window */}
-              {!loadingFoods && avgIntake && (
+              {avgIntake && (
                 <p className="nutr-detail-avg">
                   {avgIntake.loggedDays > 0
                     ? <>Averaging <b>{fmtAmount(avgIntake.value)} {nutrient.unit}</b>/day over {avgIntake.loggedDays} logged {avgIntake.loggedDays === 1 ? "day" : "days"}</>
@@ -285,7 +275,7 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
               )}
 
               {/* DAILY INTAKE TREND — bars per logged day, band lines overlaid */}
-              {!loadingFoods && dailySeries.length >= 2 && (
+              {dailySeries.length >= 2 && (
                 <NutrientTrendChart
                   points={dailySeries}
                   unit={nutrient.unit}
@@ -297,14 +287,11 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
               )}
 
               {/* SORT TOGGLE — rank the list by per-serving density, daily average, or period total */}
-              {!loadingFoods && topFoods.length > 0 && (
+              {topFoods.length > 0 && (
                 <SegmentedToggle options={FOOD_SORT_OPTIONS} value={foodSort} onChange={setFoodSort} style={{ margin: "4px auto 12px" }} />
               )}
 
-              {loadingFoods ? (
-                /* LOADING */
-                <div className="loading-container"><div className="loading-spinner" /></div>
-              ) : topFoods.length === 0 ? (
+              {topFoods.length === 0 ? (
                 /* EMPTY */
                 <p className="nutr-detail-foods-empty">No logged foods with {nutrient.name} in this range — log foods to see them here.</p>
               ) : (
@@ -312,11 +299,10 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
                 <div className="settings-group nutr-detail-foods-list">
                   {sortedFoods.map((food) => (
                     /* FOOD ROW — clickable, navigates to the food's details page */
-                    <button
-                      type="button"
+                    <Link
                       key={food.food_id}
                       className="nutr-detail-food"
-                      onClick={() => router.push(`/modules/forage/ui/library/${food.food_id}`)}
+                      href={`/modules/forage/ui/library/${food.food_id}`}
                     >
 
                       {/* NAME + BAR */}
@@ -341,13 +327,13 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
                           {foodSort === "serving" ? `${nutrient.unit} / ${BASIS_LABEL[food.basis]}` : `${nutrient.unit} / day`}
                         </span>
                       </div>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

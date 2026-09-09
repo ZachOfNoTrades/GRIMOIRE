@@ -1,46 +1,50 @@
-// Shared time-range options for the forage nutrition pages (mirrors golem's
-// history-range pattern). A range resolves to an inclusive [startDate, endDate]
-// pair of YYYY-MM-DD strings. "today" collapses to a single day; "custom" defers
-// to the caller-supplied bounds (possibly empty until both are picked); every
-// other preset ends today.
+// Nutrition-page range filtering. The presets and the preset→dates resolver are
+// the app-wide ones in lib/dateRange (shared with rune's deck study history);
+// what stays here is the window-cache keying, which is specific to these pages
+// refetching a whole payload per selected window.
 
-export type NutritionRange = "today" | "1w" | "1m" | "3m" | "1y" | "custom";
+import { DateRangePreset, dateRangeOptions, getDateRangeBounds } from "@/lib/dateRange";
 
-// Short labels — the selector renders these as a compact segmented control, so
-// the presets stay on one row on a narrow phone.
-export const NUTRITION_RANGE_OPTIONS: { value: NutritionRange; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "1w", label: "1W" },
-  { value: "1m", label: "1M" },
-  { value: "3m", label: "3M" },
-  { value: "1y", label: "1Y" },
-  { value: "custom", label: "Custom" },
-];
+// The nutrition pages offer every preset except "all": these views average a
+// bounded window, and an unbounded one has no meaningful per-day average.
+export type NutritionRange = DateRangePreset;
 
-function toDateString(date: Date): string {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
+export const NUTRITION_RANGE_OPTIONS = dateRangeOptions(["today", "1w", "1m", "3m", "1y", "custom"]);
 
-// Turn a range (+ optional custom bounds) into inclusive start/end query params.
-// "custom" passes the caller's bounds straight through; the caller is responsible
-// for waiting until both are set before fetching.
+// Inclusive start/end query params for the selected window. "custom" passes the
+// caller's bounds straight through; the caller waits until both are set.
 export function getNutritionRangeParams(
   range: NutritionRange,
   customStartDate: string = "",
   customEndDate: string = "",
 ): { startDate: string; endDate: string } {
-  if (range === "custom") return { startDate: customStartDate, endDate: customEndDate };
-  const today = new Date();
-  const end = toDateString(today);
-  if (range === "today") return { startDate: end, endDate: end };
-  const start = new Date(today);
-  // "1 Week" is the last 7 days inclusive of today (today minus 6).
-  if (range === "1w") start.setDate(start.getDate() - 6);
-  if (range === "1m") start.setMonth(start.getMonth() - 1);
-  if (range === "3m") start.setMonth(start.getMonth() - 3);
-  if (range === "1y") start.setFullYear(start.getFullYear() - 1);
-  return { startDate: toDateString(start), endDate: end };
+  return getDateRangeBounds(range, customStartDate, customEndDate);
+}
+
+// ─── WINDOW KEYS ───
+// A selected range collapses to one cache key so its payload can be kept and
+// re-served instantly on re-selection (see lib/useWindowCache). The key carries
+// the resolved bounds plus whether the view is a single day or a multi-day
+// average, because those read differently even when the bounds coincide ("Today"
+// vs a one-day custom range).
+
+export function windowKeyFor(range: NutritionRange, startDate: string, endDate: string): string {
+  return `${range === "today" ? "day" : "range"}|${startDate}|${endDate}`;
+}
+
+export function parseWindowKey(key: string): { isRange: boolean; startDate: string; endDate: string } {
+  const [mode, startDate = "", endDate = ""] = key.split("|");
+  return { isRange: mode === "range", startDate, endDate };
+}
+
+// Every preset's resolved window, in selector order (narrowest span first, the
+// 1-year window last) — the background warm-up list for a range-filtered page.
+// "custom" is excluded: its bounds only exist once the user picks them.
+export function presetWindowKeys(): string[] {
+  return NUTRITION_RANGE_OPTIONS
+    .filter((o) => o.value !== "custom")
+    .map((o) => {
+      const { startDate, endDate } = getNutritionRangeParams(o.value);
+      return windowKeyFor(o.value, startDate, endDate);
+    });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Toaster } from "react-hot-toast";
 import { DailyTotals } from "../../types/entry";
@@ -9,10 +9,11 @@ import { Nutrient, ResolvedNutrientTarget } from "../../types/food";
 import { todayIso } from "../_diary";
 import { FAT_BREAKDOWN_CODES, CARB_BREAKDOWN_CODES, PROTEIN_BREAKDOWN_CODES } from "../../utils/nutrientGroups";
 import { sectionColor, byNutrientOrder } from "../../utils/nutrientLedger";
-import { NutritionRange, getNutritionRangeParams } from "../../utils/dateRange";
+import { NutritionRange, NUTRITION_RANGE_OPTIONS, getNutritionRangeParams, windowKeyFor, parseWindowKey, presetWindowKeys } from "../../utils/dateRange";
 import { NutrientMeter, bandDisplay, fmtNutrient, ProgramTargetMark } from "./nutrientMeter";
-import NutritionRangeSelector from "./NutritionRangeSelector";
+import DateRangeSelector from "@/components/DateRangeSelector";
 import { useAppHeight } from "@/lib/useAppHeight";
+import { useWindowCache } from "@/lib/useWindowCache";
 import ForageBottomBar from "../ForageBottomBar";
 import "../home/home.css";
 import "./nutrition.css";
@@ -58,22 +59,18 @@ const rowBand = (row: NutrientRow) => ({ value: row.value, floor: row.floor, tar
 
 const fmt = fmtNutrient;
 
+// A window with nothing logged — also the pre-load placeholder.
+const EMPTY_TOTALS: DailyTotals = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, micros: {} };
+
 export default function NutritionClient({ initialDate }: { initialDate: string }) {
   const router = useRouter();
 
   // Firefox-Android viewport-height fix (shared across forage screens).
   useAppHeight();
 
-  // DATA
-  // In single-day ("today") mode `totals` is the viewed day's totals; in a
-  // multi-day range it's the per-logged-day AVERAGE (see /api/nutrition-summary).
-  const [totals, setTotals] = useState<DailyTotals>({ kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, micros: {} });
-  const [target, setTarget] = useState<MacroTarget | null>(null);
+  // DATA — nutrient metadata + resolved target bands (day-independent).
   const [nutrients, setNutrients] = useState<Nutrient[]>([]);
   const [bands, setBands] = useState<ResolvedNutrientTarget[]>([]);
-  // Distinct days with ≥1 entry in the active window (the averaging divisor); only
-  // surfaced in range mode to caption the average.
-  const [loggedDays, setLoggedDays] = useState(0);
 
   // INPUT
   const [range, setRange] = useState<NutritionRange>("today");
@@ -81,8 +78,7 @@ export default function NutritionClient({ initialDate }: { initialDate: string }
   const [customEndDate, setCustomEndDate] = useState("");
 
   // STATE
-  const [isLoading, setIsLoading] = useState(true);
-  // Bumped after a log lands to force a totals refetch.
+  // Bumped after a log lands to invalidate every cached window's totals.
   const [refreshKey, setRefreshKey] = useState(0);
   // The "Today" preset's anchor day (server-resolved ?date=, else today). Every
   // other preset/custom range resolves its own window relative to today.
@@ -97,6 +93,15 @@ export default function NutritionClient({ initialDate }: { initialDate: string }
     : { startDate: anchorDay, endDate: anchorDay };
   // A custom range is incomplete until both ends are picked — don't fetch yet.
   const rangeReady = !(range === "custom" && (!customStartDate || !customEndDate));
+  // The selected window as a cache key (null while a custom range is half-picked).
+  const activeKey = rangeReady ? windowKeyFor(range, startDate, endDate) : null;
+  // Warm every preset in the background once the selected one has landed. The
+  // single-day preset is re-pointed at this page's anchor day so it matches the
+  // key "Today" actually selects when the server resolved a ?date=.
+  const prefetchKeys = useMemo(
+    () => presetWindowKeys().map((k) => (parseWindowKey(k).isRange ? k : windowKeyFor("today", anchorDay, anchorDay))),
+    [anchorDay],
+  );
 
   // Nutrient metadata + resolved target bands are day-independent — fetch once.
   useEffect(() => {
@@ -114,29 +119,63 @@ export default function NutritionClient({ initialDate }: { initialDate: string }
     return () => { alive = false; };
   }, []);
 
-  // Totals + macro target refetch whenever the active window changes. Both single
-  // day and multi-day range go through nutrition-summary (a single day resolves to
-  // start == end, whose per-logged-day average is just that day's totals). The
-  // macro target is read for the window's end date (== the viewed day in single
-  // mode). Skipped until a custom range has both ends.
-  useEffect(() => {
-    if (!rangeReady) return;
-    let alive = true;
-    setIsLoading(true);
-    Promise.all([
-      fetch(`/modules/forage/api/nutrition-summary?startDate=${startDate}&endDate=${endDate}`).then((r) => r.json()),
-      fetch(`/modules/forage/api/targets?date=${endDate}`).then((r) => r.json()),
-    ])
-      .then(([sData, tData]) => {
-        if (!alive) return;
-        setTotals(sData?.totals ?? { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, micros: {} });
-        setLoggedDays(Number(sData?.loggedDays ?? 0));
-        setTarget(tData ?? null);
-      })
-      .catch((e) => console.error(e))
-      .finally(() => { if (alive) setIsLoading(false); });
-    return () => { alive = false; };
-  }, [startDate, endDate, rangeReady, refreshKey]);
+  // Totals + macro target for ONE window. Both single day and multi-day range go
+  // through nutrition-summary (a single day resolves to start == end, whose
+  // per-logged-day average is just that day's totals). The macro target is read
+  // for the window's end date (== the viewed day in single mode).
+  const loadWindow = useCallback(async (cacheKey: string) => {
+    const { startDate: from, endDate: to } = parseWindowKey(cacheKey);
+    // Throw on a failed summary rather than reading `{ error }` as an empty
+    // window — a 500 rendered as zeros would read as "you logged nothing here",
+    // which is worse than admitting the range didn't load.
+    const [sData, tData] = await Promise.all([
+      fetch(`/modules/forage/api/nutrition-summary?startDate=${from}&endDate=${to}`).then((r) => {
+        if (!r.ok) throw new Error(`nutrition-summary ${r.status}`);
+        return r.json();
+      }),
+      // The macro target is allowed to be missing (a window that predates any
+      // target legitimately has none), so a failure here degrades to "no target"
+      // instead of failing the whole window.
+      fetch(`/modules/forage/api/targets?date=${to}`).then((r) => (r.ok ? r.json() : null)),
+    ]);
+    return {
+      totals: (sData?.totals ?? EMPTY_TOTALS) as DailyTotals,
+      // Distinct days with ≥1 entry in the window (the averaging divisor); only
+      // surfaced in range mode to caption the average.
+      loggedDays: Number(sData?.loggedDays ?? 0),
+      // Guard the error envelope — a failed route returns `{ error }`, which is
+      // truthy and would render as a target object with every field undefined.
+      target: (tData && typeof tData === "object" && !("error" in tData) ? tData : null) as MacroTarget | null,
+    };
+  }, []);
+
+  // Every window the user visits is kept, and the un-selected presets are warmed
+  // behind the active one — so switching filters swaps the numbers, the eyebrow
+  // and the average caption together in a single frame, instead of dropping the
+  // caption out of the flow and re-adding it a beat later.
+  const { data: windowData, dataKey, isLoading, isError } = useWindowCache(activeKey, loadWindow, {
+    prefetchKeys,
+    resetToken: refreshKey,
+  });
+  const totals = windowData?.totals ?? EMPTY_TOTALS;
+  const target = windowData?.target ?? null;
+  const loggedDays = windowData?.loggedDays ?? 0;
+  // The window the rendered numbers actually describe. Header + caption read from
+  // THIS, never from the selection, so a cold switch can never label the previous
+  // window's values with the newly-picked range.
+  const shownWindow = dataKey ? parseWindowKey(dataKey) : null;
+
+  // Eyebrow label — always the SHOWN window's own label, so a half-picked custom
+  // range keeps describing the window still on screen rather than blanking the
+  // header over live numbers. Falls back to the selection before anything has
+  // loaded (empty custom bounds render rangeSpanLabel's "SELECT A RANGE").
+  const eyebrow = shownWindow
+    ? shownWindow.isRange
+      ? rangeSpanLabel(shownWindow.startDate, shownWindow.endDate)
+      : fullDateLabel(shownWindow.startDate)
+    : isRangeMode
+      ? rangeSpanLabel(startDate, endDate)
+      : fullDateLabel(anchorDay);
 
   // ─── ASSEMBLE ROWS ───
   const bandByCode = new Map(bands.map((b) => [b.code, b]));
@@ -211,19 +250,21 @@ export default function NutritionClient({ initialDate }: { initialDate: string }
       {/* PAGE CONTAINER */}
       <div className="page-container" style={{ maxWidth: 640, margin: "0 auto" }}>
 
-        {/* HEADER — eyebrow + title. The eyebrow tracks the active window: the
-            anchor day for "Today", the start–end span for a multi-day range. */}
+        {/* HEADER — eyebrow + title. The eyebrow tracks the window the values on
+            screen describe (not the selection), so it can never get ahead of a
+            window that is still loading. */}
         <div className="nutr-header">
 
           {/* EYEBROW — full date (single day) or range span (multi-day) */}
-          <div className="nutr-eyebrow">{isRangeMode ? rangeSpanLabel(startDate, endDate) : fullDateLabel(anchorDay)}</div>
+          <div className="nutr-eyebrow">{eyebrow}</div>
 
           {/* TITLE */}
           <div className="nutr-title">Nutrition</div>
         </div>
 
         {/* RANGE SELECTOR — full-width segmented control driving the whole view */}
-        <NutritionRangeSelector
+        <DateRangeSelector
+          options={NUTRITION_RANGE_OPTIONS}
           range={range}
           customStartDate={customStartDate}
           customEndDate={customEndDate}
@@ -231,8 +272,10 @@ export default function NutritionClient({ initialDate }: { initialDate: string }
           onCustomDateChange={(s, e) => { setCustomStartDate(s); setCustomEndDate(e); }}
         />
 
-        {/* AVERAGE CAPTION — clarifies that range-mode values are per-day averages */}
-        {isRangeMode && rangeReady && !isLoading && target && (
+        {/* AVERAGE CAPTION — clarifies that range-mode values are per-day averages.
+            Gated on the SHOWN window, so it swaps with the numbers in one frame
+            rather than dropping out of the flow and back on every filter tap. */}
+        {shownWindow?.isRange && target && (
           <div className="nutr-avg-note">
             {loggedDays > 0
               ? `Daily average over ${loggedDays} logged ${loggedDays === 1 ? "day" : "days"}`
@@ -240,11 +283,27 @@ export default function NutritionClient({ initialDate }: { initialDate: string }
           </div>
         )}
 
-        {isLoading && nutrients.length === 0 ? (
+        {/* RANGE ERROR — the selected window failed to load. Said out loud, because
+            the values below still belong to the previous range; silently leaving
+            them there would misattribute them to the range that's highlighted. */}
+        {isError && windowData && (
+          <div className="nutr-avg-note" style={{ color: C.danger }}>
+            Couldn&apos;t load this range — showing {shownWindow?.isRange ? "the previous range" : "today"}.
+          </div>
+        )}
+
+        {isLoading ? (
           /* LOADING */
           <div style={{ display: "flex", justifyContent: "center", padding: "2rem 0" }}>
             <div style={{ width: 24, height: 24, border: `2px solid ${C.divider}`, borderTopColor: C.text, borderRadius: 999, animation: "spin 0.8s linear infinite" }} />
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        ) : isError && !windowData ? (
+          /* RANGE FAILED — nothing cached to fall back on. Distinct from the
+             no-targets prompt below: this is a failed read, not a missing goal. */
+          <div className="fg-tile" style={{ borderRadius: 12, padding: 16 }}>
+            <div style={{ color: C.text, fontWeight: 600, marginBottom: 4 }}>Couldn&apos;t load this range</div>
+            <div style={{ color: C.textMuted, fontSize: 13 }}>Pick another range, or reload the page to try again.</div>
           </div>
         ) : !target ? (
           /* NO TARGETS PROMPT */
@@ -284,11 +343,16 @@ function fullDateLabel(iso: string): string {
 }
 
 // Eyebrow label for a multi-day range — "JUN 16 – JUN 22" (or just the single day
-// when the bounds collapse, e.g. a one-day custom range).
+// when the bounds collapse, e.g. a one-day custom range). A span that crosses new
+// year's carries the year on both ends, because month+day alone renders the 1Y
+// preset as "SEP 6 – SEP 6", which reads as a single day.
 function rangeSpanLabel(startIso: string, endIso: string): string {
   if (!startIso || !endIso) return "SELECT A RANGE";
+  const crossesYears = startIso.slice(0, 4) !== endIso.slice(0, 4);
   const fmtDay = (iso: string) =>
-    new Date(iso + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
+    new Date(iso + "T12:00:00")
+      .toLocaleDateString("en-US", crossesYears ? { month: "short", day: "numeric", year: "numeric" } : { month: "short", day: "numeric" })
+      .toUpperCase();
   return startIso === endIso ? fmtDay(startIso) : `${fmtDay(startIso)} – ${fmtDay(endIso)}`;
 }
 
