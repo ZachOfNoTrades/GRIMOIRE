@@ -118,6 +118,14 @@ export async function POST(
         { status: 404 }
       );
     }
+    // The row the card was to be inserted below isn't in this deck any more — the client's
+    // list is stale. Nothing was written, so say so rather than reporting a server fault.
+    if (error instanceof Error && error.message.includes('No card found')) {
+      return NextResponse.json(
+        { error: "The card this one goes below is no longer in the deck — refresh and try again" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to create card' },
       { status: 500 }

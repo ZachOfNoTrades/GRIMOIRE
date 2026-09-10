@@ -1,8 +1,10 @@
 'use client';
 
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, Search } from 'lucide-react';
+import { ArrowDownUp, ArrowLeft, ChevronDown, ChevronRight, Rows3, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SearchField, SMART_MATCH_HINT } from '@/components/SearchField';
+import { makeSearchMatcher } from '@/lib/searchMatch';
 
 // Fixed scroll rate (px/sec) — every marquee moves at the same speed
 // regardless of how much text overflows; longer overflow just takes
@@ -139,6 +141,23 @@ export interface ExpandableRowListProps<T> {
   // FILTER_ALL / FILTER_UNCATEGORIZED sentinels or any getFilterValue result.
   filterExtraOptions?: { value: string; label: string; predicate: (item: T) => boolean }[];
   filterExtraGroupLabel?: string;
+  // Optional sort control, rendered on the filter's row (right edge) as a compact
+  // icon+label button that CYCLES through these options in order — the same
+  // control the forage food logger's Recipes tab and the Recipes page use. It is
+  // deliberately not a second full-width <select>: two stacked dropdowns read as
+  // one "settings block" and cost a whole row of vertical space above the list.
+  // Keep the labels short (one or two words) — they are the button's face, not
+  // dropdown options. Deliberately CONTROLLED and order-agnostic: the caller owns
+  // `items`' order, exactly like getSectionLabel's contiguous-run contract — this
+  // only renders the control and reports the chosen value back. Requires
+  // sortValue + onSortChange.
+  sortOptions?: { value: string; label: string }[];
+  sortValue?: string;
+  onSortChange?: (value: string) => void;
+  // Plural noun for the aria-label ("cards" -> "Change cards sort order"),
+  // matching the deck list's wording rather than the filter select's
+  // "Filter by <singular>".
+  sortLabel?: string;
   // Optional "Group by X" toggle (same switch used by golem's DayArchetypeConfig
   // for its program grouping) — set this to enable it; requires getSectionLabel
   // too, since the toggle just decides whether that grouping is actually applied.
@@ -152,6 +171,43 @@ export interface ExpandableRowListProps<T> {
   // row heights (not a flat multiply), since rows vary in height (wrapped
   // labels, section headers). Pass 0 to disable the cap. Defaults to 10.
   maxItemsInView?: number;
+  // Optional alternate TABLE presentation of the same items. The row list is a
+  // master/detail: one item's detail at a time, everything else collapsed to its
+  // label. A table trades that for seeing every item's full content at once, which
+  // is a different job, not a better one — so both stay available behind a toggle.
+  // The caller renders the table itself (columns are item-specific); this component
+  // still owns search/filter/sort and hands over the SAME visible, ordered set the
+  // rows would have shown, plus the selection state so the table can draw its own
+  // checkbox column while "Select" mode is on. Controlled, like the sort toggle:
+  // pass isTableView + onTableViewChange (the caller owns the view, e.g. to widen
+  // its page container for the table). Section grouping and the row-count cap are
+  // both suspended in table view — the point of it is one uninterrupted sweep of
+  // everything, and the detail pane is redundant once every back is already visible,
+  // so it (and its divider) drop out and the table takes the full width.
+  renderTable?: (items: T[], selection: TableSelection) => React.ReactNode;
+  isTableView?: boolean;
+  onTableViewChange?: (isTableView: boolean) => void;
+  // Caller controls that belong on the same line as "Select" rather than in a bar of their
+  // own. The list already stacks search, filter/sort, group-by and select as full-width
+  // rows; a caller adding one more (the table view's Edit / Save / Cancel) pushed the
+  // content itself another line down the page for the sake of a single right-aligned
+  // button. Rendered leading, so it reads "<caller's controls> ......... Select".
+  toolbarExtra?: React.ReactNode;
+  // Reports the rows the search/filter currently leaves visible, so a caller can act on the
+  // narrowed set rather than the whole list — the deck page studies exactly the cards its
+  // filter is showing. The list owns search and filter state (that is the point of it), so
+  // this is the only way out for that set. Fired on change, not on every render.
+  onVisibleItemsChange?: (items: T[]) => void;
+  // Plural noun for the view toggle's aria-label ("cards" -> "Show cards as a table").
+  tableViewLabel?: string;
+}
+
+// Selection state handed to renderTable so a table view can draw the same
+// bulk-select checkboxes the rows do, driven by the list's own "Select" mode.
+export interface TableSelection {
+  isSelecting: boolean;
+  isSelected: (id: string) => boolean;
+  toggleSelected: (id: string) => void;
 }
 
 // Shared master/detail row-list: desktop shows the list and a persistent
@@ -179,7 +235,9 @@ export default function ExpandableRowList<T>({
   searchable, searchPlaceholder = 'Search…', getSearchText,
   filterLabel, getFilterValue, filterUncategorizedLabel = 'Uncategorized',
   filterExtraOptions, filterExtraGroupLabel,
+  sortOptions, sortValue, onSortChange, sortLabel,
   groupToggleLabel, maxItemsInView = 10,
+  renderTable, isTableView, onTableViewChange, tableViewLabel, toolbarExtra, onVisibleItemsChange,
 }: ExpandableRowListProps<T>) {
   const [isSelecting, setIsSelecting] = useState(false);
   const [search, setSearch] = useState('');
@@ -211,10 +269,29 @@ export default function ExpandableRowList<T>({
       ? items.filter((item) => (filterValue === FILTER_UNCATEGORIZED ? !getFilterValue(item) : getFilterValue(item) === filterValue))
       : items;
 
-  const query = search.trim().toLowerCase();
+  // Matching goes through the shared normalizer, so a row written `5" bore`
+  // answers to the query `5 inch` (and vice versa) and every query token has to
+  // appear but need not be adjacent — see lib/searchMatch.ts. The matcher is
+  // built once per query rather than per row.
+  const query = search.trim();
+  const matchesQuery = makeSearchMatcher(query);
   const visibleItems = query
-    ? filteredByValue.filter((item) => (getSearchText ? getSearchText(item) : renderLabel(item)).toLowerCase().includes(query))
+    ? filteredByValue.filter((item) => matchesQuery(getSearchText ? getSearchText(item) : renderLabel(item)))
     : filteredByValue;
+
+  // PUBLISH THE VISIBLE SET — compared by id list, not by array identity: `visibleItems` is
+  // rebuilt on every render (it is a filter over a prop), so notifying on identity alone would
+  // fire an endless loop of parent renders. The ids are what a caller acts on anyway.
+  const visibleIdsKey = visibleItems.map(getId).join('\u0000');
+  const lastVisibleKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!onVisibleItemsChange) return;
+    if (lastVisibleKeyRef.current === visibleIdsKey) return;
+    lastVisibleKeyRef.current = visibleIdsKey;
+    onVisibleItemsChange(visibleItems);
+    // visibleItems is intentionally omitted — visibleIdsKey is its stable stand-in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleIdsKey, onVisibleItemsChange]);
 
   // The toggle is disabled (not hidden) once the value filter has already
   // narrowed the list to one bucket — grouping becomes a no-op at that point
@@ -224,8 +301,23 @@ export default function ExpandableRowList<T>({
   // An extra-option facet (e.g. drafts) can still span categories, so it leaves
   // grouping enabled; only narrowing to a single category value makes it a no-op.
   const groupToggleDisabled = filterValue !== FILTER_ALL && !activeExtraOption;
-  const showGroupToggle = !!(groupToggleLabel && getSectionLabel && totalBuckets > 1);
-  const groupingActive = !!(getSectionLabel && (!showGroupToggle || groupByEnabled));
+  // The sort picker needs all three halves of a controlled input to be useful;
+  // any one missing means the caller isn't actually wired up for it.
+  const showSortToggle = !!(sortOptions && sortOptions.length > 0 && sortValue !== undefined && onSortChange);
+  // Cycling button state. An unrecognised sortValue falls back to index 0 so the
+  // button still shows a label and still advances rather than dead-ending.
+  const sortIndex = showSortToggle ? Math.max(0, sortOptions!.findIndex((option) => option.value === sortValue)) : -1;
+  const activeSortOption = sortIndex >= 0 ? sortOptions![sortIndex] : undefined;
+  const nextSortOption = sortIndex >= 0 ? sortOptions![(sortIndex + 1) % sortOptions!.length] : undefined;
+  // Like the sort picker, the view toggle needs both halves of a controlled input
+  // (the renderer and the change handler) before it is worth showing.
+  const showViewToggle = !!(renderTable && onTableViewChange);
+  const tableActive = !!(renderTable && isTableView);
+  // Grouping is suspended in table view: section headers break the table into
+  // separate <table>s (or bogus full-width rows), and the table is the "see it all
+  // in one sweep" view, which is the opposite of what grouping is for.
+  const showGroupToggle = !!(groupToggleLabel && getSectionLabel && totalBuckets > 1) && !tableActive;
+  const groupingActive = !!(getSectionLabel && !tableActive && (!showGroupToggle || groupByEnabled));
 
   // Bucket items into contiguous same-label runs (a no-op single run of
   // label=null when getSectionLabel isn't passed or grouping is toggled off).
@@ -244,7 +336,9 @@ export default function ExpandableRowList<T>({
   // row count changes (search/filter/grouping all change which rows exist).
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container || maxItemsInView <= 0 || visibleItems.length <= maxItemsInView) {
+    // Table view is deliberately uncapped — capping it would reintroduce the
+    // scroll-a-few-at-a-time reading the table exists to replace.
+    if (!container || tableActive || maxItemsInView <= 0 || visibleItems.length <= maxItemsInView) {
       setScrollMaxHeight(undefined);
       return;
     }
@@ -268,9 +362,11 @@ export default function ExpandableRowList<T>({
       window.removeEventListener('resize', measure);
       observer.disconnect();
     };
-  }, [visibleItems.length, maxItemsInView, groupingActive]);
+  }, [visibleItems.length, maxItemsInView, groupingActive, tableActive]);
 
-  const detailActive = !!selected;
+  // Table view shows every back inline, so it never drives the detail pane —
+  // a row left open in list view stays open underneath, ready for the way back.
+  const detailActive = !!selected && !tableActive;
   const back = () => { if (selected) onToggle(getId(selected)); };
 
   // On mobile, opening a row's detail hides the list and swaps the full-width
@@ -302,33 +398,42 @@ export default function ExpandableRowList<T>({
   };
 
   return (
-    <div ref={layoutRef} className={`erow-layout ${detailActive ? 'erow-detail-active' : ''}`}>
+    <div ref={layoutRef} className={`erow-layout ${detailActive ? 'erow-detail-active' : ''} ${tableActive ? 'erow-table-mode' : ''}`}>
 
       {/* LIST */}
       <div className="erow-list">
 
-        {/* SEARCH + FILTER ROW — search opt-in via `searchable`; filter opt-in via
-            `getFilterValue`. Either can appear alone or both together. */}
-        {(searchable || getFilterValue) && (
+        {/* SEARCH + FILTER + SORT ROW — search opt-in via `searchable`; filter opt-in
+            via `getFilterValue`; sort opt-in via `sortOptions`; view toggle opt-in via
+            `renderTable`. Any can appear alone or together. */}
+        {(searchable || getFilterValue || showSortToggle || showViewToggle) && (
           <div className="erow-search-row">
 
             {/* SEARCH BAR — filters rows client-side */}
             {searchable && (
-              <div className="erow-search">
-                <Search className="erow-search-icon w-4 h-4" />
-                <input
-                  type="search"
-                  className="input-field"
-                  placeholder={searchPlaceholder}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  aria-label={searchPlaceholder}
-                />
-              </div>
+              <SearchField
+                value={search}
+                onChange={setSearch}
+                placeholder={searchPlaceholder}
+                matchHint={SMART_MATCH_HINT}
+              />
             )}
 
-            {/* FILTER SELECT — a single-value dropdown (e.g. category) */}
+            {/* FILTER + SORT ROW — the filter dropdown takes the width and the sort
+                toggle rides its right edge (right-aligned on its own when there is
+                no filter). Sharing one line is the point: sort used to be a second
+                full-width <select> stacked under the filter, which read as a block
+                of settings and pushed the list itself further down the page. */}
+            {(getFilterValue || showSortToggle || showViewToggle) && (
+            <div className="erow-filter-row">
+
+            {/* FILTER SELECT — a single-value dropdown (e.g. category). The native
+                dropmarker paints hard against the field's right border and no amount
+                of padding-right moves it (padding only truncates the option text), so
+                `appearance:none` drops it and the wrapper draws its own chevron at the
+                same 0.75rem inset the field uses for its text. */}
             {getFilterValue && (
+              <div className="erow-filter-select-wrap">
               <select
                 className="input-field erow-filter-select"
                 value={filterValue}
@@ -351,6 +456,68 @@ export default function ExpandableRowList<T>({
                   </optgroup>
                 )}
               </select>
+
+              {/* FILTER CHEVRON — decorative stand-in for the suppressed native
+                  dropmarker; the <select> itself still owns every interaction. */}
+              <ChevronDown className="erow-filter-select-chev w-4 h-4" aria-hidden="true" />
+              </div>
+            )}
+
+            {/* CONTROL GROUP — sort + view ride the filter's right edge as one unit so
+                that when the row has to wrap (narrow phone), they drop to the next line
+                together instead of the filter select getting squeezed under its own
+                longest option, or the two controls landing on separate lines. */}
+            {(showSortToggle || showViewToggle) && (
+            <div className="erow-filter-controls">
+
+            {/* SORT TOGGLE — one tap advances to the next option and wraps; the
+                caller applies the ordering. Same control as the forage food
+                logger / Recipes page so a sort reads identically app-wide. */}
+            {showSortToggle && (
+              <button
+                type="button"
+                className="erow-sort-toggle text-muted"
+                onClick={() => onSortChange!(nextSortOption!.value)}
+                aria-label={sortLabel ? `Change ${sortLabel} sort order` : 'Change sort order'}
+                title={`Sorted by ${activeSortOption!.label} — tap for ${nextSortOption!.label}`}
+              >
+                <ArrowDownUp className="w-3.5 h-3.5" />
+                {activeSortOption!.label}
+              </button>
+            )}
+
+            {/* VIEW TOGGLE — a two-state segmented control (rows / table) rather than a
+                cycling button like sort: with only two views, a cycler can't show where
+                you are and where you'd land at the same time, and the two icons say it
+                without a label. Right edge, after sort, so the toolbar reads
+                filter -> order -> shape. */}
+            {showViewToggle && (
+              <div className="erow-view-toggle" role="group" aria-label={tableViewLabel ? `${tableViewLabel} view` : 'View'}>
+                <button
+                  type="button"
+                  className={`erow-view-option ${!tableActive ? 'is-active' : ''}`}
+                  onClick={() => onTableViewChange!(false)}
+                  aria-pressed={!tableActive}
+                  aria-label={tableViewLabel ? `Show ${tableViewLabel} as a list` : 'Show as a list'}
+                  title="List view"
+                >
+                  <Rows3 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className={`erow-view-option ${tableActive ? 'is-active' : ''}`}
+                  onClick={() => onTableViewChange!(true)}
+                  aria-pressed={tableActive}
+                  aria-label={tableViewLabel ? `Show ${tableViewLabel} as a table` : 'Show as a table'}
+                  title="Table view"
+                >
+                  <Table2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            </div>
+            )}
+            </div>
             )}
           </div>
         )}
@@ -372,11 +539,12 @@ export default function ExpandableRowList<T>({
           </div>
         )}
 
-        {/* SELECT BAR — gates the whole selection feature; only rendered
-            when the caller opted in via `selectable`. */}
-        {selectable && (
+        {/* SELECT BAR — gates the whole selection feature; also the home for any caller
+            controls passed as `toolbarExtra`, so the bar renders whenever either exists. */}
+        {(selectable || toolbarExtra) && (
           <div className="erow-select-bar">
-            {isSelecting ? (
+            {toolbarExtra}
+            {selectable && (isSelecting ? (
               <>
                 <label className="erow-select-all">
                   <input type="checkbox" className="checkbox" checked={allSelected} onChange={toggleSelectAll} />
@@ -386,7 +554,7 @@ export default function ExpandableRowList<T>({
               </>
             ) : (
               <Button className="btn-link ml-auto" onClick={() => setIsSelecting(true)}>{selectLabel}</Button>
-            )}
+            ))}
           </div>
         )}
 
@@ -397,10 +565,15 @@ export default function ExpandableRowList<T>({
           </div>
         )}
 
+        {/* TABLE VIEW — the caller's own table, fed the same filtered + ordered set
+            the rows below would have rendered, plus the live selection state. */}
+        {tableActive && renderTable!(visibleItems, { isSelecting: !!(selectable && isSelecting), isSelected: (id) => !!selectedIds?.has(id), toggleSelected })}
+
         {/* ROW SCROLL CONTAINER — capped to ~maxItemsInView rows tall (see the
             measuring effect above); scrolls internally once content exceeds
             that instead of growing the page. Uncapped (no inline maxHeight)
             when there aren't enough rows to need it. */}
+        {!tableActive && (
         <div ref={scrollRef} className="erow-scroll" style={scrollMaxHeight ? { maxHeight: scrollMaxHeight, overflowY: 'auto' } : undefined}>
           {sections.map((section, sectionIndex) => (
             <Fragment key={`${section.label ?? '__flat__'}-${sectionIndex}`}>
@@ -433,11 +606,15 @@ export default function ExpandableRowList<T>({
             </Fragment>
           ))}
         </div>
+        )}
       </div>
 
+      {/* DETAIL — omitted entirely in table view (every back is already on screen),
+          so the table gets the full width instead of sharing it with an empty pane. */}
+      {!tableActive && (
+      <>
       <div className="erow-divider" />
 
-      {/* DETAIL */}
       <div className="erow-detail">
 
         {/* MOBILE BACK — hidden on desktop; collapses the detail pane back to the list */}
@@ -462,6 +639,8 @@ export default function ExpandableRowList<T>({
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

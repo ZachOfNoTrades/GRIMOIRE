@@ -135,6 +135,21 @@ interface RichCardEditorProps {
   placeholder?: string;
   // Bumping this forces the editor to reload `value` (e.g. switching cards).
   resetKey: string | number;
+  // Drops the formatting toolbar and renders the editable area alone. For the deck table's
+  // cells, where one editor is mounted at a time in a cell the width of half a row: a
+  // seven-button toolbar over every cell would outweigh the text it formats, and the
+  // markdown input rules carry the same formatting anyway — typing "1. " starts a numbered
+  // list, "- " a bullet, "**bold**" bolds. Pasting an image still uploads and embeds it.
+  // The full toolbar (link modal, file picker, media removal) stays with the card editor.
+  bare?: boolean;
+  // Focus the editable area as soon as it mounts. The table mounts an editor in response to
+  // a click or an Enter on a cell, so the caret belongs in it — unlike the card editor,
+  // which opens as one of several fields in a modal.
+  autoFocus?: boolean;
+  // Fired on Escape and on focus leaving the editable area — how a cell editor is dismissed
+  // back to its rendered form. The card editor passes neither and keeps its always-on shape.
+  onDone?: () => void;
+  ariaLabel?: string;
 }
 
 // Uploads a pasted/picked image or video file and returns the URL to embed, or
@@ -242,7 +257,7 @@ function uploadWithPlaceholder(view: EditorView, file: File) {
   });
 }
 
-export default function RichCardEditor({ value, onChange, placeholder, resetKey }: RichCardEditorProps) {
+export default function RichCardEditor({ value, onChange, placeholder, resetKey, bare = false, autoFocus = false, onDone, ariaLabel }: RichCardEditorProps) {
   // Avoids feeding the editor's own onUpdate output back into itself via the `value` prop.
   const lastEmitted = useRef(value);
   // Hidden file input behind the toolbar's attach button — the reliable way to
@@ -284,7 +299,21 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
       onChange(markdown);
     },
     editorProps: {
-      attributes: { class: "rich-card-editor-content" },
+      attributes: {
+        class: "rich-card-editor-content",
+        ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+      },
+      handleKeyDown: (_view, event) => {
+        // Escape leaves the cell rather than bubbling to whatever modal or drawer is above
+        // — nothing else in the editor consumes it. Only wired when the caller asked for a
+        // dismissable editor; the card editor has no "done" to go back to.
+        if (event.key === "Escape" && onDone) {
+          event.preventDefault();
+          onDone();
+          return true;
+        }
+        return false;
+      },
       handlePaste: (view, event) => {
         const items = Array.from(event.clipboardData?.items || []);
         const mediaItem = items.find(
@@ -313,6 +342,14 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey, editor]);
 
+  // AUTOFOCUS — after the editor exists, with the caret at the end of whatever is already
+  // there. A cell editor is opened on a card that usually has text; dropping the caret at
+  // position 0 would make the first keystroke prepend to it.
+  useEffect(() => {
+    if (editor && autoFocus) editor.commands.focus("end");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, autoFocus]);
+
   if (!editor) return null;
 
   // Uploads a picked image/video file, showing a spinner placeholder at the
@@ -324,8 +361,17 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
   }
 
   return (
-    <div className="rich-card-editor">
-      {/* TOOLBAR */}
+    <div
+      className={`rich-card-editor ${bare ? "rich-card-editor--bare" : ""}`}
+      // Focus leaving the whole editor (not just moving between its own nodes) is the other
+      // way out of a cell, alongside Escape. `relatedTarget` inside the editor means the
+      // focus never actually left.
+      onBlur={onDone ? (e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onDone();
+      } : undefined}
+    >
+      {/* TOOLBAR — dropped in `bare` mode; see the prop's note. */}
+      {!bare && (
       <div className="rich-card-editor-toolbar">
         <button
           type="button"
@@ -402,8 +448,10 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
           <ImageOff className="w-4 h-4" />
         </button>
       </div>
+      )}
 
       {/* HIDDEN MEDIA FILE INPUT — opened by the attach button above */}
+      {!bare && (
       <input
         ref={fileInputRef}
         type="file"
@@ -416,12 +464,14 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
           e.target.value = "";
         }}
       />
+      )}
 
 
       {/* EDITABLE CONTENT — paste an image directly to embed it */}
       <EditorContent editor={editor} />
 
-      {/* INSERT LINK MODAL */}
+      {/* INSERT LINK MODAL — reached from the toolbar, so it goes with it. */}
+      {!bare && (
       <Modal
         isOpen={showLinkModal}
         onClose={() => setShowLinkModal(false)}
@@ -475,6 +525,7 @@ export default function RichCardEditor({ value, onChange, placeholder, resetKey 
           autoFocus
         />
       </Modal>
+      )}
     </div>
   );
 }

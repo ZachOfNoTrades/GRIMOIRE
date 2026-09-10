@@ -1411,6 +1411,21 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 }
 
+/* DESTRUCTIVE ROW — a delete sitting in the same stack as edit/refine needs to read as
+   different before it's clicked. Declared AFTER .popover-item so it wins the equal-
+   specificity tie on `color`, and it keeps its own hover so the generic hover rule
+   above can't wash the red back out to the normal text color. */
+.popover-item-danger {
+  color: var(--alert-red-text);
+}
+
+@media (hover: hover) {
+  .popover-item-danger:hover {
+    background: var(--alert-red-bg);
+    color: var(--alert-red-text);
+  }
+}
+
 /* MENU GROUPS — a popover reads best as ONE kind of thing repeated: every choice is a row, its
    state is a check in a fixed leading column, and captions group them. Embedding a different
    control (a segmented pill, a <select>) in the same box makes it look like a pile of unrelated
@@ -1648,6 +1663,17 @@ input[type="search"]::-webkit-search-results-decoration {
   height: 6px;
   border-radius: 9999px;
   background: var(--badge-yellow-text);
+  flex-shrink: 0;
+}
+
+/* Red indicator dot — same wordless marker as .dot-yellow, for a card that is missing
+   its answer (blank back) and so can't enter a study session. */
+.dot-red {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--badge-red-text);
   flex-shrink: 0;
 }
 
@@ -6552,6 +6578,12 @@ body:has(.quest-cal-page) > .page {
 .erow-divider {
   background: var(--card-border);
   align-self: stretch;
+}
+/* TABLE MODE — the detail pane and its divider aren't rendered at all (see
+   ExpandableRowList), so the grid collapses to the single list column and the
+   caller's table spans the full width. */
+.erow-layout.erow-table-mode {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* ============ SEARCH + FILTER ROW (optional, via `searchable`/`getFilterValue`) ====
