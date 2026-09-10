@@ -6037,13 +6037,11 @@ body:has(.quest-cal-page) > .page {
   --qcal-todo-text: var(--alert-green-text);
   --qcal-todo-bg: var(--alert-green-bg);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --qcal-daily-text: #9aa7b4;
-    --qcal-daily-bg: #12161a;
-    --qcal-monthly-text: #c08cff;
-    --qcal-monthly-bg: #150a24;
-  }
+:root[data-theme="dark"] {
+  --qcal-daily-text: #9aa7b4;
+  --qcal-daily-bg: #12161a;
+  --qcal-monthly-text: #c08cff;
+  --qcal-monthly-bg: #150a24;
 }
 
 /* CHIP — a tinted band of the cadence's colour. No leading indicator bar and almost no padding:

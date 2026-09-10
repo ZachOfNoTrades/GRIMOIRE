@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { ArrowRight, Plus, Snowflake } from "lucide-react";
 import CalendarMonthWidget, { buildWidgetMonth, buildWidgetWeek } from "@/components/CalendarMonthWidget";
 import { useChipFit } from "../lib/useChipFit";
+import { assignSpanLanes, layoutByLane, RowSpan, spanKey } from "../lib/spanLanes";
 import {
   ScheduleShape,
   isOccurrenceOn,
@@ -29,9 +30,11 @@ export interface WidgetTask extends ScheduleShape {
   id: string;
   title: string;
   kind: "daily" | "todo";
-  // Doubles as the todo's "done" flag — todos complete once, and a completion outside the fetched
-  // month wouldn't show up in the range query.
-  last_completed_date: string | null;
+  // The todo's "done" flag. A todo completes once and `status` is what the server sets (and what the
+  // home page patches optimistically), so it stays right even when the completion fell outside the
+  // fetched range. NOT last_completed_date — completeTask never stamps that for a todo, so reading it
+  // left every scheduled todo drawn as still-due forever.
+  status: "open" | "done";
   // Optional detail used only by the wide day boxes — the home page passes full Task objects.
   reminders?: { fire_time: string; fire_date: string | null }[];
 }
@@ -68,6 +71,12 @@ interface DayEntry {
   // — that's what earns a trailing arrow. A span that merely wraps to the next row needs none: you
   // can see where it finishes.
   span: { isStart: boolean; isEnd: boolean; lead: boolean; cols: number; continues: boolean } | null;
+  // Identifies the occurrence a spanning chip belongs to, so every cell it crosses can look up the
+  // one lane its week row assigned it (see lib/spanLanes).
+  laneKey?: string;
+  // An invisible chip holding an empty lane below a spanning bar. Not a task — it opens nothing and
+  // is excluded from the "+N more" count.
+  filler?: boolean;
 }
 
 // Whole days between two YMD dates (negative if `to` is earlier).
@@ -293,7 +302,9 @@ export default function QuestCalendarWidget({
     for (const t of tasks) {
       if (t.kind !== "todo" || !t.start_date) continue;
       scheduled.add(t.id);
-      const done = t.last_completed_date !== null;
+      // Done either by the task's own status or by a completion credited inside the loaded range —
+      // the latter is what makes an optimistic tick on the host page land here without a refetch.
+      const done = t.status === "done" || (completionsByTask.get(t.id)?.length ?? 0) > 0;
       const state: EntryState = done
         ? "done"
         : t.start_date < today
@@ -310,7 +321,7 @@ export default function QuestCalendarWidget({
       push(c.completed_on, { id: `todo:${c.task_id}`, taskId: c.task_id, title: t.title, state: "done" });
     }
     return m;
-  }, [tasks, completions, today]);
+  }, [tasks, completions, completionsByTask, today]);
 
   // Single status dot per day: frozen (excused) wins, else worst-of (missed > due > done). Green
   // "done" only when every scheduled occurrence that day is complete.
@@ -354,6 +365,43 @@ export default function QuestCalendarWidget({
       return { done, total };
     },
     [tasks, completionsByTask],
+  );
+
+  // LANE MAP PER WEEK ROW — a spanning bar must sit at the same lane index in every cell it crosses,
+  // so the lanes are packed once for the whole row rather than re-derived by each cell's own sort
+  // (see lib/spanLanes). Cached per row start; the cache is rebuilt whenever its inputs change.
+  const laneCache = useMemo(() => new Map<string, Map<string, number>>(), [tasks, hideDailyTasks]);
+  const rowSpanLanes = useCallback(
+    (rowStart: string, rowEnd: string): Map<string, number> => {
+      const cached = laneCache.get(rowStart);
+      if (cached) return cached;
+      const segs: RowSpan[] = [];
+      const seen = new Set<string>();
+      for (let d = rowStart; d <= rowEnd; d = addDays(d, 1)) {
+        for (const t of tasks) {
+          if (t.kind !== "daily" || !isOccurrenceOn(t, d)) continue;
+          if (hideDailyTasks && t.frequency === "daily") continue;
+          const occStart = activeOccurrenceStart(t, d);
+          // A deferral-only appearance has no grace window of its own, so it never spans.
+          if (occStart === null) continue;
+          const windowEnd = occurrenceWindowEnd(t, d) ?? d;
+          if (windowEnd <= occStart) continue;
+          const key = spanKey(t.id, occStart);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          // Clipped to this row: a bar running off either end restarts on the next row anyway.
+          segs.push({
+            key,
+            segStart: occStart < rowStart ? rowStart : occStart,
+            segEnd: windowEnd > rowEnd ? rowEnd : windowEnd,
+          });
+        }
+      }
+      const lanes = assignSpanLanes(segs);
+      laneCache.set(rowStart, lanes);
+      return lanes;
+    },
+    [laneCache, tasks, hideDailyTasks],
   );
 
   // The named entries on a day, rarest-first: the dailies whose occurrence starts (or was deferred
@@ -404,6 +452,7 @@ export default function QuestCalendarWidget({
           carriedHere: t.deferred_to_date === day,
           movedTo,
           span,
+          laneKey: spanKey(t.id, occStart),
         });
       }
 
@@ -423,16 +472,31 @@ export default function QuestCalendarWidget({
         });
       }
 
-      return out.sort((a, b) => {
-        // Spanning occurrences take the top lanes, in the same order, in every cell they cross —
-        // otherwise the bar's continuation in one cell sits a lane below the bar in the next and the
-        // two read as separate bubbles.
-        if (!!a.span !== !!b.span) return a.span ? -1 : 1;
-        if (a.span && b.span && a.span.cols !== b.span.cols) return b.span.cols - a.span.cols;
-        return b.period - a.period || a.title.localeCompare(b.title);
-      });
+      // Spanning bars go to the lane their week row assigned them — the same lane in every cell they
+      // cross — with placeholders holding any lane below them that this day doesn't use. The
+      // single-day entries stack underneath, rarest-first.
+      const lanes = rowSpanLanes(rowStart, rowEnd);
+      const spanning = out
+        .filter((e) => e.span)
+        .map((e) => ({ chip: e, lane: lanes.get(e.laneKey ?? "") ?? 0 }));
+      const singles = out
+        .filter((e) => !e.span)
+        .sort((a, b) => b.period - a.period || a.title.localeCompare(b.title));
+      return layoutByLane<DayEntry>(spanning, singles, (lane) => ({
+        id: `lane-gap:${day}:${lane}`,
+        taskId: "",
+        title: "",
+        kind: "daily",
+        state: "upcoming",
+        period: 0,
+        time: null,
+        carriedHere: false,
+        movedTo: null,
+        span: { isStart: false, isEnd: false, lead: false, cols: 1, continues: false },
+        filler: true,
+      }));
     },
-    [tasks, today, todosByDay, completionsByTask, frozenDays, hideDailyTasks],
+    [tasks, today, todosByDay, completionsByTask, frozenDays, hideDailyTasks, rowSpanLanes],
   );
 
   function dotClass(status: DayStatus): string {
@@ -466,7 +530,8 @@ export default function QuestCalendarWidget({
         // restarts on the next one. The grid supplies the bounds (a week needn't start on Sunday).
         const entries = overlayReady ? dayEntries(day.date, day.rowStart, day.rowEnd, range.to) : [];
         const shown = entries.slice(0, chipFit.fit);
-        const overflow = entries.length - shown.length;
+        // Lane placeholders aren't tasks — they mustn't inflate "+N more".
+        const overflow = entries.filter((e) => !e.filler).length - shown.filter((e) => !e.filler).length;
 
         return (
 
@@ -533,8 +598,12 @@ export default function QuestCalendarWidget({
                   <button
                     key={e.id}
                     type="button"
+                    // A lane placeholder is scaffolding, not a task: invisible to the pointer already
+                    // (visibility:hidden), and taken out of the tab order and the a11y tree too.
+                    aria-hidden={e.filler || undefined}
+                    tabIndex={e.filler ? -1 : undefined}
                     onClick={(ev) => {
-                      if (!onSelectTask) return;
+                      if (e.filler || !onSelectTask) return;
                       // The chip is its own target — don't also trigger the cell's day click.
                       ev.stopPropagation();
                       onSelectTask(e.taskId, day.date);
@@ -542,7 +611,7 @@ export default function QuestCalendarWidget({
                     // A chip is a target of its own: don't let a fast double-click on it also fire
                     // the cell's "add a task on this day".
                     onDoubleClick={(ev) => ev.stopPropagation()}
-                    title={`${e.time ? `${e.time} · ` : ""}${e.title} — ${chipStateNote(e)}${onSelectTask ? " · click to edit" : ""}`}
+                    title={e.filler ? undefined : `${e.time ? `${e.time} · ` : ""}${e.title} — ${chipStateNote(e)}${onSelectTask ? " · click to edit" : ""}`}
                     className={chipClass(e)}
                     // How many of this row's days the bar covers — the CSS widens it that far.
                     style={e.span?.lead ? ({ "--qcal-span-cols": e.span.cols } as CSSProperties) : undefined}

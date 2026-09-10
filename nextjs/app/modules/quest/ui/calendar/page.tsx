@@ -15,6 +15,7 @@ import {
   Flame,
   Snowflake,
   ArrowRight,
+  ListTodo,
   EllipsisVertical,
   Star,
 } from "lucide-react";
@@ -27,6 +28,7 @@ import PopoverMenu from "@/components/PopoverMenu";
 import QuestTaskModal from "../../components/QuestTaskModal";
 import { TaskFormState, taskToForm } from "../../types/taskForm";
 import { useChipFit } from "../../lib/useChipFit";
+import { assignSpanLanes, layoutByLane, RowSpan, spanKey } from "../../lib/spanLanes";
 import {
   ScheduleShape,
   ymd,
@@ -98,6 +100,12 @@ interface CellChip {
   period: number;
   movedTo: string | null; // migrated OFF this (frozen) day → shown struck/arrowed, not "missed"
   carriedHere: boolean; // carried INTO this day from a frozen day → snowflake
+  // Identifies the occurrence a spanning chip belongs to, so every cell it crosses can look up the
+  // one lane its week row assigned it (see lib/spanLanes).
+  laneKey?: string;
+  // An invisible chip holding an empty lane below a spanning bar. Not a task — excluded from the
+  // "+N more" count.
+  filler?: boolean;
 }
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -475,27 +483,111 @@ export default function QuestCalendarPage() {
     [tasks, today, completionsByTask, frozenDays, overlayReady],
   );
 
-  // Todos completed on `day` (read-only history; todos have no schedule of their own).
+  // The todos on `day` (read-only — a todo is completed from the task list, not from here): every
+  // todo SCHEDULED on that day whatever its state, plus any unscheduled one credited on it. Matches
+  // what the grid draws, so a day whose only entry is an open scheduled todo no longer reads as
+  // "nothing scheduled or completed" once you tap into it.
   const todosForDay = useCallback(
-    (day: string): { title: string; awarded: number }[] => {
+    (day: string): { title: string; awarded: number; done: boolean }[] => {
       const byId = new Map(tasks.map((t) => [t.id, t]));
-      return completions
-        .filter((c) => c.completed_on === day && byId.get(c.task_id)?.kind === "todo")
-        .map((c) => ({ title: byId.get(c.task_id)?.title ?? "Todo", awarded: c.awarded }));
+      const awardedFor = (taskId: string) =>
+        completions.find((c) => c.task_id === taskId && c.completed_on === day)?.awarded ?? 0;
+      const out = tasks
+        .filter((t) => t.kind === "todo" && t.start_date === day)
+        .map((t) => ({
+          title: t.title,
+          awarded: awardedFor(t.id),
+          done: t.status === "done" || (completionsByTask.get(t.id)?.length ?? 0) > 0,
+        }));
+      for (const c of completions) {
+        if (c.completed_on !== day) continue;
+        const t = byId.get(c.task_id);
+        if (!t || t.kind !== "todo" || t.start_date) continue;
+        out.push({ title: t.title, awarded: c.awarded, done: true });
+      }
+      return out;
     },
-    [completions, tasks],
+    [completions, completionsByTask, tasks],
   );
 
   // Per-cell task chips, sorted RAREST-FIRST so an infrequent task (e.g. monthly) always claims a
   // chip slot and the daily ones collapse under "+N more".
   // `rowEnd` is the last day of the week row `day` is drawn in — a spanning bar can only flow its
   // label as far as that, and restarts on the next row.
+  // Todo chips for a day, mirroring the desktop widget so both grids show the same thing: a
+  // SCHEDULED todo (start_date set) sits on its scheduled day whatever its state, an unscheduled one
+  // only ever appears as history on the day it was credited. Without this the phone grid drew
+  // dailies only, so a todo's completion state never reached the calendar at all.
+  const todoChipsForDay = useCallback(
+    (day: string): CellChip[] => {
+      if (!today || !overlayReady) return [];
+      const out: CellChip[] = [];
+      for (const t of tasks) {
+        if (t.kind !== "todo" || t.start_date !== day) continue;
+        const done = t.status === "done" || (completionsByTask.get(t.id)?.length ?? 0) > 0;
+        const state: DayState = done
+          ? "done"
+          : day < today
+            ? "missed"
+            : day > today
+              ? "upcoming"
+              : "pending";
+        out.push({ id: `todo:${t.id}`, title: t.title, state, span: null, kind: "todo", period: 0, movedTo: null, carriedHere: false });
+      }
+      const byId = new Map(tasks.map((t) => [t.id, t]));
+      for (const c of completions) {
+        if (c.completed_on !== day) continue;
+        const t = byId.get(c.task_id);
+        if (!t || t.kind !== "todo" || t.start_date) continue;
+        out.push({ id: `todo:${t.id}`, title: t.title, state: "done", span: null, kind: "todo", period: 0, movedTo: null, carriedHere: false });
+      }
+      return out;
+    },
+    [tasks, completions, completionsByTask, today, overlayReady],
+  );
+
+  // LANE MAP PER WEEK ROW — a spanning bar must sit at the same lane index in every cell it crosses,
+  // so the lanes are packed once for the whole row rather than re-derived by each cell's own sort.
+  // Cached per row start; the cache is a new object whenever the inputs change, so it can't go stale.
+  const laneCache = useMemo(
+    () => new Map<string, Map<string, number>>(),
+    [dailiesForDay, hideDailyTasks],
+  );
+  const rowSpanLanes = useCallback(
+    (rowStart: string, rowEnd: string): Map<string, number> => {
+      const cached = laneCache.get(rowStart);
+      if (cached) return cached;
+      const segs: RowSpan[] = [];
+      const seen = new Set<string>();
+      for (let d = rowStart; d <= rowEnd; d = addDays(d, 1)) {
+        for (const i of dailiesForDay(d)) {
+          if (i.windowEnd <= i.occStart) continue;
+          if (hideDailyTasks && i.task.frequency === "daily") continue;
+          const key = spanKey(i.task.id, i.occStart);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          // Clipped to this row: a bar that runs off either end restarts on the next row anyway.
+          segs.push({
+            key,
+            segStart: i.occStart < rowStart ? rowStart : i.occStart,
+            segEnd: i.windowEnd > rowEnd ? rowEnd : i.windowEnd,
+          });
+        }
+      }
+      const lanes = assignSpanLanes(segs);
+      laneCache.set(rowStart, lanes);
+      return lanes;
+    },
+    [laneCache, dailiesForDay, hideDailyTasks],
+  );
+
   const cellChips = useCallback(
     (day: string, rowStart: string, rowEnd: string): CellChip[] => {
-      return dailiesForDay(day)
+      const lanes = rowSpanLanes(rowStart, rowEnd);
+      const chips: CellChip[] = dailiesForDay(day)
         // "Daily" = the task's Repeats setting, matching the task modal's wording.
         .filter((i) => !hideDailyTasks || i.task.frequency !== "daily")
-        .map((i) => ({
+        .map((i): CellChip => ({
           id: i.task.id,
           title: i.task.title,
           state: i.state,
@@ -512,17 +604,29 @@ export default function QuestCalendarPage() {
           period: periodDays(i.task),
           movedTo: i.movedTo,
           carriedHere: i.carriedHere,
+          laneKey: spanKey(i.task.id, i.occStart),
         }))
-        .sort((a, b) => {
-          // Spanning occurrences take the top lanes, in the same order, in every cell they cross —
-          // otherwise the bar's continuation in one cell sits a lane below the bar in the next and the
-          // two read as separate bubbles.
-          if (!!a.span !== !!b.span) return a.span ? -1 : 1;
-          if (a.span && b.span && a.span.cols !== b.span.cols) return b.span.cols - a.span.cols;
-          return b.period - a.period || a.title.localeCompare(b.title);
-        });
+        .concat(todoChipsForDay(day));
+      // Spanning bars go to their row lane; the single-day chips stack underneath, rarest-first.
+      const spanning = chips
+        .filter((c) => c.span)
+        .map((c) => ({ chip: c, lane: lanes.get(c.laneKey ?? "") ?? 0 }));
+      const singles = chips
+        .filter((c) => !c.span)
+        .sort((a, b) => b.period - a.period || a.title.localeCompare(b.title));
+      return layoutByLane<CellChip>(spanning, singles, (lane) => ({
+        id: `lane-gap:${day}:${lane}`,
+        title: "",
+        state: "upcoming",
+        span: { isStart: false, isEnd: false, lead: false, cols: 1, continues: false },
+        kind: "daily",
+        period: 0,
+        movedTo: null,
+        carriedHere: false,
+        filler: true,
+      }));
     },
-    [dailiesForDay, hideDailyTasks],
+    [dailiesForDay, hideDailyTasks, todoChipsForDay, rowSpanLanes, range],
   );
 
   const withinLookback = useCallback(
@@ -1021,15 +1125,22 @@ export default function QuestCalendarPage() {
                 </>
               )}
 
-              {/* TODOS COMPLETED */}
+              {/* TODOS — scheduled on this day and/or credited on it; done ones show what they paid */}
               {selectedTodos.length > 0 && (
                 <div className="mt-2">
-                  <div className="text-xs font-semibold text-secondary mb-1">Todos completed</div>
+                  <div className="text-xs font-semibold text-secondary mb-1">Todos</div>
                   <div className="flex flex-col gap-1">
                     {selectedTodos.map((td, i) => (
-                      <div key={i} className="flex items-center justify-between gap-2 p-2 rounded border border-gray-700 text-sm">
-                        <span className="flex items-center gap-2 truncate"><Check className="w-4 h-4 text-green-500 shrink-0" />{td.title}</span>
-                        <span className="flex items-center gap-0.5 text-yellow-500 text-xs shrink-0"><Coins className="w-3 h-3" />{td.awarded.toFixed(2)}</span>
+                      <div key={i} className={`flex items-center justify-between gap-2 p-2 rounded border border-gray-700 text-sm ${td.done ? "opacity-60" : ""}`}>
+                        <span className="flex items-center gap-2 truncate">
+                          {td.done
+                            ? <Check className="w-4 h-4 text-green-500 shrink-0" />
+                            : <ListTodo className="w-4 h-4 text-secondary shrink-0" />}
+                          <span className={td.done ? "line-through" : ""}>{td.title}</span>
+                        </span>
+                        {td.done && (
+                          <span className="flex items-center gap-0.5 text-yellow-500 text-xs shrink-0"><Coins className="w-3 h-3" />{td.awarded.toFixed(2)}</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1082,7 +1193,8 @@ function DayCell({
 }) {
   const dayNum = parseYMD(date).getDate();
   const shown = chips.slice(0, maxChips);
-  const overflow = chips.length - shown.length;
+  // Lane placeholders aren't tasks — they mustn't inflate "+N more".
+  const overflow = chips.filter((c) => !c.filler).length - shown.filter((c) => !c.filler).length;
   return (
     <button
       onClick={onClick}
@@ -1117,7 +1229,8 @@ function DayCell({
               <span
                 key={c.id}
                 className={chipClass(c)}
-                title={`${c.title} — ${chipStateNote(c)}`}
+                aria-hidden={c.filler || undefined}
+                title={c.filler ? undefined : `${c.title} — ${chipStateNote(c)}`}
                 // How many of this row's days the bar still covers — the label may run that wide.
                 style={c.span?.lead ? ({ "--qcal-span-cols": c.span.cols } as CSSProperties) : undefined}
               >
