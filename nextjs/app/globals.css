@@ -3302,8 +3302,27 @@ input[type="search"]::-webkit-search-results-decoration {
 
    Named for quest because that page is the only caller; there is nothing
    quest-specific about the values. */
+/* Dims the page but stops at the navbar's bottom edge, the way the nav drawer's
+   backdrop does: the branding and user menu stay lit and clickable, and — since
+   the review modal is forced, with no outside-click or X dismissal — the navbar
+   remains a way out of it rather than something greyed out behind glass. Sits
+   under the navbar's z-40 for the same reason; the card is a child of this box,
+   so it cannot ride up over the bar either.
+
+   Owns its geometry rather than pairing with `inset-0`, so there is no question
+   of which `top` wins between a utility class and this one (see the nav drawer's
+   backdrop above, which anchors the same way). */
 .quest-backdrop {
+  position: fixed;
+  top: var(--navbar-height, 3.625rem);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
   background: var(--modal-backdrop);
+  /* Scroll boundary, matching .modal-backdrop: a tall review list scrolls inside
+     the overlay instead of chaining to the page shell behind it. */
+  overscroll-behavior: contain;
 }
 
 .quest-surface {

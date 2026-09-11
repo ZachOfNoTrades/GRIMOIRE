@@ -3471,7 +3471,7 @@ export default function QuestHomePage() {
       {/* HABIT MODAL */}
       {habitModalOpen && (
         <div
-          className={`fixed inset-0 quest-backdrop flex items-start justify-center p-4 z-50 overflow-y-auto transition-opacity duration-150 ${
+          className={`quest-backdrop flex items-start justify-center p-4 overflow-y-auto transition-opacity duration-150 ${
             habitModalClosing ? "opacity-0" : "opacity-100"
           }`}
           onClick={animateCloseHabitModal}
@@ -3657,7 +3657,7 @@ export default function QuestHomePage() {
         const carryOverList = reviewList.filter((t) => !isScheduledOn(t, carryTargetYMD));
         return (
           <div
-            className={`fixed inset-0 quest-backdrop flex items-start justify-center p-4 z-50 overflow-y-auto transition-opacity duration-150 ${
+            className={`quest-backdrop flex items-start justify-center p-4 overflow-y-auto transition-opacity duration-150 ${
               reviewClosing ? "opacity-0" : "opacity-100"
             }`}
           >
@@ -3901,7 +3901,7 @@ export default function QuestHomePage() {
       {/* SHORT REST (GAMBLE FOR HEALTH) OVERLAY */}
       {gambleOpen && (
         <div
-          className={`fixed inset-0 quest-backdrop flex items-center justify-center p-4 z-50 transition-opacity duration-150 ${
+          className={`quest-backdrop flex items-center justify-center p-4 transition-opacity duration-150 ${
             gambleClosing ? "opacity-0" : "opacity-100"
           }`}
           onClick={closeGamble}
@@ -4010,7 +4010,7 @@ export default function QuestHomePage() {
       {/* DEATH MODAL */}
       {deathInfo && (
         <div
-          className={`fixed inset-0 quest-backdrop flex items-center justify-center p-4 z-50 transition-opacity duration-150 ${
+          className={`quest-backdrop flex items-center justify-center p-4 transition-opacity duration-150 ${
             deathModalClosing ? "opacity-0" : "opacity-100"
           }`}
           onClick={animateCloseDeathModal}
