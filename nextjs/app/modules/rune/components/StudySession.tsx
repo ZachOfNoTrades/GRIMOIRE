@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, Pencil, Layers, History } from "lucide-react";
 import { Toaster } from "react-hot-toast";
@@ -166,6 +166,10 @@ export default function StudySession({
   // Card ids whose history has been requested, so the buffer never fires a second
   // fetch for a card it already warmed (or is mid-flight on).
   const historyRequestedRef = useRef<Set<string>>(new Set());
+
+  // Elements the card-height cap is measured from (see the layout effect below).
+  const studyColumnRef = useRef<HTMLElement | null>(null);
+  const flashcardRef = useRef<HTMLDivElement | null>(null);
   const handsFreeRef = useRef(handsFree); // Ref to track hands-free in async callbacks
 
   // Refs for duration tracking
@@ -322,6 +326,70 @@ export default function StudySession({
       preloadCardHistory(sessionCards[i]);
     }
   }, [sessionCards, isActive, currentIndex, preloadCardHistory]);
+
+  // CARD HEIGHT CAP — the card may grow only as far as still leaves the rating
+  // buttons on screen. A static CSS cap can't know that: the chrome above it
+  // wraps at narrow widths, the evaluation alert comes and goes, and the answer
+  // field's height follows the font. So measure the column's other children and
+  // publish the remainder as `--rune-card-max`, which the desktop rule caps the
+  // card with (mobile deliberately keeps page-grows-and-scrolls, so the var is
+  // simply unused below 640px).
+  //
+  // Anything marked `data-rune-below-fold` — the card-history section — is
+  // excluded on purpose: it is meant to sit past the fold and be scrolled to.
+  useLayoutEffect(() => {
+    const column = studyColumnRef.current;
+    const card = flashcardRef.current;
+    if (!column || !card) return;
+
+    const measure = () => {
+      // The scroll shell is the viewport here, and the column may start below a
+      // module subnav, so measure from the column's own top rather than assuming 0.
+      const shell = column.closest<HTMLElement>(".page");
+      const shellRect = shell?.getBoundingClientRect();
+      const available = shell && shellRect
+        ? shell.clientHeight - (column.getBoundingClientRect().top - shellRect.top + shell.scrollTop)
+        : window.innerHeight - column.getBoundingClientRect().top;
+
+      const outerHeight = (element: HTMLElement) => {
+        const style = getComputedStyle(element);
+        return element.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+      };
+
+      const columnStyle = getComputedStyle(column);
+      let used = parseFloat(columnStyle.paddingTop) + parseFloat(columnStyle.paddingBottom);
+      for (const child of Array.from(column.children) as HTMLElement[]) {
+        if (child.dataset.runeBelowFold === "true") continue;
+        used += child === card
+          ? outerHeight(child) - child.offsetHeight // the card's own margins only
+          : outerHeight(child);
+      }
+
+      // Floor it: a window short enough to compute less than this has bigger
+      // problems than a cramped card, and a zero-height card is not a card.
+      const cap = Math.max(96, Math.round(available - used));
+      // Write only on a real change: this runs from a ResizeObserver, and setting
+      // the property re-lays-out the card, which would otherwise notify it again.
+      const previous = parseFloat(column.style.getPropertyValue("--rune-card-max"));
+      if (!Number.isFinite(previous) || Math.abs(previous - cap) > 1) {
+        column.style.setProperty("--rune-card-max", `${cap}px`);
+      }
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    for (const child of Array.from(column.children) as HTMLElement[]) {
+      if (child !== card && child.dataset.runeBelowFold !== "true") observer.observe(child);
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+    // Re-measured whenever the column's children change: the rating row and the
+    // history section mount with the flip, and the evaluation alert with a verdict.
+  }, [isActive, isFlipped, !!evaluationResult, currentCard?.id]);
 
   // Stop recording and clear state when card changes. Keyed on currentCard?.id (not just
   // currentIndex) because handleSkip reorders the queue without moving currentIndex — the
@@ -926,7 +994,7 @@ export default function StudySession({
 
       <Toaster />
 
-      <main className="page-container rune-study-container" style={{ maxWidth: "36rem" }}>
+      <main ref={studyColumnRef} className="page-container rune-study-container" style={{ maxWidth: "36rem" }}>
 
         {/* HIDDEN AUDIO ELEMENT FOR TTS */}
         <audio ref={audioRef} preload="none" />
@@ -1003,13 +1071,12 @@ export default function StudySession({
         </div>
 
         {/* FLASH CARD */}
-        <div className="flashcard-container" onClick={handleFlip}>
+        <div ref={flashcardRef} className="flashcard-container" onClick={handleFlip}>
           {!isFlipped ? (
             <>
               {/* FRONT FACE */}
               <div className="flex items-center justify-between w-full gap-2">
                 <div className="flex items-center gap-2 min-w-0 rune-study-face-badges">
-                  <div className="badge-gray">QUESTION</div>
 
                   {/* SOURCE DECK BADGE — collection sessions only (see deck_name) */}
                   {currentCard.deck_name && (
@@ -1048,7 +1115,6 @@ export default function StudySession({
               {/* BACK FACE */}
               <div className="flex items-center justify-between w-full gap-2">
                 <div className="flex items-center gap-2 min-w-0 rune-study-face-badges">
-                  <div className="badge-gray">ANSWER</div>
 
                   {/* LAST RATING BADGE */}
                   {currentCard.last_rating && (
@@ -1259,7 +1325,7 @@ export default function StudySession({
             data is already warmed by the preload buffer above, so the flip shows it
             immediately rather than a spinner. */}
         {isFlipped && currentCard && (
-          <div className="card mt-4">
+          <div className="card mt-4" data-rune-below-fold="true">
 
             {/* CARD HEADER */}
             <div className="card-header">

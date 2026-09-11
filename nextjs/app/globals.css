@@ -3289,26 +3289,25 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 }
 
-/* Desktop: the study column is a fixed-height flex layout so the card auto-sizes
-   to whatever space is left after the header/progress chrome above and the
-   answer-field/rating/nav controls below — those always stay on screen, and only
-   the card's own question/answer text scrolls internally if it doesn't fit.
-   Mobile keeps the simpler page-grows-and-scrolls behavior (desktop-only per
+/* Desktop: the study column is a flex layout that fills the viewport, with the
+   card capped so the header/progress chrome above and the answer-field/nav/rating
+   controls below all land on screen at typical window heights; only the card's
+   own question/answer text scrolls internally if it doesn't fit. Mobile keeps the
+   simpler page-grows-and-scrolls behavior (the card cap is desktop-only per
    product decision — an inner scroll region is a worse fit for a thumb than
    just scrolling the page).
 
-   The column scrolls vertically rather than clipping: the card shrinks first (it
-   is the only flex-shrink child), and once it is down to its 16rem floor anything
-   still below — the card-history section the answer face reveals — has to be
-   reachable. `overflow: hidden` here made it unreachable, with no scrollbar
-   anywhere in the ancestor chain to get at it. */
+   The column is NOT height-locked, and does not scroll itself: it grows past the
+   viewport when the answer face reveals the card-history section, and the app
+   shell (`.page`) scrolls — so the scrollbar sits at the far right of the window
+   like every other page, rather than down the middle against the study column's
+   own max-width. What keeps the controls near the fold instead is the card's
+   max-height below, not a locked column. */
 @media (min-width: 640px) {
   .rune-study-container {
-    height: 100%;
+    min-height: 100%;
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
-    overflow-y: auto;
   }
   /* Every direct child keeps its natural height — the answer field, evaluate
      button, rating buttons, and nav never stretch or shrink. */
@@ -3316,16 +3315,27 @@ input[type="search"]::-webkit-search-results-decoration {
     flex-shrink: 0;
   }
   /* ...except the card, the only flex-shrink item. It keeps the original
-     min-height: 16rem floor (never shrinks below that, even if content below
-     would technically need more room) and autofits to its content above
-     that — up to a max of whatever space is left after the other elements'
-     natural heights (i.e. the flex-shrink itself), so it only scrolls
-     internally once content exceeds that ceiling. Since front/back render
-     different DOM (only one face is mounted at a time), the card's natural
-     height already differs correctly between question and answer mode. */
+     min-height: 16rem floor and autofits to its content above that, up to the
+     max-height below — so it only scrolls internally once content exceeds that
+     ceiling. Since front/back render different DOM (only one face is mounted at
+     a time), the card's natural height already differs correctly between
+     question and answer mode. */
   .rune-study-container > .flashcard-container {
     flex: 0 1 auto;
     overflow: hidden;
+    /* The card used to take "whatever is left" from the locked column. With the
+       column free to grow, that leftover no longer exists, so it is measured and
+       published as --rune-card-max by StudySession: the space left once the
+       chrome above and the answer field / nav / rating rows below have taken
+       theirs, so a long answer scrolls inside the card (see
+       .flashcard-face-scroll) rather than pushing the rating buttons off the
+       bottom. The 16rem floor still wins on a very short window, and the rem
+       fallback only applies for the frame before the measurement lands. */
+    max-height: var(--rune-card-max, calc(var(--app-height, 100dvh) - 26rem));
+    /* The 16rem floor from the base rule would beat that cap (min-height wins over
+       max-height), which is how the rating buttons ended up below the fold on a
+       short window. Keep the floor only while the cap can afford it. */
+    min-height: min(16rem, var(--rune-card-max, 16rem));
   }
   .rune-study-container .flashcard-face-scroll {
     min-height: 0;
