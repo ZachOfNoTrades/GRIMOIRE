@@ -28,6 +28,7 @@ import {
   deleteWorkoutSession,
   setWorkoutSessionAsCurrent,
   resetWorkoutSession,
+  updateSessionNotes,
 } from '@/app/modules/golem/lib/workoutSessionFunctions';
 import {
   getAllExercisesWithMuscleGroups,
@@ -52,7 +53,7 @@ import {
   getWeeklyVolumeByMuscleGroup,
   getCalculatedVolumeLandmarks,
 } from '@/app/modules/golem/lib/volumeLandmarkFunctions';
-import { getSegmentsAndTargets } from '@/app/modules/golem/lib/segmentFunctions';
+import { getSegmentsAndTargets, updateSegmentNotes, updateSessionSet } from '@/app/modules/golem/lib/segmentFunctions';
 import { applyExternalChange } from '@/app/modules/golem/lib/feedbackFunctions';
 import {
   getDayArchetypes,
@@ -596,6 +597,99 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
     },
   );
 
+  // -----------------------------
+  // NOTE / ANNOTATION WRITERS
+  // The `notes` columns on session_segments and session_segment_sets, and the session's four
+  // narrative columns, all read back through golem_get_session but had no MCP writer — the only
+  // write paths were the app's wholesale segment-array PUT and applyExternalChange (which skips
+  // completed sessions). These three tools close that read/write asymmetry. They address one row
+  // by id and never touch siblings, so they are safe to call after the engine has generated a plan.
+  // -----------------------------
+
+  server.registerTool(
+    'golem_update_segment_notes',
+    {
+      description:
+        "Set or clear the free-text notes on ONE logged exercise (session segment) — the intended home for context that does not belong in the exercise name: surface, grade, gear worn, ambient conditions, why a load was backed off. Get segmentIds from golem_get_session's `logged_exercises[].id`. Pass notes: null to clear. Works on completed sessions. Only this segment is touched; sibling exercises and all logged sets are left alone.",
+      inputSchema: {
+        segmentId: z.uuid().describe('Session segment UUID — golem_get_session -> logged_exercises[].id'),
+        notes: z
+          .string()
+          .nullable()
+          .describe('The note text, or null to clear it. Replaces any existing note on this segment.'),
+      },
+    },
+    async ({ segmentId, notes }) => {
+      const segment = await updateSegmentNotes(userId, segmentId, notes);
+      return json({ success: true, segment });
+    },
+  );
+
+  server.registerTool(
+    'golem_update_set',
+    {
+      description:
+        "Update ONE logged set in place: its notes and/or its logged values (reps, weight, rpe, timeSeconds, distance, isCompleted). Get setIds from golem_get_session's `logged_exercises[].sets[].id`. ONLY the fields you pass are written — omit a field to leave it untouched, pass null to clear a nullable one. Use this to annotate or correct a single set without resending the session's whole exercise list. Works on completed sessions. Cannot create or delete sets, and cannot move a set between exercises.",
+      inputSchema: {
+        setId: z.uuid().describe('Logged set UUID — golem_get_session -> logged_exercises[].sets[].id'),
+        notes: z.string().nullable().optional().describe('Free-text note for this set, or null to clear.'),
+        reps: z.number().int().min(0).max(10000).nullable().optional().describe('Reps performed, or null if not rep-based.'),
+        weight: z.number().min(0).max(99999.9).optional().describe('Load used, in the user\'s weight unit. Not nullable — use 0 for bodyweight. Stored as decimal(6,1), so it is rounded to one decimal place.'),
+        rpe: z.number().min(0).max(10).nullable().optional().describe('Rate of perceived exertion 0-10, or null to clear.'),
+        timeSeconds: z.number().int().min(0).max(86400).nullable().optional().describe('Duration in seconds for timed exercises (max 86400 = 24h), or null to clear.'),
+        distance: z.number().min(0).max(9999999.999).nullable().optional().describe('Distance in METERS (the stored base unit), or null to clear. Stored as decimal(10,3).'),
+        isCompleted: z.boolean().optional().describe('Whether the set counts as logged/completed.'),
+      },
+    },
+    async ({ setId, notes, reps, weight, rpe, timeSeconds, distance, isCompleted }) => {
+      // Forward only the keys the caller actually supplied — the lib layer treats `undefined` as
+      // "leave alone" and an explicit `null` as "clear", so spreading undefined keys would be wrong.
+      const updates: Parameters<typeof updateSessionSet>[2] = {};
+      if (notes !== undefined) updates.notes = notes;
+      if (reps !== undefined) updates.reps = reps;
+      if (weight !== undefined) updates.weight = weight;
+      if (rpe !== undefined) updates.rpe = rpe;
+      if (timeSeconds !== undefined) updates.time_seconds = timeSeconds;
+      if (distance !== undefined) updates.distance = distance;
+      if (isCompleted !== undefined) updates.is_completed = isCompleted;
+
+      if (Object.keys(updates).length === 0) {
+        return text('Refusing to apply empty update — pass at least one of notes, reps, weight, rpe, timeSeconds, distance, isCompleted.');
+      }
+
+      const set = await updateSessionSet(userId, setId, updates);
+      return json({ success: true, set });
+    },
+  );
+
+  server.registerTool(
+    'golem_update_session_notes',
+    {
+      description:
+        "Set or clear a session's narrative fields: description (plan notes), preSurveyNotes (how the user felt going in), review (the user's write-up afterward), analysis (the coaching read on the session). ONLY the fields you pass are written; pass null to clear one. Unlike golem_apply_plan_change's session_updates, this DOES work on completed sessions — these columns are pure annotation and never affect scheduling or what the engine generates. For renaming a session or changing its day archetype, use golem_apply_plan_change instead.",
+      inputSchema: {
+        sessionId: z.uuid().describe('Workout session UUID (golem_list_sessions / golem_get_current_session).'),
+        description: z.string().nullable().optional().describe('Session description / plan notes, or null to clear.'),
+        preSurveyNotes: z.string().nullable().optional().describe('Pre-workout state notes (sleep, soreness, stress), or null to clear.'),
+        review: z.string().nullable().optional().describe("The user's post-session review, or null to clear."),
+        analysis: z.string().nullable().optional().describe('Coaching analysis of the session, or null to clear.'),
+      },
+    },
+    async ({ sessionId, description, preSurveyNotes, review, analysis }) => {
+      const updates: Parameters<typeof updateSessionNotes>[2] = {};
+      if (description !== undefined) updates.description = description;
+      if (preSurveyNotes !== undefined) updates.pre_survey_notes = preSurveyNotes;
+      if (review !== undefined) updates.review = review;
+      if (analysis !== undefined) updates.analysis = analysis;
+
+      if (Object.keys(updates).length === 0) {
+        return text('Refusing to apply empty update — pass at least one of description, preSurveyNotes, review, analysis.');
+      }
+
+      const session = await updateSessionNotes(userId, sessionId, updates);
+      return json({ success: true, session });
+    },
+  );
   // -----------------------------
   // Program lifecycle (create / delete / archive / activate / rename). Read = golem_list_programs /
   // golem_get_program. Name+description edits also available via golem_apply_plan_change. golem_create_program

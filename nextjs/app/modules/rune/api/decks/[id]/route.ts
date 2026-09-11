@@ -61,10 +61,33 @@ export async function PUT(
       );
     }
 
+    if (name.trim().length > DECK_NAME_MAX_LENGTH) {
+      return NextResponse.json(
+        { error: `Deck name must be ${DECK_NAME_MAX_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+
+    if (typeof sourceUrl === 'string' && sourceUrl.trim().length > DECK_SOURCE_URL_MAX_LENGTH) {
+      return NextResponse.json(
+        { error: `Source URL must be ${DECK_SOURCE_URL_MAX_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+
     await updateDeck(userId!, id, name.trim(), description?.trim() || null, sourceUrl?.trim() || null);
     return NextResponse.json({ success: true });
 
-  } catch (error) {
+  } catch (error: any) {
+    // Same unique index as the create path — renaming onto an existing name is a 409.
+    if (error?.message?.toLowerCase?.().includes('ux_decks_user_name') ||
+        error?.number === 2627 || error?.number === 2601) {
+      return NextResponse.json(
+        { error: 'A deck with that name already exists' },
+        { status: 409 }
+      );
+    }
+
     console.error('Error in PUT /api/decks/[id]:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {

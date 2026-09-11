@@ -634,55 +634,6 @@ export async function upsertCards(userId: string, deckId: string, cards: UpsertC
   }
 }
 
-// Rewrites a deck's manual card order to the sequence given — the deck page's table view
-// lets a row be dragged to a new position, and `order_index` is what that position is read
-// back from.
-//
-// The whole deck is renumbered from a single list rather than patching the moved card's
-// index, so the run stays contiguous no matter how many drags have been made; the caller
-// builds that list by moving ONE card within the deck's existing order, which is what keeps
-// every other card's relative position untouched. One transaction, because a half-applied
-// renumber leaves two cards claiming the same index and the order reads back arbitrary.
-// Ids that aren't cards of this user's deck update nothing and are ignored — a stale client
-// list moves the cards it can and the next fetch corrects it, rather than failing the drag.
-export async function reorderCards(userId: string, deckId: string, orderedIds: string[]): Promise<void> {
-  if (orderedIds.length === 0) return;
-
-  let pool;
-  try {
-    pool = await getRuneConnection();
-    const transaction = pool.transaction();
-    await transaction.begin();
-
-    try {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await transaction.request()
-          .input('userId', userId)
-          .input('deckId', deckId)
-          .input('cardId', orderedIds[i])
-          .input('orderIndex', i)
-          .query(`
-            UPDATE cards
-            SET order_index = @orderIndex
-            WHERE id = @cardId AND deck_id = @deckId AND user_id = @userId -- deck + user scope; ownership is also enforced at the API layer
-          `);
-      }
-
-      await transaction.commit();
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
-  } catch (error) {
-    console.error('Error reordering cards:', error);
-    throw error;
-  } finally {
-    if (pool) {
-      await closeRuneConnection(pool);
-    }
-  }
-}
-
 // Applies a refined card set to a deck: updates modified cards, inserts new cards, deletes removed cards.
 // Preserves spaced repetition progress for cards that are updated (not deleted).
 export async function applyRefinedCards(userId: string, deckId: string, refinedCards: RefinedCard[], via: RequestChannel = 'web'): Promise<{ updated: number; inserted: number; deleted: number }> {
@@ -777,6 +728,55 @@ export async function applyRefinedCards(userId: string, deckId: string, refinedC
     }
   } catch (error) {
     console.error('Error applying refined cards:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Rewrites a deck's manual card order to the sequence given — the deck page's table view
+// lets a row be dragged to a new position, and `order_index` is what that position is read
+// back from.
+//
+// The whole deck is renumbered from a single list rather than patching the moved card's
+// index, so the run stays contiguous no matter how many drags have been made; the caller
+// builds that list by moving ONE card within the deck's existing order, which is what keeps
+// every other card's relative position untouched. One transaction, because a half-applied
+// renumber leaves two cards claiming the same index and the order reads back arbitrary.
+// Ids that aren't cards of this user's deck update nothing and are ignored — a stale client
+// list moves the cards it can and the next fetch corrects it, rather than failing the drag.
+export async function reorderCards(userId: string, deckId: string, orderedIds: string[]): Promise<void> {
+  if (orderedIds.length === 0) return;
+
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await transaction.request()
+          .input('userId', userId)
+          .input('deckId', deckId)
+          .input('cardId', orderedIds[i])
+          .input('orderIndex', i)
+          .query(`
+            UPDATE cards
+            SET order_index = @orderIndex
+            WHERE id = @cardId AND deck_id = @deckId AND user_id = @userId -- deck + user scope; ownership is also enforced at the API layer
+          `);
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error reordering cards:', error);
     throw error;
   } finally {
     if (pool) {

@@ -413,6 +413,10 @@ export default function StudySession({
   const handleEvaluate = async (answerOverride?: string) => {
     const answer = (answerOverride ?? userAnswer).trim();
     if (!currentCard || !answer) return;
+    // A card with no answer has nothing to grade against — the LLM would be scoring
+    // against an empty string. Just reveal the face and let the user self-rate instead of
+    // asking for a meaningless verdict.
+    if (!currentCard.back.trim()) { setIsFlipped(true); return; }
 
     setIsEvaluating(true);
     try {
@@ -706,6 +710,8 @@ export default function StudySession({
         const now = new Date();
         const existingIds = new Set(prev.map((c) => c.id));
         const newCards = freshCards
+          // Same studyable predicate as the deck page's selectDueCards — drafts never get
+          // pulled into a running session.
           .filter((c) => !existingIds.has(c.id) && !c.is_draft && (!c.next_review_at || new Date(c.next_review_at) <= now))
           .map((c) => ({ ...c, sessionRating: null as number | null }));
 
@@ -718,12 +724,12 @@ export default function StudySession({
 
   // Edit the card being studied. Scoped to the card's OWN deck, not the session
   // source — in a collection session the card can belong to any member deck.
-  const handleEditCard = async (cardId: string, front: string, back: string, notes: string | null, category: string | null, isDraft: boolean) => {
+  const handleEditCard = async (cardId: string, front: string, back: string, notes: string | null, category: string | null, isDraft: boolean, sourceRef: string | null) => {
     const deckId = editingCard?.deck_id;
 
     // Client update first
     setSessionCards((prev) =>
-      prev.map((c) => c.id === cardId ? { ...c, front, back, notes, category, is_draft: isDraft } : c)
+      prev.map((c) => c.id === cardId ? { ...c, front, back, notes, category, is_draft: isDraft, source_ref: sourceRef } : c)
     );
     setEditingCard(null);
 
@@ -732,7 +738,7 @@ export default function StudySession({
       await fetch(`/modules/rune/api/decks/${deckId}/cards`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId, front, back, notes, category, is_draft: isDraft }),
+        body: JSON.stringify({ cardId, front, back, notes, category, is_draft: isDraft, source_ref: sourceRef }),
       });
     }
     reconcileCards();
@@ -1005,12 +1011,27 @@ export default function StudySession({
                   scroll region (e.g. notes with embedded images) would
                   otherwise just get cut off with no way to reach it. */}
               <div className="text-primary mt-4 flex-1 flashcard-face-scroll" onClick={(e) => e.stopPropagation()}>
-                <CardContent text={currentCard.back} />
+                {/* ANSWER — a blank back is a valid card (self-graded recall): the face just
+                    carries whatever notes/source the card has, and the rating buttons below
+                    are the whole interaction. */}
+                {currentCard.back.trim() && <CardContent text={currentCard.back} />}
 
                 {/* NOTES */}
                 {currentCard.notes && (
                   <div className="text-subtle-italic mt-3">
                     <CardContent text={currentCard.notes} />
+                  </div>
+                )}
+
+                {/* SOURCE — where the material came from, in the user's own words (a link,
+                    or something like "Per Chief's lecture"). Sits below the notes, inside
+                    the same scroll container: on desktop the card clips its overflow, so
+                    anything rendered after this div would be unreachable. CardContent
+                    autolinks a bare URL and honours [label](url). */}
+                {currentCard.source_ref && (
+                  <div className="rune-card-source mt-3">
+                    <span className="text-subtle text-xs">Source</span>
+                    <CardContent text={currentCard.source_ref} className="text-secondary rune-card-source-text" />
                   </div>
                 )}
               </div>
@@ -1037,13 +1058,16 @@ export default function StudySession({
             </Button>
           </div>
 
-          {/* USER ANSWER FIELD */}
+          {/* USER ANSWER FIELD — Enter submits (Shift+Enter still inserts a newline).
+              The handler blurs the textarea before evaluating so the on-screen keyboard
+              drops on mobile; left focused it stays up and covers the evaluation result
+              and the rating buttons the submit just revealed. */}
           <textarea
             className="input-field w-full"
             rows={3}
             value={userAnswer}
             onChange={(e) => { setUserAnswer(e.target.value); setAnswerModified(true); }}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEvaluate(); } }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); handleEvaluate(); } }}
             placeholder="Type or record your answer..."
             disabled={isRecording || isTranscribing}
           />

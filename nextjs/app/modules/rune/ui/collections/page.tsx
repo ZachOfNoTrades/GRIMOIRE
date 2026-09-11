@@ -3,11 +3,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Boxes, Plus, Search } from "lucide-react";
+import { useRowNav } from "@/lib/useRowNav";
+import { ArrowLeft, Boxes, Plus } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { SearchField, SMART_MATCH_HINT } from "@/components/SearchField";
 import { CollectionSummary } from "../../types/collection";
 import { formatRelativePast } from "@/lib/format";
+import { makeSearchMatcher } from "@/lib/searchMatch";
 import ManageCollectionModal from "./ManageCollectionModal";
 
 export default function CollectionsPage() {
@@ -24,16 +27,19 @@ export default function CollectionsPage() {
 
   // Search narrows the list; the server already returns collections alphabetically.
   const visibleCollections = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = searchQuery.trim();
+    // Same shared matcher the deck list and card list use — see lib/searchMatch.ts.
+    const matchesQuery = makeSearchMatcher(query);
     if (!query) return collections;
 
     return collections.filter((collection) =>
-      collection.name.toLowerCase().includes(query) ||
-      (collection.description ?? "").toLowerCase().includes(query)
+      matchesQuery(`${collection.name} ${collection.description ?? ""}`)
     );
   }, [collections, searchQuery]);
 
   const router = useRouter();
+
+  const rowNav = useRowNav();
 
   // LOAD DATA
   useEffect(() => {
@@ -105,17 +111,13 @@ export default function CollectionsPage() {
             <div className="erow-search-row">
 
               {/* SEARCH BAR */}
-              <div className="erow-search">
-                <Search className="erow-search-icon w-4 h-4" />
-                <input
-                  type="search"
-                  className="input-field"
-                  placeholder="Search collections…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  aria-label="Search collections"
-                />
-              </div>
+              <SearchField
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search collections…"
+                ariaLabel="Search collections"
+                matchHint={SMART_MATCH_HINT}
+              />
             </div>
           )}
 
@@ -163,7 +165,7 @@ export default function CollectionsPage() {
                   <tr
                     key={collection.id}
                     className="table-row-clickable"
-                    onClick={() => router.push(`/modules/rune/ui/collections/${collection.id}`)}
+                    {...rowNav(`/modules/rune/ui/collections/${collection.id}`)}
                   >
                     <td className="table-cell">
                       <div>

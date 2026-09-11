@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { getAllDecks, createDeck } from '../../lib/deckFunctions';
+import { DECK_NAME_MAX_LENGTH, DECK_SOURCE_URL_MAX_LENGTH } from '../../types/deck';
 
 export async function GET(request: Request) {
   try {
@@ -40,10 +41,33 @@ export async function POST(request: Request) {
       );
     }
 
+    if (name.trim().length > DECK_NAME_MAX_LENGTH) {
+      return NextResponse.json(
+        { error: `Deck name must be ${DECK_NAME_MAX_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+
+    if (typeof sourceUrl === 'string' && sourceUrl.trim().length > DECK_SOURCE_URL_MAX_LENGTH) {
+      return NextResponse.json(
+        { error: `Source URL must be ${DECK_SOURCE_URL_MAX_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+
     const deck = await createDeck(userId!, name.trim(), description?.trim() || null, sourceUrl?.trim() || null);
     return NextResponse.json(deck, { status: 201 });
 
-  } catch (error) {
+  } catch (error: any) {
+    // Unique index UX_decks_user_name on (user_id, name) — a name the user already
+    // has is a 409 they can act on, not the generic 500 it used to surface as.
+    if (error?.message?.toLowerCase?.().includes('ux_decks_user_name') ||
+        error?.number === 2627 || error?.number === 2601) {
+      return NextResponse.json(
+        { error: 'A deck with that name already exists' },
+        { status: 409 }
+      );
+    }
     console.error('Error in POST /api/decks:', error);
     return NextResponse.json(
       { error: 'Failed to create deck' },

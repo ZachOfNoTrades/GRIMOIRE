@@ -385,7 +385,15 @@ export async function DELETE(
     // Verify deck ownership
     await getDeckById(userId!, id);
 
-    const body = await request.json();
+    // A body that isn't JSON at all is a client mistake, not a server fault — parse it
+    // behind a guard so it answers 400 with the standard { error } envelope instead of
+    // throwing into the catch-all and reporting a 500.
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 });
+    }
     const { cardId } = body;
 
     if (!cardId) {

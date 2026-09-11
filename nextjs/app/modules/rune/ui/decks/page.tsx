@@ -3,11 +3,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Layers, Plus, Search, Star } from "lucide-react";
+import { useRowNav } from "@/lib/useRowNav";
+import { ArrowLeft, Eye, EyeOff, Layers, Plus, Star } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { SearchField, SMART_MATCH_HINT } from "@/components/SearchField";
 import { DeckSummary } from "../../types/deck";
 import { formatRelativePast } from "@/lib/format";
+import { makeSearchMatcher } from "@/lib/searchMatch";
 import AddDeckModal from "./AddDeckModal";
 
 // Sort options for the deck list. "favorites" mirrors the server default
@@ -30,6 +33,9 @@ export default function DecksPage() {
   // INPUT
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<DeckSortKey>("favorites");
+  // Disabled decks are paused, so they're out of the way by default; this reveals them
+  // in place (still sorted to the bottom) rather than opening a separate archive screen.
+  const [showDisabled, setShowDisabled] = useState(false);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -39,19 +45,26 @@ export default function DecksPage() {
   // always float above non-favorites in the "favorites" mode; the other modes
   // sort purely by their key so a favorite can sit wherever its value lands.
   const visibleDecks = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = searchQuery.trim();
 
-    const filtered = query
-      ? decks.filter((deck) =>
-          deck.name.toLowerCase().includes(query) ||
-          (deck.description ?? "").toLowerCase().includes(query)
-        )
+    // Shared normalizer (lib/searchMatch.ts): unit spellings are equated, so a
+    // deck named 'Pipe sizes (5")' answers to "5 inch", and every query token
+    // must appear somewhere in the name or description but need not be adjacent.
+    const matchesQuery = makeSearchMatcher(query);
+    const searched = query
+      ? decks.filter((deck) => matchesQuery(`${deck.name} ${deck.description ?? ""}`))
       : decks;
+
+    const filtered = showDisabled ? searched : searched.filter((deck) => !deck.is_disabled);
 
     const reviewedTime = (deck: DeckSummary) =>
       deck.last_reviewed_at ? new Date(deck.last_reviewed_at).getTime() : -Infinity;
 
     return [...filtered].sort((a, b) => {
+      // Disabled decks are paused — they sink below the active ones in every sort mode
+      // so the list always leads with what's actually being studied.
+      if (a.is_disabled !== b.is_disabled) return Number(a.is_disabled) - Number(b.is_disabled);
+
       switch (sortKey) {
         case "name":
           return a.name.localeCompare(b.name);
@@ -66,9 +79,14 @@ export default function DecksPage() {
           return (Number(b.is_favorite) - Number(a.is_favorite)) || a.name.localeCompare(b.name);
       }
     });
-  }, [decks, searchQuery, sortKey]);
+  }, [decks, searchQuery, sortKey, showDisabled]);
+
+  // How many decks are paused — the toggle only exists once there's something to reveal.
+  const disabledCount = useMemo(() => decks.filter((deck) => deck.is_disabled).length, [decks]);
 
   const router = useRouter();
+
+  const rowNav = useRowNav();
 
   // LOAD DATA
   useEffect(() => {
@@ -159,17 +177,13 @@ export default function DecksPage() {
             <div className="erow-search-row">
 
               {/* SEARCH BAR */}
-              <div className="erow-search">
-                <Search className="erow-search-icon w-4 h-4" />
-                <input
-                  type="search"
-                  className="input-field"
-                  placeholder="Search decks…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  aria-label="Search decks"
-                />
-              </div>
+              <SearchField
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search decks…"
+                ariaLabel="Search decks"
+                matchHint={SMART_MATCH_HINT}
+              />
 
               {/* SORT SELECT */}
               <select
@@ -182,6 +196,23 @@ export default function DecksPage() {
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
+
+              {/* SHOW-DISABLED TOGGLE — only rendered when some deck is actually disabled,
+                  so an unused filter never sits on the page explaining itself. */}
+              {disabledCount > 0 && (
+                <div>
+                  <button
+                    type="button"
+                    className={`filter-chip ${showDisabled ? "filter-chip--active" : ""}`}
+                    onClick={() => setShowDisabled((shown) => !shown)}
+                    aria-pressed={showDisabled}
+                  >
+                    {showDisabled ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {showDisabled ? "Hide disabled" : "Show disabled"}
+                    <span className="filter-chip-count">{disabledCount}</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -217,10 +248,14 @@ export default function DecksPage() {
                   </tr>
                 )}
 
-                {/* EMPTY PLACEHOLDER — decks exist but none match the search */}
+                {/* EMPTY PLACEHOLDER — decks exist but none are visible. Says which knob emptied the
+                    list: with the search box clear, the only thing that can have hidden them is the
+                    disabled filter, and a bare "no match" would look like a bug. */}
                 {!isLoading && decks.length > 0 && visibleDecks.length === 0 && (
                   <tr className="table-row">
-                    <td className="table-empty" colSpan={5}>No decks match your search</td>
+                    <td className="table-empty" colSpan={5}>
+                      {searchQuery.trim() ? "No decks match your search" : "Every deck is disabled — use Show disabled to see them"}
+                    </td>
                   </tr>
                 )}
 
@@ -228,8 +263,8 @@ export default function DecksPage() {
                 {!isLoading && visibleDecks.map((deck) => (
                   <tr
                     key={deck.id}
-                    className="table-row-clickable"
-                    onClick={() => router.push(`/modules/rune/ui/decks/${deck.id}`)}
+                    className={`table-row-clickable ${deck.is_disabled ? "rune-deck-row-disabled" : ""}`}
+                    {...rowNav(`/modules/rune/ui/decks/${deck.id}`)}
                   >
 
                     {/* FAVORITE STAR — toggles without navigating the row */}
@@ -250,14 +285,25 @@ export default function DecksPage() {
 
                     <td className="table-cell">
                       <div>
-                        <p>{deck.name}</p>
+                        <p className="flex items-center gap-2 flex-wrap">
+                          <span className={deck.is_disabled ? "rune-deck-row-name" : ""}>{deck.name}</span>
+
+                          {/* DISABLED BADGE — the deck is paused and counts nothing */}
+                          {deck.is_disabled && (
+                            <span className="badge badge-gray" title="Paused — not counted as due and not included in the daily review email">Disabled</span>
+                          )}
+                        </p>
                         {deck.description && (
                           <p className="text-secondary">{deck.description}</p>
                         )}
                       </div>
                     </td>
                     <td className="table-cell !text-right whitespace-nowrap">{deck.card_count}</td>
-                    <td className="table-cell !text-right whitespace-nowrap">{deck.due_count}</td>
+
+                    {/* DUE — a disabled deck schedules nothing, so it shows a dash rather than a 0 that looks earned */}
+                    <td className="table-cell !text-right whitespace-nowrap">
+                      {deck.is_disabled ? <span className="text-subtle">—</span> : deck.due_count}
+                    </td>
                     <td className="table-cell !text-right whitespace-nowrap text-secondary">{formatRelativePast(deck.last_reviewed_at)}</td>
                   </tr>
                 ))}

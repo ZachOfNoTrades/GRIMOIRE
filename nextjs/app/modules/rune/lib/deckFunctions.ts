@@ -203,6 +203,33 @@ export async function createDeck(userId: string, name: string, description: stri
   }
 }
 
+export async function setDeckFavorite(userId: string, deckId: string, isFavorite: boolean): Promise<void> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('deckId', deckId)
+      .input('fav', sql.Bit, isFavorite ? 1 : 0)
+      .query(`
+        UPDATE decks
+        SET is_favorite = @fav, modified_at = GETDATE()
+        WHERE id = @deckId AND user_id = @userId
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No deck found for id: '${deckId}'`);
+    }
+  } catch (error) {
+    console.error('Error updating deck favorite:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
 // Pause / resume a deck. Disabling never touches the deck's cards or their progress — the
 // schedule is preserved exactly as it was, so re-enabling brings back whatever became due
 // in the meantime rather than resetting anything.
@@ -225,33 +252,6 @@ export async function setDeckDisabled(userId: string, deckId: string, isDisabled
     }
   } catch (error) {
     console.error('Error updating deck disabled state:', error);
-    throw error;
-  } finally {
-    if (pool) {
-      await closeRuneConnection(pool);
-    }
-  }
-}
-
-export async function setDeckFavorite(userId: string, deckId: string, isFavorite: boolean): Promise<void> {
-  let pool;
-  try {
-    pool = await getRuneConnection();
-    const result = await pool.request()
-      .input('userId', userId)
-      .input('deckId', deckId)
-      .input('fav', sql.Bit, isFavorite ? 1 : 0)
-      .query(`
-        UPDATE decks
-        SET is_favorite = @fav, modified_at = GETDATE()
-        WHERE id = @deckId AND user_id = @userId
-      `);
-
-    if (result.rowsAffected[0] === 0) {
-      throw new Error(`No deck found for id: '${deckId}'`);
-    }
-  } catch (error) {
-    console.error('Error updating deck favorite:', error);
     throw error;
   } finally {
     if (pool) {

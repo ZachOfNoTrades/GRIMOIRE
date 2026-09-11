@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import { Deck } from "../../types/deck";
+import { DECK_NAME_MAX_LENGTH } from "../../types/deck";
 
 interface AddDeckModalProps {
   isOpen: boolean;
@@ -53,7 +54,11 @@ export default function AddDeckModal({ isOpen, onClose, onCreated }: AddDeckModa
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create deck");
+        // Surface what the server actually said — a duplicate name (409) or an
+        // over-long one (400) is something the user can fix, and a generic
+        // "Failed to create deck" tells them nothing about which.
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to create deck");
       }
 
       const deck: Deck = await response.json();
@@ -61,7 +66,7 @@ export default function AddDeckModal({ isOpen, onClose, onCreated }: AddDeckModa
       onClose();
     } catch (error) {
       console.error("Error creating deck:", error);
-      setError("Failed to create deck");
+      setError(error instanceof Error ? error.message : "Failed to create deck");
     } finally {
       setIsSaving(false);
     }
@@ -99,6 +104,7 @@ export default function AddDeckModal({ isOpen, onClose, onCreated }: AddDeckModa
           className="input-field w-full"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          maxLength={DECK_NAME_MAX_LENGTH}
           placeholder="e.g. Spanish Vocabulary"
           autoFocus
         />

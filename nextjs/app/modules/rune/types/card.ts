@@ -15,11 +15,21 @@ export interface CardWithProgress {
   category: string | null;
   source: string | null;
   source_id: string | null;
+  // The user's own citation for the card's material — a URL, or free text like
+  // "Per Chief's lecture". Free-form and user-edited, unlike `source` (the internal
+  // 'manual' | 'notion' | 'refine' provenance enum) and `source_id` (an external
+  // generator's row key). Rendered under the notes on the study card's answer face.
+  source_ref: string | null;
   order_index: number;
   is_disabled: boolean;
   is_draft: boolean;
   created_at: Date;
   modified_at: Date;
+  // Client channel that created / last modified the card ('web' | 'api' | 'mcp'), for the
+  // deck view's origin line. Distinct from `source`, which is where the CONTENT came from.
+  // Null on cards written before the columns existed (2026-09-03).
+  created_via: string | null;
+  modified_via: string | null;
   ease_factor: number | null;
   interval_days: number | null;
   repetitions: number | null;

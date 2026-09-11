@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, use } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
+import { useRowNav } from "@/lib/useRowNav";
 import { ArrowLeft, Layers, Pencil, Trash2 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import DeleteCollectionModal from "./DeleteCollectionModal";
 export default function CollectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const rowNav = useRowNav();
 
   // DATA
   const [collection, setCollection] = useState<CollectionWithDecks | null>(null);
@@ -52,6 +54,14 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
     reviewedTodayBaseline: reviewedToday,
   };
 
+  // Member decks with the paused ones sunk to the bottom — same ordering rule as the deck
+  // list page, so a disabled deck never sits between two decks this collection actually
+  // studies. Order within each group is left as the server returned it.
+  const orderedDecks = useMemo(() => {
+    if (!collection) return [];
+    return [...collection.decks].sort((a, b) => Number(a.is_disabled) - Number(b.is_disabled));
+  }, [collection]);
+
   // Category suggestions for the edit-card modal inside a session, pooled across
   // every deck in the collection.
   const existingCategories = useMemo(
@@ -86,7 +96,9 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
   };
 
   // Due cards feed the study session. Draft cards are excluded — they're
-  // unfinished and never enter a study session.
+  // unfinished and never enter a study session. A blank back is not a reason to hold a
+  // card out: it studies as a self-graded card. Mirrors the due_count SQL in
+  // collectionFunctions.
   const selectDueCards = (cardList: CardWithProgress[]): CardWithProgress[] => {
     const now = new Date();
     return cardList.filter((c) => !c.is_draft && (!c.next_review_at || new Date(c.next_review_at) <= now));
@@ -329,22 +341,33 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
                     )}
 
                     {/* DECK ROWS */}
-                    {collection.decks.map((deck) => (
+                    {orderedDecks.map((deck) => (
                       <tr
                         key={deck.id}
-                        className="table-row-clickable"
-                        onClick={() => router.push(`/modules/rune/ui/decks/${deck.id}`)}
+                        className={`table-row-clickable ${deck.is_disabled ? "rune-deck-row-disabled" : ""}`}
+                        {...rowNav(`/modules/rune/ui/decks/${deck.id}`)}
                       >
                         <td className="table-cell">
                           <div>
-                            <p>{deck.name}</p>
+                            <p className="flex items-center gap-2 flex-wrap">
+                              <span className={deck.is_disabled ? "rune-deck-row-name" : ""}>{deck.name}</span>
+
+                              {/* DISABLED BADGE — this member deck is paused, so the collection's session skips it */}
+                              {deck.is_disabled && (
+                                <span className="badge badge-gray" title="Paused — skipped by this collection's study session and left out of its counts">Disabled</span>
+                              )}
+                            </p>
                             {deck.description && (
                               <p className="text-secondary">{deck.description}</p>
                             )}
                           </div>
                         </td>
                         <td className="table-cell !text-right whitespace-nowrap">{deck.card_count}</td>
-                        <td className="table-cell !text-right whitespace-nowrap">{deck.due_count}</td>
+
+                        {/* DUE — a disabled member deck contributes nothing to the collection */}
+                        <td className="table-cell !text-right whitespace-nowrap">
+                          {deck.is_disabled ? <span className="text-subtle">—</span> : deck.due_count}
+                        </td>
                         <td className="table-cell !text-right whitespace-nowrap text-secondary">{formatRelativePast(deck.last_reviewed_at)}</td>
                       </tr>
                     ))}

@@ -19,6 +19,9 @@ BEGIN TRY
             source_url NVARCHAR(2000) NULL,
             is_archived BIT DEFAULT 0,
             is_favorite BIT NOT NULL DEFAULT 0,
+            -- Paused deck: still listed and editable, but contributes nothing to any due
+            -- count and is skipped by the daily review email and collection study sessions.
+            is_disabled BIT NOT NULL DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 

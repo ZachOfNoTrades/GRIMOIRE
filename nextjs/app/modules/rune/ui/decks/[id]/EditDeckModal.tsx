@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
+import { DECK_NAME_MAX_LENGTH } from "../../../types/deck";
 
 interface EditDeckModalProps {
   isOpen: boolean;
@@ -74,6 +75,7 @@ export default function EditDeckModal({ isOpen, onClose, name, description, sour
           className="input-field w-full"
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
+          maxLength={DECK_NAME_MAX_LENGTH}
           autoFocus
         />
       </div>

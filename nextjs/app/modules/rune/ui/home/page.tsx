@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, Boxes, Layers, Play, Settings, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/linkButton";
 import HelpButton from "@/components/ui/HelpButton";
 import { formatRelativePast } from "@/lib/format";
 import { DeckSummary } from "../../types/deck";
@@ -21,8 +21,6 @@ export default function RuneHomePage() {
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
-
-  const router = useRouter();
 
   // LOAD DATA
   useEffect(() => {
@@ -95,6 +93,9 @@ export default function RuneHomePage() {
               { heading: "Getting started", body: "Create a deck, then add cards manually or use Generate Cards to draft a set with the LLM from a topic or your notes." },
               { heading: "Studying", body: "Resume Studying jumps to the deck with cards due. Flip each card, then rate how well you knew it — spaced repetition schedules the next review automatically." },
               { heading: "Collections", body: "A collection groups several decks. Open it and start a study session to review every due card across those decks in one pass — useful for related decks you always study together." },
+              { heading: "Pausing a deck", body: "Open a deck and press the power button to disable it. A disabled deck stops counting toward Cards Due here, the dashboard badge and the daily review email, and collection study sessions skip it — but nothing is reset, and you can still study it from its own page. Press the button again to bring it back." },
+              { heading: "List or table view", body: "A deck's card list has a view toggle beside the sort control. The list shows one card's back at a time; the table lays every card's front and back out side by side (stacked on a phone) so you can read or proofread a whole deck in one pass. Search, filter and sort apply to both, and the page widens for the table. Your choice is remembered." },
+              { heading: "Card origin", body: "Expand a card in its deck to see when it was created, when it was last edited, and which client each of those came through — the web app, a direct API call, or an MCP tool. Cards added before this was tracked show the dates without a client. It is deliberately absent during a study session, where only the card itself should be on screen." },
               { heading: "Refine & configure", body: "Use LLM refinement to tighten card wording across a deck. Deck options and defaults live in Settings." },
             ]}
           />
@@ -105,23 +106,23 @@ export default function RuneHomePage() {
 
           {/* RESUME STUDYING BUTTON — only when a deck has cards due */}
           {mostDueDeck && (
-            <Button
+            <LinkButton
               className="btn-blue"
-              onClick={() => router.push(`/modules/rune/ui/decks/${mostDueDeck.id}`)}
+              href={`/modules/rune/ui/decks/${mostDueDeck.id}`}
             >
               <Play className="w-4 h-4" />
               Resume Studying
-            </Button>
+            </LinkButton>
           )}
 
           {/* GENERATE CARDS BUTTON */}
-          <Button
+          <LinkButton
             className="btn-blue"
-            onClick={() => router.push("/modules/rune/ui/decks/generate")}
+            href="/modules/rune/ui/decks/generate"
           >
             <Zap className="w-4 h-4" />
             Generate Cards
-          </Button>
+          </LinkButton>
         </div>
 
         {/* OVERVIEW DASHBOARD CARD */}
