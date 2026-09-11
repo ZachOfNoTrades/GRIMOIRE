@@ -1195,34 +1195,8 @@ export default function StudySession({
           </div>
         )}
 
-        {/* RATING BUTTONS */}
-        {isFlipped && (
-          <div className="flex gap-2 mt-5">
-            {[
-              { rating: 1, label: "AGAIN", className: "alert-red" },
-              { rating: 2, label: "HARD", className: "alert-yellow" },
-              { rating: 3, label: "GOOD", className: "alert-green" },
-              { rating: 4, label: "EASY", className: "alert-blue" },
-            ].map(({ rating, label, className }) => (
-              <button
-                key={rating}
-                onClick={(e) => { e.stopPropagation(); handleRate(rating); }}
-                style={{ "--countdown-fill-duration": `${preferences.autoAdvanceSeconds}s` } as CSSProperties}
-                className={`${className} cursor-pointer text-center flex-1 ${currentCard.sessionRating === rating
-                  ? "ring-2 ring-offset-2 ring-current"
-                  : evaluationResult?.suggestedRating === rating && !currentCardAlreadyRated
-                    ? (autoRateCountdown ? "countdown-fill ring-2 ring-offset-2 ring-current" : "ring-2 ring-offset-2 ring-current")
-                    : ""
-                  }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* NAVIGATION */}
-        <div className="flex gap-2 mt-3">
+        {/* NAVIGATION — fixed position across the flip (see the rating buttons below) */}
+        <div className="flex gap-2 mt-5">
 
           {/* PREV BUTTON */}
           <Button
@@ -1248,6 +1222,34 @@ export default function StudySession({
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
+
+        {/* RATING BUTTONS — below the navigation, not above it: they only exist on the
+            answer face, so with the nav underneath them the flip moved PREV/NEXT out from
+            under the thumb mid-session. */}
+        {isFlipped && (
+          <div className="flex gap-2 mt-3">
+            {[
+              { rating: 1, label: "AGAIN", className: "alert-red" },
+              { rating: 2, label: "HARD", className: "alert-yellow" },
+              { rating: 3, label: "GOOD", className: "alert-green" },
+              { rating: 4, label: "EASY", className: "alert-blue" },
+            ].map(({ rating, label, className }) => (
+              <button
+                key={rating}
+                onClick={(e) => { e.stopPropagation(); handleRate(rating); }}
+                style={{ "--countdown-fill-duration": `${preferences.autoAdvanceSeconds}s` } as CSSProperties}
+                className={`${className} cursor-pointer text-center flex-1 ${currentCard.sessionRating === rating
+                  ? "ring-2 ring-offset-2 ring-current"
+                  : evaluationResult?.suggestedRating === rating && !currentCardAlreadyRated
+                    ? (autoRateCountdown ? "countdown-fill ring-2 ring-offset-2 ring-current" : "ring-2 ring-offset-2 ring-current")
+                    : ""
+                  }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* CARD HISTORY — this card's own record: where its SRS scheduling stands and
             every rating it has ever been given. Revealed with the answer (there is no

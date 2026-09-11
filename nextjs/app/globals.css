@@ -3295,13 +3295,20 @@ input[type="search"]::-webkit-search-results-decoration {
    the card's own question/answer text scrolls internally if it doesn't fit.
    Mobile keeps the simpler page-grows-and-scrolls behavior (desktop-only per
    product decision — an inner scroll region is a worse fit for a thumb than
-   just scrolling the page). */
+   just scrolling the page).
+
+   The column scrolls vertically rather than clipping: the card shrinks first (it
+   is the only flex-shrink child), and once it is down to its 16rem floor anything
+   still below — the card-history section the answer face reveals — has to be
+   reachable. `overflow: hidden` here made it unreachable, with no scrollbar
+   anywhere in the ancestor chain to get at it. */
 @media (min-width: 640px) {
   .rune-study-container {
     height: 100%;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   /* Every direct child keeps its natural height — the answer field, evaluate
      button, rating buttons, and nav never stretch or shrink. */
