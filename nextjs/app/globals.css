@@ -3289,54 +3289,136 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 }
 
-/* Desktop: the study column is a flex layout that fills the viewport, with the
-   card capped so the header/progress chrome above and the answer-field/nav/rating
-   controls below all land on screen at typical window heights; only the card's
-   own question/answer text scrolls internally if it doesn't fit. Mobile keeps the
-   simpler page-grows-and-scrolls behavior (the card cap is desktop-only per
-   product decision — an inner scroll region is a worse fit for a thumb than
-   just scrolling the page).
+/* Stat tiles that fit themselves to whatever they are dropped into — the rating
+   history panel is rendered both in a modal and in the study session's rail, which
+   are different widths at the same viewport, so the column count has to come from
+   the container rather than a media query. */
+.rune-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem;
+}
 
-   The column is NOT height-locked, and does not scroll itself: it grows past the
-   viewport when the answer face reveals the card-history section, and the app
-   shell (`.page`) scrolls — so the scrollbar sits at the far right of the window
-   like every other page, rather than down the middle against the study column's
-   own max-width. What keeps the controls near the fold instead is the card's
-   max-height below, not a locked column. */
-@media (min-width: 640px) {
+/* TWO-COLUMN STUDY LAYOUT (>=1024px)
+   -----------------------------------
+   Left: the card in hand and everything you do to it — reveal, answer, navigate,
+   grade — kept in one column so grading never moves away from the thing being
+   graded. Right: a rail for everything about the SESSION rather than the card
+   (deck, hands-free, queue position, daily target), with this card's own history
+   joining it when the answer is revealed.
+
+   Below 1024px the two wrappers are `display: contents`, so their children flatten
+   back into the single column they were before and keep their source order — the
+   one exception being the session panel, which belongs at the top there. That is
+   why the container is a flex column at every width: `order` needs a flex parent.
+
+   The card cap and the internal answer scroll start at 640px, independently of the
+   columns: from there up the study view is expected to fit the window, whereas on a
+   phone it is a plain scrolling page (an inner scroll region is a worse fit for a
+   thumb). */
+.rune-study-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 36rem;
+}
+
+@media (max-width: 1023px) {
+  .rune-study-main,
+  .rune-study-rail {
+    display: contents;
+  }
+
+  /* Stacked, the session chrome reads as a header — it sat above the card before
+     these columns existed, and that is still where it belongs when there is only
+     one column. Everything else keeps source order. */
+  .rune-study-session-panel {
+    order: -1;
+  }
+
+  .rune-study-history {
+    margin-top: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
   .rune-study-container {
-    min-height: 100%;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.5rem;
+    /* The card column keeps its old 36rem; the rest is the rail plus the gap. */
+    max-width: 58rem;
+  }
+
+  .rune-study-main {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     flex-direction: column;
   }
-  /* Every direct child keeps its natural height — the answer field, evaluate
-     button, rating buttons, and nav never stretch or shrink. */
-  .rune-study-container > * {
+
+  .rune-study-rail {
+    flex: 0 0 20rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* A panel rather than loose rows once it has a column of its own. Same surface
+     tokens as `.card`, so it reads as part of the same family without pretending
+     to be a card the way the history section below it genuinely is. */
+  .rune-study-session-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    padding: 1rem;
+  }
+
+  /* The panel's rows were built for a full-width strip: at rail width the two
+     halves of each row can't share a line, so let them stack. */
+  .rune-study-session-panel .rune-study-meta {
+    flex-wrap: wrap;
+    gap: 0 0.75rem;
+  }
+
+  /* Last row in the panel — its bottom margin was spacing the card below it in the
+     stacked layout, which the panel's own padding now does. */
+  .rune-study-session-panel .flashcard-progress-bar {
+    margin-bottom: 0;
+  }
+}
+
+@media (min-width: 640px) {
+  /* The study view fills the window from here up: the card sizes to what is left
+     after the answer field, navigation and rating rows have taken theirs (see
+     --rune-card-max, measured by StudySession), so the rating buttons always land
+     on screen and a long answer scrolls inside the card instead. It is a min, not a
+     height — the rail's history section is free to run past the fold, and the app
+     shell scrolls to it. */
+  .rune-study-container {
+    min-height: 100%;
+  }
+
+  /* Every child keeps its natural height — the answer field, evaluate button,
+     rating buttons, and nav never stretch or shrink. */
+  .rune-study-main > * {
     flex-shrink: 0;
   }
+
   /* ...except the card, the only flex-shrink item. It keeps the original
      min-height: 16rem floor and autofits to its content above that, up to the
-     max-height below — so it only scrolls internally once content exceeds that
-     ceiling. Since front/back render different DOM (only one face is mounted at
-     a time), the card's natural height already differs correctly between
-     question and answer mode. */
-  .rune-study-container > .flashcard-container {
+     cap below — so it only scrolls internally once content exceeds that ceiling.
+     Since front/back render different DOM (only one face is mounted at a time),
+     the card's natural height already differs correctly between question and
+     answer mode. */
+  .rune-study-main > .flashcard-container {
     flex: 0 1 auto;
     overflow: hidden;
-    /* The card used to take "whatever is left" from the locked column. With the
-       column free to grow, that leftover no longer exists, so it is measured and
-       published as --rune-card-max by StudySession: the space left once the
-       chrome above and the answer field / nav / rating rows below have taken
-       theirs, so a long answer scrolls inside the card (see
-       .flashcard-face-scroll) rather than pushing the rating buttons off the
-       bottom. The 16rem floor still wins on a very short window, and the rem
-       fallback only applies for the frame before the measurement lands. */
     max-height: var(--rune-card-max, calc(var(--app-height, 100dvh) - 26rem));
     /* The 16rem floor from the base rule would beat that cap (min-height wins over
        max-height), which is how the rating buttons ended up below the fold on a
        short window. Keep the floor only while the cap can afford it. */
     min-height: min(16rem, var(--rune-card-max, 16rem));
   }
+
   .rune-study-container .flashcard-face-scroll {
     min-height: 0;
     overflow-y: auto;

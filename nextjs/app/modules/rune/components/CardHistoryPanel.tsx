@@ -75,10 +75,12 @@ export default function CardHistoryPanel({
   return (
     <>
       {/* SRS SUMMARY — current scheduling state, the outcome of the ratings below.
-          Laid out as a wrapping grid rather than `.stat-section`'s single flex row:
-          both callers are narrower than a page, so a 5-up row breaks its labels
-          mid-word ("INTER VAL") at every viewport, not just on phones. */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+          Laid out as a grid that fits itself to the container rather than
+          `.stat-section`'s single flex row or a viewport-breakpoint column count:
+          this panel is rendered both in a modal and in the study session's rail,
+          and a column count chosen by viewport width breaks the labels mid-word
+          ("INTER VAL") in the narrow one while the window is wide. */}
+      <div className="rune-stat-grid mb-4">
 
         {/* REVIEW COUNT */}
         <div className="stat-card">

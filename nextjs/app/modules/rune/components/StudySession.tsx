@@ -364,35 +364,43 @@ export default function StudySession({
   // card with (mobile deliberately keeps page-grows-and-scrolls, so the var is
   // simply unused below 640px).
   //
-  // Anything marked `data-rune-below-fold` — the card-history section — is
-  // excluded on purpose: it is meant to sit past the fold and be scrolled to.
+  // The card history is in the rail, a different parent, so it is excluded by
+  // construction: it is meant to sit beside the card, or past the fold when stacked.
   useLayoutEffect(() => {
     const column = studyColumnRef.current;
     const card = flashcardRef.current;
     if (!column || !card) return;
 
     const measure = () => {
-      // The scroll shell is the viewport here, and the column may start below a
-      // module subnav, so measure from the column's own top rather than assuming 0.
+      // The scroll shell is the viewport here. Everything above the card is already
+      // accounted for by where the card sits in that shell — which is what makes this
+      // work in both layouts, with the session panel above the card when stacked and
+      // beside it when the rail is its own column.
       const shell = column.closest<HTMLElement>(".page");
       const shellRect = shell?.getBoundingClientRect();
-      const available = shell && shellRect
-        ? shell.clientHeight - (column.getBoundingClientRect().top - shellRect.top + shell.scrollTop)
-        : window.innerHeight - column.getBoundingClientRect().top;
+      const cardRect = card.getBoundingClientRect();
+      const cardTop = shell && shellRect
+        ? cardRect.top - shellRect.top + shell.scrollTop
+        : cardRect.top;
+      const available = (shell ? shell.clientHeight : window.innerHeight) - cardTop;
 
       const outerHeight = (element: HTMLElement) => {
         const style = getComputedStyle(element);
         return element.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
       };
 
-      const columnStyle = getComputedStyle(column);
-      let used = parseFloat(columnStyle.paddingTop) + parseFloat(columnStyle.paddingBottom);
-      for (const child of Array.from(column.children) as HTMLElement[]) {
-        if (child.dataset.runeBelowFold === "true") continue;
-        used += child === card
-          ? outerHeight(child) - child.offsetHeight // the card's own margins only
-          : outerHeight(child);
+      // What has to fit under the card: its own siblings (the answer field, any
+      // evaluation alert, the navigation and the rating row) plus their column's
+      // bottom padding. The rail is a different parent, so the card history — which
+      // is meant to sit past the fold / beside the card — is excluded by construction.
+      const siblings = card.parentElement ? Array.from(card.parentElement.children) as HTMLElement[] : [];
+      const cardStyle = getComputedStyle(card);
+      let used = parseFloat(cardStyle.marginTop) + parseFloat(cardStyle.marginBottom);
+      for (const sibling of siblings) {
+        if (sibling !== card) used += outerHeight(sibling);
       }
+      const columnStyle = getComputedStyle(column);
+      used += parseFloat(columnStyle.paddingBottom);
 
       // Floor it: a window short enough to compute less than this has bigger
       // problems than a cramped card, and a zero-height card is not a card.
@@ -408,8 +416,8 @@ export default function StudySession({
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(column);
-    for (const child of Array.from(column.children) as HTMLElement[]) {
-      if (child !== card && child.dataset.runeBelowFold !== "true") observer.observe(child);
+    for (const sibling of Array.from(card.parentElement?.children ?? []) as HTMLElement[]) {
+      if (sibling !== card) observer.observe(sibling);
     }
     window.addEventListener("resize", measure);
     return () => {
@@ -1117,374 +1125,391 @@ export default function StudySession({
 
       <Toaster />
 
-      <main ref={studyColumnRef} className="page-container rune-study-container" style={{ maxWidth: "36rem" }}>
+      <main ref={studyColumnRef} className="page-container rune-study-container">
 
         {/* HIDDEN AUDIO ELEMENT FOR TTS */}
         <audio ref={audioRef} preload="none" />
 
-        {/* SESSION HEADER */}
-        <div className="flex items-center justify-between mb-2">
+        {/* INTERACTION COLUMN — the card in hand and everything you do to it: reveal
+            it, answer it, move through the queue, grade it. Kept together in one
+            column so grading never moves away from the thing being graded. */}
+        <div className="rune-study-main">
 
-          {/* SOURCE NAME + HANDS-FREE TOGGLE */}
-          <div className="flex items-center gap-3 rune-study-header-main">
-            <p className="text-subtle rune-study-deck-name">{sourceName}</p>
-            <label className="flex items-center gap-1 cursor-pointer text-subtle text-xs rune-study-handsfree">
-              <input
-                type="checkbox"
-                checked={handsFree}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    handsFreeRef.current = true;
-                    onHandsFreeChange(true);
-                  } else {
-                    disableHandsFree();
-                  }
-                }}
-              />
-              Hands-free
-            </label>
-          </div>
+          {/* FLASH CARD */}
+          <div ref={flashcardRef} className="flashcard-container" onClick={handleFlip}>
+            {!isFlipped ? (
+              <>
+                {/* FRONT FACE */}
+                <div className="flex items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-2 min-w-0 rune-study-face-badges">
 
-          {/* QUIT BUTTON */}
-          <Button
-            onClick={handleQuit}
-            className="btn-link"
-            title="Quit session"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
+                    {/* SOURCE DECK BADGE — collection sessions only (see deck_name) */}
+                    {currentCard.deck_name && (
+                      <div className="badge-gray rune-study-card-deck" title={currentCard.deck_name}>
+                        <Layers className="w-3 h-3 shrink-0" />
+                        <span className="rune-study-card-deck-name">{currentCard.deck_name}</span>
+                      </div>
+                    )}
+                  </div>
 
-        {/* PROGRESS INFO */}
-        <div className="flex items-center justify-between mb-1.5 rune-study-meta">
-          <span className="text-subtle">
-            CARD {currentIndex + 1} / {sessionCards.length}
-          </span>
-          <span className="text-subtle flex gap-2 rune-study-tally">
-            <span className="text-alert-green">{sessionCards.filter((c) => c.sessionRating === 4).length} easy</span>
-            <span className="text-alert-green">{sessionCards.filter((c) => c.sessionRating === 3).length} good</span>
-            <span className="text-alert-yellow">{sessionCards.filter((c) => c.sessionRating === 2).length} hard</span>
-            <span className="text-alert-red">{sessionCards.filter((c) => c.sessionRating === 1).length} again</span>
-          </span>
-        </div>
-
-        {/* DAILY TARGET INFO (soft — global goal across all decks; max renew only warns) */}
-        <div className="flex items-center justify-between mb-1.5 text-subtle text-sm rune-study-meta">
-          <span className={goalMet ? "text-alert-green" : ""}>
-            Today · all decks {reviewedToday} / {preferences.dailyGoal}{goalMet ? " — goal met" : ""}
-          </span>
-          {overMaxRenew && (
-            <span className="text-alert-yellow">Past daily max of {preferences.dailyMaxRenew}</span>
-          )}
-        </div>
-
-        {/* PROGRESS BAR */}
-        <div className="flashcard-progress-bar mb-5">
-          {sessionCards.map((card, i) => (
-            <div
-              key={card.id}
-              className={`flashcard-progress-segment ${card.sessionRating !== null
-                ? ratingToSegmentClass(card.sessionRating)
-                : i === currentIndex
-                  ? "flashcard-progress-segment-active"
-                  : ""
-                }`}
-            />
-          ))}
-        </div>
-
-        {/* FLASH CARD */}
-        <div ref={flashcardRef} className="flashcard-container" onClick={handleFlip}>
-          {!isFlipped ? (
-            <>
-              {/* FRONT FACE */}
-              <div className="flex items-center justify-between w-full gap-2">
-                <div className="flex items-center gap-2 min-w-0 rune-study-face-badges">
-
-                  {/* SOURCE DECK BADGE — collection sessions only (see deck_name) */}
-                  {currentCard.deck_name && (
-                    <div className="badge-gray rune-study-card-deck" title={currentCard.deck_name}>
-                      <Layers className="w-3 h-3 shrink-0" />
-                      <span className="rune-study-card-deck-name">{currentCard.deck_name}</span>
-                    </div>
-                  )}
-                </div>
-
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
-                    else { handleSpeakAndRecord(); }
-                  }}
-                  className="btn-link !p-0"
-                  title={speakingSource === SpeakingSource.Question ? "Stop speaking" : "Speak question"}
-                >
-                  {speakingSource === SpeakingSource.Question ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                </Button>
-              </div>
-
-              {/* QUESTION TEXT — no stopPropagation here (unlike the answer face
-                  below): clicking anywhere on the front, including the text, is
-                  "tap to reveal" and should flip the card. */}
-              <div className="text-primary mt-4 flex-1 flashcard-face-scroll">
-                <CardContent text={currentCard.front} />
-              </div>
-
-              {/* TAP HINT */}
-              <div className="text-subtle">TAP TO REVEAL</div>
-            </>
-          ) : (
-            <>
-              {/* BACK FACE */}
-              <div className="flex items-center justify-between w-full gap-2">
-                <div className="flex items-center gap-2 min-w-0 rune-study-face-badges">
-
-                  {/* LAST RATING BADGE */}
-                  {currentCard.last_rating && (
-                    <div className={`badge-${currentCard.last_rating <= 2 ? (currentCard.last_rating === 1 ? "red" : "yellow") : (currentCard.last_rating === 3 ? "green" : "blue")}`}>
-                      {ratingToLabel(currentCard.last_rating).toUpperCase()}
-                    </div>
-                  )}
-
-                  {/* SOURCE DECK BADGE — collection sessions only (see deck_name) */}
-                  {currentCard.deck_name && (
-                    <div className="badge-gray rune-study-card-deck" title={currentCard.deck_name}>
-                      <Layers className="w-3 h-3 shrink-0" />
-                      <span className="rune-study-card-deck-name">{currentCard.deck_name}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {/* EDIT CARD BUTTON */}
-                  <Button
-                    onClick={(e) => { e.stopPropagation(); setEditingCard(currentCard); }}
-                    className="btn-link !p-0"
-                    title="Edit card"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-
-                  {/* SPEAK ANSWER BUTTON */}
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();
                       if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
-                      else if (currentCard) { speakFrom(SpeakingSource.CardAnswer, currentCard.back); }
+                      else { handleSpeakAndRecord(); }
                     }}
                     className="btn-link !p-0"
-                    title={speakingSource === SpeakingSource.CardAnswer ? "Stop speaking" : "Speak answer"}
+                    title={speakingSource === SpeakingSource.Question ? "Stop speaking" : "Speak question"}
                   >
-                    {speakingSource === SpeakingSource.CardAnswer ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    {speakingSource === SpeakingSource.Question ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </Button>
                 </div>
-              </div>
 
-              {/* ANSWER TEXT + NOTES — share one scroll container (desktop only)
-                  so a long answer or image-heavy notes don't push the rating
-                  buttons/nav off screen; the card auto-sizes to the remaining
-                  viewport space and this scrolls independently of the page.
-                  Notes must live inside this div, not after it — the card
-                  itself clips overflow on desktop, so anything outside the
-                  scroll region (e.g. notes with embedded images) would
-                  otherwise just get cut off with no way to reach it. */}
-              <div className="text-primary mt-4 flex-1 flashcard-face-scroll" onClick={(e) => e.stopPropagation()}>
-                {/* ANSWER — a blank back is a valid card (self-graded recall): the face just
-                    carries whatever notes/source the card has, and the rating buttons below
-                    are the whole interaction. */}
-                {currentCard.back.trim() && <CardContent text={currentCard.back} />}
+                {/* QUESTION TEXT — no stopPropagation here (unlike the answer face
+                    below): clicking anywhere on the front, including the text, is
+                    "tap to reveal" and should flip the card. */}
+                <div className="text-primary mt-4 flex-1 flashcard-face-scroll">
+                  <CardContent text={currentCard.front} />
+                </div>
 
-                {/* NOTES */}
-                {currentCard.notes && (
-                  <div className="text-subtle-italic mt-3">
-                    <CardContent text={currentCard.notes} />
+                {/* TAP HINT */}
+                <div className="text-subtle">TAP TO REVEAL</div>
+              </>
+            ) : (
+              <>
+                {/* BACK FACE */}
+                <div className="flex items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-2 min-w-0 rune-study-face-badges">
+
+                    {/* LAST RATING BADGE */}
+                    {currentCard.last_rating && (
+                      <div className={`badge-${currentCard.last_rating <= 2 ? (currentCard.last_rating === 1 ? "red" : "yellow") : (currentCard.last_rating === 3 ? "green" : "blue")}`}>
+                        {ratingToLabel(currentCard.last_rating).toUpperCase()}
+                      </div>
+                    )}
+
+                    {/* SOURCE DECK BADGE — collection sessions only (see deck_name) */}
+                    {currentCard.deck_name && (
+                      <div className="badge-gray rune-study-card-deck" title={currentCard.deck_name}>
+                        <Layers className="w-3 h-3 shrink-0" />
+                        <span className="rune-study-card-deck-name">{currentCard.deck_name}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* EDIT CARD BUTTON */}
+                    <Button
+                      onClick={(e) => { e.stopPropagation(); setEditingCard(currentCard); }}
+                      className="btn-link !p-0"
+                      title="Edit card"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
 
-                {/* SOURCE — where the material came from, in the user's own words (a link,
-                    or something like "Per Chief's lecture"). Sits below the notes, inside
-                    the same scroll container: on desktop the card clips its overflow, so
-                    anything rendered after this div would be unreachable. CardContent
-                    autolinks a bare URL and honours [label](url). */}
-                {currentCard.source_ref && (
-                  <div className="rune-card-source mt-3">
-                    <span className="text-subtle text-xs">Source</span>
-                    <CardContent text={currentCard.source_ref} className="text-secondary rune-card-source-text" />
+                    {/* SPEAK ANSWER BUTTON */}
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
+                        else if (currentCard) { speakFrom(SpeakingSource.CardAnswer, currentCard.back); }
+                      }}
+                      className="btn-link !p-0"
+                      title={speakingSource === SpeakingSource.CardAnswer ? "Stop speaking" : "Speak answer"}
+                    >
+                      {speakingSource === SpeakingSource.CardAnswer ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </Button>
                   </div>
+                </div>
+
+                {/* ANSWER TEXT + NOTES — share one scroll container (desktop only)
+                    so a long answer or image-heavy notes don't push the rating
+                    buttons/nav off screen; the card auto-sizes to the remaining
+                    viewport space and this scrolls independently of the page.
+                    Notes must live inside this div, not after it — the card
+                    itself clips overflow on desktop, so anything outside the
+                    scroll region (e.g. notes with embedded images) would
+                    otherwise just get cut off with no way to reach it. */}
+                <div className="text-primary mt-4 flex-1 flashcard-face-scroll" onClick={(e) => e.stopPropagation()}>
+                  {/* ANSWER — a blank back is a valid card (self-graded recall): the face just
+                      carries whatever notes/source the card has, and the rating buttons below
+                      are the whole interaction. */}
+                  {currentCard.back.trim() && <CardContent text={currentCard.back} />}
+
+                  {/* NOTES */}
+                  {currentCard.notes && (
+                    <div className="text-subtle-italic mt-3">
+                      <CardContent text={currentCard.notes} />
+                    </div>
+                  )}
+
+                  {/* SOURCE — where the material came from, in the user's own words (a link,
+                      or something like "Per Chief's lecture"). Sits below the notes, inside
+                      the same scroll container: on desktop the card clips its overflow, so
+                      anything rendered after this div would be unreachable. CardContent
+                      autolinks a bare URL and honours [label](url). */}
+                  {currentCard.source_ref && (
+                    <div className="rune-card-source mt-3">
+                      <span className="text-subtle text-xs">Source</span>
+                      <CardContent text={currentCard.source_ref} className="text-secondary rune-card-source-text" />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* YOUR ANSWER */}
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-subtle">YOUR ANSWER</p>
+
+              {/* RECORD BUTTON */}
+              <Button
+                onClick={isRecording ? () => { stopRecording(); disableHandsFree(); } : () => { setEvaluationResult(null); setUserAnswer(""); startRecording(); }}
+                disabled={isSpeaking || isTranscribing}
+                className={`${isRecording ? "btn-red" : "btn-off"}`}
+              >
+                {isRecording ? (
+                  <><Square className="w-4 h-4" /> Stop</>
+                ) : (
+                  <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
                 )}
-              </div>
-            </>
-          )}
-        </div>
+              </Button>
+            </div>
 
-        {/* YOUR ANSWER */}
-        <div className="mt-3">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-subtle">YOUR ANSWER</p>
+            {/* USER ANSWER FIELD — Enter submits (Shift+Enter still inserts a newline).
+                The handler blurs the textarea before evaluating so the on-screen keyboard
+                drops on mobile; left focused it stays up and covers the evaluation result
+                and the rating buttons the submit just revealed. */}
+            <textarea
+              className="input-field w-full"
+              rows={3}
+              value={userAnswer}
+              onChange={(e) => { setUserAnswer(e.target.value); setAnswerModified(true); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); handleEvaluate(); } }}
+              placeholder="Type or record your answer..."
+              disabled={isRecording || isTranscribing}
+            />
+          </div>
 
-            {/* RECORD BUTTON */}
+          {/* EVALUATE BUTTON */}
+          {userAnswer.trim() && (!evaluationResult || answerModified) && (
             <Button
-              onClick={isRecording ? () => { stopRecording(); disableHandsFree(); } : () => { setEvaluationResult(null); setUserAnswer(""); startRecording(); }}
-              disabled={isSpeaking || isTranscribing}
-              className={`${isRecording ? "btn-red" : "btn-off"}`}
+              onClick={() => handleEvaluate()}
+              disabled={isEvaluating}
+              className="btn-blue w-full mt-3 py-4 text-lg"
             >
-              {isRecording ? (
-                <><Square className="w-4 h-4" /> Stop</>
-              ) : (
-                <><Mic className="w-4 h-4" /> {isTranscribing ? "Transcribing..." : "Record"}</>
-              )}
+              <BrainCircuit className="w-5 h-5" />
+              {isEvaluating ? "Evaluating..." : "Evaluate Answer"}
+            </Button>
+          )}
+
+          {/* EVALUATION RESULT */}
+          {evaluationResult && (
+            <div className={`alert-${evaluationResult.correct ? "green" : evaluationResult.suggestedRating === 0 ? "yellow" : "red"} mt-3`}>
+              <div className="flex items-center justify-between">
+                <p className="font-semibold">
+                  {evaluationResult.correct ? "Correct" : evaluationResult.suggestedRating === 0 ? "Unscorable" : "Incorrect"}
+                </p>
+                <Button
+                  onClick={() => {
+                    if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
+                    else { speakFrom(SpeakingSource.Evaluation, evaluationResult.explanation); }
+                  }}
+                  className="btn-link !p-0 text-inherit opacity-60 hover:opacity-100"
+                  title={speakingSource === SpeakingSource.Evaluation ? "Stop speaking" : "Speak evaluation"}
+                >
+                  {speakingSource === SpeakingSource.Evaluation ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </Button>
+              </div>
+              <p className="text-sm mt-1">{evaluationResult.explanation}</p>
+            </div>
+          )}
+
+          {/* NAVIGATION — fixed position across the flip (see the rating buttons below) */}
+          <div className="flex gap-2 mt-5">
+
+            {/* PREV BUTTON */}
+            <Button
+              onClick={handlePrev}
+              disabled={currentIndex === 0 || isRecording || isTranscribing}
+              className="btn-off flex-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              PREV
+            </Button>
+
+            {/* NEXT BUTTON — also doubles as "accept suggested rating / skip" when an
+                unaccepted evaluation is showing, and as "finish" on the last card
+                (nothing further to advance to), so it stays enabled the whole session —
+                there's always something for it to do, now that there's no dedicated
+                Skip button. */}
+            <Button
+              onClick={handleNext}
+              disabled={isRecording || isTranscribing}
+              className="btn-off flex-1"
+            >
+              {currentIndex >= sessionCards.length - 1 && !(evaluationResult && !currentCardAlreadyRated) ? "FINISH" : "NEXT"}
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 
-          {/* USER ANSWER FIELD — Enter submits (Shift+Enter still inserts a newline).
-              The handler blurs the textarea before evaluating so the on-screen keyboard
-              drops on mobile; left focused it stays up and covers the evaluation result
-              and the rating buttons the submit just revealed. */}
-          <textarea
-            className="input-field w-full"
-            rows={3}
-            value={userAnswer}
-            onChange={(e) => { setUserAnswer(e.target.value); setAnswerModified(true); }}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); handleEvaluate(); } }}
-            placeholder="Type or record your answer..."
-            disabled={isRecording || isTranscribing}
-          />
+          {/* RATING BUTTONS — below the navigation, not above it: they only exist on the
+              answer face, so with the nav underneath them the flip moved PREV/NEXT out from
+              under the thumb mid-session. */}
+          {isFlipped && (
+            <div className="flex gap-2 mt-3">
+              {[
+                { rating: 1, label: "AGAIN", className: "alert-red" },
+                { rating: 2, label: "HARD", className: "alert-yellow" },
+                { rating: 3, label: "GOOD", className: "alert-green" },
+                { rating: 4, label: "EASY", className: "alert-blue" },
+              ].map(({ rating, label, className }) => (
+                <button
+                  key={rating}
+                  onClick={(e) => { e.stopPropagation(); handleRate(rating); }}
+                  style={{ "--countdown-fill-duration": `${preferences.autoAdvanceSeconds}s` } as CSSProperties}
+                  className={`${className} cursor-pointer text-center flex-1 ${currentCard.sessionRating === rating
+                    ? "ring-2 ring-offset-2 ring-current"
+                    : evaluationResult?.suggestedRating === rating && !currentCardAlreadyRated
+                      ? (autoRateCountdown ? "countdown-fill ring-2 ring-offset-2 ring-current" : "ring-2 ring-offset-2 ring-current")
+                      : ""
+                    }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* EVALUATE BUTTON */}
-        {userAnswer.trim() && (!evaluationResult || answerModified) && (
-          <Button
-            onClick={() => handleEvaluate()}
-            disabled={isEvaluating}
-            className="btn-blue w-full mt-3 py-4 text-lg"
-          >
-            <BrainCircuit className="w-5 h-5" />
-            {isEvaluating ? "Evaluating..." : "Evaluate Answer"}
-          </Button>
-        )}
+        {/* SESSION RAIL — everything about the SESSION rather than the card in hand:
+            which deck, hands-free, where you are in the queue, the daily target, and
+            (once the answer is revealed) this card's own record. Its own column beside
+            the card on a wide screen; above and below the card when stacked. */}
+        <div className="rune-study-rail">
 
-        {/* EVALUATION RESULT */}
-        {evaluationResult && (
-          <div className={`alert-${evaluationResult.correct ? "green" : evaluationResult.suggestedRating === 0 ? "yellow" : "red"} mt-3`}>
-            <div className="flex items-center justify-between">
-              <p className="font-semibold">
-                {evaluationResult.correct ? "Correct" : evaluationResult.suggestedRating === 0 ? "Unscorable" : "Incorrect"}
-              </p>
+          {/* SESSION PANEL */}
+          <div className="rune-study-session-panel">
+
+            {/* SESSION HEADER */}
+            <div className="flex items-center justify-between mb-2">
+
+              {/* SOURCE NAME + HANDS-FREE TOGGLE */}
+              <div className="flex items-center gap-3 rune-study-header-main">
+                <p className="text-subtle rune-study-deck-name">{sourceName}</p>
+                <label className="flex items-center gap-1 cursor-pointer text-subtle text-xs rune-study-handsfree">
+                  <input
+                    type="checkbox"
+                    checked={handsFree}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        handsFreeRef.current = true;
+                        onHandsFreeChange(true);
+                      } else {
+                        disableHandsFree();
+                      }
+                    }}
+                  />
+                  Hands-free
+                </label>
+              </div>
+
+              {/* QUIT BUTTON */}
               <Button
-                onClick={() => {
-                  if (isSpeaking) { stopSpeakingTracked(); disableHandsFree(); }
-                  else { speakFrom(SpeakingSource.Evaluation, evaluationResult.explanation); }
-                }}
-                className="btn-link !p-0 text-inherit opacity-60 hover:opacity-100"
-                title={speakingSource === SpeakingSource.Evaluation ? "Stop speaking" : "Speak evaluation"}
+                onClick={handleQuit}
+                className="btn-link"
+                title="Quit session"
               >
-                {speakingSource === SpeakingSource.Evaluation ? <CircleStop className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                <X className="w-4 h-4" />
               </Button>
             </div>
-            <p className="text-sm mt-1">{evaluationResult.explanation}</p>
+
+            {/* PROGRESS INFO */}
+            <div className="flex items-center justify-between mb-1.5 rune-study-meta">
+              <span className="text-subtle">
+                CARD {currentIndex + 1} / {sessionCards.length}
+              </span>
+              <span className="text-subtle flex gap-2 rune-study-tally">
+                <span className="text-alert-green">{sessionCards.filter((c) => c.sessionRating === 4).length} easy</span>
+                <span className="text-alert-green">{sessionCards.filter((c) => c.sessionRating === 3).length} good</span>
+                <span className="text-alert-yellow">{sessionCards.filter((c) => c.sessionRating === 2).length} hard</span>
+                <span className="text-alert-red">{sessionCards.filter((c) => c.sessionRating === 1).length} again</span>
+              </span>
+            </div>
+
+            {/* DAILY TARGET INFO (soft — global goal across all decks; max renew only warns) */}
+            <div className="flex items-center justify-between mb-1.5 text-subtle text-sm rune-study-meta">
+              <span className={goalMet ? "text-alert-green" : ""}>
+                Today · all decks {reviewedToday} / {preferences.dailyGoal}{goalMet ? " — goal met" : ""}
+              </span>
+              {overMaxRenew && (
+                <span className="text-alert-yellow">Past daily max of {preferences.dailyMaxRenew}</span>
+              )}
+            </div>
+
+            {/* PROGRESS BAR */}
+            <div className="flashcard-progress-bar mb-5">
+              {sessionCards.map((card, i) => (
+                <div
+                  key={card.id}
+                  className={`flashcard-progress-segment ${card.sessionRating !== null
+                    ? ratingToSegmentClass(card.sessionRating)
+                    : i === currentIndex
+                      ? "flashcard-progress-segment-active"
+                      : ""
+                    }`}
+                />
+              ))}
+            </div>
           </div>
-        )}
 
-        {/* NAVIGATION — fixed position across the flip (see the rating buttons below) */}
-        <div className="flex gap-2 mt-5">
+          {/* CARD HISTORY — this card's own record: where its SRS scheduling stands and
+              every rating it has ever been given. Revealed with the answer, never before:
+              on the question face it would hand you the card's difficulty before you had
+              tried to recall it. Last in the rail, so it appears beside the answer on a
+              wide screen and below the rating buttons when the layout stacks. The data is
+              already warmed by the preload buffer above, so the flip shows it immediately
+              rather than a spinner. */}
+          {isFlipped && currentCard && (
+            <div className="card rune-study-history">
 
-          {/* PREV BUTTON */}
-          <Button
-            onClick={handlePrev}
-            disabled={currentIndex === 0 || isRecording || isTranscribing}
-            className="btn-off flex-1"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            PREV
-          </Button>
+              {/* CARD HEADER */}
+              <div className="card-header">
+                <h2 className="text-card-title">
+                  <History className="w-5 h-5" />
+                  Card History
+                </h2>
 
-          {/* NEXT BUTTON — also doubles as "accept suggested rating / skip" when an
-              unaccepted evaluation is showing, and as "finish" on the last card
-              (nothing further to advance to), so it stays enabled the whole session —
-              there's always something for it to do, now that there's no dedicated
-              Skip button. */}
-          <Button
-            onClick={handleNext}
-            disabled={isRecording || isTranscribing}
-            className="btn-off flex-1"
-          >
-            {currentIndex >= sessionCards.length - 1 && !(evaluationResult && !currentCardAlreadyRated) ? "FINISH" : "NEXT"}
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+                {/* HELP — Ease and Interval are scheduler internals, and the numbers here
+                    are this card's alone, not the session's; neither is guessable. */}
+                <HelpButton
+                  title="Card History"
+                  sections={[
+                    { heading: "What this is", body: "The record of the card you are looking at — every time you have rated it before, and where its scheduling currently stands. It appears with the answer, so the card's past difficulty can't give away the answer before you have tried to recall it." },
+                    { heading: "Reviews / Good or better", body: "How many times this card has been rated, and the share of those ratings that were Good or Easy. A low percentage on a card you keep seeing is the sign it needs rewording rather than more repetitions." },
+                    { heading: "Ease and Interval", body: "The scheduler's current state for this card: Ease is the multiplier the gap grows by (it drops when you rate Again or Hard), Interval is the gap it last scheduled. Next Review is when the card would next come due — \"Due\" means it is due now, which it is while you are studying it." },
+                    { heading: "Recall over time", body: "Each past rating plotted against when it happened — Again at the floor, Easy at the ceiling. The x axis is real time, so as a card is learned its dots spread out to the right. Tap a dot for its date and rating." },
+                    { heading: "The table", body: "Every rating, newest first, with the time it took to answer where that was recorded. A rating you give this session appears here immediately, so stepping back to a card with PREV shows what you just gave it." },
+                  ]}
+                />
+              </div>
+
+              {/* CARD CONTENT */}
+              <div className="card-content">
+                <CardHistoryPanel
+                  card={currentCard}
+                  reviews={currentCardHistory ?? []}
+                  isLoading={!currentCardHistory && !currentCardHistoryFailed}
+                  loadFailed={currentCardHistoryFailed}
+                  collapsedRows={HISTORY_COLLAPSED_ROWS}
+                  emptyBody="This is the first time this card has come up in a study session."
+                  failureBody="Rate the card as usual — only this history is missing."
+                />
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* RATING BUTTONS — below the navigation, not above it: they only exist on the
-            answer face, so with the nav underneath them the flip moved PREV/NEXT out from
-            under the thumb mid-session. */}
-        {isFlipped && (
-          <div className="flex gap-2 mt-3">
-            {[
-              { rating: 1, label: "AGAIN", className: "alert-red" },
-              { rating: 2, label: "HARD", className: "alert-yellow" },
-              { rating: 3, label: "GOOD", className: "alert-green" },
-              { rating: 4, label: "EASY", className: "alert-blue" },
-            ].map(({ rating, label, className }) => (
-              <button
-                key={rating}
-                onClick={(e) => { e.stopPropagation(); handleRate(rating); }}
-                style={{ "--countdown-fill-duration": `${preferences.autoAdvanceSeconds}s` } as CSSProperties}
-                className={`${className} cursor-pointer text-center flex-1 ${currentCard.sessionRating === rating
-                  ? "ring-2 ring-offset-2 ring-current"
-                  : evaluationResult?.suggestedRating === rating && !currentCardAlreadyRated
-                    ? (autoRateCountdown ? "countdown-fill ring-2 ring-offset-2 ring-current" : "ring-2 ring-offset-2 ring-current")
-                    : ""
-                  }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* CARD HISTORY — this card's own record: where its SRS scheduling stands and
-            every rating it has ever been given. Revealed with the answer (there is no
-            point showing how a card has gone before you have tried to recall it, and on
-            the front face it would leak the difficulty), and placed below the rating
-            buttons and navigation so it informs the rating without displacing it. The
-            data is already warmed by the preload buffer above, so the flip shows it
-            immediately rather than a spinner. */}
-        {isFlipped && currentCard && (
-          <div className="card mt-4" data-rune-below-fold="true">
-
-            {/* CARD HEADER */}
-            <div className="card-header">
-              <h2 className="text-card-title">
-                <History className="w-5 h-5" />
-                Card History
-              </h2>
-
-              {/* HELP — Ease and Interval are scheduler internals, and the numbers here
-                  are this card's alone, not the session's; neither is guessable. */}
-              <HelpButton
-                title="Card History"
-                sections={[
-                  { heading: "What this is", body: "The record of the card you are looking at — every time you have rated it before, and where its scheduling currently stands. It appears with the answer, so the card's past difficulty can't give away the answer before you have tried to recall it." },
-                  { heading: "Reviews / Good or better", body: "How many times this card has been rated, and the share of those ratings that were Good or Easy. A low percentage on a card you keep seeing is the sign it needs rewording rather than more repetitions." },
-                  { heading: "Ease and Interval", body: "The scheduler's current state for this card: Ease is the multiplier the gap grows by (it drops when you rate Again or Hard), Interval is the gap it last scheduled. Next Review is when the card would next come due — \"Due\" means it is due now, which it is while you are studying it." },
-                  { heading: "Recall over time", body: "Each past rating plotted against when it happened — Again at the floor, Easy at the ceiling. The x axis is real time, so as a card is learned its dots spread out to the right. Tap a dot for its date and rating." },
-                  { heading: "The table", body: "Every rating, newest first, with the time it took to answer where that was recorded. A rating you give this session appears here immediately, so stepping back to a card with PREV shows what you just gave it." },
-                ]}
-              />
-            </div>
-
-            {/* CARD CONTENT */}
-            <div className="card-content">
-              <CardHistoryPanel
-                card={currentCard}
-                reviews={currentCardHistory ?? []}
-                isLoading={!currentCardHistory && !currentCardHistoryFailed}
-                loadFailed={currentCardHistoryFailed}
-                collapsedRows={HISTORY_COLLAPSED_ROWS}
-                emptyBody="This is the first time this card has come up in a study session."
-                failureBody="Rate the card as usual — only this history is missing."
-              />
-            </div>
-          </div>
-        )}
 
         {/* MANAGE CARD MODAL (edit from study session) */}
         <ManageCardModal
