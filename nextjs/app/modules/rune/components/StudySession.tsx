@@ -42,6 +42,29 @@ const IMAGE_PRELOAD_BUFFER = 1;
 // card is in view (and one card early), so flipping never shows a spinner.
 const HISTORY_PRELOAD_BUFFER = 1;
 
+// Flip animation timings (desktop only — see flipTo). The face swaps at the
+// halfway point, where the card is edge-on and its content isn't visible, so the
+// two halves read as one turn even though only one face is ever mounted.
+//
+// The turn is driven from here with the Web Animations API rather than a CSS class,
+// because the sequence already lives in this component: it has to pause at edge-on,
+// swap the mounted face, and only then play the second half. Keyframes would still
+// need every one of those beats timed from JS.
+const FLIP_OUT_MS = 130;
+const FLIP_IN_MS = 170;
+const FLIP_PERSPECTIVE = "1400px";
+// Just shy of 90°, where a zero-width card can drop out of the compositor.
+const FLIP_EDGE_DEGREES = 88;
+
+// How long the card takes to grow or shrink to the new face's height. The blocks
+// below it — the answer field, the navigation and the rating row — ride that
+// change, so they slide into their new position instead of jumping. Deliberately
+// longer than the turn itself, on a decelerating curve: the slide carries on a
+// beat after the card lands and eases to a stop rather than halting on the frame
+// the transition ends.
+const CARD_RESIZE_MS = 340;
+const CARD_RESIZE_EASING = "cubic-bezier(0.33, 1, 0.68, 1)";
+
 // Ratings the in-session history table shows before its "Show all" toggle. Five
 // is enough to see the recent run without the section pushing the rating buttons
 // and navigation off a phone screen.
@@ -166,6 +189,12 @@ export default function StudySession({
   // Card ids whose history has been requested, so the buffer never fires a second
   // fetch for a card it already warmed (or is mid-flight on).
   const historyRequestedRef = useRef<Set<string>>(new Set());
+
+  // Timers driving the two halves of the flip, and the animation currently playing,
+  // so a second flip (or a card change) can cancel one mid-run instead of leaving
+  // the card edge-on.
+  const flipTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const flipAnimationRef = useRef<Animation | null>(null);
 
   // Elements the card-height cap is measured from (see the layout effect below).
   const studyColumnRef = useRef<HTMLElement | null>(null);
@@ -395,6 +424,13 @@ export default function StudySession({
   // currentIndex) because handleSkip reorders the queue without moving currentIndex — the
   // card AT that index changes even though the number doesn't.
   useEffect(() => {
+    // A card change replaces both faces, so any half-played flip is abandoned —
+    // otherwise the new card could mount edge-on and stay there.
+    clearFlipTimers();
+    if (flashcardRef.current) {
+      flashcardRef.current.style.height = "";
+      flashcardRef.current.style.transition = "";
+    }
     cancelRecording();
     stopSpeakingTracked();
     clearTranscript();
@@ -549,7 +585,7 @@ export default function StudySession({
     // A card with no answer has nothing to grade against — the LLM would be scoring
     // against an empty string. Just reveal the face and let the user self-rate instead of
     // asking for a meaningless verdict.
-    if (!currentCard.back.trim()) { setIsFlipped(true); return; }
+    if (!currentCard.back.trim()) { flipTo(true); return; }
 
     setIsEvaluating(true);
     try {
@@ -578,7 +614,7 @@ export default function StudySession({
       if (preferences.evaluationSoundEnabled) playEvaluationChime(result.suggestedRating);
 
       // Reveal the answer
-      setIsFlipped(true);
+      flipTo(true);
     } catch (error) {
       console.error("Evaluation error:", error);
     } finally {
@@ -669,10 +705,97 @@ export default function StudySession({
     }
   };
 
+  // Animation is desktop-only (mobile keeps the instant swap — a turning card under
+  // a thumb is motion for its own sake) and never overrides a reduced-motion request.
+  const animatesFlip = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(min-width: 640px)").matches &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const clearFlipTimers = useCallback(() => {
+    for (const timer of flipTimersRef.current) clearTimeout(timer);
+    flipTimersRef.current = [];
+    flipAnimationRef.current?.cancel();
+    flipAnimationRef.current = null;
+  }, []);
+
+  // One half of the turn. `fill: "forwards"` on the outward half holds the card
+  // edge-on for the frame the face swaps on, so it never flashes back flat.
+  const playHalfTurn = (card: HTMLElement, half: "out" | "in") => {
+    if (typeof card.animate !== "function") return null;
+    const flat = `perspective(${FLIP_PERSPECTIVE}) rotateY(0deg)`;
+    const edge = (sign: number) => `perspective(${FLIP_PERSPECTIVE}) rotateY(${sign * FLIP_EDGE_DEGREES}deg)`;
+    return half === "out"
+      ? card.animate([{ transform: flat }, { transform: edge(-1) }],
+          { duration: FLIP_OUT_MS, easing: "ease-in", fill: "forwards" })
+      : card.animate([{ transform: edge(1) }, { transform: flat }],
+          { duration: FLIP_IN_MS, easing: "ease-out" });
+  };
+
+  // Turn the card over. Only one face is mounted at a time (their natural heights
+  // differ, which is the whole point of the layout above), so the "flip" is two
+  // halves: rotate to edge-on, swap the face, rotate back. The height the new face
+  // wants is animated to by the layout effect below, so whatever sits under the card
+  // slides rather than jumps.
+  const flipTo = useCallback((next: boolean) => {
+    if (next === isFlipped) return;
+    if (!animatesFlip()) { setIsFlipped(next); return; }
+
+    // Pin the current height across the swap; the layout effect below transitions
+    // it to whatever the incoming face wants. Mid-flight this reads the animated
+    // height, so re-flipping halfway through picks up where the card actually is.
+    const card = flashcardRef.current;
+    if (card) card.style.height = `${card.offsetHeight}px`;
+
+    clearFlipTimers();
+    if (card) flipAnimationRef.current = playHalfTurn(card, "out");
+
+    flipTimersRef.current.push(setTimeout(() => {
+      setIsFlipped(next);
+      const flipped = flashcardRef.current;
+      if (flipped) {
+        flipAnimationRef.current?.cancel();
+        flipAnimationRef.current = playHalfTurn(flipped, "in");
+      }
+    }, FLIP_OUT_MS));
+  }, [isFlipped, clearFlipTimers]);
+
   // Flip the card
   const handleFlip = useCallback(() => {
-    setIsFlipped((f) => !f);
-  }, []);
+    flipTo(!isFlipped);
+  }, [flipTo, isFlipped]);
+
+  // GROW/SHRINK TO THE NEW FACE — runs only when flipTo pinned a height. Measures
+  // what the freshly-mounted face wants, then transitions from the pinned height to
+  // it; clearing the inline height at the end hands sizing back to the flex rules
+  // (and to --rune-card-max) rather than leaving the card frozen at one height.
+  useLayoutEffect(() => {
+    const card = flashcardRef.current;
+    if (!card || !card.style.height) return;
+
+    const from = card.style.height;
+    card.style.height = "auto";
+    const to = `${card.offsetHeight}px`;
+    card.style.height = from;
+    void card.offsetHeight; // flush the reflow so the transition has a start value
+
+    card.style.transition = `height ${CARD_RESIZE_MS}ms ${CARD_RESIZE_EASING}`;
+    card.style.height = to;
+
+    const release = () => {
+      card.style.height = "";
+      card.style.transition = "";
+      card.removeEventListener("transitionend", release);
+    };
+    card.addEventListener("transitionend", release);
+    // Belt and braces: a height that doesn't actually change fires no transitionend,
+    // which would leave the card pinned for good.
+    const safety = setTimeout(release, CARD_RESIZE_MS + 60);
+    // Only drop the listener/timer here — releasing the height would wipe the pin
+    // flipTo just set for the next flip, and the run after this one would have
+    // nothing to animate from.
+    return () => { clearTimeout(safety); card.removeEventListener("transitionend", release); };
+  }, [isFlipped]);
 
   // Rate a card
   const handleRate = useCallback(
