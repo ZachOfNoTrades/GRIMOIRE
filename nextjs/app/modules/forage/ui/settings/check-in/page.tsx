@@ -61,8 +61,14 @@ export default function ForageCheckinRemindersPage() {
     setIsTesting(true);
     try {
       const res = await fetch(`/modules/forage/api/settings/check-in/test`, { method: "POST" });
-      if (res.ok) toast.success("Test reminder sent");
-      else toast.error("Couldn't send — notifications not configured");
+      if (res.ok) {
+        toast.success("Test reminder sent");
+      } else {
+        // The server knows exactly why (no Gmail connected, revoked grant, send rejected) and
+        // each of those needs a different fix, so show its reason instead of one blanket line.
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Couldn't send test reminder");
+      }
     } catch {
       toast.error("Couldn't send test reminder");
     } finally {

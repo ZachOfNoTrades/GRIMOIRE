@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -34,6 +35,7 @@ import {
   CalendarClock,
   Replace,
   ArrowDownUp,
+  CookingPot,
   Link as LinkIcon,
   Download,
   ExternalLink,
@@ -57,6 +59,8 @@ import {
   byNutrientOrder,
 } from "../utils/nutrientLedger";
 import { LabelOcrDraft } from "../types/labelOcr";
+import RecipeBuildPicker from "./recipes/RecipeBuildPicker";
+import { useRecipeBuilder } from "./recipes/useRecipeBuilder";
 
 // One Open Food Facts search suggestion, as returned by the module's
 // /api/foods/openfoodfacts lane (mirrors OpenFoodFactsSuggestion server-side).
@@ -67,14 +71,42 @@ type OffSuggestion = {
   quantity: string | null;
   kcal_per_100: number | null;
 };
+
+// The `?code=<upc>` half of the same lane: one product, already normalized into
+// the create-wizard draft shape (plus its provenance). This is what a barcode
+// scan that missed the library gets back.
+type OffCodeDraft = LabelOcrDraft & {
+  data_source_url: string | null;
+  image_url: string | null;
+};
+
+// Energy line for an Open Food Facts code lookup, on whatever basis the record
+// was entered in. The 100 g/ml case is spelled out (matching the search lane's
+// "kcal/100" rows); anything else is per the serving the record states, whose
+// exact wording lives in the wizard the row opens.
+function offEnergyLabel(draft: OffCodeDraft): string {
+  if (draft.kcal_per_serving === null) return "";
+  const basis = draft.servings[0];
+  const per =
+    basis && basis.units_per_serving === 100 && (basis.unit === "g" || basis.unit === "ml")
+      ? `100 ${basis.unit}`
+      : "serving";
+  return `${Math.round(draft.kcal_per_serving)} kcal/${per}`;
+}
 import { FOOD_ICONS, resolveFoodIcon } from "../lib/foodIcons";
 import { FoodAvatar } from "../components/FoodAvatar";
 import { LiveBarcodeScanner } from "../components/LiveBarcodeScanner";
 import { FoodRecordRow } from "../components/FoodRecordRow";
+import { AmountField } from "../components/AmountField";
+import { ServingUnitOptions } from "../components/ServingUnitOptions";
 import { NutrientMeter, bandDisplay, fmtNutrient, ProgramTargetMark, isProgramTarget, type NutrientBand } from "./nutrition/nutrientMeter";
-import { withVirtualUnits, resolveServingForSave } from "../lib/virtualUnits";
+import { withVirtualUnits, expandVirtualServings, resolveServingForSave } from "../lib/virtualUnits";
+import type { FoodUnit, UnitType } from "../types/unit";
+import { CUSTOM_UNIT_MAX_LEN } from "../types/unit";
+import { UNIT_TYPE_LABELS, UNIT_TYPES, convert, familyOf } from "../lib/unitFamilies";
+import { useUnits, prefetchUnits, setUnitsCache, unitTypeByName, optionGroups } from "../utils/useUnits";
 import { selectOnFocus, blurOnEnter, focusOnEnter, useBlurActiveInputOnScroll } from "@/lib/inputBehavior";
-import { fmtAmount } from "../lib/format";
+import { fmtAmount, parseAmount } from "../lib/format";
 import "./foodDetail.css";
 
 // Ephemeral "quick add" food (id prefixed `quick:`) built from raw macros so it can
@@ -119,12 +151,9 @@ function makeQuickFood(
   };
 }
 
-// Selectable units come from the food_units DB table via /api/units.
-// The canonical "serving" is implicit (server-injected) and never appears here.
-interface UnitOption {
-  id: string;
-  name: string;
-}
+// Selectable units come from /api/units — the shared food_units catalog merged with
+// the user's own custom units (see utils/useUnits). The canonical "serving" is
+// implicit (server-injected) and never appears here.
 
 /* ============================================================
    DATE HELPERS
@@ -591,6 +620,10 @@ export function DiaryTimeline({
       // A newer load started while this one was in flight — drop this response
       // rather than painting a stale day over the one being viewed.
       if (sequence !== requestSequence.current) return;
+      // A failed load is an error, not an empty day — without this, `data.entries
+      // ?? []` paints an {error} envelope as a timeline with nothing in it, which
+      // reads exactly like "your food log is gone".
+      if (!r.ok) throw new Error(data?.error || "Failed to load timeline");
       const list: FoodEntry[] = data.entries ?? [];
       setEntries(list);
       setLoadedDate(requestedDate); // entries now belong to this day — unblocks the totals emit
@@ -955,8 +988,12 @@ export function DiaryTimeline({
 
 // Relocate a single logged entry to a chosen date + time. Backend (PUT
 // /api/entries/[id]) already accepts entry_date + entry_time; this is just the
-// picker UI. Seeded from the entry's current values so the user nudges rather
-// than re-enters.
+// picker UI. Move seeds from the entry's current values so the user nudges rather
+// than re-enters. Copy seeds BOTH fields from the clock instead: copying is "I'm
+// eating this again", which happens now, so neither the source entry's time nor
+// its date is ever the answer — and the source day is usually a past one the user
+// was browsing precisely to copy forward, so re-typing today's date every time
+// was the whole friction.
 function MoveEntryModal({
   entry,
   variant = "move",
@@ -970,9 +1007,16 @@ function MoveEntryModal({
   onClose: () => void;
   onSave: (target: { entry_date: string; entry_time: string }) => Promise<void> | void;
 }) {
-  // INPUT
-  const [draftDate, setDraftDate] = useState<string>(entry.entry_date);
-  const [draftTime, setDraftTime] = useState<string>(entry.entry_time.slice(0, 5));
+  // INPUT — copy defaults to right now (today's date + the current clock time);
+  // move keeps the entry's own date and time. A copy therefore lands on today by
+  // default, which is what "I'm eating this again" means; sending it to some other
+  // day stays one date-picker tap away.
+  const [draftDate, setDraftDate] = useState<string>(
+    variant === "copy" ? todayIso() : entry.entry_date
+  );
+  const [draftTime, setDraftTime] = useState<string>(
+    variant === "copy" ? nowHHMM() : entry.entry_time.slice(0, 5)
+  );
 
   // STATE
   const [isSaving, setIsSaving] = useState(false);
@@ -1023,12 +1067,18 @@ function MoveEntryModal({
         </div>
       }
     >
-      {/* PICKERS */}
+      {/* PICKERS — no autofocus, deliberately (same call as the bulk modal): both are
+          native date/time controls, and on Firefox Android focusing one on open pops
+          the OS clock/calendar dialog over a modal the user usually just wants to
+          confirm — doubly so now that copy arrives pre-filled with the right time. */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
 
-        {/* DATE FIELD */}
+        {/* DATE FIELD — the copy variant says where its default came from, so a
+            pre-filled today doesn't read as the source entry's own date. */}
         <label style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-          <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>Date</span>
+          <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>
+            {isCopy ? "Date · defaults to today" : "Date"}
+          </span>
           <input
             type="date"
             className="input-field"
@@ -1038,9 +1088,12 @@ function MoveEntryModal({
           />
         </label>
 
-        {/* TIME FIELD */}
+        {/* TIME FIELD — the copy variant says where its default came from, so a
+            pre-filled clock time doesn't read as the entry's own time. */}
         <label style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-          <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>Time</span>
+          <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>
+            {isCopy ? "Time · defaults to now" : "Time"}
+          </span>
           <input
             type="time"
             className="input-field"
@@ -1059,9 +1112,15 @@ function MoveEntryModal({
    ============================================================ */
 
 // Move or copy every selected entry to a chosen day (and, optionally, a single
-// shared time). "Keep original times" is on by default so the common case —
-// shifting a mis-dated meal to another day — preserves each entry's own time of
-// day; turning it off stamps one uniform time across the whole selection.
+// shared time). The day seeds the same way the single-entry modal does: move
+// starts on the day being viewed (nudge, don't re-enter), copy starts on TODAY —
+// copying a past day's meals is "I'm eating this again", so the source day is
+// never the target. The time field is always shown and always editable — it used to
+// sit behind a "Keep original times" checkbox, which cost a click and hid the
+// control. Blank is the default, and blank means "keep each entry's own time of
+// day" so the common case — shifting a mis-dated meal to another day — never
+// collapses a meal's individual timestamps. Typing a time stamps that one time
+// across the whole selection.
 function BulkRelocateModal({
   variant,
   count,
@@ -1071,32 +1130,32 @@ function BulkRelocateModal({
 }: {
   variant: "move" | "copy";
   count: number;
+  // The day being viewed. Seeds a move; a copy seeds from today instead.
   seedDate: string;
   onClose: () => void;
   onSave: (target: { entry_date: string; entry_time: string | null }) => Promise<void> | void;
 }) {
   // INPUT
-  const [draftDate, setDraftDate] = useState<string>(seedDate);
-  const [keepTimes, setKeepTimes] = useState<boolean>(true);
-  const [draftTime, setDraftTime] = useState<string>(nowHHMM());
+  const [draftDate, setDraftDate] = useState<string>(
+    variant === "copy" ? todayIso() : seedDate
+  );
+  // Empty = leave every entry on its own time of day.
+  const [draftTime, setDraftTime] = useState<string>("");
 
   // STATE
   const [isSaving, setIsSaving] = useState(false);
   const isCopy = variant === "copy";
   const noun = count === 1 ? "entry" : "entries";
+  const timeNoun = count === 1 ? "its original time" : "each entry's original time";
 
   async function handleSubmit() {
     if (!draftDate) {
       toast.error("Pick a date");
       return;
     }
-    if (!keepTimes && !draftTime) {
-      toast.error("Pick a time");
-      return;
-    }
     setIsSaving(true);
     try {
-      await onSave({ entry_date: draftDate, entry_time: keepTimes ? null : draftTime });
+      await onSave({ entry_date: draftDate, entry_time: draftTime || null });
     } finally {
       setIsSaving(false);
     }
@@ -1128,12 +1187,17 @@ function BulkRelocateModal({
         </div>
       }
     >
-      {/* PICKERS */}
+      {/* PICKERS — no autofocus: both fields are native date/time pickers, and
+          focusing one on open pops a picker/keyboard over a modal the user may
+          have opened only to change the other field. */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
 
-        {/* DATE FIELD */}
+        {/* DATE FIELD — copy names its default so a pre-filled today doesn't read
+            as the day the selection was made on. */}
         <label style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-          <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>Date</span>
+          <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>
+            {isCopy ? "Date · defaults to today" : "Date"}
+          </span>
           <input
             type="date"
             className="input-field"
@@ -1143,30 +1207,48 @@ function BulkRelocateModal({
           />
         </label>
 
-        {/* KEEP-TIMES TOGGLE — when on, each entry keeps its own time of day */}
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={keepTimes}
-            onChange={(e) => setKeepTimes(e.target.checked)}
-            style={{ accentColor: "var(--color-primary)", width: "1rem", height: "1rem" }}
-          />
-          <span style={{ fontSize: "0.875rem" }}>Keep each entry&apos;s original time</span>
-        </label>
+        {/* TIME FIELD — always available; blank keeps every entry on its own time.
+            Not wrapped in a <label> because the Clear button sits in its header row,
+            and a button inside a label also forwards the click to the input. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
 
-        {/* TIME FIELD — only when stamping one shared time across the selection */}
-        {!keepTimes && (
-          <label style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-            <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>Time</span>
-            <input
-              type="time"
-              className="input-field"
-              value={draftTime}
-              onChange={(e) => setDraftTime(e.target.value)}
-              aria-label="Shared time"
-            />
-          </label>
-        )}
+          {/* TIME LABEL ROW */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", minHeight: "1.25rem" }}>
+            <label className="text-subtle" htmlFor="bulk-relocate-time" style={{ fontSize: "0.8125rem" }}>Time</label>
+
+            {/* CLEAR — restores the keep-original-times default. Only rendered once a
+                time is set, and needed because Firefox Android's time picker gives no
+                way to empty the field once it holds a value. */}
+            {draftTime && (
+              <Button
+                className="btn-link"
+                onClick={() => setDraftTime("")}
+                title={`Clear the time and keep ${timeNoun}`}
+                aria-label={`Clear the time and keep ${timeNoun}`}
+                style={{ fontSize: "0.75rem" }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          <input
+            id="bulk-relocate-time"
+            type="time"
+            className="input-field"
+            value={draftTime}
+            onChange={(e) => setDraftTime(e.target.value)}
+            aria-label="Shared time"
+            title={`Leave blank to keep ${timeNoun}`}
+          />
+
+          {/* TIME HINT */}
+          <span className="text-subtle" style={{ fontSize: "0.75rem" }}>
+            {draftTime
+              ? `Stamps this time on ${count === 1 ? "the entry" : `all ${count} ${noun}`}.`
+              : `Blank keeps ${timeNoun}.`}
+          </span>
+        </div>
       </div>
     </Modal>
   );
@@ -1177,6 +1259,10 @@ function BulkRelocateModal({
    ============================================================ */
 
 // Cache of food.servings lookups, shared across all HourGroup instances on the page.
+// Stored ALREADY EXPANDED with virtual units (see lib/virtualUnits), so the timeline's
+// inline editor offers the same unit list as the logger — a food anchored on g can be
+// re-measured in oz/lb/kg, not just the units literally stored on it. handleSave folds
+// a virtual pick back onto its real base row before persisting.
 const __foodServingsCache = new Map<string, FoodServing[]>();
 const __foodServingsInFlight = new Map<string, Promise<void>>();
 
@@ -1188,7 +1274,7 @@ function prefetchFoodServings(foodId: string): Promise<void> {
     .then((r) => (r.ok ? r.json() : null))
     .then((data: Food | null) => {
       const list = data && Array.isArray(data.servings) ? data.servings : [];
-      __foodServingsCache.set(foodId, list);
+      __foodServingsCache.set(foodId, expandVirtualServings(foodId, list));
     })
     .catch(() => {
       __foodServingsCache.set(foodId, []);
@@ -1331,7 +1417,10 @@ function HourGroup({
       .then((r) => (r.ok ? r.json() : null))
       .then((data: Food | null) => {
         if (!data) return;
-        const list = Array.isArray(data.servings) ? data.servings : [];
+        const list = expandVirtualServings(
+          e.food_id!,
+          Array.isArray(data.servings) ? data.servings : []
+        );
         __foodServingsCache.set(e.food_id!, list);
         // Only apply if user hasn't moved on to another entry
         setExpandedId((cur) => {
@@ -1362,7 +1451,7 @@ function HourGroup({
       setDraftServingId(nextServingId);
       return;
     }
-    const qNum = Number(draftQuantity);
+    const qNum = parseAmount(draftQuantity);
     const prevUPS = Number(prevServ.units_per_serving);
     const nextUPS = Number(nextServ.units_per_serving);
     if (!Number.isFinite(qNum) || qNum <= 0 || prevUPS <= 0 || nextUPS <= 0) {
@@ -1379,7 +1468,7 @@ function HourGroup({
   // the chip's kcal/P/F/C update as the user types or swaps units (logger-style).
   // Falls back to the stored macros when the amount/servings can't be resolved.
   function editLiveMacros(e: FoodEntry) {
-    const qDraft = Number(draftQuantity);
+    const qDraft = parseAmount(draftQuantity);
     let factor = 1;
     if (e.quantity > 0 && Number.isFinite(qDraft) && qDraft > 0) {
       if (e.food_id && availableServings.length > 0) {
@@ -1422,7 +1511,7 @@ function HourGroup({
 
   async function handleSave(e: FoodEntry) {
     const raw = draftQuantity.trim();
-    const qNum = Number(raw);
+    const qNum = parseAmount(raw);
     // Explicitly typing 0 (e.g. "0", "0.0") removes the entry — a natural
     // "set the amount to none" → delete gesture. Guard on a non-empty raw
     // string so a cleared field (Number("") === 0) does NOT delete; it still
@@ -1438,9 +1527,16 @@ function HourGroup({
     }
     setIsSaving(true);
     try {
-      const patch: { quantity: number; serving_id?: string | null } = { quantity: qNum };
-      if (e.food_id && draftServingId !== (e.serving_id ?? null)) {
-        patch.serving_id = draftServingId;
+      // A virtual unit ("oz" synthesized off the food's real g row) is not a serving
+      // the DB knows about, so fold the pick back onto its base row before saving —
+      // 6 oz of a g-anchored food persists as 170.1 g against the g row. Real serving
+      // picks pass through untouched. Compare the RESOLVED id, not the draft one, or
+      // a virtual pick that resolves back to the entry's existing row would drop its
+      // serving_id from the patch while the converted quantity still went through.
+      const resolved = resolveServingForSave(availableServings, draftServingId, qNum);
+      const patch: { quantity: number; serving_id?: string | null } = { quantity: resolved.quantity };
+      if (e.food_id && resolved.serving_id !== (e.serving_id ?? null)) {
+        patch.serving_id = resolved.serving_id;
       }
       await onSaveEntry(e.id, patch);
       setExpandedId(null);
@@ -1539,15 +1635,12 @@ function HourGroup({
                     bottom row; desktop: right column. */}
                 <div className="timeline-edit-controls">
 
-                    {/* AMOUNT INPUT */}
-                    <input
-                      type="number"
-                      step="0.1"
-                      inputMode="decimal"
+                    {/* AMOUNT INPUT — fraction-capable ("1 1/2"); see AmountField */}
+                    <AmountField
                       className="input-field fg-inline-amt"
                       value={draftQuantity}
-                      onChange={(ev) => {
-                        setDraftQuantity(ev.target.value);
+                      onValueChange={(next) => {
+                        setDraftQuantity(next);
                         setDraftQuantityDirty(true);
                       }}
                       onFocus={selectOnFocus}
@@ -1573,11 +1666,7 @@ function HourGroup({
                         disabled={availableServings.length === 0}
                       >
                         {availableServings.length > 0 ? (
-                          availableServings.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.unit}
-                            </option>
-                          ))
+                          <ServingUnitOptions servings={availableServings} />
                         ) : (
                           <option value={e.serving_id ?? ""}>{e.serving_unit ?? "g"}</option>
                         )}
@@ -1861,6 +1950,7 @@ function HourGroup({
                 {/* COPY TO DATE/TIME — log a duplicate of this entry at a chosen day/time */}
                 <button
                   type="button"
+                  title="Log a duplicate of this entry — the time defaults to now, the date to this entry's day"
                   onClick={() => {
                     setMenuFor(null);
                     onCopy(e);
@@ -2094,7 +2184,6 @@ function RecipeIngredientsSection({ foodId, loggedServings = 0 }: { foodId: stri
       {/* ROWS — inert read-only ingredient cards (no navigation from the sheet) */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {recipe.ingredients.map((row) => {
-          const RowIcon = resolveFoodIcon(row.food_icon ?? null);
           // Placeholder rows (unresolved imports) have no resolved food: show
           // the free-text name + quantity text, no derived macros.
           const isPlaceholder = !row.ingredient_food_id;
@@ -2103,8 +2192,12 @@ function RecipeIngredientsSection({ foodId, loggedServings = 0 }: { foodId: stri
             /* INGREDIENT ROW (read-only) */
             <div key={row.id} className="sub-card fg-ing fg-ing-row fg-ing-row-static">
 
-              {/* ICON */}
-              <RowIcon className="fg-ing-icon" />
+              {/* AVATAR — the ingredient food's product photo, its icon as fallback */}
+              <FoodAvatar
+                food={{ id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null }}
+                variant="inline"
+                className="fg-ing-icon"
+              />
 
               {/* BODY — name/brand stacked above the derived macros */}
               <div className="fg-ing-titles">
@@ -2185,7 +2278,7 @@ function FoodDetails({
 }) {
   const serving = food.servings.find((s) => s.id === servingId);
   const ups = serving ? Number(serving.units_per_serving) : 0;
-  const qty = Number(quantity);
+  const qty = parseAmount(quantity);
   const servingsEaten = ups > 0 && Number.isFinite(qty) && qty > 0 ? qty / ups : 0;
 
   const kcal = (Number(food.kcal_per_serving) || 0) * servingsEaten;
@@ -2492,7 +2585,7 @@ function FoodDetailsSheet({
   );
 
   const serving = food.servings.find((s) => s.id === servingId) ?? null;
-  const qNum = Number(quantity);
+  const qNum = parseAmount(quantity);
 
   // Serving-preserving unit switch (mirrors updateCollectionUnit): keep the same
   // real amount eaten when swapping units.
@@ -2534,14 +2627,11 @@ function FoodDetailsSheet({
             ready to type (the field users almost always set when logging a food),
             matching the timeline inline editor. onFocus=selectOnFocus selects the
             seeded amount so the first keystroke replaces it. */}
-        <input
+        <AmountField
           autoFocus
-          type="number"
-          step="0.1"
-          inputMode="decimal"
           className="input-field"
           value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
+          onValueChange={setQuantity}
           onFocus={selectOnFocus}
           aria-label="Amount"
           style={{ flex: "0 0 5rem", textAlign: "center" }}
@@ -2556,9 +2646,7 @@ function FoodDetailsSheet({
           style={{ flex: 1, minWidth: "3.5rem" }}
         >
           {food.servings.length === 0 && <option value="" disabled>—</option>}
-          {food.servings.map((s) => (
-            <option key={s.id} value={s.id}>{s.unit}</option>
-          ))}
+          <ServingUnitOptions servings={food.servings} />
         </select>
       </div>
 
@@ -2695,7 +2783,7 @@ function PlateOverlay({
       for (const c of collection) {
         const serving = c.food.servings.find((s) => s.id === c.servingId);
         const ups = serving ? Number(serving.units_per_serving) : 0;
-        const qty = Number(c.quantity);
+        const qty = parseAmount(c.quantity);
         if (!Number.isFinite(qty) || qty <= 0 || ups <= 0) continue;
         const servings = qty / ups;
         const list = c.food.nutrients ?? foodNutrientsById.get(c.food.id) ?? [];
@@ -2722,7 +2810,7 @@ function PlateOverlay({
     (acc, c) => {
       const serving = c.food.servings.find((s) => s.id === c.servingId);
       const ups = serving ? Number(serving.units_per_serving) : 0;
-      const qty = Number(c.quantity);
+      const qty = parseAmount(c.quantity);
       if (!Number.isFinite(qty) || qty <= 0 || ups <= 0) return acc;
       const servings = qty / ups;
       return {
@@ -2951,6 +3039,14 @@ export function AddEntryModal({
 
   // DATA
   const [allFoods, setAllFoods] = useState<Food[]>([]);
+  // Every list payload the sheet has already loaded, keyed `<tab>|<query>`. The
+  // Search and Recipes tabs share one search box which CLEARS on every tab change
+  // (see selectPicker), so tabbing away after typing and coming back always lands
+  // on a query that was loaded seconds earlier — a single-slot "last key" memo
+  // misses exactly that case, which is the one the user hits. Serving from here
+  // re-renders the list in the same frame as the tap instead of blanking it to a
+  // spinner for an identical round trip.
+  const listCacheRef = useRef(new Map<string, Food[] | Recipe[]>());
   const [foodsLoading, setFoodsLoading] = useState<boolean>(false);
   const [recentFoods, setRecentFoods] = useState<Food[]>([]);
   // Foods the user most often logs around the current hour-of-day — surfaced in a
@@ -2961,8 +3057,8 @@ export function AddEntryModal({
   // records injected directly beneath that food's row (not a separate widget): add
   // cereal, and milk slides in under it ready to add at its usual amount.
   const [pairedByAnchor, setPairedByAnchor] = useState<Record<string, Food[]>>({});
-  // Recipes for the Recipes tab — ordered server-side per `recipeSort`
-  // (last used / created / A–Z); see the recipes load effect below.
+  // Recipes for the Recipes tab — reordered client-side per `recipeSort`
+  // (last used / created / modified / A–Z); see the recipes load effect below.
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [recipesLoading, setRecipesLoading] = useState<boolean>(false);
   // Daily kcal eaten + active target for this date — shown in the header pill.
@@ -2991,10 +3087,12 @@ export function AddEntryModal({
   // Sort order for the Recipes tab list — applied client-side (see sortedRecipes).
   // Cycled via the panel toggle and remembered across sessions in localStorage so
   // it opens on the user's last-chosen order; defaults to 'last_used'.
-  const [recipeSort, setRecipeSort] = useState<"last_used" | "created" | "name">(() => {
+  const [recipeSort, setRecipeSort] = useState<"last_used" | "created" | "modified" | "name">(() => {
     if (typeof window === "undefined") return "last_used";
     const saved = window.localStorage.getItem("forage.recipeSort");
-    return saved === "created" || saved === "name" || saved === "last_used" ? saved : "last_used";
+    return saved === "created" || saved === "modified" || saved === "name" || saved === "last_used"
+      ? saved
+      : "last_used";
   });
   // Staged items to log together. Each entry has its own unit + amount.
   // `dirty` tracks whether the user has typed into the amount since the last
@@ -3003,6 +3101,13 @@ export function AddEntryModal({
   const [collection, setCollection] = useState<{ food: Food; servingId: string | null; quantity: string; dirty?: boolean }[]>([]);
   const [quantity, setQuantity] = useState<string>(String(editingEntry?.quantity ?? "1"));
   const [entryTime, setEntryTime] = useState<string>(editingEntry?.entry_time?.slice(0, 5) || defaultTime);
+  // Clock hour the entry is being logged AT — what the "Frequent" suggestions key off.
+  // A time input can sit empty/half-typed mid-edit, so fall back to wall-clock now
+  // rather than sending the server a NaN hour.
+  const entryHour = (() => {
+    const h = Number(entryTime.slice(0, 2));
+    return Number.isInteger(h) && h >= 0 && h <= 23 ? h : new Date().getHours();
+  })();
   const [qName, setQName] = useState(editingEntry?.quick_add_name ?? "");
   const [qKcal, setQKcal] = useState(
     editingEntry && !editingEntry.food_id ? String(Math.round((editingEntry.kcal / editingEntry.quantity) * 10) / 10) : ""
@@ -3039,6 +3144,12 @@ export function AddEntryModal({
   const [offSuggestions, setOffSuggestions] = useState<OffSuggestion[]>([]);
   const [offLoading, setOffLoading] = useState(false);
   const [offPickingCode, setOffPickingCode] = useState<string | null>(null);
+  // OPEN FOOD FACTS FALLBACK, SCAN SIDE — the same lane for a barcode that no
+  // library food carries. Looked up BY CODE rather than by query, so the single
+  // request yields both the row shown under the miss card and the draft the row
+  // opens; tapping it costs no second round-trip.
+  const [scanOffDraft, setScanOffDraft] = useState<OffCodeDraft | null>(null);
+  const [scanOffLoading, setScanOffLoading] = useState(false);
   // Expanded "Your Plate" overlay (MF-style). When true, the modal body is
   // replaced by the plate list + Nutrition section; otherwise the picker
   // content (search/scan/recipes/quick) renders.
@@ -3270,7 +3381,7 @@ export function AddEntryModal({
         const prevServ = c.food.servings.find((s) => s.id === c.servingId) || null;
         const nextServ = c.food.servings.find((s) => s.id === nextServingId) || null;
         if (!nextServ) return { ...c, servingId: nextServingId, dirty: false };
-        const qNum = Number(c.quantity);
+        const qNum = parseAmount(c.quantity);
         const prevUPS = prevServ ? Number(prevServ.units_per_serving) : 0;
         const nextUPS = Number(nextServ.units_per_serving);
         if (!prevServ || !Number.isFinite(qNum) || qNum <= 0 || prevUPS <= 0 || nextUPS <= 0) {
@@ -3297,7 +3408,7 @@ export function AddEntryModal({
   // never trips it. Non-zero amounts are left untouched (updateCollectionQuantity
   // already stored them live).
   function commitCollectionQuantity(foodId: string, q: string) {
-    const qNum = Number(q.trim());
+    const qNum = parseAmount(q);
     if (q.trim() === "" || (Number.isFinite(qNum) && qNum === 0)) {
       removeFromCollection(foodId);
     }
@@ -3305,6 +3416,11 @@ export function AddEntryModal({
 
   function handleFoodCreated(created: Food) {
     setAllFoods((prev) => [created, ...prev]);
+    // Drop every cached list: a new food can match any query, so re-serving one of
+    // them would show a library the user can see is missing the food they just made.
+    // The visible list keeps the optimistic prepend above; only a TAB change (which
+    // clears the search anyway) pays for a refetch.
+    listCacheRef.current.clear();
     addToCollection(created);
   }
 
@@ -3323,6 +3439,7 @@ export function AddEntryModal({
     setCreateDraft(null);
     setLastScanMissed(false);
     setLastScannedUpc(null);
+    setScanOffDraft(null);
     setPicker("search");
   }
 
@@ -3342,13 +3459,25 @@ export function AddEntryModal({
 
   useEffect(() => {
     fetch(`/modules/forage/api/foods/recent?limit=10`).then((r) => r.json()).then((d) => Array.isArray(d) && setRecentFoods(d)).catch(() => {});
-    // Frequent-at-this-hour suggestions. Pass the client's local hour since entry_time
-    // is stored in local wall-clock (see defaultTime); the server only uses it as a fallback.
-    fetch(`/modules/forage/api/foods/frequent?hour=${new Date().getHours()}&limit=8`)
-      .then((r) => r.json())
-      .then((d) => Array.isArray(d) && setFrequentFoods(d))
-      .catch(() => {});
   }, []);
+
+  // Frequent-at-this-hour suggestions, keyed to the ENTRY's hour rather than wall-clock
+  // now: back-filling last night's dinner at 7PM should surface the usual 7-o'clock
+  // items, so this refetches every time the time pill changes. Hour goes to the server
+  // as a plain local clock hour because entry_time is stored in local wall-clock (see
+  // defaultTime); the server only falls back to its own hour if it's absent/invalid.
+  useEffect(() => {
+    // Responses can land out of order while the user scrubs the time picker — ignore
+    // anything but the newest request so the section can't settle on a stale hour.
+    let current = true;
+    fetch(`/modules/forage/api/foods/frequent?hour=${entryHour}&limit=8`)
+      .then((r) => r.json())
+      .then((d) => current && Array.isArray(d) && setFrequentFoods(d))
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [entryHour]);
 
   // Pull the day's eaten kcal + active target so the header pill can show
   // "<eaten> / <target>" without the parent having to drill props through.
@@ -3425,6 +3554,19 @@ export function AddEntryModal({
 
   useEffect(() => {
     if (picker !== "search") return;
+    // This effect also re-runs on a TAB change, and tabbing away and back used to
+    // discard the loaded library for a spinner and an identical refetch. A query
+    // already in the cache is served straight back — no request, no spinner.
+    // Safe to cache: creating a food from this sheet drops the whole cache (see
+    // handleFoodCreated), so a fresh food can never be missing from a served list.
+    const loadKey = `search|${searchQuery}`;
+    const cached = listCacheRef.current.get(loadKey) as Food[] | undefined;
+    if (cached) {
+      setAllFoods(cached);
+      setFoodsLoading(false);
+      return;
+    }
+
     // Race guard: the empty-search load fired on open returns the full library and
     // is slow; if the user starts typing before it resolves, the late response must
     // NOT clobber the narrower search results. Cleanup cancels the in-flight request
@@ -3434,7 +3576,14 @@ export function AddEntryModal({
     setFoodsLoading(true);
     fetch(`/modules/forage/api/foods${searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""}`)
       .then((r) => r.json())
-      .then((data) => { if (!cancelled) setAllFoods(Array.isArray(data) ? data : []); })
+      .then((data) => {
+        if (cancelled) return;
+        const list: Food[] = Array.isArray(data) ? data : [];
+        setAllFoods(list);
+        // Only a response that was actually applied is cached — a cancelled or
+        // failed one must not suppress the next attempt.
+        listCacheRef.current.set(loadKey, list);
+      })
       .catch(() => { if (!cancelled) toast.error("Failed to load foods"); })
       .finally(() => { if (!cancelled) setFoodsLoading(false); });
     return () => { cancelled = true; };
@@ -3475,25 +3624,42 @@ export function AddEntryModal({
   // Load the user's recipes when the Recipes tab is active. The same `search`
   // box (shown under the tabs for this tab too) narrows the list server-side.
   // The whole list comes back in one payload (TOP 200) carrying each recipe's
-  // sort keys (ts_created + last_used), so `recipeSort` reorders client-side
+  // sort keys (ts_created + ts_updated + last_used), so `recipeSort` reorders client-side
   // without a refetch — the tab toggle stays instant.
   useEffect(() => {
     if (picker !== "recipes") return;
+    // Cached the same way as the foods list — hopping between Search and Recipes
+    // is the most common thing a user does in this sheet, and it re-ran an
+    // identical query every time. Nothing here mutates a recipe in place (building
+    // one navigates away and unmounts the sheet), so a served list can't be stale.
+    const loadKey = `recipes|${searchQuery}`;
+    const cached = listCacheRef.current.get(loadKey) as Recipe[] | undefined;
+    if (cached) {
+      setRecipes(cached);
+      setRecipesLoading(false);
+      return;
+    }
+
     // Same race guard as the foods search effect: a stale empty-search load must not
     // overwrite a newer narrowed result when the user types before the first load lands.
     let cancelled = false;
     setRecipesLoading(true);
     fetch(`/modules/forage/api/recipes${searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""}`)
       .then((r) => r.json())
-      .then((data) => { if (!cancelled) setRecipes(Array.isArray(data) ? data : []); })
+      .then((data) => {
+        if (cancelled) return;
+        const list: Recipe[] = Array.isArray(data) ? data : [];
+        setRecipes(list);
+        listCacheRef.current.set(loadKey, list);
+      })
       .catch(() => { if (!cancelled) toast.error("Failed to load recipes"); })
       .finally(() => { if (!cancelled) setRecipesLoading(false); });
     return () => { cancelled = true; };
   }, [searchQuery, picker]);
 
   // Reorder the loaded recipes client-side per the selected sort. `last_used` /
-  // `ts_created` are ISO strings hydrated by the API; nulls (never logged / missing)
-  // sort last. Name sort is locale-aware and case-insensitive.
+  // `ts_created` / `ts_updated` are ISO strings hydrated by the API; nulls (never
+  // logged / missing) sort last. Name sort is locale-aware and case-insensitive.
   const sortedRecipes = useMemo(() => {
     const byTimeDesc = (a: string | null | undefined, b: string | null | undefined) =>
       (b ? Date.parse(b) : -Infinity) - (a ? Date.parse(a) : -Infinity);
@@ -3502,6 +3668,8 @@ export function AddEntryModal({
       list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
     } else if (recipeSort === "created") {
       list.sort((a, b) => byTimeDesc(a.ts_created, b.ts_created) || a.name.localeCompare(b.name));
+    } else if (recipeSort === "modified") {
+      list.sort((a, b) => byTimeDesc(a.ts_updated, b.ts_updated) || a.name.localeCompare(b.name));
     } else {
       list.sort((a, b) => byTimeDesc(a.last_used, b.last_used) || a.name.localeCompare(b.name));
     }
@@ -3512,6 +3680,12 @@ export function AddEntryModal({
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem("forage.recipeSort", recipeSort);
   }, [recipeSort]);
+
+  // Recipe creation, driven from the Recipes tab so building one doesn't mean
+  // hunting for the dedicated Recipes page first. Shared with that page and the
+  // (+) Shortcuts sheet, so all three offer the identical build-method flow.
+  // The editor is its own route, so close the logger before the hand-off.
+  const recipeBuilder = useRecipeBuilder({ onNavigate: onClose });
 
   const q = searchQuery.toLowerCase();
   // Token-based filter (mirrors the server-side listFoods search): require every
@@ -3555,11 +3729,11 @@ export function AddEntryModal({
   // Frequent-now sits at the top; its ids are excluded from Latest + Library below
   // so a food only ever appears in one section.
   const frequentFiltered = frequentFoods.filter((f) => matchesSearch(f) && !pairedSuggestionIds.has(f.id));
-  // Heading reflects the local hour the suggestions are keyed to, e.g. "9PM favorites".
+  // Heading reflects the hour the suggestions are keyed to — the ENTRY's hour, so it
+  // tracks the time pill (e.g. "9PM favorites" once the pill reads 9PM).
   const frequentHourLabel = (() => {
-    const h = new Date().getHours();
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return `${h12}${h < 12 ? "AM" : "PM"} favorites`;
+    const h12 = entryHour % 12 === 0 ? 12 : entryHour % 12;
+    return `${h12}${entryHour < 12 ? "AM" : "PM"} favorites`;
   })();
   const frequentIds = new Set(frequentFiltered.map((f) => f.id));
   const recentFiltered = recentFoods.filter(
@@ -3679,10 +3853,12 @@ export function AddEntryModal({
 
   // Shared post-decode flow: look up the UPC in the library; on a hit add the food
   // to the collection and snap back to Search; on a miss surface the inline "create
-  // with this UPC" card. Called by both the live-camera scanner (instant) and the
-  // file-upload fallback (server-side zbarimg).
+  // with this UPC" card AND the Open Food Facts record for that code, so a scan
+  // miss offers the same pick-instead-of-build escape a search miss does. Called by
+  // both the live-camera scanner (instant) and the file-upload fallback (zbarimg).
   async function resolveScannedUpc(upc: string, toastId: string, symbology: string | null) {
     setLastScannedUpc(upc);
+    setScanOffDraft(null);
     const lookup = await fetch(`/modules/forage/api/foods?barcode=${encodeURIComponent(upc)}`);
     const matches: Food[] = lookup.ok ? await lookup.json() : [];
     if (Array.isArray(matches) && matches.length > 0) {
@@ -3690,10 +3866,49 @@ export function AddEntryModal({
       setPicker("search");
       setLastScanMissed(false);
       toast.success(`Matched ${matches[0].name}`, { id: toastId });
-    } else {
-      setLastScanMissed(true);
-      toast(`No library match for ${upc}${symbology ? ` (${symbology})` : ""}`, { id: toastId, icon: "🔍" });
+      return;
     }
+    setLastScanMissed(true);
+    await lookupScannedUpcOnOff(upc, toastId, symbology);
+  }
+
+  // OPEN FOOD FACTS lane for a scan the library couldn't answer. Kept in its own
+  // function (and its own try/catch) so an Open Food Facts outage degrades the
+  // scan-miss card back to the plain "create with this UPC" CTA instead of
+  // failing the decode the caller already succeeded at.
+  async function lookupScannedUpcOnOff(upc: string, toastId: string, symbology: string | null) {
+    const missMessage = `No library match for ${upc}${symbology ? ` (${symbology})` : ""}`;
+    setScanOffLoading(true);
+    try {
+      const res = await fetch(
+        `/modules/forage/api/foods/openfoodfacts?code=${encodeURIComponent(upc)}`
+      );
+      const draft = await res.json();
+      // 404 = Open Food Facts has no usable record for this code; anything else
+      // failing is equally a "nothing to offer" as far as the card is concerned.
+      if (!res.ok || !draft?.name) {
+        toast(missMessage, { id: toastId, icon: "🔍" });
+        return;
+      }
+      setScanOffDraft(draft as OffCodeDraft);
+      toast(`Found "${draft.name}" on Open Food Facts`, { id: toastId, icon: "🌐" });
+    } catch {
+      toast(missMessage, { id: toastId, icon: "🔍" });
+    } finally {
+      setScanOffLoading(false);
+    }
+  }
+
+  // Open the create wizard on the Open Food Facts record the scan turned up.
+  // Deliberately does NOT create the food outright — same review step the search
+  // lane's picks get, since an Open Food Facts entry is community-entered.
+  function pickScanOffDraft(draft: OffCodeDraft) {
+    setCreateDraft({
+      draft,
+      sourceUrl: draft.data_source_url ?? undefined,
+      imageUrl: draft.image_url ?? null,
+    });
+    setPicker("add");
   }
 
   // Live-camera path. Called by LiveBarcodeScanner the moment ZXing decodes a
@@ -3713,6 +3928,7 @@ export function AddEntryModal({
   async function handleScanBarcodeFile(file: File) {
     setIsScanningBarcode(true);
     setLastScanMissed(false);
+    setScanOffDraft(null);
     const toastId = toast.loading("Reading barcode…");
     try {
       const form = new FormData();
@@ -3820,7 +4036,7 @@ export function AddEntryModal({
     }
     stageQuickFood(
       makeQuickFood(name, Number(qKcal), Number(qP || 0), Number(qC || 0), Number(qF || 0)),
-      fmtAmount(Number(quantity) || 1)
+      fmtAmount(parseAmount(quantity) || 1)
     );
     setQName("");
     setQKcal("");
@@ -3842,6 +4058,24 @@ export function AddEntryModal({
   }
 
   async function handleSave() {
+    // AMOUNT GUARD — the amount fields are free text (they accept fractions like
+    // "1/8"), so an unparseable amount must fail loudly here instead of POSTing a
+    // null quantity. Empty/garbage on a staged row blocks the whole save.
+    const badAmount = collection.find((c) => {
+      const q = parseAmount(c.quantity);
+      return !Number.isFinite(q) || q <= 0;
+    });
+    if (badAmount) {
+      toast.error(`Enter a valid amount for "${badAmount.food.name}"`);
+      return;
+    }
+    if (picker === "quick" && qName.trim() !== "" && qKcal !== "") {
+      const q = parseAmount(quantity);
+      if (!Number.isFinite(q) || q <= 0) {
+        toast.error("Enter a valid amount");
+        return;
+      }
+    }
     setIsSaving(true);
     try {
       // Build every entry to POST. The staged collection (real foods) and the Quick
@@ -3871,7 +4105,7 @@ export function AddEntryModal({
             body: JSON.stringify({
               entry_date: date,
               entry_time: entryTime,
-              quantity: Number(quantity),
+              quantity: parseAmount(quantity),
               quick_add_name: qName.trim(),
               quick_add_kcal: Number(qKcal),
               quick_add_protein_g: Number(qP || 0),
@@ -3898,7 +4132,7 @@ export function AddEntryModal({
               body: JSON.stringify({
                 entry_date: date,
                 entry_time: entryTime,
-                quantity: Number(c.quantity),
+                quantity: parseAmount(c.quantity),
                 quick_add_name: c.food.name,
                 quick_add_kcal: Number(c.food.kcal_per_serving),
                 quick_add_protein_g: Number(c.food.protein_g_per_serving),
@@ -3914,7 +4148,7 @@ export function AddEntryModal({
         }
         // Convert a virtual-unit selection (e.g. fl oz) back to the food's real base
         // unit (e.g. ml) so the stored entry references a real serving row.
-        const resolved = resolveServingForSave(c.food.servings ?? [], c.servingId, Number(c.quantity));
+        const resolved = resolveServingForSave(c.food.servings ?? [], c.servingId, parseAmount(c.quantity));
         requests.push(
           fetch(`/modules/forage/api/entries`, {
             method: "POST",
@@ -4045,7 +4279,7 @@ export function AddEntryModal({
         (() => {
           const hasItems = collection.length > 0;
           const latest = hasItems ? collection[collection.length - 1].food : null;
-          const LatestIcon = latest ? resolveFoodIcon(latest.icon) : null;
+
           const extras = collection.length - 1;
           return (
             <button
@@ -4064,7 +4298,7 @@ export function AddEntryModal({
             >
 
               {/* LATEST FOOD ICON */}
-              {LatestIcon && <LatestIcon size={16} />}
+              {latest && <FoodAvatar food={latest} size={16} variant="inline" />}
 
               {/* COUNTER */}
               {extras > 0 && (
@@ -4176,6 +4410,26 @@ export function AddEntryModal({
                 className="bottom-action-bar-pill-text"
                 style={{ background: "transparent", border: "none", outline: "none", padding: 0 }}
               />
+
+              {/* CLEAR BUTTON — the pill's own version of the app-wide search
+                  clear (see components/SearchField.tsx); this field can't use
+                  that component because its chrome is the flex pill, not the
+                  bordered input box. Refocuses so the keyboard stays up for the
+                  next query instead of collapsing the modal's layout. */}
+              {search !== "" && (
+                <button
+                  type="button"
+                  className="bottom-action-bar-pill-clear"
+                  title="Clear search"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setSearch("");
+                    searchInputRef.current?.focus();
+                  }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -4367,14 +4621,39 @@ export function AddEntryModal({
                The dedicated Recipes page is still where you build/edit them. */
             <div>
 
-              {/* SORT TOGGLE — cycle the server-side order: last used → created → A–Z.
-                  Hidden when there are no recipes to order (and no active search). */}
-              {(recipes.length > 0 || q) && (
-                <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 0 0.5rem" }}>
+              {/* PANEL ACTIONS — start a recipe (left) and reorder the list (right).
+                  The New-recipe button is always present, including on an empty
+                  list: this tab used to offer no way to build one at all, so the
+                  only route was leaving the logger for the Recipes page — which
+                  throws away whatever is already staged on the plate. */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", padding: "0 0 0.5rem" }}>
+
+                {/* NEW RECIPE — opens the same build-method picker the Recipes
+                    page and the (+) Shortcuts sheet use. */}
+                <Button
+                  className="btn-link"
+                  onClick={recipeBuilder.openPicker}
+                  disabled={recipeBuilder.isStarting}
+                  style={{ padding: "0.25rem 0.25rem", fontSize: "0.75rem" }}
+                  title="Build a new recipe"
+                  aria-label="New recipe"
+                >
+                  <CookingPot className="w-3.5 h-3.5" /> New recipe
+                </Button>
+
+                {/* SORT TOGGLE — cycle the order: last used → created → modified → A–Z.
+                    Hidden when there are no recipes to order (and no active search). */}
+                {(recipes.length > 0 || q) && (
                   <button
                     onClick={() =>
                       setRecipeSort((prev) =>
-                        prev === "last_used" ? "created" : prev === "created" ? "name" : "last_used"
+                        prev === "last_used"
+                          ? "created"
+                          : prev === "created"
+                            ? "modified"
+                            : prev === "modified"
+                              ? "name"
+                              : "last_used"
                       )
                     }
                     className="flex items-center gap-1 text-muted"
@@ -4382,10 +4661,16 @@ export function AddEntryModal({
                     aria-label="Change recipe sort order"
                   >
                     <ArrowDownUp className="w-3.5 h-3.5" />
-                    {recipeSort === "last_used" ? "Last used" : recipeSort === "created" ? "Created" : "A–Z"}
+                    {recipeSort === "last_used"
+                      ? "Last used"
+                      : recipeSort === "created"
+                        ? "Created"
+                        : recipeSort === "modified"
+                          ? "Modified"
+                          : "A–Z"}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* RECIPE LIST */}
               <div className="bordered-list">
@@ -4395,14 +4680,35 @@ export function AddEntryModal({
                     <div className="loading-spinner" />
                   </div>
                 ) : recipes.length === 0 ? (
-                  /* EMPTY STATE — no recipes (or none match the search) */
+                  /* EMPTY STATE — no recipes (or none match the search). The
+                     primary action builds one right here; a search miss seeds
+                     the new recipe's name with what was typed so the user
+                     doesn't retype it in the editor. */
                   <div className="empty-state">
                     <div className="empty-state-body">
-                      {q ? `No recipes match "${searchQuery}".` : "No recipes yet. Build one on the Recipes page."}
+                      {q ? `No recipes match "${searchQuery}".` : "No recipes yet — build your first one."}
                     </div>
-                    <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "center" }}>
+                    <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem" }}>
+
+                      {/* CREATE — build-method picker, or a pre-named scratch recipe on a
+                          search miss. The quoted label is elided past 22 chars so a long
+                          query wraps the button into a paragraph on a 320px screen; the
+                          FULL query is still what seeds the recipe's name. */}
                       <Button
                         className="btn-blue"
+                        onClick={() => (q ? recipeBuilder.startScratch(searchQuery) : recipeBuilder.openPicker())}
+                        disabled={recipeBuilder.isStarting}
+                        title={q ? `Create a recipe named "${searchQuery}"` : "Build a new recipe"}
+                      >
+                        <CookingPot className="w-4 h-4" />
+                        {q
+                          ? `Create "${searchQuery.length > 22 ? `${searchQuery.slice(0, 22).trimEnd()}…` : searchQuery}"`
+                          : "Create recipe"}
+                      </Button>
+
+                      {/* OPEN RECIPES — the full management page */}
+                      <Button
+                        className="btn-link"
                         onClick={() => {
                           onClose();
                           router.push("/modules/forage/ui/recipes");
@@ -4518,7 +4824,7 @@ export function AddEntryModal({
                   </div>
                   <div className="fg-quick-field">
                     <label className="text-label">Quantity</label>
-                    <input type="number" step="0.1" className="input-field" value={quantity} onChange={(e) => setQuantity(e.target.value)} onFocus={selectOnFocus} onKeyDown={handleManualEnter} />
+                    <AmountField className="input-field" value={quantity} onValueChange={setQuantity} onFocus={selectOnFocus} onKeyDown={handleManualEnter} aria-label="Quantity" />
                   </div>
                 </div>
 
@@ -4601,6 +4907,49 @@ export function AddEntryModal({
                     No food in your library matches:
                   </div>
                   <div style={{ fontFamily: "monospace", fontSize: "1rem" }}>{lastScannedUpc}</div>
+
+                  {/* OPEN FOOD FACTS LANE — same escape the search miss offers,
+                      keyed on the scanned code instead of a query. Renders above
+                      the from-scratch CTA because a prefilled record is nearly
+                      always the better of the two; the CTA stays either way. */}
+                  {scanOffLoading ? (
+                    <div style={{ display: "flex", justifyContent: "center", padding: "0.75rem 0" }}>
+                      <div className="loading-spinner" />
+                    </div>
+                  ) : scanOffDraft ? (
+                    <>
+                      {/* LANE HEADING */}
+                      <div className="section-heading" style={{ alignSelf: "stretch" }}>
+                        From Open Food Facts
+                      </div>
+
+                      {/* SUGGESTION ROW — tap opens the create wizard pre-filled */}
+                      <button
+                        type="button"
+                        className="list-row"
+                        onClick={() => pickScanOffDraft(scanOffDraft)}
+                        style={{ width: "100%", textAlign: "left" }}
+                      >
+                        {/* SUGGESTION AVATAR */}
+                        <span className="list-row-avatar">
+                          <Globe className="w-4 h-4" />
+                        </span>
+
+                        {/* SUGGESTION IDENTITY */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="list-row-title">{scanOffDraft.name}</div>
+                          <div className="list-row-meta">{scanOffDraft.brand || "Open Food Facts"}</div>
+                        </div>
+
+                        {/* SUGGESTION ENERGY — on whichever basis the record was
+                            entered in (per 100 g/ml, or per stated serving). */}
+                        <div className="list-row-meta" style={{ flexShrink: 0 }}>
+                          {offEnergyLabel(scanOffDraft)}
+                        </div>
+                      </button>
+                    </>
+                  ) : null}
+
                   <Button className="btn-blue" onClick={() => openCreateWizard({ barcode: lastScannedUpc })}>
                     <Plus className="w-4 h-4" /> Create food with this UPC
                   </Button>
@@ -4646,46 +4995,14 @@ export function AddEntryModal({
           onClose={() => setPreviewFood(null)}
         />
       )}
+
+      {/* RECIPE BUILD PICKER — Recipes tab → New recipe: scratch / URL / AI.
+          Stacked above the logger (which owns the base modal layer). */}
+      {recipeBuilder.pickerOpen && <RecipeBuildPicker {...recipeBuilder.pickerProps} zIndex={60} />}
     </Modal>
   );
 }
 
-/* ============================================================
-   UNIT OPTIONS — fetched from food_units DB table, cached at module scope.
-   ============================================================ */
-
-let __unitsCache: UnitOption[] | null = null;
-let __unitsPromise: Promise<UnitOption[]> | null = null;
-
-function prefetchUnits(): Promise<UnitOption[]> {
-  if (__unitsCache) return Promise.resolve(__unitsCache);
-  if (!__unitsPromise) {
-    __unitsPromise = fetch(`/modules/forage/api/units`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => {
-        __unitsCache = Array.isArray(d) ? d.map((u: any) => ({ id: u.id, name: u.name })) : [];
-        return __unitsCache;
-      })
-      .catch(() => {
-        __unitsCache = [];
-        return __unitsCache;
-      });
-  }
-  return __unitsPromise;
-}
-
-function useUnits(): UnitOption[] {
-  const [units, setUnits] = useState<UnitOption[]>(__unitsCache ?? []);
-  useEffect(() => {
-    if (__unitsCache) {
-      if (units.length === 0) setUnits(__unitsCache);
-      return;
-    }
-    prefetchUnits().then((u) => setUnits(u));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return units;
-}
 
 /* ============================================================
    NUTRIENT OPTIONS — fetched from nutrients DB table, cached at module scope.
@@ -4774,6 +5091,10 @@ export function useNutrientTargets(): { bands: ResolvedNutrientTarget[]; loaded:
    is owned by the parent (one label for the whole table).
    ============================================================ */
 
+// Sentinel value for the dropdown's trailing "＋ New unit…" option. Not a unit name,
+// so it can never collide with one (unit names are trimmed non-empty free text).
+const ADD_UNIT_SENTINEL = "__add_custom_unit__";
+
 export function ServingTable({
   rows,
   onChange,
@@ -4790,54 +5111,203 @@ export function ServingTable({
   advanceOnEnter?: (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, nextId: string | null) => void;
 }) {
   const units = useUnits();
+  // Which row (if any) opened the "new custom unit" prompt. Null = closed.
+  const [addingForRow, setAddingForRow] = useState<number | null>(null);
+  const groups = optionGroups(units, (u) => u.type);
+
+  // The unit dropdown's options, shared by the grouped and flat renderings.
+  function unitOption(u: FoodUnit) {
+    return (
+      <option key={u.id} value={u.name}>
+        {u.name}
+      </option>
+    );
+  }
+
   return (
-    /* SERVING TABLE */
-    <table className="compact-edit-table">
-      <tbody>
-        {rows.map((s, i) => {
-          const nextId = nextIdAfter?.(i) ?? null;
-          // If the stored unit is no longer in the DB list, keep it visible as a stale option
-          const inList = units.some((u) => u.name === s.unit);
-          return (
-            <tr key={i}>
-              <td>
-                <input
-                  id={`${rowIdPrefix}-${i}-ups`}
-                  className="input-field"
-                  type="number"
-                  step="1"
-                  value={s.ups}
-                  onChange={(e) => onChange(i, { ups: e.target.value })}
-                  onFocus={selectOnFocus}
-                  onKeyDown={advanceOnEnter ? (e) => advanceOnEnter(e, nextId) : undefined}
-                  placeholder="amount"
-                />
-              </td>
-              <td>
-                <select
-                  className="input-field"
-                  value={s.unit}
-                  onChange={(e) => onChange(i, { unit: e.target.value })}
-                  onKeyDown={advanceOnEnter ? (e) => advanceOnEnter(e, nextId) : undefined}
-                >
-                  {!inList && s.unit && <option value={s.unit}>{s.unit}</option>}
-                  {units.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <Button className="btn-link-red" onClick={() => onRemove(i)} aria-label="Remove unit">
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <>
+      {/* SERVING TABLE */}
+      <table className="compact-edit-table">
+        <tbody>
+          {rows.map((s, i) => {
+            const nextId = nextIdAfter?.(i) ?? null;
+            // If the stored unit is no longer in the DB list, keep it visible as a stale option
+            const inList = units.some((u) => u.name === s.unit);
+            return (
+              <tr key={i}>
+                <td>
+                  {/* AMOUNT — free text, not type="number": a serving is often defined
+                      as a kitchen fraction ("1 serving = 1/2 cup") and a number input
+                      eats the "/" outright (Chromium turned "1/2" into 2, Firefox into
+                      an empty field). Read back with parseAmount. See AmountField. */}
+                  <AmountField
+                    id={`${rowIdPrefix}-${i}-ups`}
+                    className="input-field"
+                    value={s.ups}
+                    onValueChange={(v) => onChange(i, { ups: v })}
+                    onFocus={selectOnFocus}
+                    onKeyDown={advanceOnEnter ? (e) => advanceOnEnter(e, nextId) : undefined}
+                    placeholder="amount"
+                    aria-label="Amount"
+                  />
+                </td>
+                <td>
+                  <select
+                    className="input-field"
+                    value={s.unit}
+                    onChange={(e) => {
+                      if (e.target.value === ADD_UNIT_SENTINEL) {
+                        setAddingForRow(i);
+                        return; // leave the row on its current unit until the new one saves
+                      }
+                      onChange(i, { unit: e.target.value });
+                    }}
+                    onKeyDown={advanceOnEnter ? (e) => advanceOnEnter(e, nextId) : undefined}
+                  >
+                    {!inList && s.unit && <option value={s.unit}>{s.unit}</option>}
+                    {groups
+                      ? groups.map((g) => (
+                          <optgroup key={g.type} label={g.label}>
+                            {g.items.map(unitOption)}
+                          </optgroup>
+                        ))
+                      : units.map(unitOption)}
+                    <option value={ADD_UNIT_SENTINEL}>＋ New unit…</option>
+                  </select>
+                </td>
+                <td>
+                  <Button className="btn-link-red" onClick={() => onRemove(i)} aria-label="Remove unit">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* NEW CUSTOM UNIT — opened from the dropdown so a unit the packaging uses
+          ("stick", "sleeve") can be invented without leaving a half-typed food. */}
+      {addingForRow !== null && (
+        <CustomUnitModal
+          onClose={() => setAddingForRow(null)}
+          onCreated={(unit) => {
+            onChange(addingForRow, { unit: unit.name });
+            setAddingForRow(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/* ============================================================
+   CUSTOM UNIT MODAL — create one per-user free-text unit of measure.
+   Used by the serving-table dropdown; the settings page owns the full
+   list/rename/delete management of the same rows.
+   ============================================================ */
+
+export function CustomUnitModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (unit: FoodUnit) => void;
+}) {
+
+  // INPUT
+  const [name, setName] = useState("");
+  const [type, setType] = useState<UnitType>("count");
+
+  // STATE
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function save() {
+    const trimmed = name.trim();
+    if (!trimmed || isSaving) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/modules/forage/api/units`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: trimmed, type }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "Couldn't add that unit");
+        return;
+      }
+      // Refresh every mounted dropdown so the new unit is immediately selectable.
+      const fresh = await fetch(`/modules/forage/api/units`).then((r) => (r.ok ? r.json() : null));
+      if (Array.isArray(fresh)) setUnitsCache(fresh);
+      onCreated(data as FoodUnit);
+    } catch {
+      toast.error("Couldn't add that unit");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    /* CUSTOM UNIT MODAL */
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="New unit"
+      footer={
+        /* ACTIONS */
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+
+          {/* CANCEL */}
+          <Button className="btn-off" onClick={onClose} disabled={isSaving}>Cancel</Button>
+
+          {/* SAVE */}
+          <Button className="btn-blue" onClick={save} disabled={isSaving || !name.trim()}>
+            {isSaving ? "Adding…" : "Add unit"}
+          </Button>
+        </div>
+      }
+    >
+      {/* FORM */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+
+        {/* NAME */}
+        <div className="fg-quick-field">
+          <label className="text-label" htmlFor="fg-custom-unit-name">Name</label>
+          <input
+            id="fg-custom-unit-name"
+            className="input-field"
+            value={name}
+            maxLength={CUSTOM_UNIT_MAX_LEN}
+            autoFocus
+            placeholder="stick, scoop, sleeve…"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }}
+          />
+        </div>
+
+        {/* GROUP */}
+        <div className="fg-quick-field">
+          <label className="text-label" htmlFor="fg-custom-unit-type">Group</label>
+          <select
+            id="fg-custom-unit-type"
+            className="input-field"
+            value={type}
+            onChange={(e) => setType(e.target.value as UnitType)}
+          >
+            {UNIT_TYPES.map((t) => (
+              <option key={t} value={t}>{UNIT_TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* HINT */}
+        <div className="text-muted" style={{ fontSize: "0.75rem" }}>
+          The group decides where this unit appears in unit dropdowns. Custom units never
+          convert automatically — set how many make one serving yourself.
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -5021,6 +5491,45 @@ export interface ServingDraft {
   ups: string; // units_per_serving as a string for the input
 }
 
+// AUTO-AMOUNT — fill a serving row's amount when the unit the user just picked is
+// derivable from a sibling row. Every row reads "1 serving = <ups> <unit>", so a
+// same-family sibling converts straight across: a food anchored on g:45 that gains
+// an `oz` row gets 1.5873 without the user working it out.
+//
+// Cross-family (a `cup` on a grams-only food) needs a density we don't have, so
+// those rows stay blank on purpose — the save-time guard in each form surfaces
+// them instead of dropping them, which is what made adding `cup` to a grams-only
+// food look like it silently did nothing.
+export function deriveUnitsPerServing(
+  rows: ServingDraft[],
+  skipIndex: number,
+  unit: string
+): string | null {
+  if (familyOf(unit) === "COUNT") return null;
+  for (let i = 0; i < rows.length; i++) {
+    if (i === skipIndex) continue;
+    const qty = parseAmount(rows[i].ups);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    const converted = convert(qty, rows[i].unit, unit);
+    if (converted != null && converted > 0) return String(Math.round(converted * 1e4) / 1e4);
+  }
+  return null;
+}
+
+// The first serving row carrying a unit but no usable amount. Both food forms
+// refuse to save while one exists — a row the user deliberately added must never
+// vanish behind a "Food updated" toast.
+export function incompleteServingRow(rows: ServingDraft[]): ServingDraft | null {
+  return (
+    rows.find((s) => {
+      const unit = (s.unit ?? "").trim();
+      if (!unit) return false;
+      const qty = parseAmount(s.ups);
+      return !(Number.isFinite(qty) && qty > 0);
+    }) ?? null
+  );
+}
+
 /* ============================================================
    CREATE FOOD WIZARD — stepped create flow (Details → Servings → Nutrition).
    Reused by BOTH the dedicated /library/new page and the food-logger Add tab.
@@ -5051,6 +5560,29 @@ function importedFromMessage(draft: { data_source?: string }): string {
 // next/back guards stay in sync.
 const WIZARD_STEPS = ["Details", "Nutrition"] as const;
 const WIZARD_TOTAL_STEPS = WIZARD_STEPS.length;
+
+// Shortest clipboard text worth sending to the label-text parser. Below this a
+// paste is a stray word or a single copied number, not a label — mirrors
+// MIN_LABEL_TEXT_CHARS on the server, which rejects the same input.
+const MIN_PASTED_LABEL_CHARS = 25;
+
+// True when the paste landed inside something the user is typing in. Pasting
+// label text is only hijacked when NOTHING is focused — otherwise a paste into
+// the name / calories / any other field must behave natively (that is the whole
+// point of the "without any other fields focused" contract). Image pastes are
+// exempt: dropping an image into a text input does nothing natively, so there is
+// no native behaviour to preserve.
+function isEditableTarget(el: EventTarget | null): boolean {
+  const node = el as HTMLElement | null;
+  if (!node || typeof node !== "object" || !("tagName" in node)) return false;
+  const tag = node.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    node.isContentEditable === true
+  );
+}
 
 // SCAN TILE — one single-purpose scan button in the details-slide scan row.
 // Sharp-cornered dashed tile (static element) that flips to a solid green border
@@ -5209,6 +5741,10 @@ export function CreateFoodWizard({
   const [isScanningLabel, setIsScanningLabel] = useState(false);
   // Single-image nutrition-label scan (Nutrition slide).
   const labelInputRef = useRef<HTMLInputElement | null>(null);
+  // Pasted-label-TEXT parse (Ctrl/⌘+V of a copied nutrition label). Shares the
+  // label tile's spinner with the photo scan — they fill the same fields — but
+  // keeps its own flag so an in-flight paste can't be double-fired.
+  const [isParsingLabelText, setIsParsingLabelText] = useState(false);
   // Scan-front-of-product (Details slide) — fills name / brand. Its own in-flight
   // flag + input so it runs as a completely separate pipeline from the label scan.
   const [isScanningFront, setIsScanningFront] = useState(false);
@@ -5433,27 +5969,72 @@ export function CreateFoodWizard({
     }
   }
 
-  // PASTE-TO-SCAN — on the Details (0) or Nutrition (2) step, a pasted clipboard
-  // image (e.g. a screenshot of a label) is routed through the same OCR flow as
-  // the scan/upload button. Scoped to those two steps (both expose a scan
-  // button) so paste elsewhere is untouched, and skipped while a scan is already
-  // in flight.
+  // PASTE LABEL TEXT — the text sibling of the photo scan. The copied text of a
+  // nutrition label goes to the LLM parser and comes back as the same
+  // LabelOcrDraft a scan produces, so it fills the form through applyFoodDraft
+  // like every other auto-fill source.
+  async function handleParseLabelText(text: string) {
+    if (isParsingLabelText) return;
+    setIsParsingLabelText(true);
+    const toastId = toast.loading("Reading label…");
+    try {
+      const res = await fetch(`/modules/forage/api/label-text`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.error || "Couldn't read that text", { id: toastId });
+        return;
+      }
+      const draft: LabelOcrDraft = await res.json();
+      applyFoodDraft(draft);
+      // Same captured test the photo scan uses — the tile checks show exactly
+      // which fields landed, so the toast only says whether anything did.
+      const captured = !!draft.name || !!draft.brand || !!draft.barcode_upc || draft.serving_size_stated;
+      if (captured) toast.success("Label read", { id: toastId });
+      else toast.error("No nutrition found in that text", { id: toastId });
+    } catch {
+      toast.error("Couldn't read that text", { id: toastId });
+    } finally {
+      setIsParsingLabelText(false);
+    }
+  }
+
+  // PASTE-TO-SCAN — on the Details (0) or Nutrition (1) step, a paste is routed
+  // into the label pipeline: a clipboard IMAGE (e.g. a screenshot of a label)
+  // goes through OCR, and plain TEXT (the copied text of a label) goes through
+  // the text parser. Scoped to those two steps (both expose a scan tile) so
+  // paste elsewhere is untouched, and skipped while either is already in flight.
+  //
+  // The text branch fires ONLY when nothing is focused — pasting into the name
+  // or a nutrition input has to stay a normal paste. The image branch has no
+  // such guard because an image paste into a text field does nothing anyway.
   useEffect(() => {
     if (step !== 0 && step !== 1) return;
     function onPaste(e: ClipboardEvent) {
-      if (isScanningLabel) return;
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const imageItem = Array.from(items).find((it) => it.type.startsWith("image/"));
+      if (isScanningLabel || isParsingLabelText) return;
+      const data = e.clipboardData;
+      if (!data) return;
+
+      const imageItem = Array.from(data.items).find((it) => it.type.startsWith("image/"));
       const file = imageItem?.getAsFile();
       if (file) {
         e.preventDefault();
         void handleScanLabelFile(file);
+        return;
       }
+
+      if (isEditableTarget(e.target) || isEditableTarget(document.activeElement)) return;
+      const text = (data.getData("text/plain") || "").trim();
+      if (text.length < MIN_PASTED_LABEL_CHARS) return;
+      e.preventDefault();
+      void handleParseLabelText(text);
     }
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [step, isScanningLabel, basis, nutrients]);
+  }, [step, isScanningLabel, isParsingLabelText, basis, nutrients]);
 
   // DUPLICATE-BARCODE LOOKUP — whenever the UPC changes, debounce a lookup against
   // the library (own + global). A hit means creating this food would duplicate an
@@ -5516,7 +6097,19 @@ export function CreateFoodWizard({
     setServings((prev) => [...prev, { unit: "g", ups: "" }]);
   }
   function updateServing(i: number, patch: Partial<ServingDraft>) {
-    setServings((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+    setServings((prev) =>
+      prev.map((s, idx) => {
+        if (idx !== i) return s;
+        const next = { ...s, ...patch };
+        // Picking a unit on a row with no amount yet fills it in whenever it is
+        // convertible from another row (see deriveUnitsPerServing).
+        if (patch.unit !== undefined && !String(next.ups ?? "").trim()) {
+          const derived = deriveUnitsPerServing(prev, i, next.unit);
+          if (derived) next.ups = derived;
+        }
+        return next;
+      })
+    );
   }
   function removeServing(i: number) {
     setServings((prev) => prev.filter((_, idx) => idx !== i));
@@ -5527,13 +6120,13 @@ export function CreateFoodWizard({
   function buildSaveServings(): { unit: string; units_per_serving: number }[] {
     if (basis === "serving") {
       return servings
-        .map((s) => ({ unit: (s.unit ?? "").trim(), units_per_serving: Number(s.ups) }))
+        .map((s) => ({ unit: (s.unit ?? "").trim(), units_per_serving: parseAmount(s.ups) }))
         .filter((s) => s.unit && Number.isFinite(s.units_per_serving) && s.units_per_serving > 0);
     }
     const baseUnit = basis === "100g" ? "g" : "ml";
     const rows: { unit: string; units_per_serving: number }[] = [{ unit: baseUnit, units_per_serving: 100 }];
-    const amount = Number(portionAmount);
-    const qty = Number(portionQty || "1");
+    const amount = parseAmount(portionAmount);
+    const qty = parseAmount(portionQty || "1");
     const pname = portionName.trim();
     if (pname && Number.isFinite(amount) && amount > 0 && Number.isFinite(qty) && qty > 0) {
       rows.push({ unit: pname, units_per_serving: round4Wizard((100 * qty) / amount) });
@@ -5551,6 +6144,16 @@ export function CreateFoodWizard({
       toast.error("kcal required");
       setStep(1);
       return;
+    }
+    // Same guard as the editor: never drop a unit row the user added just because
+    // its amount is blank.
+    if (basis === "serving") {
+      const incomplete = incompleteServingRow(servings);
+      if (incomplete) {
+        toast.error(`How much is one serving in ${incomplete.unit.trim()}? Enter an amount or remove that unit.`);
+        setStep(1);
+        return;
+      }
     }
     if (dupFood) {
       toast.error(`Already in your library: ${dupFood.name}`);
@@ -5757,18 +6360,20 @@ export function CreateFoodWizard({
               {/* SCAN FRONT OF PRODUCT — reads the food name + brand off the front. */}
               <ScanTile icon={Package} label="Scan front" filled={frontHasData} busy={isScanningFront} onClick={() => frontInputRef.current?.click()} />
 
-              {/* SCAN LABEL — reads the nutrition facts panel (fields on the next slide). */}
-              <ScanTile icon={ScanText} label="Scan label" filled={labelHasData} suspicious={labelLooksSuspect} busy={isScanningLabel} onClick={() => labelInputRef.current?.click()} />
+              {/* SCAN LABEL — reads the nutrition facts panel (fields on the next
+                  slide). Also the tile a pasted label — image OR text — reports through. */}
+              <ScanTile icon={ScanText} label="Scan label" filled={labelHasData} suspicious={labelLooksSuspect} busy={isScanningLabel || isParsingLabelText} onClick={() => labelInputRef.current?.click()} />
 
               {/* SCAN BARCODE — opens the live scanner to capture the UPC. */}
               <ScanTile icon={ScanBarcode} label="Scan barcode" filled={barcodeHasData} busy={isScanningBarcode} onClick={() => setIsLiveScannerOpen(true)} />
 
             </div>
 
-            {/* SCAN HINT — desktop can also paste a clipboard image into a scan. */}
+            {/* SCAN HINT — desktop can also paste a clipboard image, or the copied
+                text of a label, straight into the label pipeline. */}
             {isDesktop && (
               <span className="text-muted" style={{ fontSize: "0.75rem", textAlign: "center", marginTop: "-0.5rem" }}>
-                or paste an image
+                or paste a label image or its text
               </span>
             )}
 
@@ -5857,13 +6462,12 @@ export function CreateFoodWizard({
                     {overlay ? (
                       dupFood.name
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/modules/forage/ui/library/${dupFood.id}`)}
+                      <Link
+                        href={`/modules/forage/ui/library/${dupFood.id}`}
                         style={{ background: "transparent", border: "none", padding: 0, font: "inherit", color: "inherit", textDecoration: "underline", cursor: "pointer" }}
                       >
                         {dupFood.name}
-                      </button>
+                      </Link>
                     )}
                   </span>
                 </div>
@@ -6023,13 +6627,11 @@ export function CreateFoodWizard({
                 <div className="flex flex-col gap-1">
                   <label className="text-label" htmlFor="ef-portion-amount">{basis === "100ml" ? "Volume of Portion" : "Weight of Portion"}</label>
                   <div style={{ position: "relative" }}>
-                    <input
+                    <AmountField
                       id="ef-portion-amount"
                       className="input-field"
-                      type="number"
-                      inputMode="decimal"
                       value={portionAmount}
-                      onChange={(e) => setPortionAmount(e.target.value)}
+                      onValueChange={setPortionAmount}
                       placeholder={basis === "100ml" ? "Enter portion volume" : "Enter portion weight"}
                       style={{ paddingRight: "2.5rem" }}
                     />
@@ -6043,13 +6645,12 @@ export function CreateFoodWizard({
                 <div className="flex flex-col gap-1">
                   <label className="text-label">Portion Description</label>
                   <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <input
+                    <AmountField
                       className="input-field"
-                      type="number"
-                      inputMode="numeric"
                       value={portionQty}
-                      onChange={(e) => setPortionQty(e.target.value)}
+                      onValueChange={setPortionQty}
                       placeholder="1"
+                      aria-label="Portion quantity"
                       style={{ width: "5rem", flex: "0 0 auto" }}
                     />
                     <input
@@ -6083,22 +6684,24 @@ export function CreateFoodWizard({
             {/* SCAN LABEL — same tile style as the slide-1 scan row (dashed tile,
                 green check once nutrition is captured). OCRs a Nutrition Facts
                 photo to auto-fill the fields below; on desktop a clipboard image
-                can also be pasted (see the paste-to-scan effect + hint below). */}
+                OR the copied text of a label can also be pasted (see the
+                paste-to-scan effect + hint below). */}
             <ScanTile
               icon={ScanText}
-              label={isScanningLabel ? "Reading label…" : "Scan label"}
+              label={isScanningLabel || isParsingLabelText ? "Reading label…" : "Scan label"}
               filled={labelHasData}
               suspicious={labelLooksSuspect}
-              busy={isScanningLabel}
+              busy={isScanningLabel || isParsingLabelText}
               onClick={() => labelInputRef.current?.click()}
               fullWidth
             />
 
             {/* PASTE HINT — desktop only (mouse + keyboard), where Ctrl/⌘+V
-                applies. Hidden on touch devices, which have no image paste. */}
+                applies. Hidden on touch devices, which have no image paste.
+                Text paste only fires with no field focused, so the hint says so. */}
             {isDesktop && (
               <span className="text-muted" style={{ fontSize: "0.75rem", textAlign: "center", marginTop: "-0.375rem" }}>
-                or paste an image
+                or paste a label image, or its text with no field selected
               </span>
             )}
 
@@ -6277,8 +6880,15 @@ export function FoodForm({
   // STATE
   const [isLoading, setIsLoading] = useState(isEdit);
   const [isSaving, setIsSaving] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const scanInputRef = useRef<HTMLInputElement | null>(null);
+  // Front and label scans are independent pipelines with their own spinners, so
+  // one never blocks or visually hijacks the other (same split as the create wizard).
+  const [isScanningFront, setIsScanningFront] = useState(false);
+  const [isScanningLabel, setIsScanningLabel] = useState(false);
+  const frontInputRef = useRef<HTMLInputElement | null>(null);
+  const labelInputRef = useRef<HTMLInputElement | null>(null);
+  // Pasted-label-TEXT parse — the text sibling of the photo scan, sharing the
+  // scan button's spinner because both fill the same fields.
+  const [isParsingLabelText, setIsParsingLabelText] = useState(false);
   const [isScanningBarcode, setIsScanningBarcode] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement | null>(null);
   // Toggles the live-camera scanner overlay for the UPC field.
@@ -6286,6 +6896,15 @@ export function FoodForm({
   // Source-link import (scrape the pasted URL) — its own in-flight flag so it
   // never shares a spinner with the photo pipelines.
   const [isImportingUrl, setIsImportingUrl] = useState(false);
+
+  // SCAN-TILE CAPTURE FLAGS — which of the three scanners' target fields already
+  // hold data, so each tile can show its green check. Unlike the create wizard
+  // there's no serving-size-stated signal to gate on here: an existing food's
+  // nutrition is data regardless of how it was originally entered.
+  const frontHasData = name.trim() !== "" || brand.trim() !== "";
+  const labelHasData =
+    kcal !== "" || p !== "" || c !== "" || f !== "" || Object.keys(nutrientAmounts).length > 0;
+  const barcodeHasData = barcodeUpc.trim() !== "";
 
   // Codes the merged macro/micro list renders inline (in label order, between
   // the macros). Everything else is rendered as the inline tail below the
@@ -6451,10 +7070,11 @@ export function FoodForm({
   // Accepts one OR MORE images — pick the package front + back together and the
   // vision LLM reads the brand/name off the front while still reading nutrition
   // off the facts panel.
-  async function handleScanFile(fileOrFiles: File | File[]) {
+  async function handleScanFile(fileOrFiles: File | File[], kind: "front" | "label" = "label") {
     const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
     if (files.length === 0) return;
-    setIsScanning(true);
+    const setBusy = kind === "front" ? setIsScanningFront : setIsScanningLabel;
+    setBusy(true);
     const toastId = toast.loading("Scanning…");
     try {
       const form = new FormData();
@@ -6473,8 +7093,9 @@ export function FoodForm({
     } catch {
       toast.error("Couldn't read the photo", { id: toastId });
     } finally {
-      setIsScanning(false);
-      if (scanInputRef.current) scanInputRef.current.value = "";
+      setBusy(false);
+      const ref = kind === "front" ? frontInputRef : labelInputRef;
+      if (ref.current) ref.current.value = "";
     }
   }
 
@@ -6508,17 +7129,51 @@ export function FoodForm({
     }
   }
 
-  // PASTE-IMAGE — desktop convenience. While the create-mode modal is open, listen
-  // for clipboard paste events; if any item is an image, hand it off to the same
-  // OCR flow the file picker uses. Skipped during an in-flight scan so a fast
-  // double-paste doesn't queue a second request.
+  // PASTE LABEL TEXT — the text sibling of handleScanFile. Sends the copied text
+  // of a nutrition label to the parser and applies the returned draft through
+  // the same applyFoodDraft path a photo scan uses.
+  async function handleParseLabelText(text: string) {
+    if (isParsingLabelText) return;
+    setIsParsingLabelText(true);
+    const toastId = toast.loading("Reading label…");
+    try {
+      const res = await fetch(`/modules/forage/api/label-text`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.error || "Couldn't read that text", { id: toastId });
+        return;
+      }
+      const draft: LabelOcrDraft = await res.json();
+      applyFoodDraft(draft);
+      const captured = !!draft.name || !!draft.brand || !!draft.barcode_upc || draft.serving_size_stated;
+      if (captured) toast.success("Label read", { id: toastId });
+      else toast.error("No nutrition found in that text", { id: toastId });
+    } catch {
+      toast.error("Couldn't read that text", { id: toastId });
+    } finally {
+      setIsParsingLabelText(false);
+    }
+  }
+
+  // PASTE-TO-SCAN — desktop convenience. While the create-mode modal is open,
+  // listen for clipboard paste events: an IMAGE item goes to the same OCR flow
+  // the file picker uses, and plain TEXT (a copied nutrition label) goes to the
+  // text parser. Skipped during an in-flight parse so a fast double-paste
+  // doesn't queue a second request.
+  //
+  // The text branch fires ONLY when nothing is focused, so pasting into the name
+  // or a nutrition input stays a normal paste. Image pastes need no such guard —
+  // dropping an image into a text field does nothing natively.
   useEffect(() => {
-    if (isEdit) return;
     function onPaste(e: ClipboardEvent) {
-      if (isScanning) return;
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (const item of Array.from(items)) {
+      if (isScanningFront || isScanningLabel || isParsingLabelText) return;
+      const data = e.clipboardData;
+      if (!data) return;
+      for (const item of Array.from(data.items)) {
         if (item.kind === "file" && item.type.startsWith("image/")) {
           const file = item.getAsFile();
           if (file) {
@@ -6528,11 +7183,17 @@ export function FoodForm({
           }
         }
       }
+
+      if (isEditableTarget(e.target) || isEditableTarget(document.activeElement)) return;
+      const text = (data.getData("text/plain") || "").trim();
+      if (text.length < MIN_PASTED_LABEL_CHARS) return;
+      e.preventDefault();
+      void handleParseLabelText(text);
     }
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, isScanning, nutrients]);
+  }, [isScanningFront, isScanningLabel, isParsingLabelText, nutrients]);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -6579,7 +7240,19 @@ export function FoodForm({
     setServings((prev) => [...prev, { unit: "g", ups: "" }]);
   }
   function updateServing(i: number, patch: Partial<ServingDraft>) {
-    setServings((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+    setServings((prev) =>
+      prev.map((s, idx) => {
+        if (idx !== i) return s;
+        const next = { ...s, ...patch };
+        // Picking a unit on a row with no amount yet fills it in whenever it is
+        // convertible from another row (see deriveUnitsPerServing).
+        if (patch.unit !== undefined && !String(next.ups ?? "").trim()) {
+          const derived = deriveUnitsPerServing(prev, i, next.unit);
+          if (derived) next.ups = derived;
+        }
+        return next;
+      })
+    );
   }
   function removeServing(i: number) {
     setServings((prev) => prev.filter((_, idx) => idx !== i));
@@ -6592,6 +7265,14 @@ export function FoodForm({
     }
     if (!kcal) {
       toast.error("kcal required");
+      return;
+    }
+    // A unit row with no amount can't be scaled, so it was being filtered out of
+    // the payload — silently, behind a "Food updated" toast. Refuse the save and
+    // name the row instead.
+    const incomplete = incompleteServingRow(servings);
+    if (incomplete) {
+      toast.error(`How much is one serving in ${incomplete.unit.trim()}? Enter an amount or remove that unit.`);
       return;
     }
     setIsSaving(true);
@@ -6611,9 +7292,11 @@ export function FoodForm({
           carbs_g_per_serving: Number(c || 0),
           fat_g_per_serving: Number(f || 0),
           icon,
+          // Every row is guaranteed complete by the guard above; the empty-unit
+          // filter only drops a row left blank by a deleted custom unit.
           servings: servings
-            .map((s) => ({ unit: (s.unit ?? "").trim(), units_per_serving: Number(s.ups) }))
-            .filter((s) => s.unit && Number.isFinite(s.units_per_serving) && s.units_per_serving > 0),
+            .map((s) => ({ unit: (s.unit ?? "").trim(), units_per_serving: parseAmount(s.ups) }))
+            .filter((s) => s.unit),
           nutrients: Object.entries(nutrientAmounts)
             .map(([nutrient_id, amount]) => ({ nutrient_id, amount: Number(amount) }))
             .filter((n) => Number.isFinite(n.amount) && n.amount >= 0),
@@ -6651,30 +7334,74 @@ export function FoodForm({
         <div className="loading-container"><div className="loading-spinner" /></div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }} onKeyDown={advanceOnEnter}>
-          {/* SCAN LABEL — create mode only. */}
-          {!isEdit && (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                <Button className="btn-off" onClick={() => scanInputRef.current?.click()} disabled={isScanning}>
-                  <Camera className="w-4 h-4" />
-                  {isScanning ? "Reading label…" : "Scan nutrition label"}
-                </Button>
-                <span className="text-muted" style={{ fontSize: "0.75rem" }}>front &amp; back for a sharper brand, or paste an image</span>
-              </div>
-              {/* `multiple` lets the user pick the package front + back together. */}
-              <input
-                ref={scanInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  if (files.length) handleScanFile(files);
-                }}
-              />
-            </>
-          )}
+          {/* SCAN ROW — the same three single-purpose scanners the create wizard
+              offers, and available while EDITING too: re-reading a label is how a
+              food already in the library gets corrected. Front → name/brand;
+              Label → nutrition; Barcode → UPC. Each tile shows a green check once
+              its target fields hold data. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem" }}>
+
+            {/* SCAN FRONT OF PRODUCT — reads the food name + brand off the front. */}
+            <ScanTile
+              icon={Package}
+              label="Scan front"
+              filled={frontHasData}
+              busy={isScanningFront}
+              onClick={() => frontInputRef.current?.click()}
+            />
+
+            {/* SCAN LABEL — reads the nutrition facts panel. Also the tile a pasted
+                label — image OR text — reports through. */}
+            <ScanTile
+              icon={ScanText}
+              label="Scan label"
+              filled={labelHasData}
+              busy={isScanningLabel || isParsingLabelText}
+              onClick={() => labelInputRef.current?.click()}
+            />
+
+            {/* SCAN BARCODE — opens the live scanner to capture the UPC. */}
+            <ScanTile
+              icon={ScanBarcode}
+              label="Scan barcode"
+              filled={barcodeHasData}
+              busy={isScanningBarcode}
+              onClick={() => setIsLiveScannerOpen(true)}
+            />
+
+          </div>
+
+          {/* SCAN HINT */}
+          <span className="text-muted" style={{ fontSize: "0.75rem" }}>
+            Photograph the front &amp; back together for a sharper brand read — or paste a label
+            image, or the label&apos;s text, with no field selected.
+          </span>
+
+          {/* FRONT-OF-PRODUCT FILE INPUT */}
+          <input
+            ref={frontInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleScanFile(file, "front");
+            }}
+          />
+
+          {/* NUTRITION-LABEL FILE INPUT — `multiple` lets the user pick the package
+              front + back together. */}
+          <input
+            ref={labelInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              if (files.length) handleScanFile(files, "label");
+            }}
+          />
 
           {/* NAME */}
           <div className="flex flex-col gap-1">
@@ -6715,15 +7442,6 @@ export function FoodForm({
                 placeholder="e.g. 012345678905"
                 style={{ flex: 1, minWidth: 0 }}
               />
-              <Button
-                className="btn-off"
-                onClick={() => setIsLiveScannerOpen(true)}
-                disabled={isScanningBarcode}
-                aria-label="Scan barcode with camera"
-              >
-                <Camera className="w-4 h-4" />
-                {isScanningBarcode ? "Reading…" : "Scan"}
-              </Button>
               <input
                 ref={barcodeInputRef}
                 type="file"
@@ -7036,10 +7754,10 @@ export function RecipeUsageList({ foodId }: { foodId: string }) {
           const ParentIcon = resolveFoodIcon(parent.icon);
           return (
             /* RECIPE ROW — navigates to the parent recipe detail page */
-            <button
+            <Link
               key={parent.id}
               className="sub-card"
-              onClick={() => router.push(`/modules/forage/ui/recipes/${parent.id}`)}
+              href={`/modules/forage/ui/recipes/${parent.id}`}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
@@ -7075,7 +7793,7 @@ export function RecipeUsageList({ foodId }: { foodId: string }) {
 
               {/* CHEVRON */}
               <ChevronRight className="w-4 h-4 text-muted" style={{ flexShrink: 0 }} />
-            </button>
+            </Link>
           );
         })}
       </div>
@@ -7106,7 +7824,6 @@ function RecipeIngredientsView({ ingredients }: { ingredients: RecipeIngredient[
       {/* LIST */}
       <div className="flex flex-col gap-2">
         {ingredients.map((row) => {
-          const RowIcon = resolveFoodIcon(row.food_icon ?? null);
 
           // Placeholder rows (unresolved URL/AI imports) have no backing food, so
           // there's nowhere to navigate — render them inert with their free text.
@@ -7122,8 +7839,12 @@ function RecipeIngredientsView({ ingredients }: { ingredients: RecipeIngredient[
               aria-label={navigable ? `Open ${row.food_name ?? "ingredient"} details` : undefined}
             >
 
-              {/* ICON */}
-              <RowIcon className="fg-ing-icon" />
+              {/* AVATAR — the ingredient food's product photo, its icon as fallback */}
+              <FoodAvatar
+                food={{ id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null }}
+                variant="inline"
+                className="fg-ing-icon"
+              />
 
               {/* BODY — name/brand stacked above the derived macros */}
               <div className="fg-ing-titles">

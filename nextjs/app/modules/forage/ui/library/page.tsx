@@ -35,6 +35,14 @@ export default function ForageLibraryPage() {
         : `/modules/forage/api/foods`;
       const r = await fetch(url);
       const data = await r.json();
+      // A failed search used to fall through to `Array.isArray(data) ? data : []`
+      // and quietly blank the list, which is indistinguishable from "your library
+      // is empty" — the user retypes the query instead of learning the server is
+      // down. Surface it and leave the current results on screen.
+      if (!r.ok) {
+        toast.error(data?.error || "Failed to load foods");
+        return;
+      }
       setFoods(Array.isArray(data) ? data : []);
     } catch {
       toast.error("Failed to load foods");
@@ -121,7 +129,12 @@ export default function ForageLibraryPage() {
                 <FoodAvatar food={food} size={20} variant="inline" />
 
                 {/* NAME + MACROS */}
-                <div style={{ flex: 1, minWidth: 0 }}>
+                {/* `.sub-card` lays out as a COLUMN, so this block sits on the cross
+                    axis where `flex: 1` doesn't constrain it — without an explicit
+                    width it takes its max-content size and a long food name spills
+                    out both edges of the card at 320px. `width: 100%` puts the
+                    ellipsis truncation below back in charge. */}
+                <div style={{ flex: 1, minWidth: 0, width: "100%" }}>
                   <div className="text-primary" style={{ fontWeight: 600, fontSize: "0.875rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {food.name}
                   </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Coins,
@@ -436,7 +436,6 @@ function repeatModeLabels(frequency: Frequency, startYMD: string): { day_of_mont
 }
 
 export default function QuestHomePage() {
-  const router = useRouter();
 
   // DATA
   const [balance, setBalance] = useState<number>(0);
@@ -480,6 +479,30 @@ export default function QuestHomePage() {
   // The month the widget is showing, so we only hand it the overlay while it actually covers that
   // month — step outside the window and the widget goes back to fetching for itself.
   const [calendarAnchor, setCalendarAnchor] = useState<string>(() => localTodayYMD());
+
+  // OPTIMISTIC CALENDAR OVERLAY — the widget draws done/missed from these dated completions, and it
+  // does NOT fetch for itself while we supply them (see its `overlay` prop). Ticking a task off in
+  // the list therefore has to write the same row here, or the calendar keeps showing the task as due
+  // (and a todo, which only ever reaches a day cell as a completion, never shows up at all) until a
+  // full page reload. Both helpers are no-ops before the first fetch lands or for a day outside the
+  // loaded window — the widget falls back to its own fetch in that case.
+  function addOverlayCompletion(taskId: string, day: string) {
+    setCalendarOverlay((prev) => {
+      if (!prev || day < prev.from || day > prev.to) return prev;
+      if (prev.completions.some((c) => c.task_id === taskId && c.completed_on === day)) return prev;
+      return { ...prev, completions: [...prev.completions, { task_id: taskId, completed_on: day }] };
+    });
+  }
+
+  function removeOverlayCompletion(taskId: string, day: string) {
+    setCalendarOverlay((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        completions: prev.completions.filter((c) => !(c.task_id === taskId && c.completed_on === day)),
+      };
+    });
+  }
 
   // INPUT — the task-list view preferences seed from localStorage on first render (see
   // readViewPreferences) so the user's last selection is already applied before the first paint.
@@ -592,6 +615,9 @@ export default function QuestHomePage() {
   const [reviewCheckedSubtaskIds, setReviewCheckedSubtaskIds] = useState<Set<string>>(new Set());
   // Currently expanded task in the review modal (one at a time, mirrors home page behavior).
   const [reviewExpandedTaskId, setReviewExpandedTaskId] = useState<string | null>(null);
+  // Review date already auto-acknowledged because nothing carried over. The snapshot effect below
+  // re-runs whenever `tasks` changes, so this guards against firing a second ack for the same day.
+  const autoAckedReviewDateRef = useRef<string | null>(null);
   // Cache of the user's prior review submission keyed by review date. When clearTodayReview
   // re-pops the modal, this lets the checkboxes re-show as the user last left them so they can
   // simply re-acknowledge without re-ticking everything.
@@ -796,6 +822,36 @@ export default function QuestHomePage() {
     return 0;
   }
 
+  // Finalize a review day that has nothing to review, without ever showing the modal. Hits the
+  // same endpoint the Done button does, minus any backdated completions. Damage should always come
+  // back null here (no missed occurrences); we still surface it if the server disagrees rather
+  // than let HP drop unexplained. A failed ack clears the guard so a later render can retry.
+  async function autoAcknowledgeEmptyReview(forDate: string) {
+    try {
+      const res = await fetch("/modules/quest/api/state/acknowledge-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forDate, completedTaskIds: [], completedSubtasks: [] }),
+      });
+      if (!res.ok) {
+        autoAckedReviewDateRef.current = null;
+        return;
+      }
+      const data = await res.json();
+      if (data.state) setState(data.state);
+      const dmg = Number(data.damage?.damage_taken ?? 0);
+      if (dmg > 0 && !data.damage?.died) {
+        toast.error(`−${dmg} HP from missed dailies`);
+      }
+      if (data.damage?.died) {
+        setDeathInfo({ reason: "missed dailies", coins_lost: data.damage.coins_lost });
+      }
+      setReviewDate(null);
+    } catch {
+      autoAckedReviewDateRef.current = null;
+    }
+  }
+
   // Snapshot the set of tasks that were incomplete-for-reviewDate at the moment the modal opens.
   // Subsequent re-renders of the modal use this frozen list so completed-yesterday tasks never
   // appear, and items the user toggles inside the modal don't get re-filtered out.
@@ -815,6 +871,18 @@ export default function QuestHomePage() {
         })
         .map((t) => t.id)
     );
+    // NOTHING CARRIED OVER — every daily scheduled for the review day was already complete, so the
+    // modal would render an empty list whose only action is "Done". Acknowledge it silently instead
+    // of forcing the user to dismiss an empty dialog. Safe: the server's damage check counts the
+    // same occurrences this snapshot just found none of, so no HP can be lost unseen (and
+    // autoAcknowledgeEmptyReview still surfaces damage if the server ever disagrees).
+    if (ids.size === 0) {
+      if (autoAckedReviewDateRef.current !== reviewDate) {
+        autoAckedReviewDateRef.current = reviewDate;
+        void autoAcknowledgeEmptyReview(reviewDate);
+      }
+      return;
+    }
     setReviewInitialIds(ids);
     // Pre-fill the checkbox sets from the prior review submission when the cached date
     // matches this modal's review date — i.e. when a debug clearTodayReview just re-popped the
@@ -1077,11 +1145,16 @@ export default function QuestHomePage() {
       };
       setSourceHeight(liRect.height + 8);
       // Snapshot all visible row centers in viewport coords, in DOM order, with bucket tag.
+      // Mirrors the `visibleTasks` comparator exactly — a clamp that disagrees with the render
+      // order lets a row be dropped in a slot the comparator immediately snaps back, committing a
+      // persisted move the user never sees. Off-schedule is the outermost key (always bottom);
+      // under the "all" filter dailies and todos are separate bands as well.
       const groupOf = (task: Task | undefined): number => {
         if (!task) return 0;
-        if (offScheduleIds.has(task.id)) return 2;
-        if (!moveCompletedToBottom) return 0;
+        if (offScheduleIds.has(task.id)) return 9;
         const done = task.kind === "daily" ? task.done_today : task.status === "done";
+        if (filter === "all") return (done ? 2 : 0) + (task.kind === "daily" ? 0 : 1);
+        if (!moveCompletedToBottom) return 0;
         return done ? 1 : 0;
       };
       const lis = ul.querySelectorAll<HTMLElement>("[data-task-id]");
@@ -1168,22 +1241,58 @@ export default function QuestHomePage() {
       const sourceOriginalIdx = positions.findIndex((p) => p.id === sourceId);
       if (sourceOriginalIdx === -1) return;
       if (finalInsertAt === sourceOriginalIdx) return;
-      // Rebuild the visible subsequence with the source in its new slot, then weave it back
-      // into the full sort order so off-screen tasks keep their relative position.
+      // The visible list is a RE-BUCKETED projection of the persisted order, not a subsequence of
+      // it: completed rows sink to the bottom, off-schedule dailies below those, and under the
+      // "all" filter dailies band above todos. Weaving the whole visible list back into the
+      // sort_order slots therefore rewrote EVERY task's rank to match today's transient
+      // completion/schedule state — so dragging one daily silently re-ranked the others and the
+      // list came back shuffled the next day. Move only the task the user actually dragged:
+      // anchor it to the neighbour it was dropped next to and splice it in beside that same
+      // neighbour in the persisted order, leaving every other rank untouched.
+      // Anchor against same-KIND neighbours only. The visible list also HIDES rows — off-schedule
+      // dailies, dailies already done today, todos completed before today — and every hidden row
+      // keeps its persisted rank. Anchoring to the nearest visible row of any kind therefore left
+      // hidden rows sitting above the drop point: dropping a daily at the top of the list only
+      // lifted it above the first *visible* daily, so the next time an off-schedule daily came
+      // back around it resurfaced ABOVE the task the user had just moved up and the same tasks
+      // sank again — the list looked like it kept re-indexing itself. Kind is the only band that
+      // survives the day; completion and schedule state are transient.
       const visibleIds = positions.map((p) => p.id);
       const withoutSource = visibleIds.filter((vid) => vid !== sourceId);
-      withoutSource.splice(finalInsertAt, 0, sourceId);
-      const visibleSet = new Set(visibleIds);
-      const allIds = tasks.slice().sort((a, b) => a.sort_order - b.sort_order).map((t) => t.id);
-      const newAllIds: string[] = [];
-      let wi = 0;
-      for (const oid of allIds) {
-        if (visibleSet.has(oid)) {
-          newAllIds.push(withoutSource[wi++]);
-        } else {
-          newAllIds.push(oid);
-        }
+      const taskById = new Map(tasks.map((t) => [t.id, t]));
+      const sourceKind = taskById.get(sourceId)?.kind;
+      if (!sourceKind) return;
+      const isSameKind = (id: string) => taskById.get(id)?.kind === sourceKind;
+      // Nearest visible task of the same kind above / below the drop point.
+      let prevSameKindId: string | null = null;
+      for (let i = finalInsertAt - 1; i >= 0; i--) {
+        if (isSameKind(withoutSource[i])) { prevSameKindId = withoutSource[i]; break; }
       }
+      let nextSameKindId: string | null = null;
+      for (let i = finalInsertAt; i < withoutSource.length; i++) {
+        if (isSameKind(withoutSource[i])) { nextSameKindId = withoutSource[i]; break; }
+      }
+      const newAllIds = tasks
+        .slice()
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((t) => t.id)
+        .filter((id) => id !== sourceId);
+      let insertIdx: number;
+      if (prevSameKindId) {
+        // Sits directly below the nearest visible task of its kind, leaving every other rank alone.
+        insertIdx = newAllIds.indexOf(prevSameKindId) + 1;
+        if (insertIdx === 0) return;
+      } else if (nextSameKindId) {
+        // Dropped at the top of its band — go above EVERY task of its kind, hidden ones included,
+        // not merely above the first one that happens to be visible today.
+        insertIdx = newAllIds.findIndex(isSameKind);
+        if (insertIdx === -1) return;
+      } else {
+        // Nothing of this kind to sit beside — leave the persisted order alone rather than
+        // arbitrarily sending it to the end.
+        return;
+      }
+      newAllIds.splice(insertIdx, 0, sourceId);
       commitReorder(newAllIds);
     };
     const cancel = () => {
@@ -1506,6 +1615,8 @@ export default function QuestHomePage() {
           : x,
       ),
     );
+    // Keep the calendar in step — the server records a dated completion for dailies AND todos.
+    addOverlayCompletion(id, todayStr);
     if (awarded > 0) {
       setBalance((b) => b + awarded);
       toast.success(`+${awarded.toFixed(2)} coins`);
@@ -1703,6 +1814,9 @@ export default function QuestHomePage() {
           : x,
       ),
     );
+    // Mirror the server, which deletes exactly today's dated completion — so the calendar drops the
+    // chip's done styling (and an unscheduled todo's chip) at the same moment the row unchecks.
+    removeOverlayCompletion(id, simulationDate ?? localTodayYMD());
     const balanceBefore = balance;
     try {
       const res = await fetch(`/modules/quest/api/tasks/${id}/uncomplete`, { method: "POST" });
@@ -1964,6 +2078,8 @@ export default function QuestHomePage() {
         setGambleRolling(false);
         const body = await res.json().catch(() => ({}));
         if (typeof body.balance === "number") setBalance(body.balance);
+        // A rejection still tells us today's roll count (e.g. another tab rolled), so resync the price.
+        if (typeof body.rollsThisWeek === "number") setGambleRollsThisWeek(body.rollsThisWeek);
         toast.error(body.error ?? "Roll failed");
         return;
       }
@@ -2255,7 +2371,11 @@ export default function QuestHomePage() {
 
         {/* HEADER */}
         <div className="mb-6 flex items-center justify-between gap-2">
-          <h1 className="text-page-title flex items-center gap-2 truncate">
+          {/* !mb-0 — .text-page-title carries margin-bottom:0.5rem and is UNLAYERED in
+              globals.css, so it beats a plain `mb-0` utility. As a flex item the row
+              centres its *margin* box, so that stray 8px shoves the module icon 4px
+              above the optical centre of the header. The row's own mb-6 owns the gap. */}
+          <h1 className="text-page-title !mb-0 flex items-center gap-2 truncate">
             <Target className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
             <span className="hidden sm:inline">Quest</span>
           </h1>
@@ -2289,23 +2409,25 @@ export default function QuestHomePage() {
               <span className="text-xs sm:text-sm font-semibold text-yellow-500 tabular-nums">{Number(balance).toFixed(2)}</span>
             </div>
 
-            {/* CALENDAR LINK */}
-            <button
-              onClick={() => router.push("/modules/quest/ui/calendar")}
+            {/* CALENDAR LINK — items-center/justify-center are load-bearing: the cluster is
+                items-stretch, so this control is stretched to the taller HP pill's height and
+                its fixed-size icon would otherwise sit at flex-start with the slack all below it. */}
+            <Link
+              href="/modules/quest/ui/calendar"
               title="Calendar"
-              className="p-1.5 sm:p-2 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
+              className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
             >
               <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
+            </Link>
 
-            {/* SETTINGS LINK */}
-            <button
-              onClick={() => router.push("/modules/quest/ui/settings")}
+            {/* SETTINGS LINK — same stretch caveat as the calendar link above. */}
+            <Link
+              href="/modules/quest/ui/settings"
               title="Settings"
-              className="p-1.5 sm:p-2 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
+              className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
             >
               <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
+            </Link>
 
             {/* HELP */}
             <HelpButton
@@ -2354,12 +2476,12 @@ export default function QuestHomePage() {
           ))}
 
           {/* CALENDAR — navigates instead of switching */}
-          <button
-            onClick={() => router.push("/modules/quest/ui/calendar")}
-            className="flex-1 py-2 text-sm font-semibold capitalize cursor-pointer border-b-2 border-transparent text-secondary"
+          <Link
+            href="/modules/quest/ui/calendar"
+            className="flex-1 py-2 text-sm font-semibold capitalize cursor-pointer border-b-2 border-transparent text-secondary text-center"
           >
             calendar
-          </button>
+          </Link>
         </div>
 
         {/* CARD GRID — one row of three on desktop (tasks / habits / spending) with the calendar
@@ -3004,13 +3126,14 @@ export default function QuestHomePage() {
                   key={h.id}
                   className="flex items-center gap-2 px-3 py-2.5 rounded border border-gray-600"
                 >
+                  {/* DAMAGE TAP — leading (left) side */}
                   <button
-                    onClick={() => tapHabit(h.id, "positive")}
-                    disabled={!h.allow_positive}
-                    title="Reward"
-                    className="habit-tap habit-tap-reward w-6 h-6 rounded-full flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shrink-0"
+                    onClick={() => tapHabit(h.id, "negative")}
+                    disabled={!h.allow_negative}
+                    title="Damage"
+                    className="habit-tap habit-tap-damage w-6 h-6 rounded-full flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shrink-0"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Minus className="w-3.5 h-3.5" />
                   </button>
                   <Repeat className="w-4 h-4 text-pink-400 shrink-0" aria-label="Habit" />
                   <button
@@ -3031,13 +3154,14 @@ export default function QuestHomePage() {
                     </span>
                   )}
                   <span className="text-xs text-secondary shrink-0">{DIFF_LABELS[h.difficulty]}</span>
+                  {/* REWARD TAP — trailing (right) side */}
                   <button
-                    onClick={() => tapHabit(h.id, "negative")}
-                    disabled={!h.allow_negative}
-                    title="Damage"
-                    className="habit-tap habit-tap-damage w-6 h-6 rounded-full flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shrink-0"
+                    onClick={() => tapHabit(h.id, "positive")}
+                    disabled={!h.allow_positive}
+                    title="Reward"
+                    className="habit-tap habit-tap-reward w-6 h-6 rounded-full flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shrink-0"
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5" />
                   </button>
                 </li>
                 );
@@ -3553,13 +3677,13 @@ export default function QuestHomePage() {
                 </div>
                 {/* SETTINGS LINK — the review modal is forced (no outside-click close), so this
                     escape hatch keeps the settings page reachable while it's open. */}
-                <button
-                  onClick={() => router.push("/modules/quest/ui/settings")}
+                <Link
+                  href="/modules/quest/ui/settings"
                   title="Quest settings"
-                  className="p-1.5 rounded hover:bg-gray-800 text-secondary hover:text-primary cursor-pointer"
+                  className="inline-flex p-1.5 rounded hover:bg-gray-800 text-secondary hover:text-primary cursor-pointer"
                 >
                   <Settings className="w-4 h-4" />
-                </button>
+                </Link>
               </div>
 
               {/* BODY */}
