@@ -2,17 +2,19 @@
 
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, Pencil, Layers } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, Pencil, Layers, History } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
-import { CardWithProgress } from "../types/card";
+import { CardWithProgress, CardReview } from "../types/card";
 import { useSpeaker } from "../lib/voice/useSpeaker";
 import { useListener } from "../lib/voice/useListener";
 import type { EvaluationResult } from "../lib/voice/evaluationFunctions";
 import { playEvaluationChime } from "../lib/evaluationChime";
 import { preloadCardImages } from "../lib/imagePreload";
 import CardContent from "./CardContent";
+import CardHistoryPanel from "./CardHistoryPanel";
 import ManageCardModal from "../ui/decks/[id]/cards/ManageCardModal";
 
 // The one study engine, shared by single-deck study and collection study. Everything
@@ -34,6 +36,16 @@ const TTS_PRELOAD_BUFFER = 1;
 // How many cards ahead to warm inline images (and measure their dimensions) so
 // the next card's picture is already cached and correctly sized when reached.
 const IMAGE_PRELOAD_BUFFER = 1;
+
+// How many cards ahead to fetch rating history for. The history section only
+// appears once the answer is revealed, but the fetch is started as soon as the
+// card is in view (and one card early), so flipping never shows a spinner.
+const HISTORY_PRELOAD_BUFFER = 1;
+
+// Ratings the in-session history table shows before its "Show all" toggle. Five
+// is enough to see the recent run without the section pushing the rating buttons
+// and navigation off a phone screen.
+const HISTORY_COLLAPSED_ROWS = 5;
 
 // Study preferences from rune_settings, loaded once by the page that hosts the
 // session (the same values also drive its landing screen).
@@ -147,6 +159,13 @@ export default function StudySession({
   const [autoRateCountdown, setAutoRateCountdown] = useState(false);
   const [speakingSource, setSpeakingSource] = useState<SpeakingSource | null>(null); // tracks which button triggered TTS
   const [editingCard, setEditingCard] = useState<StudyCard | null>(null);
+  // Rating history per card id, filled in by the preload below. A missing entry means
+  // "not here yet" (loading); an entry in cardHistoryFailed means the fetch failed.
+  const [cardHistory, setCardHistory] = useState<Record<string, CardReview[]>>({});
+  const [cardHistoryFailed, setCardHistoryFailed] = useState<Record<string, boolean>>({});
+  // Card ids whose history has been requested, so the buffer never fires a second
+  // fetch for a card it already warmed (or is mid-flight on).
+  const historyRequestedRef = useRef<Set<string>>(new Set());
   const handsFreeRef = useRef(handsFree); // Ref to track hands-free in async callbacks
 
   // Refs for duration tracking
@@ -167,6 +186,12 @@ export default function StudySession({
   // Derived
   const currentCard = sessionCards[currentIndex] || null;
   const currentCardAlreadyRated = currentCard?.sessionRating !== null;
+
+  // The current card's rating history, as warmed by the preload buffer. Undefined
+  // until the fetch resolves — with the buffer doing its job that window has already
+  // passed by the time the answer is revealed, so the spinner is rarely seen.
+  const currentCardHistory = currentCard ? cardHistory[currentCard.id] : undefined;
+  const currentCardHistoryFailed = currentCard ? !!cardHistoryFailed[currentCard.id] : false;
 
   // Soft daily-target progress. Live count = today's baseline + cards rated this
   // session. Both thresholds are soft — goalMet is motivational, overMaxRenew only
@@ -257,6 +282,46 @@ export default function StudySession({
       preloadCardImages([sessionCards[i].front, sessionCards[i].back, sessionCards[i].notes]);
     }
   }, [sessionCards, isActive, currentIndex]);
+
+  // Fetch one card's rating history into the cache, once. Deck-scoped by the CARD's
+  // own deck_id rather than the session source — in a collection session the card can
+  // belong to any member deck, and the reviews route hangs off its deck.
+  const preloadCardHistory = useCallback((card: StudyCard | undefined) => {
+    if (!card || historyRequestedRef.current.has(card.id)) return;
+    historyRequestedRef.current.add(card.id);
+
+    fetch(`/modules/rune/api/decks/${card.deck_id}/cards/${card.id}/reviews`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Reviews request failed: ${response.status}`);
+        const data = await response.json();
+        // Guard against an { error } envelope being stored as the list.
+        if (!Array.isArray(data)) throw new Error("Unexpected reviews payload");
+        setCardHistory((prev) => ({ ...prev, [card.id]: data }));
+      })
+      .catch((error) => {
+        console.error("Error preloading card review history:", error);
+        // Drop the claim so revisiting the card (PREV, or a skip that requeues it)
+        // gets another attempt rather than being stuck on the failure forever.
+        historyRequestedRef.current.delete(card.id);
+        setCardHistoryFailed((prev) => ({ ...prev, [card.id]: true }));
+      });
+  }, []);
+
+  // Warm rating history the same way TTS audio and images are warmed, and for the same
+  // reason: the history section renders only once the answer is revealed, so fetching it
+  // at flip time would put a spinner under every card. Before the session, warm the first
+  // card; during it, keep HISTORY_PRELOAD_BUFFER card(s) ahead of currentIndex loaded.
+  // Already-cached ids are no-ops, so re-running on every index change is cheap.
+  useEffect(() => {
+    if (sessionCards.length === 0) return;
+    if (!isActive) {
+      preloadCardHistory(sessionCards[0]);
+      return;
+    }
+    for (let i = currentIndex; i <= currentIndex + HISTORY_PRELOAD_BUFFER && i < sessionCards.length; i++) {
+      preloadCardHistory(sessionCards[i]);
+    }
+  }, [sessionCards, isActive, currentIndex, preloadCardHistory]);
 
   // Stop recording and clear state when card changes. Keyed on currentCard?.id (not just
   // currentIndex) because handleSkip reorders the queue without moving currentIndex — the
@@ -553,6 +618,29 @@ export default function StudySession({
         )
       );
 
+      // Keep the card's own rating history in step with the rating just given, so
+      // stepping back to it with PREV (or meeting it again after a skip) shows the
+      // rating rather than the history as it stood before. Optimistic for the same
+      // reason the advance below is: the review POST is fire-and-forget, so refetching
+      // here would race it. If the history hasn't arrived yet there is nothing to
+      // append to — release the fetch claim instead, so the card is refetched the next
+      // time the buffer reaches it, by which point the POST has landed.
+      if (cardHistory[currentCard.id]) {
+        const optimisticReview: CardReview = {
+          id: generateUUID(),
+          rating,
+          response_time_ms: null,
+          created_at: new Date(),
+          study_session_id: studySessionId ?? "",
+        };
+        setCardHistory((prev) => ({
+          ...prev,
+          [currentCard.id]: [optimisticReview, ...(prev[currentCard.id] ?? [])],
+        }));
+      } else {
+        historyRequestedRef.current.delete(currentCard.id);
+      }
+
       // Submit review to API — fire-and-forget so card advance below isn't gated on the
       // network round-trip; a lost review just means the card's SRS interval doesn't move.
       // The DB session row is created lazily here, on the first rated card, rather than
@@ -593,7 +681,7 @@ export default function StudySession({
         }
       }, 150);
     },
-    [currentCard, currentIndex, sessionCards, ensureStudySession, studyApiBase]
+    [currentCard, currentIndex, sessionCards, ensureStudySession, studyApiBase, cardHistory, studySessionId]
   );
 
   // Skip a card without rating it — no review is submitted, so it doesn't touch SRS
@@ -1160,6 +1248,52 @@ export default function StudySession({
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
+
+        {/* CARD HISTORY — this card's own record: where its SRS scheduling stands and
+            every rating it has ever been given. Revealed with the answer (there is no
+            point showing how a card has gone before you have tried to recall it, and on
+            the front face it would leak the difficulty), and placed below the rating
+            buttons and navigation so it informs the rating without displacing it. The
+            data is already warmed by the preload buffer above, so the flip shows it
+            immediately rather than a spinner. */}
+        {isFlipped && currentCard && (
+          <div className="card mt-4">
+
+            {/* CARD HEADER */}
+            <div className="card-header">
+              <h2 className="text-card-title">
+                <History className="w-5 h-5" />
+                Card History
+              </h2>
+
+              {/* HELP — Ease and Interval are scheduler internals, and the numbers here
+                  are this card's alone, not the session's; neither is guessable. */}
+              <HelpButton
+                title="Card History"
+                sections={[
+                  { heading: "What this is", body: "The record of the card you are looking at — every time you have rated it before, and where its scheduling currently stands. It appears with the answer, so the card's past difficulty can't give away the answer before you have tried to recall it." },
+                  { heading: "Reviews / Good or better", body: "How many times this card has been rated, and the share of those ratings that were Good or Easy. A low percentage on a card you keep seeing is the sign it needs rewording rather than more repetitions." },
+                  { heading: "Ease and Interval", body: "The scheduler's current state for this card: Ease is the multiplier the gap grows by (it drops when you rate Again or Hard), Interval is the gap it last scheduled. Next Review is when the card would next come due — \"Due\" means it is due now, which it is while you are studying it." },
+                  { heading: "Recall over time", body: "Each past rating plotted against when it happened — Again at the floor, Easy at the ceiling. The x axis is real time, so as a card is learned its dots spread out to the right. Tap a dot for its date and rating." },
+                  { heading: "The table", body: "Every rating, newest first, with the time it took to answer where that was recorded. A rating you give this session appears here immediately, so stepping back to a card with PREV shows what you just gave it." },
+                ]}
+              />
+            </div>
+
+            {/* CARD CONTENT */}
+            <div className="card-content">
+              <CardHistoryPanel
+                card={currentCard}
+                reviews={currentCardHistory ?? []}
+                isLoading={!currentCardHistory && !currentCardHistoryFailed}
+                loadFailed={currentCardHistoryFailed}
+                collapsedRows={HISTORY_COLLAPSED_ROWS}
+                emptyBody="This is the first time this card has come up in a study session."
+                failureBody="Rate the card as usual — only this history is missing."
+              />
+            </div>
+          </div>
+        )}
 
         {/* MANAGE CARD MODAL (edit from study session) */}
         <ManageCardModal
