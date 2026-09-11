@@ -3289,6 +3289,67 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 }
 
+/* QUEST SURFACES
+   --------------
+   The quest home page hand-rolls its own surfaces — several overlays that predate
+   the shared Modal (the forced previous-day review, the damage/spend confirmations,
+   the pin/undo popovers), plus the task rows, controls and meters around them — and
+   painted every one of them with fixed dark values. In light mode that left dark
+   cards carrying the theme's dark text: unreadable. These give them the same tokens
+   the rest of the app uses, so they follow the theme like everything else. Accent
+   colours (the blue actions, the red damage, the green checks) are legible on either
+   surface and are left alone.
+
+   Named for quest because that page is the only caller; there is nothing
+   quest-specific about the values. */
+.quest-backdrop {
+  background: var(--modal-backdrop);
+}
+
+.quest-surface {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+}
+
+/* Divided rows and panels (header/footer rules, expandable checklists, completed
+   task rows) — the border colour only, so the utility classes keep owning which
+   edges are drawn. */
+.quest-divider {
+  border-color: var(--card-border);
+}
+
+/* Controls (checkbox circles, inline inputs, secondary buttons): the input border,
+   which is the token the rest of the app's controls use. */
+.quest-control {
+  border-color: var(--input-border);
+}
+
+/* Neutral hover for a bare icon button or row. */
+.quest-hover:hover {
+  background: var(--hover-bg);
+}
+
+/* Meter track (health, checklist progress) — the same token the study session's
+   progress bar sits on, so an empty meter reads as a groove in both themes rather
+   than a black bar on a white card. */
+.quest-track {
+  background: var(--progress-bar-bg);
+}
+
+/* A neutral state dot (a day with nothing recorded), where every other state has an
+   accent colour of its own. */
+.quest-dot-idle {
+  background: var(--color-gray);
+}
+
+/* Something present but not in play: an off-schedule task, an unaffordable reward.
+   Recedes in either theme instead of turning into a dark patch in the light one. */
+.quest-muted {
+  background: var(--hover-bg);
+  border-color: var(--card-border);
+  color: var(--color-gray);
+}
+
 /* Stat tiles that fit themselves to whatever they are dropped into — the rating
    history panel is rendered both in a modal and in the study session's rail, which
    are different widths at the same viewport, so the column count has to come from

@@ -2389,7 +2389,7 @@ export default function QuestHomePage() {
                 <span className="text-secondary">/</span>
                 <span className="text-secondary">{state.max_health}</span>
               </div>
-              <div className="hidden sm:block w-20 h-1.5 bg-gray-800 rounded overflow-hidden">
+              <div className="hidden sm:block w-20 h-1.5 quest-track rounded overflow-hidden">
                 <div className="h-full bg-red-500 transition-all" style={{ width: `${hpPercent}%` }} />
               </div>
 
@@ -2415,7 +2415,7 @@ export default function QuestHomePage() {
             <Link
               href="/modules/quest/ui/calendar"
               title="Calendar"
-              className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
+              className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded border quest-control quest-hover text-secondary hover:text-primary cursor-pointer shrink-0"
             >
               <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
             </Link>
@@ -2424,7 +2424,7 @@ export default function QuestHomePage() {
             <Link
               href="/modules/quest/ui/settings"
               title="Settings"
-              className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer shrink-0"
+              className="inline-flex items-center justify-center p-1.5 sm:p-2 rounded border quest-control quest-hover text-secondary hover:text-primary cursor-pointer shrink-0"
             >
               <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
             </Link>
@@ -2462,7 +2462,7 @@ export default function QuestHomePage() {
         {/* MOBILE TAB BAR — "calendar" isn't a tab: a phone can't show a month grid AND this page's
             chrome usefully, so it navigates to the dedicated calendar page, which owns the whole
             viewport. The other three switch cards in place as before. */}
-        <div className="lg:hidden flex border-b border-gray-700 mb-4">
+        <div className="lg:hidden flex border-b quest-divider mb-4">
           {(["tasks", "habits", "rewards"] as const).map((t) => (
             <button
               key={t}
@@ -2523,7 +2523,7 @@ export default function QuestHomePage() {
               <button
                 onClick={() => stepViewDate(-1)}
                 aria-label="Previous day"
-                className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer"
+                className="p-1.5 rounded border quest-control quest-hover text-secondary hover:text-primary cursor-pointer"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -2534,7 +2534,7 @@ export default function QuestHomePage() {
                 disabled={isViewingToday}
                 title={isViewingToday ? undefined : "Back to today"}
                 className={`text-center leading-tight tabular-nums min-w-[6.5rem] px-2 py-1 rounded ${
-                  isViewingToday ? "cursor-default" : "cursor-pointer hover:bg-gray-800"
+                  isViewingToday ? "cursor-default" : "cursor-pointer quest-hover"
                 }`}
               >
                 <div className={`text-sm font-semibold ${isViewingToday ? "text-primary" : "text-blue-400"}`}>
@@ -2547,7 +2547,7 @@ export default function QuestHomePage() {
               <button
                 onClick={() => stepViewDate(1)}
                 aria-label="Next day"
-                className="p-1.5 rounded border border-gray-600 hover:bg-gray-700 text-secondary hover:text-primary cursor-pointer"
+                className="p-1.5 rounded border quest-control quest-hover text-secondary hover:text-primary cursor-pointer"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -2562,7 +2562,7 @@ export default function QuestHomePage() {
                   className={`px-3 py-1 rounded-full text-xs cursor-pointer ${
                     filter === f
                       ? "bg-blue-600 text-white"
-                      : "border border-gray-600 text-secondary hover:bg-gray-800"
+                      : "border quest-control text-secondary quest-hover"
                   }`}
                 >
                   {f === "all" ? "All" : f === "daily" ? "Dailies" : "Todos"}
@@ -2576,7 +2576,7 @@ export default function QuestHomePage() {
                   className={`p-1.5 rounded border cursor-pointer ${
                     viewMenuOpen
                       ? "border-blue-500 bg-blue-600/20 text-primary"
-                      : "border-gray-600 hover:bg-gray-700 text-secondary"
+                      : "quest-control quest-hover text-secondary"
                   }`}
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -2584,7 +2584,7 @@ export default function QuestHomePage() {
                 {viewMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setViewMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 bg-gray-900 border border-gray-700 rounded shadow-lg p-3 min-w-[14rem] space-y-2">
+                    <div className="absolute right-0 top-full mt-1 z-20 quest-surface shadow-lg p-3 min-w-[14rem] space-y-2">
 
                       {/* DAILY-ONLY TOGGLES */}
                       {(filter === "all" || filter === "daily") && (
@@ -2743,8 +2743,8 @@ export default function QuestHomePage() {
                     {/* TASK ROW */}
                     <div
                       className={`flex items-center gap-2 px-3 py-2.5 rounded border min-h-16 ${
-                        isDone ? "border-gray-700 opacity-60" : "border-gray-600"
-                      } ${isOffSchedule ? "border-gray-800 bg-gray-900/40 text-gray-500 opacity-50" : ""} ${
+                        isDone ? "quest-divider opacity-60" : "quest-control"
+                      } ${isOffSchedule ? "quest-muted opacity-50" : ""} ${
                         dragId === t.id ? "ring-2 ring-blue-400" : ""
                       } ${
                         t.todo_bonus_today && !isDone && !isOffSchedule
@@ -2754,7 +2754,7 @@ export default function QuestHomePage() {
                       title={isOffSchedule ? "Not scheduled for today" : undefined}
                     >
                       <span
-                        className="text-gray-500 cursor-grab active:cursor-grabbing shrink-0 select-none flex items-center justify-center min-w-11 min-h-11 -mx-2 sm:min-w-0 sm:min-h-0 sm:mx-0"
+                        className="text-subtle cursor-grab active:cursor-grabbing shrink-0 select-none flex items-center justify-center min-w-11 min-h-11 -mx-2 sm:min-w-0 sm:min-h-0 sm:mx-0"
                         style={{ touchAction: "none" }}
                         title="Drag to reorder"
                         onPointerDown={(e) => onHandlePointerDown(e, t.id)}
@@ -2777,10 +2777,10 @@ export default function QuestHomePage() {
                         }
                         className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
                           isOffSchedule
-                            ? "border-gray-700 cursor-not-allowed"
+                            ? "quest-divider cursor-not-allowed"
                             : isDone
                               ? "bg-green-500/20 border-green-500/40 text-green-500 hover:bg-green-500/30 cursor-pointer"
-                              : "border-gray-500 hover:border-green-500 hover:bg-green-500/10 cursor-pointer"
+                              : "quest-control hover:border-green-500 hover:bg-green-500/10 cursor-pointer"
                         }`}
                       >
                         {isDone && <Check className="w-3 h-3" />}
@@ -2940,7 +2940,7 @@ export default function QuestHomePage() {
                             )}
                           </button>
                           {showTip && (
-                            <div className="absolute right-0 top-full mt-1 z-10 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs whitespace-nowrap shadow-lg tabular-nums">
+                            <div className="absolute right-0 top-full mt-1 z-10 quest-surface px-2 py-1 text-xs whitespace-nowrap shadow-lg tabular-nums">
                               {(base * ticks).toFixed(2)} + {totalBonusEligible.toFixed(2)} streak bonus
                             </div>
                           )}
@@ -2948,7 +2948,7 @@ export default function QuestHomePage() {
                         {t.subtask_total > 0 && (
                           <button
                             onClick={() => setExpandedTaskId(expanded ? null : t.id)}
-                            className="px-2 py-0.5 rounded bg-gray-700 text-xs tabular-nums cursor-pointer shrink-0"
+                            className="badge-gray text-xs tabular-nums cursor-pointer shrink-0"
                             title="Toggle checklist"
                           >
                             {t.subtask_done}/{t.subtask_total}
@@ -3010,18 +3010,18 @@ export default function QuestHomePage() {
                           : dayState === "missed" ? "bg-red-500"
                           : dayState === "pending" ? "bg-blue-500"
                           : dayState === "frozen" ? "bg-cyan-400"
-                          : "bg-gray-600";
+                          : "quest-dot-idle";
                       return (
                         <li
                           key={task.id}
-                          className="flex items-center justify-between gap-2 p-2.5 rounded border border-gray-700"
+                          className="flex items-center justify-between gap-2 p-2.5 rounded border quest-control"
                         >
 
                           {/* TASK INFO */}
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 truncate">
                               <span className={`w-2.5 h-2.5 rounded-full inline-block shrink-0 ${dotClass}`} />
-                              <span className={`truncate text-sm ${dayState === "frozen" ? "line-through text-gray-500" : ""}`}>
+                              <span className={`truncate text-sm ${dayState === "frozen" ? "line-through text-subtle" : ""}`}>
                                 {task.title}
                               </span>
                             </div>
@@ -3079,7 +3079,7 @@ export default function QuestHomePage() {
                     <div className="text-xs font-semibold text-secondary mb-1">Todos completed</div>
                     <div className="flex flex-col gap-1">
                       {dayTodos.map((td, i) => (
-                        <div key={i} className="flex items-center justify-between gap-2 p-2 rounded border border-gray-700 text-sm">
+                        <div key={i} className="flex items-center justify-between gap-2 p-2 rounded border quest-control text-sm">
                           <span className="flex items-center gap-2 truncate"><Check className="w-4 h-4 text-green-500 shrink-0" />{td.title}</span>
                           <span className="flex items-center gap-0.5 text-yellow-500 text-xs shrink-0"><Coins className="w-3 h-3" />{td.awarded.toFixed(2)}</span>
                         </div>
@@ -3124,7 +3124,7 @@ export default function QuestHomePage() {
                 return (
                 <li
                   key={h.id}
-                  className="flex items-center gap-2 px-3 py-2.5 rounded border border-gray-600"
+                  className="flex items-center gap-2 px-3 py-2.5 rounded border quest-control"
                 >
                   {/* DAMAGE TAP — leading (left) side */}
                   <button
@@ -3193,7 +3193,7 @@ export default function QuestHomePage() {
                   value={newRewardName}
                   onChange={(e) => setNewRewardName(e.target.value)}
                   onKeyDown={focusOnEnter("quest-reward-cost")}
-                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border quest-control bg-transparent"
                 />
 
                 <input
@@ -3205,7 +3205,7 @@ export default function QuestHomePage() {
                   onChange={(e) => setNewRewardCost(e.target.value)}
                   onFocus={selectOnFocus}
                   onKeyDown={submitOnEnter(addReward)}
-                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border quest-control bg-transparent"
                 />
 
                 <button
@@ -3229,7 +3229,7 @@ export default function QuestHomePage() {
                   const isPending = r.id.startsWith("tmp-");
                   const canAfford = balance >= r.cost && !isPending;
                   return (
-                    <li key={r.id} className="flex items-center gap-2 p-3 rounded border border-gray-600">
+                    <li key={r.id} className="flex items-center gap-2 p-3 rounded border quest-control">
                       <span className="flex-1 min-w-0 truncate" title={r.name}>{r.name}</span>
 
                       <span className="text-yellow-500 flex items-center gap-1 tabular-nums">
@@ -3243,7 +3243,7 @@ export default function QuestHomePage() {
                         className={`px-3 py-1 rounded text-sm ${
                           canAfford
                             ? "bg-yellow-600 hover:bg-yellow-700 text-white cursor-pointer"
-                            : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            : "quest-muted cursor-not-allowed"
                         }`}
                       >
                         Spend
@@ -3280,7 +3280,7 @@ export default function QuestHomePage() {
                   value={newDebtName}
                   onChange={(e) => setNewDebtName(e.target.value)}
                   onKeyDown={focusOnEnter("quest-debt-amount")}
-                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border quest-control bg-transparent"
                 />
 
                 <input
@@ -3292,7 +3292,7 @@ export default function QuestHomePage() {
                   onChange={(e) => setNewDebtAmount(e.target.value)}
                   onFocus={selectOnFocus}
                   onKeyDown={submitOnEnter(addDebt)}
-                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border quest-control bg-transparent"
                 />
 
                 <button
@@ -3312,7 +3312,7 @@ export default function QuestHomePage() {
                 {debts.map((d) => {
                   const canPay = balance > 0;
                   return (
-                    <li key={d.id} className="flex items-center gap-2 p-3 rounded border border-gray-600">
+                    <li key={d.id} className="flex items-center gap-2 p-3 rounded border quest-control">
                       <span className="flex-1 min-w-0 truncate" title={d.name}>{d.name}</span>
 
                       {/* REMAINING AMOUNT */}
@@ -3328,7 +3328,7 @@ export default function QuestHomePage() {
                         className={`px-3 py-1 rounded text-sm ${
                           canPay
                             ? "bg-yellow-600 hover:bg-yellow-700 text-white cursor-pointer"
-                            : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            : "quest-muted cursor-not-allowed"
                         }`}
                         title={canPay ? `Apply up to ${Math.floor(balance)} coins` : "No coins to apply"}
                       >
@@ -3369,7 +3369,7 @@ export default function QuestHomePage() {
                   onChange={(e) => setAdhocAmount(e.target.value)}
                   onFocus={selectOnFocus}
                   onKeyDown={focusOnEnter("quest-adhoc-note", { select: false })}
-                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="w-28 shrink-0 min-w-0 px-3 py-2 rounded border quest-control bg-transparent"
                 />
 
                 <input
@@ -3380,7 +3380,7 @@ export default function QuestHomePage() {
                   value={adhocNote}
                   onChange={(e) => setAdhocNote(e.target.value)}
                   onKeyDown={submitOnEnter(spendAdhoc)}
-                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="flex-1 min-w-0 sm:min-w-[7.5rem] px-3 py-2 rounded border quest-control bg-transparent"
                 />
 
                 <button
@@ -3471,22 +3471,22 @@ export default function QuestHomePage() {
       {/* HABIT MODAL */}
       {habitModalOpen && (
         <div
-          className={`fixed inset-0 bg-black/70 flex items-start justify-center p-4 z-50 overflow-y-auto transition-opacity duration-150 ${
+          className={`fixed inset-0 quest-backdrop flex items-start justify-center p-4 z-50 overflow-y-auto transition-opacity duration-150 ${
             habitModalClosing ? "opacity-0" : "opacity-100"
           }`}
           onClick={animateCloseHabitModal}
         >
           <div
-            className={`bg-gray-900 border border-gray-700 rounded-lg w-full max-w-md mt-12 transition-all duration-150 origin-top ${
+            className={`quest-surface w-full max-w-md mt-12 transition-all duration-150 origin-top ${
               habitModalClosing ? "opacity-0 scale-95" : "opacity-100 scale-100"
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+            <div className="flex items-center justify-between px-5 py-4 border-b quest-divider">
               <div className="flex items-center gap-2">
                 <button
                   onClick={animateCloseHabitModal}
-                  className="p-1 rounded hover:bg-gray-700 cursor-pointer"
+                  className="p-1 rounded quest-hover cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3526,7 +3526,7 @@ export default function QuestHomePage() {
                   autoFocus
                   value={habitTitle}
                   onChange={(e) => setHabitTitle(e.target.value)}
-                  className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent"
+                  className="mt-1 w-full px-3 py-2 rounded border quest-control bg-transparent"
                 />
               </label>
               {/* DIFFICULTY */}
@@ -3542,7 +3542,7 @@ export default function QuestHomePage() {
                         className={`flex flex-col items-center gap-1 py-3 rounded border cursor-pointer ${
                           selected
                             ? "bg-blue-600/30 border-blue-500 text-primary"
-                            : "border-gray-600 text-secondary hover:bg-gray-800"
+                            : "quest-control text-secondary quest-hover"
                         }`}
                       >
                         <span className="flex gap-0.5">
@@ -3592,7 +3592,7 @@ export default function QuestHomePage() {
                         value={habitRewardOverride}
                         onChange={(e) => setHabitRewardOverride(e.target.value)}
                         onBlur={(e) => setHabitRewardOverride(normalizeCoinInput(e.target.value))}
-                        className="mt-0 w-full pl-9 pr-3 py-2 rounded border border-gray-600 bg-transparent tabular-nums"
+                        className="mt-0 w-full pl-9 pr-3 py-2 rounded border quest-control bg-transparent tabular-nums"
                       />
                     </div>
 
@@ -3609,7 +3609,7 @@ export default function QuestHomePage() {
               <div>
                 <span className="text-sm text-secondary block mb-2">Directions</span>
                 <div className="flex gap-2">
-                  <label className="flex items-center gap-2 px-3 py-2 rounded border border-gray-600 cursor-pointer flex-1">
+                  <label className="flex items-center gap-2 px-3 py-2 rounded border quest-control cursor-pointer flex-1">
                     <input
                       type="checkbox"
                       checked={habitAllowPositive}
@@ -3619,7 +3619,7 @@ export default function QuestHomePage() {
                     <Plus className="w-4 h-4 text-yellow-400" />
                     <span className="text-sm">Reward (+)</span>
                   </label>
-                  <label className="flex items-center gap-2 px-3 py-2 rounded border border-gray-600 cursor-pointer flex-1">
+                  <label className="flex items-center gap-2 px-3 py-2 rounded border quest-control cursor-pointer flex-1">
                     <input
                       type="checkbox"
                       checked={habitAllowNegative}
@@ -3657,20 +3657,20 @@ export default function QuestHomePage() {
         const carryOverList = reviewList.filter((t) => !isScheduledOn(t, carryTargetYMD));
         return (
           <div
-            className={`fixed inset-0 bg-black/80 flex items-start justify-center p-4 z-50 overflow-y-auto transition-opacity duration-150 ${
+            className={`fixed inset-0 quest-backdrop flex items-start justify-center p-4 z-50 overflow-y-auto transition-opacity duration-150 ${
               reviewClosing ? "opacity-0" : "opacity-100"
             }`}
           >
 
             {/* MODAL CARD — forced review; no outside-click or X dismissal */}
             <div
-              className={`bg-gray-900 border border-gray-700 rounded-lg w-full max-w-md mt-12 mb-12 transition-all duration-150 origin-top ${
+              className={`quest-surface w-full max-w-md mt-12 mb-12 transition-all duration-150 origin-top ${
                 reviewClosing ? "opacity-0 scale-95" : "opacity-100 scale-100"
               }`}
             >
 
               {/* HEADER */}
-              <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-gray-700">
+              <div className="flex items-center justify-between gap-2 px-5 py-4 border-b quest-divider">
                 <div className="flex items-center gap-2">
                   <Repeat className="w-5 h-5 text-blue-400" />
                   <h2 className="text-lg font-semibold">Previous Day Review</h2>
@@ -3680,7 +3680,7 @@ export default function QuestHomePage() {
                 <Link
                   href="/modules/quest/ui/settings"
                   title="Quest settings"
-                  className="inline-flex p-1.5 rounded hover:bg-gray-800 text-secondary hover:text-primary cursor-pointer"
+                  className="inline-flex p-1.5 quest-hover text-secondary hover:text-primary cursor-pointer"
                 >
                   <Settings className="w-4 h-4" />
                 </Link>
@@ -3714,7 +3714,7 @@ export default function QuestHomePage() {
                       return (
                         <li
                           key={t.id}
-                          className={`rounded border ${parentChecked ? "border-gray-700 opacity-60" : "border-gray-600"}`}
+                          className={`rounded border ${parentChecked ? "quest-divider opacity-60" : "quest-control"}`}
                         >
 
                           {/* PARENT ROW */}
@@ -3726,7 +3726,7 @@ export default function QuestHomePage() {
                               className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 cursor-pointer ${
                                 parentChecked
                                   ? "bg-green-500/20 border-green-500/40 text-green-500 hover:bg-green-500/30"
-                                  : "border-gray-500 hover:border-green-500 hover:bg-green-500/10"
+                                  : "quest-control hover:border-green-500 hover:bg-green-500/10"
                               } ${reviewSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               {parentChecked && <Check className="w-3 h-3" />}
@@ -3738,7 +3738,7 @@ export default function QuestHomePage() {
                               <button
                                 onClick={() => setReviewExpandedTaskId(expanded ? null : t.id)}
                                 disabled={reviewSubmitting}
-                                className="px-2 py-0.5 rounded bg-gray-700 text-xs tabular-nums cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="badge-gray text-xs tabular-nums cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Toggle checklist"
                               >
                                 {tickedSubTotal}/{t.subtask_total}
@@ -3760,7 +3760,7 @@ export default function QuestHomePage() {
 
                           {/* SUBTASK CHECKLIST (expandable) */}
                           {hasSubs && expanded && (
-                            <ul className="border-t border-gray-700 px-3 py-1.5 space-y-1">
+                            <ul className="border-t quest-divider px-3 py-1.5 space-y-1">
                               {t.subtasks.map((s) => {
                                 const key = `${t.id}:${s.id}`;
                                 const subChecked = s.done || reviewCheckedSubtaskIds.has(key);
@@ -3776,7 +3776,7 @@ export default function QuestHomePage() {
                                       } ${
                                         subChecked
                                           ? "bg-green-500/20 border-green-500/40 text-green-500"
-                                          : "border-gray-500 hover:border-green-500 hover:bg-green-500/10"
+                                          : "quest-control hover:border-green-500 hover:bg-green-500/10"
                                       } ${reviewSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
                                     >
                                       {subChecked && <Check className="w-2.5 h-2.5" />}
@@ -3801,7 +3801,7 @@ export default function QuestHomePage() {
                   squeezed into a footer row. The list shows the same snapshot the review modal
                   used (incomplete-at-rollover dailies); the user opts in per task. */}
               {freezeConfirmOpen && (
-                <div className="px-5 py-3 border-t border-gray-700 space-y-3">
+                <div className="px-5 py-3 border-t quest-divider space-y-3">
 
                   {/* CONFIRM PROMPT */}
                   <p className="text-xs text-secondary">
@@ -3825,7 +3825,7 @@ export default function QuestHomePage() {
                               className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 cursor-pointer ${
                                 checked
                                   ? "bg-blue-500/30 border-blue-400 text-blue-300"
-                                  : "border-gray-500 hover:border-blue-400 hover:bg-blue-500/10"
+                                  : "quest-control hover:border-blue-400 hover:bg-blue-500/10"
                               } ${freezingDay ? "opacity-50 cursor-not-allowed" : ""}`}
                             >
                               {checked && <Check className="w-2.5 h-2.5" />}
@@ -3847,7 +3847,7 @@ export default function QuestHomePage() {
                     <button
                       onClick={() => { setFreezeConfirmOpen(false); setFreezeDeferIds(new Set()); }}
                       disabled={freezingDay}
-                      className="px-2 py-1 rounded border border-gray-600 hover:bg-gray-800 text-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      className="px-2 py-1 rounded border quest-control quest-hover text-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -3867,7 +3867,7 @@ export default function QuestHomePage() {
               )}
 
               {/* FOOTER */}
-              <div className="flex justify-between items-center gap-3 px-5 py-3 border-t border-gray-700">
+              <div className="flex justify-between items-center gap-3 px-5 py-3 border-t quest-divider">
 
                 {/* FREEZE LINK — hidden once the freeze options panel is open (the panel owns
                     the Cancel/confirm controls). */}
@@ -3901,13 +3901,13 @@ export default function QuestHomePage() {
       {/* SHORT REST (GAMBLE FOR HEALTH) OVERLAY */}
       {gambleOpen && (
         <div
-          className={`fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 transition-opacity duration-150 ${
+          className={`fixed inset-0 quest-backdrop flex items-center justify-center p-4 z-50 transition-opacity duration-150 ${
             gambleClosing ? "opacity-0" : "opacity-100"
           }`}
           onClick={closeGamble}
         >
           <div
-            className={`bg-gray-900 border border-red-500/40 rounded-lg w-full max-w-sm p-6 text-center transition-all duration-150 ${
+            className={`quest-surface !border-red-500/40 w-full max-w-sm p-6 text-center transition-all duration-150 ${
               gambleClosing ? "opacity-0 scale-95" : "opacity-100 scale-100"
             }`}
             onClick={(e) => e.stopPropagation()}
@@ -3964,7 +3964,7 @@ export default function QuestHomePage() {
             {/* HP BAR */}
             <div className="flex items-center gap-2 mb-2 text-sm">
               <Heart className="w-4 h-4 text-red-500 shrink-0" />
-              <div className="flex-1 h-2 bg-gray-800 rounded overflow-hidden">
+              <div className="flex-1 h-2 quest-track rounded overflow-hidden">
                 <div className="h-full bg-red-500 transition-all duration-300" style={{ width: `${hpPercent}%` }} />
               </div>
               <span className="tabular-nums text-secondary shrink-0">{state.health}/{state.max_health}</span>
@@ -3993,7 +3993,7 @@ export default function QuestHomePage() {
               <button
                 onClick={closeGamble}
                 disabled={gambleRolling}
-                className="px-4 py-2 rounded border border-gray-600 hover:bg-gray-800 text-secondary hover:text-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded border quest-control quest-hover text-secondary hover:text-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Done
               </button>
@@ -4010,13 +4010,13 @@ export default function QuestHomePage() {
       {/* DEATH MODAL */}
       {deathInfo && (
         <div
-          className={`fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 transition-opacity duration-150 ${
+          className={`fixed inset-0 quest-backdrop flex items-center justify-center p-4 z-50 transition-opacity duration-150 ${
             deathModalClosing ? "opacity-0" : "opacity-100"
           }`}
           onClick={animateCloseDeathModal}
         >
           <div
-            className={`bg-gray-900 border border-red-500/40 rounded-lg w-full max-w-sm p-6 text-center transition-all duration-150 ${
+            className={`quest-surface !border-red-500/40 w-full max-w-sm p-6 text-center transition-all duration-150 ${
               deathModalClosing ? "opacity-0 scale-95" : "opacity-100 scale-100"
             }`}
             onClick={(e) => e.stopPropagation()}
@@ -4064,7 +4064,7 @@ function SubtaskChecklist({
           <button
             onClick={() => onToggle(s.id, s.done)}
             className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer ${
-              s.done ? "bg-green-500/30 border-green-500/50 text-green-500" : "border-gray-500"
+              s.done ? "bg-green-500/30 border-green-500/50 text-green-500" : "quest-control"
             }`}
           >
             {s.done && <Check className="w-3 h-3" />}
@@ -4094,7 +4094,7 @@ function SubtaskChecklist({
                 setNewTitle("");
               }
             }}
-            className="flex-1 px-2 py-1 rounded border border-gray-700 bg-transparent text-sm"
+            className="flex-1 px-2 py-1 rounded border quest-control bg-transparent text-sm"
           />
           <button
             onClick={() => {
@@ -4103,7 +4103,7 @@ function SubtaskChecklist({
                 setNewTitle("");
               }
             }}
-            className="px-2 py-1 rounded border border-gray-700 hover:bg-gray-800 cursor-pointer"
+            className="px-2 py-1 rounded border quest-control quest-hover cursor-pointer"
           >
             <Plus className="w-3 h-3" />
           </button>
