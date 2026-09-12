@@ -254,7 +254,7 @@ export default function UserDetailPage() {
       }
 
       toast.success("User deleted");
-      router.push("/settings/ui/home");
+      router.push("/settings/ui/admin");
     } catch (error) {
       console.error("Error deleting user:", error);
       toast.error("Failed to delete user");
@@ -287,7 +287,7 @@ export default function UserDetailPage() {
 
           {/* BACK BUTTON */}
           <BackLink
-            fallback="/settings/ui/home"
+            fallback="/settings/ui/admin"
             className="btn btn-link !pl-0"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -317,7 +317,7 @@ export default function UserDetailPage() {
           <div>
             {/* BACK BUTTON */}
             <BackLink
-              fallback="/settings/ui/home"
+              fallback="/settings/ui/admin"
               className="btn btn-link !pl-0"
             >
               <ArrowLeft className="w-4 h-4" />

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect, useRef, ReactNode } from "react";
 import Image from "next/image";
-import { Settings, LogOut, CircleUser, KeyRound } from "lucide-react";
+import { Settings, LogOut, CircleUser, KeyRound, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PermissionGuardClient from "@/components/PermissionGuardClient";
 import MainNavDrawer from "@/components/MainNavDrawer";
@@ -230,17 +230,36 @@ export default function Navbar({ children }: NavbarProps) {
         </div>
 
         {/* DROPDOWN MENU */}
-        <PopoverMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} anchorRef={menuButtonRef}>
+        <PopoverMenu
+          open={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          anchorRef={menuButtonRef}
+          /* Wider than the default 10rem so "Admin settings" stays on one line. */
+          className="popover-menu--wide"
+        >
 
-          {/* SETTINGS LINK (admin only) — a real <Link> so middle/cmd-click opens it in a new tab. */}
+          {/* SETTINGS LINK — per-user settings, everyone. A real <Link> so
+              middle/cmd-click opens it in a new tab. */}
+          <Link
+            href="/settings/ui/home"
+            onClick={() => setIsMenuOpen(false)}
+            className="popover-item"
+          >
+            <Settings className="w-4 h-4 mr-3" />
+            Settings
+          </Link>
+
+          {/* ADMIN SETTINGS LINK (admin only) — the users/API-key console.
+              Hidden entirely for non-admins, whose /settings/ui/admin would
+              404 via the subtree's PermissionGuardServer anyway. */}
           <PermissionGuardClient>
             <Link
-              href="/settings/ui/home"
+              href="/settings/ui/admin"
               onClick={() => setIsMenuOpen(false)}
               className="popover-item"
             >
-              <Settings className="w-4 h-4 mr-3" />
-              Settings
+              <ShieldCheck className="w-4 h-4 mr-3" />
+              Admin settings
             </Link>
           </PermissionGuardClient>
 

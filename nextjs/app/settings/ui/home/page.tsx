@@ -1,148 +1,54 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
-import { User } from "@/types/user";
-import { Button } from "@/components/ui/button";
-import AddUserModal from "./AddUserModal";
+import { Settings, SunMoon, ShieldCheck } from "lucide-react";
+import PermissionGuardClient from "@/components/PermissionGuardClient";
+import { SettingsGroup, type SettingsRowItem } from "@/components/settings/SettingsList";
 
-export default function SettingsConsolePage() {
-  // DATA
-  const [users, setUsers] = useState<User[]>([]);
-
-  // STATE
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-
+// App-wide, per-user settings hub. The global admin console that used to live
+// at this URL moved to /settings/ui/admin (admin-only); this page is for
+// everyone and holds the signed-in user's own preferences.
+export default function UserSettingsPage() {
   const router = useRouter();
 
-  // Fetch users
-  async function fetchUsers() {
-    try {
-      const response = await fetch("/api/users");
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data);
-      }
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  const appearanceRows: SettingsRowItem[] = [
+    {
+      icon: SunMoon,
+      label: "Theme",
+      onClick: () => router.push("/settings/ui/theme"),
+    },
+  ];
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Loading placeholder
-  if (isLoading) {
-    return (
-      <div className="page">
-        <div className="page-container">
-          <div className="loading-container">
-            <div className="loading-spinner" />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const adminRows: SettingsRowItem[] = [
+    {
+      icon: ShieldCheck,
+      label: "Admin settings",
+      onClick: () => router.push("/settings/ui/admin"),
+    },
+  ];
 
   return (
+    /* PAGE */
     <div className="page">
+
+      {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* PAGE HEADER */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-page-title">Settings</h1>
-        </div>
+        {/* PAGE TITLE */}
+        <h1 className="text-page-title settings-title"><Settings className="w-6 h-6" /> Settings</h1>
 
-        {/* USERS CARD */}
-        <div className="card mt-6">
+        {/* APPEARANCE SECTION */}
+        <h2 className="settings-section-title">Appearance</h2>
+        <SettingsGroup rows={appearanceRows} />
 
-          {/* HEADER */}
-          <div className="card-header flex items-center justify-between">
-            <h3 className="text-card-title">Users</h3>
-
-            {/* ADD USER BUTTON */}
-            <Button
-              className="btn-blue"
-              onClick={() => setIsAddModalOpen(true)}
-            >
-              <Plus className="w-4 h-4" />
-              Add User
-            </Button>
-          </div>
-
-          {/* USERS TABLE */}
-          <div className="table-container" style={{ border: "none" }}>
-            <table className="table">
-              <thead className="table-header">
-                <tr className="table-header-row">
-                  <th className="table-header-cell">Name</th>
-                  <th className="table-header-cell">Email</th>
-                  <th className="table-header-cell">Status</th>
-                  <th className="table-header-cell">Role</th>
-                </tr>
-              </thead>
-              <tbody className="table-body">
-
-                {/* LOADING PLACEHOLDER */}
-                {isLoading && (
-                  <tr className="table-row">
-                    <td className="table-cell" colSpan={4}>
-                      <div className="loading-container">
-                        <div className="loading-spinner" />
-                      </div>
-                    </td>
-                  </tr>
-                )}
-
-                {/* EMPTY PLACEHOLDER */}
-                {!isLoading && users.length === 0 && (
-                  <tr className="table-row">
-                    <td className="table-empty" colSpan={4}>No users found</td>
-                  </tr>
-                )}
-
-                {/* USER ROWS */}
-                {!isLoading && users.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="table-row table-row-clickable"
-                    onClick={() => router.push(`/settings/ui/user/${user.id}`)}
-                  >
-                    <td className="table-cell">{user.name}</td>
-                    <td className="table-cell">{user.email}</td>
-                    <td className="table-cell">
-                      {user.enabled ? (
-                        <span className="badge-green">Active</span>
-                      ) : (
-                        <span className="badge-red">Disabled</span>
-                      )}
-                    </td>
-                    <td className="table-cell">
-                      {user.global_admin ? (
-                        <span className="badge-blue">Admin</span>
-                      ) : (
-                        <span className="badge-gray">User</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* ADMINISTRATION SECTION (admin only) */}
+        <PermissionGuardClient>
+          <>
+            <h2 className="settings-section-title">Administration</h2>
+            <SettingsGroup rows={adminRows} />
+          </>
+        </PermissionGuardClient>
       </div>
-
-      {/* ADD USER MODAL */}
-      <AddUserModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onUserAdded={fetchUsers}
-      />
     </div>
   );
 }
