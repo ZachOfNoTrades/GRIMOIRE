@@ -16,18 +16,32 @@ export interface SegmentedOption<T extends string> {
   label: string;
 }
 
+// WHICH ARIA PATTERN THE TRACK ANNOUNCES — "tabs" (the default) for a control that
+// switches which view is on screen, "radio" for a control that *sets a value* (a
+// preference like the theme picker). Same visuals either way; only the roles and
+// the selected-state attribute differ, which is what a screen reader reads out.
+export type SegmentedA11y = "tabs" | "radio";
+
 export default function SegmentedToggle<T extends string>({
   options,
   value,
   onChange,
   className,
   style,
+  a11y = "tabs",
+  ariaLabel,
+  disabled = false,
 }: {
   options: SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
   className?: string;
   style?: CSSProperties;
+  // Blocks input while a change is being saved. No dimming: a save is a single
+  // round trip, and fading the whole control for it reads as a glitch.
+  disabled?: boolean;
+  a11y?: SegmentedA11y;
+  ariaLabel?: string;
 }) {
   // Which slot the sliding indicator sits over (fall back to the first if the
   // current value isn't in the list, so the indicator is never orphaned).
@@ -35,7 +49,12 @@ export default function SegmentedToggle<T extends string>({
 
   return (
     /* SEGMENTED TOGGLE */
-    <div role="tablist" className={`segmented-toggle${className ? ` ${className}` : ""}`} style={style}>
+    <div
+      role={a11y === "radio" ? "radiogroup" : "tablist"}
+      aria-label={ariaLabel}
+      className={`segmented-toggle${className ? ` ${className}` : ""}`}
+      style={style}
+    >
 
       {/* SLIDING INDICATOR — the filled pill; one slot wide, translated to the active option */}
       <span
@@ -51,9 +70,10 @@ export default function SegmentedToggle<T extends string>({
           <button
             key={option.value}
             type="button"
-            role="tab"
-            aria-selected={isActive}
+            role={a11y === "radio" ? "radio" : "tab"}
+            {...(a11y === "radio" ? { "aria-checked": isActive } : { "aria-selected": isActive })}
             className="segmented-toggle-pill"
+            disabled={disabled}
             onClick={() => onChange(option.value)}
           >
             {option.label}

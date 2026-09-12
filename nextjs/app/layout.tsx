@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import DocumentTitleSync from "@/components/DocumentTitleSync";
 import NavHistoryTracker from "@/components/NavHistoryTracker";
 import NavSafeAreaSync from "@/components/NavSafeAreaSync";
+import ThemeSync from "@/components/ThemeSync";
 import "./globals.css";
 // Side-effect import: starts the in-process digest schedulers on first render.
 // Lives here (Node-only server layout) instead of instrumentation.ts so that
@@ -36,6 +37,25 @@ export default function RootLayout({
        server markup. Scoped to this element; children still hydrate normally. */
     <html lang="en" className={jetbrainsMono.variable} suppressHydrationWarning>
       <body>
+        {/* PRE-PAINT THEME — stamps data-theme="light|dark" on <html> during HTML
+            parse, before anything paints, so a user who pinned a theme never sees
+            a flash of the other one. Reads the localStorage mirror of the saved
+            preference (dbo.user_preferences via /api/users/me/preferences) and
+            resolves "auto" against prefers-color-scheme here, which is why
+            globals.css keys its dark palette off the attribute instead of a media
+            query — a media query can't be overridden by a saved choice. An empty
+            mirror (first load on this device) resolves to the OS preference, and
+            ThemeSync corrects it right after mount. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=null;try{t=localStorage.getItem('grimoire.theme');}catch(e){}" +
+              "if(t!=='light'&&t!=='dark'&&t!=='auto'){t='auto';}" +
+              "var dark=t==='dark'||(t==='auto'&&window.matchMedia('(prefers-color-scheme: dark)').matches);" +
+              "document.documentElement.setAttribute('data-theme',dark?'dark':'light');}catch(e){}})();",
+          }}
+        />
+
         {/* PRE-PAINT --app-height — kills the first-second bottom-bar jump on
             Firefox Android. Locked shells size to `var(--app-height, 100dvh)`, but
             lib/useAppHeight only sets that property from a useEffect, i.e. AFTER
@@ -71,6 +91,10 @@ export default function RootLayout({
           {/* NAV SAFE-AREA SYNC — keeps --nav-safe-top equal to the Firefox-Android
               locked-shell clip so the navbar is never stranded behind the URL bar. */}
           <NavSafeAreaSync />
+
+          {/* THEME SYNC — reconciles the painted theme with the preference saved
+              for this user (another device may have changed it). */}
+          <ThemeSync />
 
           <Navbar />
           {children}

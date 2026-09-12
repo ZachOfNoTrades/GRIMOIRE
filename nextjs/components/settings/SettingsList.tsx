@@ -101,6 +101,31 @@ export function SettingsTimeRow({
   );
 }
 
+// SETTINGS CONTROL ROW — a labeled row whose trailing slot holds any control
+// (a segmented toggle, a select). Meant to sit inside a .settings-group, and the
+// generic sibling of SettingsToggleRow / SettingsTimeRow. Stacks the control
+// under the label on narrow phones (see the CSS).
+export function SettingsControlRow({
+  label,
+  divider = false,
+  children,
+}: {
+  label: string;
+  divider?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="settings-control-row" style={divider ? { borderTop: "1px solid var(--card-border)" } : undefined}>
+
+      {/* LABEL */}
+      <span className="settings-control-label">{label}</span>
+
+      {/* CONTROL */}
+      <span className="settings-control-slot">{children}</span>
+    </div>
+  );
+}
+
 export interface SettingsRadioOption<T extends string> {
   value: T;
   label: string;

@@ -15,6 +15,10 @@
 
 /* LAYOUT */
 :root {
+  /* Native UI (scrollbars, date/time pickers, form controls) follows the
+     resolved theme, not the OS preference — same reason as the palette below. */
+  color-scheme: light;
+
   --solid-background: #f5f5f0;
   --solid-foreground: #1a1a1a;
   --gradient-background: radial-gradient(ellipse at center, #f5f5f0 0%, #e8e8e0 100%);
@@ -100,92 +104,99 @@
   --modal-backdrop: rgb(0 0 0 / 0.5);
 }
 
-/* DARK MODE COLORS */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --solid-background: #000000;
-    --solid-foreground: #e6e6e6;
-    --gradient-background: radial-gradient(ellipse at center, #0a0a0a 0%, #000000 100%);
-    --card-bg: #080808;
-    --card-border: #333333;
-    --color-primary: #f0f0f0;
-    --color-secondary: #bcbcbc;
-    --color-gray: #555555;
-    --hover-bg: #141414;
+/* DARK MODE COLORS
+   Keyed on `data-theme` (stamped on <html> by the pre-paint script in
+   app/layout.tsx), NOT on `@media (prefers-color-scheme: dark)` — the theme is a
+   saved per-user preference now (auto / light / dark, dbo.user_preferences), and
+   a media query can't be overridden from JS. "auto" is resolved to light|dark by
+   that script before first paint, so this attribute is the single source of
+   truth for which palette is live and there is no second copy to keep in sync.
+   See lib/useTheme.ts. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-    --input-border: #555555;
-    --input-bg: #050505;
-    --input-disabled-bg: #0a0a0a;
-    --input-disabled-border: #222222;
-    --input-disabled-text: #555555;
+  --solid-background: #000000;
+  --solid-foreground: #e6e6e6;
+  --gradient-background: radial-gradient(ellipse at center, #0a0a0a 0%, #000000 100%);
+  --card-bg: #080808;
+  --card-border: #333333;
+  --color-primary: #f0f0f0;
+  --color-secondary: #bcbcbc;
+  --color-gray: #555555;
+  --hover-bg: #141414;
 
-    /* Additional dark mode values */
-    --hover-text: #ffffff;
+  --input-border: #555555;
+  --input-bg: #050505;
+  --input-disabled-bg: #0a0a0a;
+  --input-disabled-border: #222222;
+  --input-disabled-text: #555555;
 
-    /* Alert colors - dark mode */
-    --alert-green-bg: #031a05;
-    --alert-green-border: #1f5a2a;
-    --alert-green-text: #33ff66;
-    --alert-yellow-bg: #1a1400;
-    --alert-yellow-border: #665200;
-    --alert-yellow-text: #ffcc00;
-    --alert-red-bg: #1a0505;
-    --alert-red-border: #661a1a;
-    --alert-red-text: #ff3344;
-    --alert-blue-bg: #031318;
-    --alert-blue-border: #1a4d66;
-    --alert-blue-text: #33ccff;
+  /* Additional dark mode values */
+  --hover-text: #ffffff;
 
-    /* Button colors - dark mode */
-    --btn-blue-bg: #0a2d3a;
-    --btn-blue-hover: #1a4d66;
-    --btn-green-bg: #053e12;
-    --btn-green-hover: #0a6622;
-    --btn-disabled-bg: #141414;
-    --btn-disabled-text: #555555;
-    --btn-off-bg: #0a0a0a;
-    --btn-off-text: #bcbcbc;
-    --btn-off-hover: #141414;
-    --btn-link-text: #bcbcbc;
-    --btn-link-hover: #f0f0f0;
-    --btn-red-bg: #3a0a0a;
-    --btn-red-hover: #661a1a;
-    /* Dark mode already had legible bright text on the dark fills — keep it. */
-    --btn-blue-text: var(--color-primary);
-    --btn-green-text: var(--color-primary);
-    --btn-red-text: var(--alert-red-text);
+  /* Alert colors - dark mode */
+  --alert-green-bg: #031a05;
+  --alert-green-border: #1f5a2a;
+  --alert-green-text: #33ff66;
+  --alert-yellow-bg: #1a1400;
+  --alert-yellow-border: #665200;
+  --alert-yellow-text: #ffcc00;
+  --alert-red-bg: #1a0505;
+  --alert-red-border: #661a1a;
+  --alert-red-text: #ff3344;
+  --alert-blue-bg: #031318;
+  --alert-blue-border: #1a4d66;
+  --alert-blue-text: #33ccff;
 
-    /* Table colors - dark mode */
-    --table-header-bg: #141414;
-    --table-row-hover-bg: #141414;
-    --table-row-border: #222222;
+  /* Button colors - dark mode */
+  --btn-blue-bg: #0a2d3a;
+  --btn-blue-hover: #1a4d66;
+  --btn-green-bg: #053e12;
+  --btn-green-hover: #0a6622;
+  --btn-disabled-bg: #141414;
+  --btn-disabled-text: #555555;
+  --btn-off-bg: #0a0a0a;
+  --btn-off-text: #bcbcbc;
+  --btn-off-hover: #141414;
+  --btn-link-text: #bcbcbc;
+  --btn-link-hover: #f0f0f0;
+  --btn-red-bg: #3a0a0a;
+  --btn-red-hover: #661a1a;
+  /* Dark mode already had legible bright text on the dark fills — keep it. */
+  --btn-blue-text: var(--color-primary);
+  --btn-green-text: var(--color-primary);
+  --btn-red-text: var(--alert-red-text);
 
-    /* Badge colors - dark mode */
-    --badge-green-bg: #031a05;
-    --badge-green-text: #33ff66;
-    --badge-yellow-bg: #1a1400;
-    --badge-yellow-text: #ffcc00;
-    --badge-red-bg: #1a0505;
-    --badge-red-text: #ff3344;
-    --badge-red-border: #661a1a;
-    --badge-blue-bg: #031318;
-    --badge-blue-text: #33ccff;
+  /* Table colors - dark mode */
+  --table-header-bg: #141414;
+  --table-row-hover-bg: #141414;
+  --table-row-border: #222222;
 
-    /* Progress bar colors - dark mode */
-    --progress-bar-bg: #141414;
-    --progress-bar-fill-blue-start: #1a4d66;
-    --progress-bar-fill-blue-end: #33ccff;
-    --progress-bar-fill-yellow-start: #665200;
-    --progress-bar-fill-yellow-end: #ffcc00;
-    --progress-bar-fill-red-start: #661a1a;
-    --progress-bar-fill-red-end: #ff3344;
+  /* Badge colors - dark mode */
+  --badge-green-bg: #031a05;
+  --badge-green-text: #33ff66;
+  --badge-yellow-bg: #1a1400;
+  --badge-yellow-text: #ffcc00;
+  --badge-red-bg: #1a0505;
+  --badge-red-text: #ff3344;
+  --badge-red-border: #661a1a;
+  --badge-blue-bg: #031318;
+  --badge-blue-text: #33ccff;
 
-    /* Stat section background - dark mode */
-    --stat-section-bg: #080808;
+  /* Progress bar colors - dark mode */
+  --progress-bar-bg: #141414;
+  --progress-bar-fill-blue-start: #1a4d66;
+  --progress-bar-fill-blue-end: #33ccff;
+  --progress-bar-fill-yellow-start: #665200;
+  --progress-bar-fill-yellow-end: #ffcc00;
+  --progress-bar-fill-red-start: #661a1a;
+  --progress-bar-fill-red-end: #ff3344;
 
-    /* Modal */
-    --modal-backdrop: rgb(0 0 0 / 0.85);
-  }
+  /* Stat section background - dark mode */
+  --stat-section-bg: #080808;
+
+  /* Modal */
+  --modal-backdrop: rgb(0 0 0 / 0.85);
 }
 
 @theme inline {
@@ -1960,15 +1971,13 @@ input[type="search"]::-webkit-search-results-decoration {
 .btn-google:hover {
   background: #f8f8f8;
 }
-@media (prefers-color-scheme: dark) {
-  .btn-google {
-    background: #131314;
-    color: #e3e3e3;
-    border-color: #8e918f;
-  }
-  .btn-google:hover {
-    background: #1f1f20;
-  }
+:root[data-theme="dark"] .btn-google {
+  background: #131314;
+  color: #e3e3e3;
+  border-color: #8e918f;
+}
+:root[data-theme="dark"] .btn-google:hover {
+  background: #1f1f20;
 }
 
 /* Tab buttons */
@@ -3445,7 +3454,11 @@ button {
   color: var(--color-secondary);
   transition: color 0.22s ease;
 }
-.segmented-toggle-pill[aria-selected="true"] {
+/* Active pill text. Both attributes, because the track announces itself as tabs
+   (aria-selected) or as a radiogroup (aria-checked) depending on the caller's
+   `a11y` prop — see components/ui/SegmentedToggle.tsx. */
+.segmented-toggle-pill[aria-selected="true"],
+.segmented-toggle-pill[aria-checked="true"] {
   color: var(--solid-background);
 }
 
@@ -7304,9 +7317,98 @@ body:has(.quest-cal-page) > .page {
   outline-offset: -1px;
 }
 
+/* ============ CONTROL ROW (label + arbitrary control on the right) ============
+   The generic sibling of .settings-toggle-row / .settings-time-row: same card
+   padding and label weight, but the trailing slot takes any control (a
+   segmented pill, a select). A lone control floating under a section heading
+   reads as unfinished on a wide screen — framing it in the group card is what
+   every settings reference does (Microsoft's SettingsCard, Untitled UI's form
+   rows), and it lines this page up with forage's/rune's settings pages. */
+.settings-control-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+}
+
+.settings-control-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.settings-control-slot {
+  flex: 0 0 auto;
+}
+
+/* Narrow phones: "Automatic | Light | Dark" plus its label doesn't fit on one
+   line, so stack — label above, control full width — rather than letting the
+   pills squeeze to unreadable widths. */
+@media (max-width: 480px) {
+  .settings-control-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .settings-control-slot {
+    width: 100%;
+  }
+}
+
+/* At the very narrowest padded width (a ~320px desktop window, which now keeps
+   its gutter) three segments plus the row padding leave "Automatic" 2px short of
+   its pill. Trim the pill's side padding rather than the label. */
+@media (max-width: 360px) {
+  .settings-control-slot .segmented-toggle-pill {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}
+
 /* Helper copy under a group. */
 .settings-group-note {
   color: var(--color-secondary);
   font-size: 0.8125rem;
   margin: 0.5rem 0.25rem 0;
 }
+
+/* ============ FORAGE CUSTOM UNIT ROW (settings > units) ============
+   A non-navigational sibling of .settings-row: the row itself isn't tappable,
+   the rename/delete buttons at its trailing edge are. Shares the group card's
+   padding and divider so it lines up with the radio rows above it. */
+.fg-unit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.625rem 0.5rem 0.625rem 1rem;
+  color: inherit;
+  text-align: left;
+}
+
+.fg-unit-row + .fg-unit-row {
+  border-top: 1px solid var(--card-border);
+}
+
+/* Name over group, so a long custom name never crowds the action buttons. */
+.fg-unit-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.fg-unit-row-body .settings-row-label,
+.fg-unit-row-body .settings-row-hint {
+  flex: none;
+  overflow-wrap: anywhere;
+}
+
+.fg-unit-row-body .settings-row-hint {
+  font-size: 0.75rem;
+}
+

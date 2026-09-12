@@ -24,6 +24,11 @@ pane). The two are intentionally not merged.
 - `SettingsToggleRow` — a labeled on/off switch row.
 - `SettingsTimeRow` — a labeled native `<input type="time">` row.
 - `SettingsRadioGroup` — a rounded card of single-select radio rows (string-valued).
+- `SettingsControlRow` — a labeled row whose trailing slot holds any control
+  (a segmented toggle, a select). Use it instead of dropping a bare control under
+  a section heading: a lone unframed control reads as unfinished on a wide screen.
+  Stacks label-above-control under 480px. Reference: the Theme page
+  (`app/settings/ui/theme`).
 - `SettingsBackLink` — the chevron + label "back to X" link used above a sub-page's title.
 
 All of the above are meant to sit inside a `.settings-group` card (except
@@ -58,6 +63,7 @@ section heading above a group, `.settings-title` on the page's `<h1>`, and
   the remaining raw `border-gray-600`/hardcoded-color form inputs and confirm
   modals were left as-is to avoid touching economy-critical logic in one
   unattended pass.
-- **Global admin console** (`app/settings/ui/home`, `app/settings/ui/user/[id]`)
+- **Global admin console** (`app/settings/ui/admin`, `app/settings/ui/user/[id]`)
   is a CRUD table (users, API keys), not a preferences list — grouped rows
-  don't fit that content, so it wasn't touched.
+  don't fit that content, so it wasn't touched. `app/settings/ui/home` is the
+  app-wide *per-user* settings hub (everyone) and does use these primitives.

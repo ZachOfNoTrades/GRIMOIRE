@@ -86,6 +86,28 @@ BEGIN TRY
     END
 
     -- =============================
+    -- User Preferences (per-user, app-wide)
+    -- =============================
+    -- One row per user, created on first write. A user with no row uses the
+    -- application defaults (see nextjs/types/preferences.ts), so reads must
+    -- tolerate the row being absent rather than requiring a backfill.
+    -- Module-scoped preferences stay in their own module DB (e.g.
+    -- forage_user_settings); this table is only for settings that apply to the
+    -- whole app, like the theme.
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_preferences' AND xtype='U')
+    BEGIN
+        CREATE TABLE user_preferences (
+            user_id UNIQUEIDENTIFIER PRIMARY KEY,
+            theme NVARCHAR(10) NOT NULL DEFAULT 'auto', -- auto | light | dark
+            ts_created DATETIME DEFAULT GETDATE(),
+            ts_updated DATETIME DEFAULT GETDATE(),
+
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            CONSTRAINT chk_user_preferences_theme CHECK (theme IN ('auto','light','dark'))
+        );
+    END
+
+    -- =============================
     -- User Module Access (per-user allow-list)
     -- =============================
     -- Empty table for a user == full access ("give everyone everything" default);
