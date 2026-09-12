@@ -594,18 +594,34 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   max-width: 80rem;
   margin-left: auto;
   margin-right: auto;
-  padding: 2rem 0; /* Mobile */
-}
-
-@media (min-width: 640px) {
-  .page-container {
-    padding: 2rem 1.5rem; /* Tablet */
-  }
+  padding: 2rem 1.5rem; /* Phone-width desktop window / tablet */
 }
 
 @media (min-width: 1024px) {
   .page-container {
     padding: 2rem 2rem; /* Desktop */
+  }
+}
+
+/* PHONE-WIDTH GUTTER — TOUCH DEVICES ONLY.
+   On a real phone every horizontal pixel counts, so the page runs edge to edge
+   (this is the zero side padding the narrow-width layout rules elsewhere in this
+   file are written against). A NARROW DESKTOP WINDOW is not a phone, though:
+   dragging a browser window to 400px used to snap the content flush to the
+   window frame, which just looks broken. `hover: none` separates the two: it
+   describes the PRIMARY input, so a mouse-driven desktop (Chromium and Firefox
+   both measured `hover: hover` at every width) keeps its gutter, while Firefox
+   Android reports `hover: none` and gets the full width. No UA sniffing and no
+   JS, so it also can't flash the wrong padding on first paint.
+   `pointer: coarse` is deliberately NOT in this test: the android-emu emulator
+   is driven by the host's mouse and reports `pointer: fine` (measured
+   2026-09-10), so requiring coarse would silently keep the gutter on the one
+   rig we verify mobile layout on. `hover: none` is true on both it and a real
+   phone. The trade: a touchscreen-only Windows tablet also reads as touch. */
+@media (max-width: 639px) and (hover: none) {
+  .page-container {
+    padding-left: 0;
+    padding-right: 0;
   }
 }
 
@@ -6927,6 +6943,10 @@ body:has(.quest-cal-page) > .page {
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0 0.25rem 0.5rem;
+  /* Caller controls (`toolbarExtra`) share this line rather than taking one of their own.
+     On a narrow phone that can be more than fits, so let it wrap instead of squeezing the
+     buttons' labels. */
+  flex-wrap: wrap;
 }
 .erow-select-all {
   display: inline-flex;
