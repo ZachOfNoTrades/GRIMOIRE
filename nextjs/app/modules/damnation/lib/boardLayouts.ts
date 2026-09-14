@@ -19,15 +19,15 @@ export const BOARD_LAYOUTS: BoardLayout[] = [
   { key: "3-left", label: "1 left, 2 right", slots: 3, columns: "1fr 1fr", areas: ["a b", "a c"] },
   { key: "3-right", label: "2 left, 1 right", slots: 3, columns: "1fr 1fr", areas: ["a c", "b c"] },
   { key: "3-top", label: "1 top, 2 bottom", slots: 3, columns: "1fr 1fr", areas: ["a a", "b c"] },
-  { key: "3-row", label: "3 in a row", slots: 3, columns: "1fr 1fr 1fr", areas: ["a b c"] },
+  { key: "3-bottom", label: "2 top, 1 bottom", slots: 3, columns: "1fr 1fr", areas: ["a b", "c c"] },
 
   { key: "4-grid", label: "2 × 2", slots: 4, columns: "1fr 1fr", areas: ["a b", "c d"] },
   { key: "4-ends", label: "1 · 2 · 1", slots: 4, columns: "1fr 1fr 1fr", areas: ["a b d", "a c d"] },
-  { key: "4-row", label: "4 in a row", slots: 4, columns: "repeat(4, 1fr)", areas: ["a b c d"] },
+  { key: "4-tall-left", label: "1 tall left; 1 wide top and 2 below on the right", slots: 4, columns: "1fr 1fr 1fr", areas: ["a b b", "a c d"] },
+  { key: "4-tall-right", label: "1 tall right; 1 wide top and 2 below on the left", slots: 4, columns: "1fr 1fr 1fr", areas: ["b b a", "c d a"] },
 
   { key: "5-2-3", label: "2 top, 3 bottom", slots: 5, columns: "repeat(6, 1fr)", areas: ["a a a b b b", "c c d d e e"] },
   { key: "5-3-2", label: "3 top, 2 bottom", slots: 5, columns: "repeat(6, 1fr)", areas: ["a a b b c c", "d d d e e e"] },
-  { key: "5-ends", label: "1 · 3 · 1", slots: 5, columns: "1fr 1fr 1fr", areas: ["a b e", "a c e", "a d e"] },
 
   { key: "6-3x2", label: "3 × 2", slots: 6, columns: "1fr 1fr 1fr", areas: ["a b c", "d e f"] },
   { key: "6-2x3", label: "2 × 3", slots: 6, columns: "1fr 1fr", areas: ["a b", "c d", "e f"] },
