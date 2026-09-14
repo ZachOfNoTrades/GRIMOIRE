@@ -110,10 +110,7 @@ export interface SessionSummary {
 }
 
 export interface DamnationSettings {
-  wiki_search_template: string;
-  wiki_embed: boolean;
   commander_damage_enabled: boolean;
-  is_default_template: boolean;
 }
 
 // Stream events pushed over SSE.

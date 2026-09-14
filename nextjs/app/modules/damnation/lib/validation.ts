@@ -98,9 +98,9 @@ export const setupSchema = z
   .object({ op_id: uuid, starting_life: startingLife.optional(), max_players: maxPlayers.optional() })
   .refine((body) => body.starting_life !== undefined || body.max_players !== undefined, "Nothing to change");
 
-// A wiki search template must be an http(s) URL with the {query} placeholder. The scheme
-// check is what keeps a `javascript:` template from becoming a link on a guest's phone, and
-// the app's own origin is refused because it would be framed with scripts enabled.
+// A wiki search template (DAMNATION_WIKI_SEARCH_TEMPLATE) must be an http(s) URL with the {query}
+// placeholder. The scheme check is what keeps a `javascript:` template from becoming a link on a
+// guest's phone, and the app's own origin is refused because it would be framed with scripts enabled.
 export function normalizeWikiTemplate(raw: string | null | undefined): string | null {
   if (raw === null || raw === undefined) return null;
   const template = raw.trim();
@@ -128,8 +128,6 @@ export function normalizeWikiTemplate(raw: string | null | undefined): string | 
 
 // Any subset of the settings; fields left out keep their saved value.
 export const settingsSchema = z.object({
-  wiki_search_template: z.string().nullable().optional(),
-  wiki_embed: z.boolean().optional(),
   commander_damage_enabled: z.boolean().optional(),
 });
 

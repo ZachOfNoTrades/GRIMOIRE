@@ -80,8 +80,8 @@ export const HOST_HELP: HelpSection[] = [
     heading: "Wiki search",
     body: (
       <>
-        The Wiki button searches mtg.wiki by default. Change the site in Damnation settings with any search address that
-        has <code>{"{query}"}</code> where the search text goes.
+        The Wiki button searches mtg.wiki. The site is set for the whole server with the DAMNATION_WIKI_SEARCH_TEMPLATE
+        environment variable: any search address with <code>{"{query}"}</code> where the search text goes.
       </>
     ),
   },

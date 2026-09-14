@@ -2,7 +2,6 @@ import { randomInt } from "crypto";
 import sql from "mssql";
 import { getMainConnection } from "@/lib/db";
 import {
-  DEFAULT_WIKI_SEARCH_TEMPLATE,
   JOIN_CODE_ALPHABET,
   JOIN_CODE_LENGTH,
 } from "./constants";
@@ -225,45 +224,28 @@ export async function getSettings(userId: string): Promise<DamnationSettings> {
   const result = await pool
     .request()
     .input("userId", sql.UniqueIdentifier, userId)
-    .query<{ wiki_search_template: string | null; wiki_embed: boolean; commander_damage_enabled: boolean }>(`
-      SELECT wiki_search_template, wiki_embed, commander_damage_enabled FROM damnation_settings WHERE user_id = @userId
+    .query<{ commander_damage_enabled: boolean }>(`
+      SELECT commander_damage_enabled FROM damnation_settings WHERE user_id = @userId
     `);
-  const row = result.recordset[0];
-  return {
-    wiki_search_template: row?.wiki_search_template ?? DEFAULT_WIKI_SEARCH_TEMPLATE,
-    wiki_embed: row?.wiki_embed ?? true,
-    commander_damage_enabled: row?.commander_damage_enabled ?? true,
-    is_default_template: !row?.wiki_search_template,
-  };
+  return { commander_damage_enabled: result.recordset[0]?.commander_damage_enabled ?? true };
 }
 
-// Saves the fields present in `change`, keeping the rest. `template` is already validated; null
-// stores "use the built-in default". Running games read the host's settings live, so a change
-// reaches phones on their next snapshot.
-export async function saveSettings(
-  userId: string,
-  change: { wiki_search_template?: string | null; wiki_embed?: boolean; commander_damage_enabled?: boolean }
-): Promise<DamnationSettings> {
+// Saves the fields present in `change`, keeping the rest. Running games read the host's settings
+// live, so a change reaches phones on their next snapshot.
+export async function saveSettings(userId: string, change: { commander_damage_enabled?: boolean }): Promise<DamnationSettings> {
   const pool = await getMainConnection();
   const current = await getSettings(userId);
-  const template = change.wiki_search_template !== undefined
-    ? change.wiki_search_template
-    : current.is_default_template ? null : current.wiki_search_template;
   await pool
     .request()
     .input("userId", sql.UniqueIdentifier, userId)
-    .input("template", sql.NVarChar(500), template)
-    .input("embed", sql.Bit, change.wiki_embed ?? current.wiki_embed)
     .input("commanderDamage", sql.Bit, change.commander_damage_enabled ?? current.commander_damage_enabled)
     .query(`
       MERGE damnation_settings AS target
       USING (SELECT @userId AS user_id) AS source ON target.user_id = source.user_id
       WHEN MATCHED THEN
-        UPDATE SET wiki_search_template = @template, wiki_embed = @embed, commander_damage_enabled = @commanderDamage,
-                   ts_updated = GETDATE()
+        UPDATE SET commander_damage_enabled = @commanderDamage, ts_updated = GETDATE()
       WHEN NOT MATCHED THEN
-        INSERT (user_id, wiki_search_template, wiki_embed, commander_damage_enabled)
-        VALUES (@userId, @template, @embed, @commanderDamage);
+        INSERT (user_id, commander_damage_enabled) VALUES (@userId, @commanderDamage);
     `);
   return getSettings(userId);
 }

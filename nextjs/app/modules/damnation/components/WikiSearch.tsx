@@ -6,10 +6,10 @@ import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { buildWikiSearchUrl } from "../lib/constants";
 
-// Card/rules lookup. The host picks the site in Damnation settings (a search URL with a
-// {query} placeholder, mtg.wiki by default), so a replacement can be swapped in if a site
-// goes down. Results open in an in-app frame when the host marked the site as embeddable;
-// a new-tab link is always offered because many sites refuse to be framed.
+// Card/rules lookup. The site is set for the server (DAMNATION_WIKI_SEARCH_TEMPLATE, a search URL
+// with a {query} placeholder, mtg.wiki by default), so a replacement can be swapped in if a site
+// goes down. Results open in an in-app frame unless DAMNATION_WIKI_EMBED is false; a new-tab link
+// is always offered because many sites refuse to be framed.
 
 interface WikiSearchProps {
   template: string;

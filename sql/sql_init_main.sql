@@ -156,8 +156,6 @@ BEGIN TRY
     BEGIN
         CREATE TABLE damnation_settings (
             user_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-            wiki_search_template NVARCHAR(500) NULL, -- NULL = built-in default (mtg.wiki); must contain {query}
-            wiki_embed BIT NOT NULL DEFAULT 1, -- 1 = open results in an in-app frame, 0 = new tab only
             commander_damage_enabled BIT NOT NULL CONSTRAINT DF_damnation_settings_commander_damage DEFAULT 1, -- 0 = hide commander damage in this host's games
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),

@@ -49,7 +49,8 @@ export const STARTING_LIFE_PRESETS = [20, 30, 40] as const;
 export const DEFAULT_STARTING_LIFE = 40;
 export const DEFAULT_MAX_PLAYERS = 4;
 
-// WIKI SEARCH — the default is mtg.wiki's search; hosts can replace it in settings.
+// WIKI SEARCH — the default is mtg.wiki's search; the server can replace it with the
+// DAMNATION_WIKI_SEARCH_TEMPLATE environment variable (see lib/wikiConfig.ts).
 export const WIKI_QUERY_PLACEHOLDER = "{query}";
 export const DEFAULT_WIKI_SEARCH_TEMPLATE =
   "https://mtg.wiki/index.php?search={query}&title=Special%3ASearch&go=Go";
