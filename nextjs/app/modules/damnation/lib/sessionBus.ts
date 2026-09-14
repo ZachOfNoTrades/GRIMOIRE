@@ -105,6 +105,18 @@ function broadcastPresence(sessionId: string): void {
   for (const subscriber of [...set]) subscriber.sendEvent(event);
 }
 
+// Closes every stream for a deleted game: phones are told the game ended, and boards reconnect to
+// find it gone.
+export function closeSession(sessionId: string): void {
+  const set = bus.sessions.get(sessionId);
+  if (!set) return;
+  for (const subscriber of [...set]) {
+    if (subscriber.playerId !== null) subscriber.sendEvent({ type: "revoked", data: { reason: "ended" } });
+    remove(subscriber);
+    subscriber.close();
+  }
+}
+
 // Ends a player's streams after they are removed or leave, so a revoked
 // token stops receiving updates immediately instead of at its next request.
 export function revokePlayer(sessionId: string, playerId: string, reason: "kicked"): void {

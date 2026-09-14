@@ -11,10 +11,12 @@ import {
   Play,
   Settings,
   Skull,
+  Trash2,
   Undo2,
   WifiOff,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { BackLink } from "@/components/BackLink";
@@ -40,10 +42,12 @@ import type { HostSnapshot } from "../../../types/damnation";
 
 type PendingConfirm =
   | { kind: "end" }
+  | { kind: "delete" }
   | { kind: "kick"; playerId: string; name: string };
 
 export default function DamnationBoardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const baseUrl = `/modules/damnation/api/sessions/${id}`;
 
   // STATE
@@ -204,6 +208,19 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     window.addEventListener("pointercancel", cleanup);
   }
 
+  async function deleteGame() {
+    setIsBusy(true);
+    try {
+      const response = await fetch(baseUrl, { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Couldn't delete the game");
+      router.push("/modules/damnation/ui/home");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't delete the game");
+      setIsBusy(false);
+    }
+  }
+
   async function toggleFullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -218,6 +235,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     setConfirm(null);
     if (!pending) return;
     if (pending.kind === "end") await hostCommand("/end");
+    if (pending.kind === "delete") await deleteGame();
     if (pending.kind === "kick") await hostCommand(`/players/${pending.playerId}/kick`);
   }
 
@@ -275,6 +293,11 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             {/* FULL SCREEN */}
             <Button className="btn-link" onClick={toggleFullscreen} title={isFullscreen ? "Exit full screen" : "Full screen"} aria-label={isFullscreen ? "Exit full screen" : "Full screen"}>
               {isFullscreen ? <Shrink className="w-5 h-5" /> : <Expand className="w-5 h-5" />}
+            </Button>
+
+            {/* DELETE GAME */}
+            <Button className="btn-link" onClick={() => setConfirm({ kind: "delete" })} disabled={!snapshot || isBusy} title="Delete game" aria-label="Delete game">
+              <Trash2 className="w-5 h-5" />
             </Button>
 
             {/* SETTINGS */}
@@ -448,14 +471,16 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
           onCancel={() => setConfirm(null)}
           onConfirm={runConfirmed}
           danger
-          title={confirm?.kind === "end" ? "End this game?" : "Remove player?"}
-          confirmLabel={confirm?.kind === "end" ? "End game" : "Remove"}
+          title={confirm?.kind === "end" ? "End this game?" : confirm?.kind === "delete" ? "Delete this game?" : "Remove player?"}
+          confirmLabel={confirm?.kind === "end" ? "End game" : confirm?.kind === "delete" ? "Delete" : "Remove"}
           message={
             confirm?.kind === "end"
               ? "Every phone is signed out and the code stops working. Final totals stay on this board."
-              : confirm
-                ? `${confirm.name} is removed from the game.`
-                : ""
+              : confirm?.kind === "delete"
+                ? "The game, its players and its history are deleted. This can't be undone."
+                : confirm
+                  ? `${confirm.name} is removed from the game.`
+                  : ""
           }
         />
 

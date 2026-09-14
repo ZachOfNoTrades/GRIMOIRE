@@ -8,7 +8,7 @@ import {
 import { DamnationError, isUniqueViolation } from "./errors";
 import { findLayout } from "./boardLayouts";
 import { readPlayerTokenHash } from "./playerTokens";
-import { broadcastSnapshot } from "./sessionBus";
+import { broadcastSnapshot, closeSession } from "./sessionBus";
 import { IDLE_EXPIRY_HOURS, normalizeId, readSnapshot } from "./snapshotFunctions";
 import type {
   DamnationSettings,
@@ -96,6 +96,27 @@ export async function createSession(hostUserId: string, startingLife: number, ma
     }
   }
   throw new DamnationError(503, "Couldn't generate a join code — try again");
+}
+
+// Deletes a game and everything recorded for it, then closes its live streams. Ownership is
+// checked by the route (withHost).
+export async function deleteSession(sessionId: string): Promise<void> {
+  const pool = await getMainConnection();
+  const transaction = pool.transaction();
+  await transaction.begin();
+  try {
+    await new sql.Request(transaction).input("sessionId", sql.UniqueIdentifier, sessionId).query(`
+      DELETE FROM damnation_events WHERE session_id = @sessionId;
+      DELETE FROM damnation_commander_damage WHERE session_id = @sessionId;
+      DELETE FROM damnation_players WHERE session_id = @sessionId;
+      DELETE FROM damnation_sessions WHERE id = @sessionId;
+    `);
+    await transaction.commit();
+  } catch (error) {
+    await transaction.rollback().catch(() => {});
+    throw error;
+  }
+  closeSession(sessionId);
 }
 
 // Refuses when the host already has a game that isn't finished (other than `exceptSessionId`).
