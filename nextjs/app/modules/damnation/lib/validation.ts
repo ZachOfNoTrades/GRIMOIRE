@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   COLOR_KEYS,
+  DEFAULT_MAX_PLAYERS,
+  DEFAULT_STARTING_LIFE,
   DEFAULT_WIKI_SEARCH_TEMPLATE,
   JOIN_CODE_PATTERN,
   MAX_DELTA,
@@ -69,10 +71,18 @@ export const moveSchema = z.object({ op_id: uuid, direction: z.enum(["earlier", 
 
 export const layoutSchema = z.object({ board_layout: z.string().max(20).nullable() });
 
+const startingLife = z.number().int().min(1, "Starting life must be between 1 and 999").max(999, "Starting life must be between 1 and 999");
+const maxPlayers = z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS);
+
+// Both are set on the board afterwards; a new game starts from the usual Commander defaults.
 export const createSessionSchema = z.object({
-  starting_life: z.number().int().min(1).max(999),
-  max_players: z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS),
+  starting_life: startingLife.default(DEFAULT_STARTING_LIFE),
+  max_players: maxPlayers.default(DEFAULT_MAX_PLAYERS),
 });
+
+export const setupSchema = z
+  .object({ op_id: uuid, starting_life: startingLife.optional(), max_players: maxPlayers.optional() })
+  .refine((body) => body.starting_life !== undefined || body.max_players !== undefined, "Nothing to change");
 
 // A wiki search template must be an http(s) URL with the {query} placeholder. The scheme
 // check is what keeps a `javascript:` template from becoming a link on a guest's phone, and

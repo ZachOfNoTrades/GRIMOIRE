@@ -48,6 +48,12 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
       return "Host issued a new join code";
     case "end":
       return "Game over";
+    case "setup": {
+      const parts: string[] = [];
+      if (payload.starting_life !== undefined) parts.push(`starting life to ${Number(payload.starting_life)}`);
+      if (payload.max_players !== undefined) parts.push(`the game to ${Number(payload.max_players)} players`);
+      return `Host set ${parts.join(" and ")}`;
+    }
     case "reorder":
       return `Host moved ${target} ${payload.direction === "earlier" ? "earlier" : "later"} on the board`;
     default:

@@ -9,11 +9,8 @@ import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
-import { MAX_PLAYERS, MIN_PLAYERS, STARTING_LIFE_PRESETS } from "../../lib/constants";
 import { HOST_HELP } from "../../components/help";
 import type { SessionSummary } from "../../types/damnation";
-
-const PLAYER_COUNT_OPTIONS = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, index) => MIN_PLAYERS + index);
 
 export default function DamnationHomePage() {
   const router = useRouter();
@@ -21,16 +18,10 @@ export default function DamnationHomePage() {
   // DATA
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
 
-  // INPUT
-  const [startingLife, setStartingLife] = useState<number>(40);
-  const [customLife, setCustomLife] = useState<string>("");
-  const [maxPlayers, setMaxPlayers] = useState<number>(4);
-
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [resumingId, setResumingId] = useState<string | null>(null);
-  const isCustom = !STARTING_LIFE_PRESETS.includes(startingLife as (typeof STARTING_LIFE_PRESETS)[number]);
   const liveSessions = sessions.filter((session) => session.status !== "finished");
   const pastSessions = sessions.filter((session) => session.status === "finished");
 
@@ -49,17 +40,12 @@ export default function DamnationHomePage() {
   }, []);
 
   async function createGame() {
-    const life = isCustom ? Number.parseInt(customLife, 10) : startingLife;
-    if (!Number.isInteger(life) || life < 1 || life > 999) {
-      toast.error("Starting life must be between 1 and 999");
-      return;
-    }
     setIsCreating(true);
     try {
       const response = await fetch("/modules/damnation/api/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ starting_life: life, max_players: maxPlayers }),
+        body: JSON.stringify({}),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Couldn't start a game");
@@ -132,65 +118,11 @@ export default function DamnationHomePage() {
           {/* CARD CONTENT */}
           <div className="card-content">
 
-            {/* STARTING LIFE LABEL */}
-            <div className="text-h2">Starting life</div>
-
-            {/* STARTING LIFE PICKER */}
-            <div className="flex flex-wrap gap-2">
-              {STARTING_LIFE_PRESETS.map((preset) => (
-                <Button
-                  key={preset}
-                  className={startingLife === preset ? "btn-blue" : "btn-off"}
-                  onClick={() => setStartingLife(preset)}
-                  aria-pressed={startingLife === preset}
-                >
-                  {preset}
-                </Button>
-              ))}
-              <Button
-                className={isCustom ? "btn-blue" : "btn-off"}
-                onClick={() => setStartingLife(0)}
-                aria-pressed={isCustom}
-              >
-                Custom
-              </Button>
-            </div>
-
-            {/* CUSTOM LIFE FIELD — autofocused because choosing Custom means typing a number next */}
-            {isCustom && (
-              <input
-                autoFocus
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={999}
-                className="input-field max-w-[10rem]"
-                placeholder="e.g. 25"
-                value={customLife}
-                onChange={(event) => setCustomLife(event.target.value)}
-                aria-label="Custom starting life"
-              />
-            )}
-
-            {/* PLAYER COUNT LABEL */}
-            <div className="text-h2 mt-2">Players</div>
-
-            {/* PLAYER COUNT PICKER */}
-            <div className="flex flex-wrap gap-2">
-              {PLAYER_COUNT_OPTIONS.map((count) => (
-                <Button
-                  key={count}
-                  className={maxPlayers === count ? "btn-blue" : "btn-off"}
-                  onClick={() => setMaxPlayers(count)}
-                  aria-pressed={maxPlayers === count}
-                >
-                  {count}
-                </Button>
-              ))}
-            </div>
+            {/* HINT */}
+            <p className="text-secondary">Starting life and the number of players are set on the board.</p>
 
             {/* START BUTTON */}
-            <Button className="btn-green mt-2" onClick={createGame} disabled={isCreating}>
+            <Button className="btn-green" onClick={createGame} disabled={isCreating}>
               <Monitor className="w-4 h-4" /> {isCreating ? "Starting…" : "Start game & open board"}
             </Button>
           </div>

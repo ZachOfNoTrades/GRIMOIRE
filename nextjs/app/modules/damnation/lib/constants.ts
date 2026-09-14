@@ -46,6 +46,8 @@ export const COMMANDER_DAMAGE_LETHAL = 21;
 export const MAX_DELTA = 100;
 export const NAME_MAX_LENGTH = 24;
 export const STARTING_LIFE_PRESETS = [20, 30, 40] as const;
+export const DEFAULT_STARTING_LIFE = 40;
+export const DEFAULT_MAX_PLAYERS = 4;
 
 // WIKI SEARCH — the default is mtg.wiki's search; hosts can replace it in settings.
 export const WIKI_QUERY_PLACEHOLDER = "{query}";

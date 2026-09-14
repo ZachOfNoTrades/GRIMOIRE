@@ -9,6 +9,8 @@ export const HOST_HELP: HelpSection[] = [
       <>
         Start a game and open its board on a screen everyone can see. Players scan the QR code or go to the
         join address and type the code — no account needed. Each player picks a name and a color on their phone.
+        While joining is open, set the starting life and the number of players under the code; changing starting life
+        moves everyone&apos;s total by the same amount.
         On any card, tap the left or right half of the number for −1 or +1; the buttons below do 5.
       </>
     ),

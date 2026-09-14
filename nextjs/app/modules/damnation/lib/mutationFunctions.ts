@@ -5,6 +5,7 @@ import {
   LIFE_MAX,
   LIFE_MIN,
 } from "./constants";
+import { findLayout } from "./boardLayouts";
 import { DamnationError, isUniqueViolation } from "./errors";
 import { generatePlayerToken } from "./playerTokens";
 import { broadcastSnapshot, endSession, revokePlayer } from "./sessionBus";
@@ -602,6 +603,69 @@ export function movePlayer(sessionId: string, opId: string, playerId: string, di
           WHERE id IN (@playerId, @neighborId)
         `);
       return { eventType: "reorder", targetPlayerId: playerId, payload: { direction } };
+    },
+  });
+}
+
+// Changes starting life and/or the player count while joining is open. A new starting life moves
+// every player's total by the same difference, so taps made before the change are kept. A player
+// count below the players already in the game is refused, and a board layout that no longer fits
+// the count falls back to the automatic grid.
+export function changeGameSetup(
+  sessionId: string,
+  opId: string,
+  change: { starting_life?: number; max_players?: number }
+) {
+  return runMutation({
+    sessionId,
+    opId,
+    actor: { kind: "host" },
+    apply: async (transaction, context) => {
+      if (context.status !== "lobby") throw new DamnationError(409, "Reopen joining to change the game setup");
+      const current = await request(transaction)
+        .input("sessionId", sql.UniqueIdentifier, sessionId)
+        .query<{ starting_life: number; max_seats: number; board_layout: string | null; player_count: number }>(`
+          SELECT s.starting_life, s.max_seats, s.board_layout,
+                 (SELECT COUNT(*) FROM damnation_players p WHERE p.session_id = s.id AND p.kicked = 0) AS player_count
+          FROM damnation_sessions s WHERE s.id = @sessionId
+        `);
+      const row = current.recordset[0];
+      const payload: Record<string, number> = {};
+
+      if (change.starting_life !== undefined && change.starting_life !== row.starting_life) {
+        await request(transaction)
+          .input("sessionId", sql.UniqueIdentifier, sessionId)
+          .input("startingLife", sql.Int, change.starting_life)
+          .input("difference", sql.Int, change.starting_life - row.starting_life)
+          .input("lifeMin", sql.Int, LIFE_MIN)
+          .input("lifeMax", sql.Int, LIFE_MAX)
+          .query(`
+            UPDATE damnation_sessions SET starting_life = @startingLife WHERE id = @sessionId;
+            UPDATE damnation_players
+            SET life_total = CASE
+                  WHEN life_total + @difference < @lifeMin THEN @lifeMin
+                  WHEN life_total + @difference > @lifeMax THEN @lifeMax
+                  ELSE life_total + @difference END,
+                ts_updated = GETDATE()
+            WHERE session_id = @sessionId AND kicked = 0;
+          `);
+        payload.starting_life = change.starting_life;
+      }
+
+      if (change.max_players !== undefined && change.max_players !== row.max_seats) {
+        if (change.max_players < row.player_count) {
+          throw new DamnationError(409, `${row.player_count} players are already in — remove someone first`);
+        }
+        const layoutFits = row.board_layout !== null && findLayout(row.board_layout, change.max_players) !== null;
+        await request(transaction)
+          .input("sessionId", sql.UniqueIdentifier, sessionId)
+          .input("maxPlayers", sql.Int, change.max_players)
+          .input("layout", sql.VarChar(20), layoutFits ? row.board_layout : null)
+          .query(`UPDATE damnation_sessions SET max_seats = @maxPlayers, board_layout = @layout WHERE id = @sessionId`);
+        payload.max_players = change.max_players;
+      }
+
+      return Object.keys(payload).length > 0 ? { eventType: "setup", payload } : null;
     },
   });
 }

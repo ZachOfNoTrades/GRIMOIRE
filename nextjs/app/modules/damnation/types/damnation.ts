@@ -12,7 +12,8 @@ export type EventType =
   | "reopen"
   | "rotate_code"
   | "end"
-  | "reorder";
+  | "reorder"
+  | "setup";
 
 // Why a player counts as out of the game. Derived on read, never stored, so an undo can't
 // leave a stale flag behind.

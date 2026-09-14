@@ -10,7 +10,8 @@ export async function GET(request: Request) {
   );
 }
 
-// POST /modules/damnation/api/sessions — start a new game. Body: { starting_life, max_players }.
+// POST /modules/damnation/api/sessions — start a new game. Body: { starting_life?, max_players? };
+// both default (40 life, 4 players) and are changed on the board while joining is open.
 export async function POST(request: Request) {
   return withHost(request, null, "POST /damnation/api/sessions", async (host) => {
     const body = await parseBody(request, createSessionSchema);

@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
 import ActivityFeed from "../../../components/ActivityFeed";
+import GameSetup from "../../../components/GameSetup";
 import LayoutPicker from "../../../components/LayoutPicker";
 import OpenSpotTile from "../../../components/OpenSpotTile";
 import { HOST_HELP } from "../../../components/help";
@@ -284,6 +285,19 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       </span>
                     </div>
                   </div>
+
+                  {/* GAME SETUP — while joining is open */}
+                  {snapshot.status === "lobby" && (
+                    <div className="border-t mt-4 pt-4">
+                      <GameSetup
+                        startingLife={snapshot.starting_life}
+                        maxPlayers={snapshot.max_players}
+                        playerCount={snapshot.players.length}
+                        disabled={isBusy}
+                        onChange={(change) => hostCommand("/setup", change)}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
