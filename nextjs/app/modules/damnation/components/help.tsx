@@ -56,8 +56,9 @@ export const HOST_HELP: HelpSection[] = [
     heading: "Players without a phone",
     body: (
       <>
-        <strong>Add player</strong> in an open spot adds someone who is playing without a phone. Their card works
-        straight from the board, and anyone in the game can change it from their phone too.
+        In an open spot, click <strong>Add player</strong>, type a name and press Enter to add someone who is playing
+        without a phone. Click the square beside it first to pick their color. Their card works straight from the board,
+        and anyone in the game can change it from their phone too.
       </>
     ),
   },

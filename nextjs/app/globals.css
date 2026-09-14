@@ -7995,39 +7995,74 @@ body:has(.quest-cal-page) > .page {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
+  min-width: 0;
   min-height: 10rem;
   padding: 1rem;
   border: 1px dashed var(--card-border);
   color: var(--color-gray);
   font-size: 0.9rem;
+  text-align: center;
 }
 
-/* ADD PLAYER — outlined, under the waiting text in an empty seat. */
-.dmn-add-player {
-  display: inline-flex;
+/* ADD PLAYER — click-to-edit color and name in an open spot. Both read as plain text until
+   clicked; the name field keeps the same type size when it opens, so nothing jumps. */
+.dmn-inline-player {
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  min-height: 2.5rem;
-  padding: 0.4rem 1rem;
-  background: var(--card-bg);
-  color: var(--color-primary);
+  max-width: 100%;
+}
+
+.dmn-inline-swatch {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: var(--dmn-seat-bg);
   border: 1px solid var(--card-border);
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 500;
   cursor: pointer;
-  transition: background-color 150ms, border-color 150ms;
 }
 
-.dmn-add-player:hover:not(:disabled),
-.dmn-add-player:focus-visible {
-  background: var(--hover-bg);
-  border-color: var(--color-primary);
+.dmn-inline-swatch:hover:not(:disabled),
+.dmn-inline-swatch:focus-visible,
+.dmn-inline-swatch[aria-expanded="true"] {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
-.dmn-add-player:disabled {
-  cursor: progress;
-  opacity: 0.6;
+.dmn-inline-text,
+.dmn-inline-input {
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.125rem;
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.dmn-inline-text {
+  cursor: text;
+}
+
+.dmn-inline-text:hover:not(:disabled),
+.dmn-inline-text:focus-visible {
+  border-bottom-color: var(--color-gray);
+  outline: none;
+}
+
+.dmn-inline-input {
+  width: 12ch;
+  border-bottom: 1px solid var(--color-primary);
+  outline: none;
+}
+
+.dmn-inline-palette {
+  width: 2rem;
+  height: 2rem;
 }
 
 /* JOIN PANEL — code + QR while seats are open. */

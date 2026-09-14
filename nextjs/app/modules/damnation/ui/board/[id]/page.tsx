@@ -12,7 +12,6 @@ import {
   Shrink,
   Play,
   UserCog,
-  UserPlus,
   Skull,
   Undo2,
   UserX,
@@ -27,8 +26,8 @@ import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
 import ActivityFeed from "../../../components/ActivityFeed";
-import AddPlayerModal from "../../../components/AddPlayerModal";
 import LayoutPicker from "../../../components/LayoutPicker";
+import OpenSpotTile from "../../../components/OpenSpotTile";
 import { HOST_HELP } from "../../../components/help";
 import PlayerCard from "../../../components/PlayerCard";
 import QrCode from "../../../components/QrCode";
@@ -52,7 +51,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [isEditing, setIsEditing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
-  const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [showLayoutPicker, setShowLayoutPicker] = useState(false);
   const [isWide, setIsWide] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -326,24 +324,16 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                   </div>
                 ))}
 
-                {/* OPEN SPOTS — waiting text, with a way to add someone who has no phone underneath */}
+                {/* OPEN SPOTS — waiting text, with click-to-edit fields to add someone who has no phone */}
                 {!isFinished && Array.from({ length: openSpots }, (_, index) => (
-                  <div key={`empty-${index}`} className="dmn-empty-seat" style={slotStyle(snapshot.players.length + index)}>
-
-                    {/* WAITING TEXT */}
-                    <span>{snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}</span>
-
-                    {/* ADD PLAYER */}
-                    <button
-                      type="button"
-                      className="dmn-add-player"
-                      disabled={isBusy}
-                      onClick={() => setShowAddPlayer(true)}
-                      title="Add a player who has no phone"
-                    >
-                      <UserPlus className="w-4 h-4" aria-hidden /> Add player
-                    </button>
-                  </div>
+                  <OpenSpotTile
+                    key={`empty-${index}`}
+                    style={slotStyle(snapshot.players.length + index)}
+                    waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
+                    takenColors={snapshot.players.map((player) => player.color_key)}
+                    disabled={isBusy}
+                    onAdd={(displayName, colorKey) => hostCommand("/players", { display_name: displayName, color_key: colorKey })}
+                  />
                 ))}
 
                 {/* NO PLAYERS PLACEHOLDER */}
@@ -412,17 +402,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             onPick={saveLayout}
           />
         )}
-
-        {/* ADD PLAYER MODAL */}
-        <AddPlayerModal
-          isOpen={showAddPlayer}
-          takenColors={snapshot?.players.map((player) => player.color_key) ?? []}
-          isSaving={isBusy}
-          onCancel={() => setShowAddPlayer(false)}
-          onAdd={async (displayName, colorKey) => {
-            if (await hostCommand("/players", { display_name: displayName, color_key: colorKey })) setShowAddPlayer(false);
-          }}
-        />
       </div>
     </div>
   );
