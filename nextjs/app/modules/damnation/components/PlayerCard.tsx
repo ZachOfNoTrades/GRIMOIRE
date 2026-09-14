@@ -70,6 +70,7 @@ export default function PlayerCard({
     "dmn-card",
     seatClass,
     variant === "self" ? "dmn-card-self" : "",
+    variant === "board" ? "dmn-card-board" : "",
     player.eliminated ? "dmn-card-out" : "",
   ].join(" ");
 
@@ -123,32 +124,17 @@ export default function PlayerCard({
             {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
           </div>
         </div>
-      ) : variant === "board" ? (
-        <>
-          {/* LIFE TOTAL — the board's numbers are too big to share a row with steppers */}
-          <div className="dmn-life" aria-live="polite">
-            {life}
-            {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
-          </div>
-
-          {/* STEPPER ROW */}
-          {editable && (
-            <div className="dmn-step-row">
-              <button type="button" className="dmn-step" onClick={() => onLife(-5)} aria-label={`${player.display_name} lose 5 life`} title="Lose 5 life">−5</button>
-              <button type="button" className="dmn-step" onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">−1</button>
-              <button type="button" className="dmn-step" onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">+1</button>
-              <button type="button" className="dmn-step" onClick={() => onLife(5)} aria-label={`${player.display_name} gain 5 life`} title="Gain 5 life">+5</button>
-            </div>
-          )}
-        </>
       ) : (
-        <div className="dmn-life-row">
+        /* LIFE BLOCK — one grid for board and phone cards. The number sits above a row of four
+           steppers; on a card wide enough (container query in globals.css) the steppers move
+           to flank it. Everything sizes from the card's own width, never the window's. */
+        <div className={`dmn-life-block ${editable ? "dmn-life-block-editable" : ""}`}>
 
           {/* MINUS STEPPERS */}
           {editable && (
             <>
-              <button type="button" className="dmn-step" onClick={() => onLife(-5)} aria-label={`${player.display_name} lose 5 life`} title="Lose 5 life">−5</button>
-              <button type="button" className="dmn-step" onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">−1</button>
+              <button type="button" className="dmn-step dmn-step-m5" onClick={() => onLife(-5)} aria-label={`${player.display_name} lose 5 life`} title="Lose 5 life">−5</button>
+              <button type="button" className="dmn-step dmn-step-m1" onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">−1</button>
             </>
           )}
 
@@ -161,8 +147,8 @@ export default function PlayerCard({
           {/* PLUS STEPPERS */}
           {editable && (
             <>
-              <button type="button" className="dmn-step" onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">+1</button>
-              <button type="button" className="dmn-step" onClick={() => onLife(5)} aria-label={`${player.display_name} gain 5 life`} title="Gain 5 life">+5</button>
+              <button type="button" className="dmn-step dmn-step-p1" onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">+1</button>
+              <button type="button" className="dmn-step dmn-step-p5" onClick={() => onLife(5)} aria-label={`${player.display_name} gain 5 life`} title="Gain 5 life">+5</button>
             </>
           )}
         </div>
