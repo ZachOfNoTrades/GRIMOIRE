@@ -20,6 +20,11 @@ interface HelpButtonProps {
     className?: string;
     // Accessible label / tooltip for the trigger (default "Help").
     label?: string;
+    // Controlled mode, for opening the help from somewhere else (e.g. a menu item): pass `open`
+    // and `onOpenChange`, and `hideTrigger` to render only the modal.
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    hideTrigger?: boolean;
 }
 
 // Reusable help affordance: a "?" icon button that opens a short in-app
@@ -31,10 +36,15 @@ export default function HelpButton({
     sections,
     className = "btn-link",
     label = "Help",
+    open,
+    onOpenChange,
+    hideTrigger = false,
 }: HelpButtonProps) {
 
     // STATE
-    const [isOpen, setIsOpen] = useState(false);
+    const [ownOpen, setOwnOpen] = useState(false);
+    const isOpen = open ?? ownOpen;
+    const setIsOpen = (next: boolean) => (onOpenChange ? onOpenChange(next) : setOwnOpen(next));
 
     return (
 
@@ -42,14 +52,16 @@ export default function HelpButton({
         <>
 
             {/* HELP TRIGGER */}
-            <Button
-                className={className}
-                onClick={() => setIsOpen(true)}
-                aria-label={label}
-                title={label}
-            >
-                <HelpCircle className="w-5 h-5" />
-            </Button>
+            {!hideTrigger && (
+                <Button
+                    className={className}
+                    onClick={() => setIsOpen(true)}
+                    aria-label={label}
+                    title={label}
+                >
+                    <HelpCircle className="w-5 h-5" />
+                </Button>
+            )}
 
             {/* HELP MODAL */}
             <Modal

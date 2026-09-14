@@ -14,8 +14,11 @@ import { buildWikiSearchUrl } from "../lib/constants";
 interface WikiSearchProps {
   template: string;
   embed: boolean;
-  // Trigger styling; the phone action bar uses a full button, the board a compact one.
+  // Trigger styling; the phone action bar uses a full button.
   className?: string;
+  // Controlled mode, for opening the search from a menu: `open` + `onOpenChange`, no trigger.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 // The template was validated server-side; this second check means a malformed value can
@@ -29,12 +32,15 @@ function safeUrl(url: string): string | null {
   }
 }
 
-export default function WikiSearch({ template, embed, className = "btn-off" }: WikiSearchProps) {
+export default function WikiSearch({ template, embed, className = "btn-off", open, onOpenChange }: WikiSearchProps) {
   // INPUT
   const [query, setQuery] = useState("");
 
   // STATE
-  const [isOpen, setIsOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const isControlled = open !== undefined;
+  const isOpen = open ?? ownOpen;
+  const setIsOpen = (next: boolean) => (onOpenChange ? onOpenChange(next) : setOwnOpen(next));
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const siteHost = (() => {
@@ -64,9 +70,11 @@ export default function WikiSearch({ template, embed, className = "btn-off" }: W
   return (
     <>
       {/* WIKI TRIGGER */}
-      <Button className={className} onClick={() => setIsOpen(true)} title={`Search ${siteHost}`} aria-label={`Search ${siteHost}`}>
-        <BookOpen className="w-5 h-5" aria-hidden /> Wiki
-      </Button>
+      {!isControlled && (
+        <Button className={className} onClick={() => setIsOpen(true)} title={`Search ${siteHost}`} aria-label={`Search ${siteHost}`}>
+          <BookOpen className="w-5 h-5" aria-hidden /> Wiki
+        </Button>
+      )}
 
       {/* WIKI MODAL — autofocuses the search field: opening it means "I want to look something up". */}
       <Modal isOpen={isOpen} onClose={close} title={`Search ${siteHost}`} fullScreenMobileOnly wide>

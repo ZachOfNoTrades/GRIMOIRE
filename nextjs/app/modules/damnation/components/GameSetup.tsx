@@ -1,5 +1,6 @@
 "use client";
 
+import { LayoutGrid } from "lucide-react";
 import { KeyboardEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { MAX_PLAYERS, MIN_PLAYERS, STARTING_LIFE_PRESETS } from "../lib/constants";
@@ -15,12 +16,15 @@ export default function GameSetup({
   playerCount,
   disabled,
   onChange,
+  onOpenLayout,
 }: {
   startingLife: number;
   maxPlayers: number;
   playerCount: number;
   disabled: boolean;
   onChange: (change: { starting_life?: number; max_players?: number }) => Promise<boolean>;
+  // Opens the table layout picker; its button sits beside the player count.
+  onOpenLayout: () => void;
 }) {
   // INPUT
   const [customLife, setCustomLife] = useState("");
@@ -126,6 +130,11 @@ export default function GameSetup({
               {count}
             </Button>
           ))}
+
+          {/* TABLE LAYOUT */}
+          <Button className="btn-off" onClick={onOpenLayout} title="Table layout: arrange the board like the table" aria-label="Table layout">
+            <LayoutGrid className="w-4 h-4" aria-hidden /> Layout
+          </Button>
         </div>
       </div>
     </div>

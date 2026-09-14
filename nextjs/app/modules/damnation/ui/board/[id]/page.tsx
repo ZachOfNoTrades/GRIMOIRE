@@ -2,6 +2,9 @@
 
 import {
   ArrowLeft,
+  BookOpen,
+  EllipsisVertical,
+  HelpCircle,
   LayoutGrid,
   DoorClosed,
   DoorOpen,
@@ -13,7 +16,7 @@ import {
   Trash2,
   WifiOff,
 } from "lucide-react";
-import Link from "next/link";
+import PopoverMenu from "@/components/PopoverMenu";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
@@ -57,8 +60,11 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
   const [showLayoutPicker, setShowLayoutPicker] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showWiki, setShowWiki] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const menuButtonRef = useRef<HTMLSpanElement>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const boardRef = useRef<HTMLDivElement>(null);
 
   const { snapshot, presence, connection, acceptSnapshot } = useSessionStream<HostSnapshot>({
     url: `${baseUrl}/stream`,
@@ -91,7 +97,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   useEntityTitle(snapshot?.join_code ? `Board ${snapshot.join_code}` : null);
 
   useEffect(() => {
-    const onChange = () => setIsFullscreen(document.fullscreenElement === boardRef.current);
+    const onChange = () => setIsFullscreen(document.fullscreenElement !== null);
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
@@ -207,7 +213,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   async function toggleFullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
-      else await boardRef.current?.requestFullscreen();
+      // The whole page, not just the board: menus and modals render in portals on <body>, which
+      // a full-screen board element would hide.
+      else await document.documentElement.requestFullscreen();
     } catch {
       toast.error("Full screen isn't available here");
     }
@@ -244,7 +252,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="page">
-      <div ref={boardRef} className="dmn-board page-container">
+      <div className="dmn-board page-container">
         <Toaster position="top-center" />
 
         {/* HEADER ROW */}
@@ -255,36 +263,56 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             <ArrowLeft className="w-5 h-5" />
           </BackLink>
 
-          {/* BOARD ACTIONS */}
-          <div className="flex flex-wrap items-center gap-1">
-
-            {/* WIKI */}
-            {snapshot && <WikiSearch template={snapshot.wiki_search_template} embed={snapshot.wiki_embed} className="btn-link" />}
-
-            {/* TABLE LAYOUT */}
-            <Button className="btn-link" onClick={() => setShowLayoutPicker(true)} disabled={!snapshot} title="Table layout: arrange the board like the table" aria-label="Table layout">
-              <LayoutGrid className="w-5 h-5" />
-            </Button>
-
-            {/* FULL SCREEN */}
-            <Button className="btn-link" onClick={toggleFullscreen} title={isFullscreen ? "Exit full screen" : "Full screen"} aria-label={isFullscreen ? "Exit full screen" : "Full screen"}>
-              {isFullscreen ? <Shrink className="w-5 h-5" /> : <Expand className="w-5 h-5" />}
-            </Button>
-
-            {/* DELETE GAME */}
-            <Button className="btn-link" onClick={() => setConfirm({ kind: "delete" })} disabled={!snapshot || isBusy} title="Delete game" aria-label="Delete game">
-              <Trash2 className="w-5 h-5" />
-            </Button>
-
-            {/* SETTINGS */}
-            <Link className="btn btn-link" href="/modules/damnation/ui/settings" aria-label="Damnation settings" title="Settings">
-              <Settings className="w-5 h-5" />
-            </Link>
-
-            {/* HELP */}
-            <HelpButton title="Damnation" sections={HOST_HELP} />
+          {/* BOARD MENU — every board action except the table layout, which sits with the game setup */}
+          <div className="flex items-center">
+            <span ref={menuButtonRef}>
+              <Button className="btn-link" onClick={() => setIsMenuOpen((open) => !open)} disabled={!snapshot} title="More" aria-label="More actions" aria-expanded={isMenuOpen}>
+                <EllipsisVertical className="w-5 h-5" />
+              </Button>
+            </span>
           </div>
         </div>
+
+        {/* MENU POPOVER */}
+        <PopoverMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} anchorRef={menuButtonRef}>
+
+          {/* WIKI ITEM */}
+          <button className="popover-item" onClick={() => { setIsMenuOpen(false); setShowWiki(true); }}>
+            <BookOpen className="w-4 h-4 mr-3" /> Wiki
+          </button>
+
+          {/* TABLE LAYOUT ITEM — only while the game setup (and its layout button) is hidden */}
+          {snapshot?.status !== "lobby" && (
+            <button className="popover-item" onClick={() => { setIsMenuOpen(false); setShowLayoutPicker(true); }}>
+              <LayoutGrid className="w-4 h-4 mr-3" /> Table layout
+            </button>
+          )}
+
+          {/* FULL SCREEN ITEM */}
+          <button className="popover-item" onClick={() => { setIsMenuOpen(false); toggleFullscreen(); }}>
+            {isFullscreen ? <Shrink className="w-4 h-4 mr-3" /> : <Expand className="w-4 h-4 mr-3" />}
+            {isFullscreen ? "Exit full screen" : "Full screen"}
+          </button>
+
+          {/* SETTINGS ITEM */}
+          <button className="popover-item" onClick={() => { setIsMenuOpen(false); router.push("/modules/damnation/ui/settings"); }}>
+            <Settings className="w-4 h-4 mr-3" /> Settings
+          </button>
+
+          {/* HELP ITEM */}
+          <button className="popover-item" onClick={() => { setIsMenuOpen(false); setShowHelp(true); }}>
+            <HelpCircle className="w-4 h-4 mr-3" /> Help
+          </button>
+
+          {/* DELETE ITEM */}
+          <button className="popover-item" disabled={isBusy} onClick={() => { setIsMenuOpen(false); setConfirm({ kind: "delete" }); }}>
+            <Trash2 className="w-4 h-4 mr-3" /> Delete game
+          </button>
+        </PopoverMenu>
+
+        {/* WIKI + HELP MODALS — opened from the menu */}
+        {snapshot && <WikiSearch template={snapshot.wiki_search_template} embed={snapshot.wiki_embed} open={showWiki} onOpenChange={setShowWiki} />}
+        <HelpButton title="Damnation" sections={HOST_HELP} open={showHelp} onOpenChange={setShowHelp} hideTrigger />
 
         {/* CONNECTION BANNER */}
         {snapshot && connection !== "live" && !isFinished && (
@@ -345,6 +373,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                           playerCount={snapshot.players.length}
                           disabled={isBusy}
                           onChange={(change) => hostCommand("/setup", change)}
+                          onOpenLayout={() => setShowLayoutPicker(true)}
                         />
                       )}
                     </div>
