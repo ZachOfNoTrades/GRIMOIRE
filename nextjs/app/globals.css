@@ -8215,7 +8215,13 @@ body:has(.quest-cal-page) > .page {
   image-rendering: pixelated;
 }
 
-/* ACTIVITY FEED */
+/* ACTIVITY FEED — the card keeps a narrow side padding, and the list keeps a little space between
+   its text and the scrollbar. */
+.card.dmn-activity {
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+}
+
 .dmn-feed {
   display: flex;
   flex-direction: column;
@@ -8223,6 +8229,7 @@ body:has(.quest-cal-page) > .page {
   font-size: 0.85rem;
   max-height: 24rem;
   overflow-y: auto;
+  padding-right: 0.5rem;
 }
 
 .dmn-feed-item {
