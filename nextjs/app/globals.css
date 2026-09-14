@@ -7611,3 +7611,486 @@ body:has(.quest-cal-page) > .page {
   font-size: 0.75rem;
 }
 
+
+/* ============================================================================
+   DAMNATION — multiplayer MTG life tracker (app/modules/damnation, app/play).
+   A player's whole card takes their seat colour, and the life total is the
+   largest thing on it, so the table can read everyone's life from across the room.
+   ========================================================================== */
+
+/* SEAT PALETTE — the only colours a guest can choose. The same in both themes: a seat
+   colour is the player's identity on every phone and the board, so it must not change
+   when one device is in dark mode. Each pairs a fill with a legible foreground. */
+:root {
+  --dmn-plains-bg: #d9cfae;
+  --dmn-plains-fg: #1a1a1a;
+  --dmn-island-bg: #1d4a73;
+  --dmn-island-fg: #f2f2f2;
+  --dmn-swamp-bg: #2b2631;
+  --dmn-swamp-fg: #ebe6f2;
+  --dmn-mountain-bg: #8c2b1f;
+  --dmn-mountain-fg: #ffffff;
+  --dmn-forest-bg: #1f5a33;
+  --dmn-forest-fg: #ffffff;
+  --dmn-gold-bg: #b38b2d;
+  --dmn-gold-fg: #1a1a1a;
+  --dmn-artifact-bg: #666a71;
+  --dmn-artifact-fg: #ffffff;
+  /* QR codes need dark-on-light to scan, whatever the theme. */
+  --dmn-qr-bg: #ffffff;
+}
+
+.dmn-seat-plains { --dmn-seat-bg: var(--dmn-plains-bg); --dmn-seat-fg: var(--dmn-plains-fg); }
+.dmn-seat-island { --dmn-seat-bg: var(--dmn-island-bg); --dmn-seat-fg: var(--dmn-island-fg); }
+.dmn-seat-swamp { --dmn-seat-bg: var(--dmn-swamp-bg); --dmn-seat-fg: var(--dmn-swamp-fg); }
+.dmn-seat-mountain { --dmn-seat-bg: var(--dmn-mountain-bg); --dmn-seat-fg: var(--dmn-mountain-fg); }
+.dmn-seat-forest { --dmn-seat-bg: var(--dmn-forest-bg); --dmn-seat-fg: var(--dmn-forest-fg); }
+.dmn-seat-gold { --dmn-seat-bg: var(--dmn-gold-bg); --dmn-seat-fg: var(--dmn-gold-fg); }
+.dmn-seat-artifact { --dmn-seat-bg: var(--dmn-artifact-bg); --dmn-seat-fg: var(--dmn-artifact-fg); }
+
+/* SWATCH — a colour choice in the join form. */
+.dmn-swatch {
+  width: 2.75rem;
+  height: 2.75rem;
+  background: var(--dmn-seat-bg);
+  color: var(--dmn-seat-fg);
+  border: 1px solid var(--card-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.dmn-swatch[aria-pressed="true"] {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.dmn-swatch:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+/* PLAYER CARD */
+.dmn-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--dmn-seat-bg);
+  color: var(--dmn-seat-fg);
+  border: 1px solid var(--card-border);
+  padding: 0.75rem;
+  min-width: 0;
+}
+
+.dmn-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.dmn-card-name {
+  font-weight: 700;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.dmn-tag {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid currentColor;
+  padding: 0.05rem 0.35rem;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+/* PRESENCE DOT — whether this seat's phone currently has a live connection. */
+.dmn-presence {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: none;
+  border: 1px solid currentColor;
+}
+
+.dmn-presence-on {
+  background: currentColor;
+}
+
+/* LIFE ROW — steppers flank the number. */
+.dmn-life-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.dmn-life {
+  position: relative;
+  flex: 1;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  font-size: clamp(2.75rem, 11vw, 4.5rem);
+  user-select: none;
+}
+
+/* PENDING DELTA — the "−5" bubble for taps not yet confirmed by the server. */
+.dmn-pending {
+  position: absolute;
+  top: -0.35rem;
+  right: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.05rem 0.3rem;
+  background: var(--dmn-seat-fg);
+  color: var(--dmn-seat-bg);
+}
+
+.dmn-step {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.5rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+  background: transparent;
+  color: var(--dmn-seat-fg);
+  border: 1px solid currentColor;
+  cursor: pointer;
+  touch-action: manipulation;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmn-step:active {
+  background: var(--dmn-seat-fg);
+  color: var(--dmn-seat-bg);
+}
+
+.dmn-step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* SELF CARD — the phone owner's own seat: tap the left half to lose life, the right half
+   to gain it, like a dedicated life-counter app. */
+.dmn-card-self .dmn-life {
+  font-size: clamp(5rem, 30vw, 9rem);
+}
+
+.dmn-tap-zones {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 9rem;
+}
+
+.dmn-tap-zone {
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  font-size: 2rem;
+  font-weight: 700;
+  background: transparent;
+  color: var(--dmn-seat-fg);
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dmn-tap-zone:active {
+  background: color-mix(in srgb, var(--dmn-seat-fg) 12%, transparent);
+}
+
+.dmn-tap-zone-minus {
+  justify-content: flex-start;
+}
+
+.dmn-tap-zone-plus {
+  justify-content: flex-end;
+}
+
+.dmn-tap-zones .dmn-life {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* ELIMINATED — dimmed, with the reason stated. */
+.dmn-card-out {
+  filter: grayscale(0.7);
+  opacity: 0.7;
+}
+
+.dmn-card-out .dmn-life {
+  text-decoration: line-through;
+  text-decoration-thickness: 0.08em;
+}
+
+.dmn-out-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* COMMANDER DAMAGE */
+.dmn-cmdr-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.dmn-cmdr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid currentColor;
+  padding: 0.05rem 0.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmn-cmdr-chip-lethal {
+  background: var(--dmn-seat-fg);
+  color: var(--dmn-seat-bg);
+}
+
+.dmn-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0;
+  background: transparent;
+  color: inherit;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.dmn-cmdr-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dmn-cmdr-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.dmn-cmdr-row .dmn-step {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+}
+
+.dmn-cmdr-value {
+  min-width: 2.25rem;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmn-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.dmn-status-row .dmn-step {
+  font-size: 0.8rem;
+  min-height: 2.5rem;
+  flex: 1;
+}
+
+/* BOARD */
+.dmn-board {
+  background: var(--solid-background);
+  color: var(--color-primary);
+  min-height: calc(var(--app-height, 100dvh) - var(--navbar-height, 0px));
+}
+
+.dmn-board:fullscreen {
+  padding: 1rem;
+  overflow: auto;
+}
+
+.dmn-board-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .dmn-board-layout {
+    grid-template-columns: 1fr 20rem;
+  }
+}
+
+.dmn-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.dmn-board .dmn-card .dmn-life {
+  font-size: clamp(4rem, 9vw, 8rem);
+}
+
+.dmn-empty-seat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 10rem;
+  border: 1px dashed var(--card-border);
+  color: var(--color-gray);
+  font-size: 0.9rem;
+}
+
+/* JOIN PANEL — code + QR while seats are open. */
+.dmn-join {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dmn-code {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.dmn-qr {
+  background: var(--dmn-qr-bg);
+  padding: 0.5rem;
+  border: 1px solid var(--card-border);
+  width: 11rem;
+  max-width: 45vw;
+  aspect-ratio: 1;
+}
+
+.dmn-qr img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* ACTIVITY FEED */
+.dmn-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+.dmn-feed-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--table-row-border);
+  padding-bottom: 0.3rem;
+}
+
+.dmn-feed-item-undone {
+  text-decoration: line-through;
+  color: var(--color-gray);
+}
+
+.dmn-feed-time {
+  color: var(--color-gray);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* CONNECTION BANNER */
+.dmn-connection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--alert-yellow-bg);
+  color: var(--alert-yellow-text);
+  border: 1px solid var(--alert-yellow-border);
+}
+
+/* CONTROLLER (guest phone) */
+.dmn-controller {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.dmn-controller-others {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 560px) {
+  .dmn-controller-others {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ACTION BAR — undo + wiki, pinned to the bottom of the phone screen. */
+.dmn-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: var(--card-bg);
+  border-top: 1px solid var(--card-border);
+}
+
+.dmn-action-bar .btn {
+  flex: 1;
+  min-height: 2.75rem;
+}
+
+/* WIKI FRAME */
+.dmn-wiki-frame {
+  width: 100%;
+  height: min(70vh, 48rem);
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+}

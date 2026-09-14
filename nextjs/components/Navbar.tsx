@@ -163,9 +163,12 @@ export default function Navbar({ children }: NavbarProps) {
   // navbar render server-side on first paint — no async identity probe, so it's
   // present before page content instead of popping in afterward.
   const isAuthPage = pathname.startsWith("/auth");
+  // Damnation's guest pages are served to people with no account; the app chrome would only
+  // offer them menus that bounce to sign-in.
+  const isGuestPage = pathname === "/play" || pathname.startsWith("/play/");
 
   // Don't render on auth / similar unauthenticated pages.
-  if (isAuthPage) {
+  if (isAuthPage || isGuestPage) {
     return null;
   }
 

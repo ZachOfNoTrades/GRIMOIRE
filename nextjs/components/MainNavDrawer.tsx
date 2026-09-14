@@ -22,6 +22,7 @@ import {
   BookOpen,
   Target,
   CalendarDays,
+  Skull,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,10 @@ const MODULE_PAGES: Record<string, ModulePage[]> = {
   quest: [
     { label: "Home", sub: "home", icon: Home },
     { label: "Calendar", sub: "calendar", icon: CalendarDays },
+    { label: "Settings", sub: "settings", icon: Settings },
+  ],
+  damnation: [
+    { label: "Home", sub: "home", icon: Skull },
     { label: "Settings", sub: "settings", icon: Settings },
   ],
   forage: [

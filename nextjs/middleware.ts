@@ -76,6 +76,9 @@ export const config = {
     // the email unsubscribe page + endpoint (authorized by the HMAC token in the link, and
     // useless if it redirected a signed-out recipient to a Google login), static assets, and
     // public files. API-key requests on other routes are handled in-callback above.
-    "/((?!api/auth|api/mcp|api/email/unsubscribe|unsubscribe|\\.well-known|_next/static|_next/image|favicon.ico|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.ico$).*)",
+    // Damnation's guest surface (`/play`, `/play/<code>`, `/api/play/<code>/…`) is public too:
+    // guests have no account and authorize with the X-Damnation-Token issued at join. The
+    // entries are anchored (`play$`, `play/`) so `/playground`, `/players` etc. stay gated.
+    "/((?!api/auth|api/mcp|api/email/unsubscribe|unsubscribe|play$|play/|api/play/|\\.well-known|_next/static|_next/image|favicon.ico|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.ico$).*)",
   ],
 };

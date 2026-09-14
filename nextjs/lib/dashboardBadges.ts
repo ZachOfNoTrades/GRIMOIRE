@@ -1,4 +1,5 @@
 import { ModuleBadge, ModuleBadgeMap } from "@/types/dashboardBadge";
+import { getDamnationBadges } from "@/app/modules/damnation/lib/badgeFunctions";
 import { getForageBadges } from "@/app/modules/forage/lib/badgeFunctions";
 import { getGolemBadges } from "@/app/modules/golem/lib/badgeFunctions";
 import { getQuestBadges } from "@/app/modules/quest/lib/badgeFunctions";
@@ -13,6 +14,7 @@ import { getRuneBadges } from "@/app/modules/rune/lib/badgeFunctions";
 // to report are omitted entirely rather than mapped to [].
 
 const BUILDERS: Record<string, (userId: string) => Promise<ModuleBadge[]>> = {
+  damnation: getDamnationBadges,
   forage: getForageBadges,
   golem: getGolemBadges,
   quest: getQuestBadges,
