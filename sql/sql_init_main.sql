@@ -203,7 +203,7 @@ BEGIN TRY
             session_id UNIQUEIDENTIFIER NOT NULL,
             seat INT NOT NULL,
             display_name NVARCHAR(24) NOT NULL,
-            color_key VARCHAR(20) NOT NULL, -- palette key (see lib/constants.ts), never raw CSS
+            color_key VARCHAR(20) NOT NULL, -- palette key (see lib/constants.ts), never raw CSS; may be shared
             token_hash VARBINARY(32) NULL, -- SHA-256 of the guest token; NULL = seat freed by the host, claimable
             life_total INT NOT NULL,
             conceded BIT NOT NULL DEFAULT 0,
@@ -218,9 +218,8 @@ BEGIN TRY
             CONSTRAINT FK_damnation_players_session FOREIGN KEY (session_id) REFERENCES damnation_sessions(id) ON DELETE CASCADE
         );
 
-        -- Seat, colour and name are unique among players still in the game (kicked rows keep history)
+        -- Seat and name are unique among players still in the game (kicked rows keep history); colours may be shared
         CREATE UNIQUE INDEX UX_damnation_players_seat ON damnation_players (session_id, seat) WHERE kicked = 0;
-        CREATE UNIQUE INDEX UX_damnation_players_color ON damnation_players (session_id, color_key) WHERE kicked = 0;
         CREATE UNIQUE INDEX UX_damnation_players_name ON damnation_players (session_id, display_name) WHERE kicked = 0;
         CREATE UNIQUE INDEX UX_damnation_players_token ON damnation_players (token_hash) WHERE token_hash IS NOT NULL;
     END

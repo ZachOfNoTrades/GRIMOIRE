@@ -51,7 +51,6 @@ function request(transaction: sql.Transaction): sql.Request {
 function conflictFor(error: unknown): DamnationError | null {
   if (!isUniqueViolation(error)) return null;
   const message = String((error as Error).message ?? "");
-  if (message.includes("UX_damnation_players_color")) return new DamnationError(409, "That colour was just taken");
   if (message.includes("UX_damnation_players_name")) return new DamnationError(409, "Someone at the table already has that name");
   if (message.includes("UX_damnation_players_seat")) return new DamnationError(409, "That seat was just taken — try again");
   if (message.includes("UX_damnation_events_undoes")) return new DamnationError(409, "That change was already undone");
@@ -407,7 +406,7 @@ export function undoLastChange(sessionId: string, opId: string, actor: Actor) {
 // SEATING
 // ---------------------------------------------------------------------------------------------
 
-// Seats a new player in the lowest free seat. Shared by guest joins (with a token) and
+// Seats a new player in the lowest free seat. Colours may be shared; names may not. Shared by guest joins (with a token) and
 // players the host adds from the board (no token, is_manual = 1). Runs inside runMutation,
 // so the session row lock already serialises it against every other seat change.
 async function seatPlayer(
@@ -419,8 +418,8 @@ async function seatPlayer(
 ): Promise<string> {
   const seating = await request(transaction)
     .input("sessionId", sql.UniqueIdentifier, sessionId)
-    .query<{ seat: number; color_key: string; display_name: string; max_seats: number; starting_life: number }>(`
-      SELECT p.seat, p.color_key, p.display_name, s.max_seats, s.starting_life
+    .query<{ seat: number; display_name: string; max_seats: number; starting_life: number }>(`
+      SELECT p.seat, p.display_name, s.max_seats, s.starting_life
       FROM damnation_sessions s
       LEFT JOIN damnation_players p ON p.session_id = s.id AND p.kicked = 0
       WHERE s.id = @sessionId
@@ -429,7 +428,6 @@ async function seatPlayer(
   const taken = seating.recordset.filter((row) => row.seat !== null);
 
   if (taken.length >= maxSeats) throw new DamnationError(409, "The table is full");
-  if (taken.some((row) => row.color_key === colorKey)) throw new DamnationError(409, "That colour is taken");
   if (taken.some((row) => row.display_name.toLowerCase() === displayName.toLowerCase())) {
     throw new DamnationError(409, "Someone at the table already has that name");
   }

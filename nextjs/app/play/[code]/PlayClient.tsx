@@ -218,8 +218,9 @@ function JoinScreen({
 }) {
   // INPUT
   const [name, setName] = useState("");
-  const firstFree = PALETTE.find((entry) => !lobby.taken_colors.includes(entry.key))?.key ?? null;
-  const [color, setColor] = useState<string | null>(firstFree);
+  // Colours can be shared; preselecting one nobody has yet just makes cards easier to tell apart.
+  const firstUnused = PALETTE.find((entry) => !lobby.taken_colors.includes(entry.key))?.key ?? PALETTE[0].key;
+  const [color, setColor] = useState<string>(firstUnused);
 
   // STATE
   const [isJoining, setIsJoining] = useState(false);
@@ -236,7 +237,7 @@ function JoinScreen({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         toast.error(data.error ?? "Couldn't join");
-        // Someone may have taken the colour or seat; show the table as it is now.
+        // Someone may have taken the seat or the name; show the table as it is now.
         if (response.status === 409) onRefresh(null);
         return;
       }
@@ -304,21 +305,17 @@ function JoinScreen({
 
               {/* COLOUR PICKER */}
               <div className="flex flex-wrap gap-2" role="group" aria-label="Colour">
-                {PALETTE.map((entry) => {
-                  const taken = lobby.taken_colors.includes(entry.key);
-                  return (
-                    <button
-                      key={entry.key}
-                      type="button"
-                      className={`dmn-swatch dmn-seat-${entry.key}`}
-                      aria-pressed={color === entry.key}
-                      aria-label={`${entry.label}${taken ? " (taken)" : ""}`}
-                      title={`${entry.label}${taken ? " (taken)" : ""}`}
-                      disabled={taken}
-                      onClick={() => setColor(entry.key)}
-                    />
-                  );
-                })}
+                {PALETTE.map((entry) => (
+                  <button
+                    key={entry.key}
+                    type="button"
+                    className={`dmn-swatch dmn-seat-${entry.key}`}
+                    aria-pressed={color === entry.key}
+                    aria-label={entry.label}
+                    title={entry.label}
+                    onClick={() => setColor(entry.key)}
+                  />
+                ))}
               </div>
 
               {/* JOIN BUTTON */}
