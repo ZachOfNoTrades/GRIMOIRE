@@ -79,9 +79,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const spots = snapshot ? arrangeSpots(snapshot.players, snapshot.max_players) : [];
   const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
 
-  // A fixed table layout only fits when the board has its full width (the activity column sits
-  // beside it from 1024px); narrower screens keep the automatic grid.
-  const layout = isWide ? findLayout(snapshot?.board_layout, snapshot?.max_players ?? 0) : null;
+  // The host's table layout applies at every width, phones included; without one, a wide board
+  // picks its columns (below) and a narrow one uses the auto-fit grid.
+  const layout = findLayout(snapshot?.board_layout, snapshot?.max_players ?? 0);
   // Without a table layout, a wide board picks its column count from the number of spots so
   // every row fills (2 across for 2 or 4, 3 across otherwise) and the board fits a square screen.
   const autoColumns = snapshot && snapshot.max_players !== 2 && snapshot.max_players !== 4 ? 3 : 2;
