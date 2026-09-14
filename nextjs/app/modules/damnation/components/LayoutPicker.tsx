@@ -83,8 +83,8 @@ export default function LayoutPicker({
               onClick={() => onPick(layout.key)}
               aria-pressed={current === layout.key}
               title={layout.label}
+              aria-label={layout.label}
             >
-              <span className="font-bold text-sm">{layout.label}</span>
               <Preview layout={layout} />
             </Button>
           ))}
