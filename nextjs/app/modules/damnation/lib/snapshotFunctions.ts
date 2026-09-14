@@ -1,7 +1,7 @@
 import sql from "mssql";
 import { getMainConnection } from "@/lib/db";
+import { eliminationReason } from "./elimination";
 import {
-  COMMANDER_DAMAGE_LETHAL,
   DEFAULT_WIKI_SEARCH_TEMPLATE,
   joinUrlFor,
 } from "./constants";
@@ -75,18 +75,6 @@ function parsePayload(payload: string | null): Record<string, unknown> | null {
   }
 }
 
-function eliminationFor(player: PlayerRow, cells: CommanderDamageCell[]): EliminationReason {
-  if (player.eliminated_override === true) return "host";
-  if (player.eliminated_override === false) return null;
-  if (player.conceded) return "conceded";
-  if (player.life_total <= 0) return "life";
-  const playerId = normalizeId(player.id);
-  if (cells.some((cell) => cell.target_player_id === playerId && cell.damage >= COMMANDER_DAMAGE_LETHAL)) {
-    return "commander_damage";
-  }
-  return null;
-}
-
 // Reads the full state of one session in a single round trip. Accepts the pool or an open
 // transaction so a mutation can read what it just wrote before committing.
 export async function readSnapshot(
@@ -141,7 +129,11 @@ export async function readSnapshot(
   }));
 
   const players: PlayerView[] = recordsets[1].map((player) => {
-    const reason = eliminationFor(player, cells);
+    const playerId = normalizeId(player.id);
+    const reason = eliminationReason(
+      player,
+      cells.filter((cell) => cell.target_player_id === playerId).map((cell) => cell.damage)
+    );
     return {
       id: normalizeId(player.id)!,
       position: player.position,

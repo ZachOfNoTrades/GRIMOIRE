@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronUp, GripVertical, Skull, Swords, X } from "lucide-react";
 import { useState } from "react";
 import { COMMANDER_DAMAGE_LETHAL, isColorKey } from "../lib/constants";
+import { eliminationReason } from "../lib/elimination";
 import type { PendingOverlay } from "../lib/useGameActions";
 import type { CommanderDamageCell, PlayerView } from "../types/damnation";
 
@@ -37,11 +38,12 @@ interface PlayerCardProps {
   removeDisabled?: boolean;
 }
 
-const REASON_LABEL: Record<string, string> = {
-  life: "Out — no life",
-  commander_damage: "Out — commander damage",
-  conceded: "Conceded",
-  host: "Out",
+// Short label in the card head (it shares the line with the name); the full reason is the tooltip.
+const REASON_LABEL: Record<string, { short: string; full: string }> = {
+  life: { short: "Out", full: "Out — no life" },
+  commander_damage: { short: "Out", full: "Out — commander damage" },
+  conceded: { short: "Conceded", full: "Conceded" },
+  host: { short: "Out", full: "Marked out" },
 };
 
 function formatSigned(value: number): string {
@@ -79,6 +81,21 @@ export default function PlayerCard({
     const stored = cells.find((cell) => cell.source_player_id === sourceId && cell.target_player_id === player.id)?.damage ?? 0;
     return Math.max(0, stored + (overlay.commander[`${player.id}:${sourceId}`] ?? 0));
   };
+  // Out or not, decided here from the totals on screen (pending taps included) so it shows at once.
+  const pendingStatus = overlay.status[player.id] ?? {};
+  const conceded = pendingStatus.conceded ?? player.conceded;
+  const override = pendingStatus.eliminated_override !== undefined ? pendingStatus.eliminated_override : player.eliminated_override;
+  // Every commander that has hit this player, including one whose player has since left.
+  const damageSources = new Set([
+    ...opponents.map((source) => source.id),
+    ...cells.filter((cell) => cell.target_player_id === player.id).map((cell) => cell.source_player_id),
+  ]);
+  const outReason = eliminationReason(
+    { eliminated_override: override, conceded, life_total: life },
+    [...damageSources].map((sourceId) => damageFrom(sourceId))
+  );
+  const isOut = outReason !== null;
+
   const damageChips = commanderDamage
     ? opponents.map((source) => ({ source, damage: damageFrom(source.id) })).filter((entry) => entry.damage > 0)
     : [];
@@ -88,7 +105,7 @@ export default function PlayerCard({
     seatClass,
     variant === "self" ? "dmn-card-self" : "",
     variant === "board" ? "dmn-card-board" : "",
-    player.eliminated ? "dmn-card-out" : "",
+    isOut ? "dmn-card-out" : "",
     fill ? "flex-1" : "",
   ].join(" ");
 
@@ -133,6 +150,13 @@ export default function PlayerCard({
         {/* TAGS */}
         {isMe && <span className="dmn-tag">You</span>}
 
+        {/* ELIMINATION — in the head so a player going out doesn't push the card's contents down */}
+        {outReason && (
+          <span className="dmn-out-reason" title={REASON_LABEL[outReason].full} aria-label={REASON_LABEL[outReason].full}>
+            <Skull className="w-4 h-4" aria-hidden /> {REASON_LABEL[outReason].short}
+          </span>
+        )}
+
         {/* REMOVE */}
         {onRemove && (
           <button
@@ -147,13 +171,6 @@ export default function PlayerCard({
           </button>
         )}
       </div>
-
-      {/* ELIMINATION */}
-      {player.eliminated && player.elimination_reason && (
-        <span className="dmn-out-reason">
-          <Skull className="w-4 h-4" aria-hidden /> {REASON_LABEL[player.elimination_reason]}
-        </span>
-      )}
 
       {editable ? (
         /* LIFE — the two halves of the number are the ±1 buttons, the same on every card */
@@ -190,21 +207,6 @@ export default function PlayerCard({
         </div>
       )}
 
-      {/* COMMANDER DAMAGE SUMMARY */}
-      {damageChips.length > 0 && (
-        <div className="dmn-cmdr-summary" aria-label="Commander damage taken">
-          {damageChips.map(({ source, damage }) => (
-            <span
-              key={source.id}
-              className={`dmn-cmdr-chip ${damage >= COMMANDER_DAMAGE_LETHAL ? "dmn-cmdr-chip-lethal" : ""}`}
-              title={`${damage} commander damage from ${source.display_name}`}
-            >
-              <Swords className="w-3 h-3" aria-hidden /> {source.display_name} {damage}
-            </span>
-          ))}
-        </div>
-      )}
-
       {/* COMMANDER DAMAGE + STATUS EDITOR */}
       {editable && (!commanderDamage || opponents.length > 0) && (
         <>
@@ -234,7 +236,7 @@ export default function PlayerCard({
 
               {/* STATUS CONTROLS */}
               <div className="dmn-status-row">
-                {player.eliminated ? (
+                {isOut ? (
                   <button type="button" className="dmn-step" onClick={() => onStatus({ conceded: false, eliminated_override: false })} title="Put this player back in the game">
                     Back in
                   </button>
@@ -248,7 +250,7 @@ export default function PlayerCard({
                     </button>
                   </>
                 )}
-                {player.eliminated_override !== null && !player.eliminated && (
+                {override !== null && !isOut && (
                   <button type="button" className="dmn-step" onClick={() => onStatus({ eliminated_override: null })} title="Go back to deciding from life and commander damage">
                     Auto
                   </button>
@@ -257,6 +259,22 @@ export default function PlayerCard({
             </div>
           )}
         </>
+      )}
+
+      {/* COMMANDER DAMAGE SUMMARY — under the toggle and only while it's closed (the open rows show the
+          same numbers), so the first damage never pushes the rows being tapped */}
+      {!showCommander && damageChips.length > 0 && (
+        <div className="dmn-cmdr-summary" aria-label="Commander damage taken">
+          {damageChips.map(({ source, damage }) => (
+            <span
+              key={source.id}
+              className={`dmn-cmdr-chip ${damage >= COMMANDER_DAMAGE_LETHAL ? "dmn-cmdr-chip-lethal" : ""}`}
+              title={`${damage} commander damage from ${source.display_name}`}
+            >
+              <Swords className="w-3 h-3" aria-hidden /> {source.display_name} {damage}
+            </span>
+          ))}
+        </div>
       )}
     </section>
   );

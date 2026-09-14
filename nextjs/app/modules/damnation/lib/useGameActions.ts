@@ -45,6 +45,8 @@ export interface PendingOverlay {
   life: Record<string, number>;
   // keyed `${targetPlayerId}:${sourcePlayerId}`
   commander: Record<string, number>;
+  // Concede / out changes not yet confirmed, latest last.
+  status: Record<string, { conceded?: boolean; eliminated_override?: boolean | null }>;
 }
 
 interface Options<T extends SessionSnapshot> {
@@ -254,6 +256,7 @@ export function useGameActions<T extends SessionSnapshot>({
   const overlay: PendingOverlay = useMemo(() => {
     const life: Record<string, number> = {};
     const commander: Record<string, number> = {};
+    const status: PendingOverlay["status"] = {};
     // Ops already applied in the snapshot being rendered.
     const seen = new Set(snapshot?.events.map((event) => event.op_id) ?? []);
     for (const operation of queueRef.current) {
@@ -265,9 +268,11 @@ export function useGameActions<T extends SessionSnapshot>({
         const key = `${operation.targetPlayerId}:${operation.sourcePlayerId}`;
         commander[key] = (commander[key] ?? 0) + operation.delta;
         life[operation.targetPlayerId] = (life[operation.targetPlayerId] ?? 0) - operation.delta;
+      } else if (operation.kind === "status") {
+        status[operation.targetPlayerId] = { ...status[operation.targetPlayerId], ...operation.extra };
       }
     }
-    return { life, commander };
+    return { life, commander, status };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revision, snapshot]);
 
