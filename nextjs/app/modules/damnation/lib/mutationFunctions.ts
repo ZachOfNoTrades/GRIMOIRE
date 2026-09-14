@@ -608,6 +608,51 @@ export function movePlayer(sessionId: string, opId: string, playerId: string, wi
   });
 }
 
+// Renames a player and/or changes their color, from the board. Names stay unique at the table
+// (checked here, and by UX_damnation_players_name under the session lock).
+export function editPlayer(
+  sessionId: string,
+  opId: string,
+  playerId: string,
+  change: { display_name?: string; color_key?: string }
+) {
+  return runMutation({
+    sessionId,
+    opId,
+    actor: { kind: "host" },
+    apply: async (transaction) => {
+      await lockPlayer(transaction, sessionId, playerId);
+      const current = await request(transaction)
+        .input("playerId", sql.UniqueIdentifier, playerId)
+        .query<{ display_name: string; color_key: string }>(`SELECT display_name, color_key FROM damnation_players WHERE id = @playerId`);
+      const from = current.recordset[0];
+      const payload: Record<string, string> = {};
+
+      if (change.display_name !== undefined && change.display_name !== from.display_name) {
+        const clash = await request(transaction)
+          .input("sessionId", sql.UniqueIdentifier, sessionId)
+          .input("playerId", sql.UniqueIdentifier, playerId)
+          .input("name", sql.NVarChar(24), change.display_name)
+          .query(`
+            SELECT 1 AS clash FROM damnation_players
+            WHERE session_id = @sessionId AND kicked = 0 AND id <> @playerId AND LOWER(display_name) = LOWER(@name)
+          `);
+        if (clash.recordset.length > 0) throw new DamnationError(409, "Someone at the table already has that name");
+        payload.display_name_from = from.display_name;
+      }
+      if (change.color_key !== undefined && change.color_key !== from.color_key) payload.color_from = from.color_key;
+      if (Object.keys(payload).length === 0) return null;
+
+      await request(transaction)
+        .input("playerId", sql.UniqueIdentifier, playerId)
+        .input("name", sql.NVarChar(24), change.display_name ?? from.display_name)
+        .input("color", sql.VarChar(20), change.color_key ?? from.color_key)
+        .query(`UPDATE damnation_players SET display_name = @name, color_key = @color, ts_updated = GETDATE() WHERE id = @playerId`);
+      return { eventType: "edit_player", targetPlayerId: playerId, payload };
+    },
+  });
+}
+
 // Changes starting life and/or the player count while joining is open. A new starting life moves
 // every player's total by the same difference, so taps made before the change are kept. A player
 // count below the players already in the game is refused, and a board layout that no longer fits

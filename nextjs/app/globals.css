@@ -7754,6 +7754,79 @@ body:has(.quest-cal-page) > .page {
   background: currentColor;
 }
 
+/* EDIT NAME AND COLOR — on the board a card's name reads as plain text until clicked, then becomes
+   a field of the same size; the palette button opens the colors over the card. */
+.dmn-card-name-button,
+.dmn-card-name-input {
+  height: 1.5rem;
+  line-height: 1.5rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1rem;
+  text-align: left;
+}
+
+.dmn-card-name-button {
+  cursor: text;
+}
+
+.dmn-card-name-button:hover,
+.dmn-card-name-button:focus-visible {
+  border-bottom-color: currentColor;
+  outline: none;
+}
+
+.dmn-card-name-input {
+  width: 100%;
+  border-bottom: 1px solid currentColor;
+  outline: none;
+}
+
+.dmn-card-color {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 2rem;
+  margin: -0.35rem 0;
+  background: transparent;
+  color: var(--dmn-seat-fg);
+  border: none;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.dmn-card-color:hover,
+.dmn-card-color:focus-visible,
+.dmn-card-color[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.dmn-card-palette {
+  position: absolute;
+  top: 2.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+}
+
+.dmn-card-palette .dmn-swatch {
+  width: 2rem;
+  height: 2rem;
+}
+
 /* REMOVE — the board's X in a card's top-right corner. */
 .dmn-card-remove {
   flex: none;
@@ -8065,65 +8138,32 @@ body:has(.quest-cal-page) > .page {
   text-align: center;
 }
 
-/* ADD PLAYER — click-to-edit color and name in an open spot. Both read as plain text until
-   clicked; the name field keeps the same type size when it opens, so nothing jumps. */
-.dmn-inline-player {
-  display: flex;
+/* ADD PLAYER — outlined, under the waiting text in an open spot. */
+.dmn-add-player {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
-  max-width: 100%;
-}
-
-.dmn-inline-swatch {
-  flex: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  background: var(--dmn-seat-bg);
-  border: 1px solid var(--card-border);
-  cursor: pointer;
-}
-
-.dmn-inline-swatch:hover:not(:disabled),
-.dmn-inline-swatch:focus-visible,
-.dmn-inline-swatch[aria-expanded="true"] {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.dmn-inline-text,
-.dmn-inline-input {
-  min-width: 0;
   min-height: 2.5rem;
-  padding: 0.25rem 0.125rem;
-  background: none;
-  border: 0;
-  border-bottom: 1px dashed transparent;
+  padding: 0.4rem 1rem;
+  background: var(--card-bg);
   color: var(--color-primary);
+  border: 1px solid var(--card-border);
   font: inherit;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms;
 }
 
-.dmn-inline-text {
-  cursor: text;
+.dmn-add-player:hover:not(:disabled),
+.dmn-add-player:focus-visible {
+  background: var(--hover-bg);
+  border-color: var(--color-primary);
 }
 
-.dmn-inline-text:hover:not(:disabled),
-.dmn-inline-text:focus-visible {
-  border-bottom-color: var(--color-gray);
-  outline: none;
-}
-
-.dmn-inline-input {
-  width: 12ch;
-  border-bottom: 1px solid var(--color-primary);
-  outline: none;
-}
-
-.dmn-inline-palette {
-  width: 2rem;
-  height: 2rem;
+.dmn-add-player:disabled {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 /* JOIN PANEL — QR on the left, the code and game setup beside it. Side by side from 640px, so

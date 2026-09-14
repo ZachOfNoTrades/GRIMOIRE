@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronDown, ChevronUp, GripVertical, Skull, Swords, X } from "lucide-react";
-import { useState } from "react";
-import { COMMANDER_DAMAGE_LETHAL, isColorKey } from "../lib/constants";
+import { ChevronDown, ChevronUp, GripVertical, Palette, Skull, Swords, X } from "lucide-react";
+import { KeyboardEvent, useState } from "react";
+import { COMMANDER_DAMAGE_LETHAL, isColorKey, NAME_MAX_LENGTH, PALETTE } from "../lib/constants";
 import { eliminationReason } from "../lib/elimination";
 import type { PendingOverlay } from "../lib/useGameActions";
 import type { CommanderDamageCell, PlayerView } from "../types/damnation";
@@ -33,6 +33,9 @@ interface PlayerCardProps {
   // Board only: a drag handle in the top-left corner. Arrow keys on it move the player too.
   onGripPointerDown?: (event: React.PointerEvent) => void;
   onGripKey?: (step: -1 | 1) => void;
+  // Board only: the name and a color button become click-to-edit. Resolve true once saved.
+  onRename?: (displayName: string) => Promise<boolean>;
+  onRecolor?: (colorKey: string) => void;
   // Board only: shows an X in the top-right corner that removes the player (after a confirm).
   onRemove?: () => void;
   removeDisabled?: boolean;
@@ -68,9 +71,16 @@ export default function PlayerCard({
   removeDisabled = false,
   onGripPointerDown,
   onGripKey,
+  onRename,
+  onRecolor,
 }: PlayerCardProps) {
+  // INPUT
+  const [nameDraft, setNameDraft] = useState("");
+
   // STATE
   const [showCommander, setShowCommander] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isPickingColor, setIsPickingColor] = useState(false);
   const pendingLife = overlay.life[player.id] ?? 0;
   const life = player.life_total + pendingLife;
   const seatClass = isColorKey(player.color_key) ? `dmn-seat-${player.color_key}` : "dmn-seat-artifact";
@@ -95,6 +105,26 @@ export default function PlayerCard({
     [...damageSources].map((sourceId) => damageFrom(sourceId))
   );
   const isOut = outReason !== null;
+
+  async function commitName() {
+    const trimmed = nameDraft.trim();
+    if (!onRename || !trimmed || trimmed === player.display_name) {
+      setIsEditingName(false);
+      return;
+    }
+    // A refused name (already taken) keeps the field open with the text.
+    if (await onRename(trimmed)) setIsEditingName(false);
+  }
+
+  function onNameKey(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      // Drop the on-screen keyboard: Enter finishes the field.
+      event.currentTarget.blur();
+    } else if (event.key === "Escape") {
+      setIsEditingName(false);
+    }
+  }
 
   const damageChips = commanderDamage
     ? opponents.map((source) => ({ source, damage: damageFrom(source.id) })).filter((entry) => entry.damage > 0)
@@ -144,8 +174,50 @@ export default function PlayerCard({
           />
         )}
 
-        {/* NAME — guest-supplied, rendered as text only */}
-        <span className="dmn-card-name">{player.display_name}</span>
+        {/* COLOR — board only; opens the palette over the card */}
+        {onRecolor && (
+          <button
+            type="button"
+            className="dmn-card-color"
+            aria-expanded={isPickingColor}
+            aria-label={`Change ${player.display_name}'s color`}
+            title="Change color"
+            onClick={() => setIsPickingColor((open) => !open)}
+          >
+            <Palette className="w-4 h-4" aria-hidden />
+          </button>
+        )}
+
+        {/* NAME — guest-supplied, rendered as text only. On the board it reads as plain text and
+            turns into a field when clicked. */}
+        {onRename && isEditingName ? (
+          <input
+            autoFocus
+            className="dmn-card-name dmn-card-name-input"
+            value={nameDraft}
+            maxLength={NAME_MAX_LENGTH}
+            aria-label={`Rename ${player.display_name}`}
+            autoComplete="off"
+            enterKeyHint="done"
+            onChange={(event) => setNameDraft(event.target.value)}
+            onKeyDown={onNameKey}
+            onBlur={commitName}
+          />
+        ) : onRename ? (
+          <button
+            type="button"
+            className="dmn-card-name dmn-card-name-button"
+            title="Rename"
+            onClick={() => {
+              setNameDraft(player.display_name);
+              setIsEditingName(true);
+            }}
+          >
+            {player.display_name}
+          </button>
+        ) : (
+          <span className="dmn-card-name">{player.display_name}</span>
+        )}
 
         {/* TAGS */}
         {isMe && <span className="dmn-tag">You</span>}
@@ -171,6 +243,26 @@ export default function PlayerCard({
           </button>
         )}
       </div>
+
+      {/* PALETTE — over the card, so opening it doesn't move anything */}
+      {onRecolor && isPickingColor && (
+        <div className="dmn-card-palette" role="group" aria-label="Color">
+          {PALETTE.map((entry) => (
+            <button
+              key={entry.key}
+              type="button"
+              className={`dmn-swatch dmn-seat-${entry.key}`}
+              aria-pressed={player.color_key === entry.key}
+              aria-label={entry.label}
+              title={entry.label}
+              onClick={() => {
+                setIsPickingColor(false);
+                if (entry.key !== player.color_key) onRecolor(entry.key);
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {editable ? (
         /* LIFE — the two halves of the number are the ±1 buttons, the same on every card */

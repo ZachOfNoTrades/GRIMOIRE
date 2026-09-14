@@ -48,6 +48,10 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
       return "Host issued a new join code";
     case "end":
       return "Game over";
+    case "edit_player": {
+      if (payload.display_name_from !== undefined) return `Host renamed ${String(payload.display_name_from)} to ${target}`;
+      return `Host changed ${target}'s color`;
+    }
     case "setup": {
       const parts: string[] = [];
       if (payload.starting_life !== undefined) parts.push(`starting life to ${Number(payload.starting_life)}`);

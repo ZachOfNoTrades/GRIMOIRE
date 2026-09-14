@@ -267,7 +267,7 @@ BEGIN TRY
 
             CONSTRAINT UK_damnation_events_op UNIQUE (op_id),
             CONSTRAINT CK_damnation_events_type CHECK (event_type IN
-                ('join','claim','life','commander_damage','status','undo','kick','free_seat','start','reopen','rotate_code','end','reorder','setup')),
+                ('join','claim','life','commander_damage','status','undo','kick','free_seat','start','reopen','rotate_code','end','reorder','setup','edit_player')),
             CONSTRAINT FK_damnation_events_session FOREIGN KEY (session_id) REFERENCES damnation_sessions(id) ON DELETE CASCADE,
             CONSTRAINT FK_damnation_events_actor FOREIGN KEY (actor_player_id) REFERENCES damnation_players(id),
             CONSTRAINT FK_damnation_events_target FOREIGN KEY (target_player_id) REFERENCES damnation_players(id),

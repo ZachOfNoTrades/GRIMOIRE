@@ -30,6 +30,7 @@ import PlayerCard from "../../../components/PlayerCard";
 import QrCode from "../../../components/QrCode";
 import WikiSearch from "../../../components/WikiSearch";
 import { findLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
+import { PALETTE } from "../../../lib/constants";
 import { useGameActions } from "../../../lib/useGameActions";
 import { useSessionStream } from "../../../lib/useSessionStream";
 import { useWakeLock } from "../../../lib/useWakeLock";
@@ -106,11 +107,11 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   // Host controls that aren't counter taps: sent straight away, each with its own op_id.
   const hostCommand = useCallback(
-    async (path: string, body: Record<string, unknown> = {}) => {
+    async (path: string, body: Record<string, unknown> = {}, method: "POST" | "PATCH" = "POST") => {
       setIsBusy(true);
       try {
         const response = await fetch(`${baseUrl}${path}`, {
-          method: "POST",
+          method,
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ op_id: generateUUID(), ...body }),
         });
@@ -127,6 +128,18 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     },
     [baseUrl, acceptSnapshot]
   );
+
+  // Adds a player without a phone as "Player N" with a color nobody has; the host renames and
+  // recolors them by clicking the name or color on their card.
+  function addPlaceholderPlayer() {
+    if (!snapshot) return;
+    const names = new Set(snapshot.players.map((player) => player.display_name.toLowerCase()));
+    let number = snapshot.players.length + 1;
+    while (names.has(`player ${number}`)) number += 1;
+    const colors = new Set(snapshot.players.map((player) => player.color_key));
+    const color = PALETTE.find((entry) => !colors.has(entry.key))?.key ?? PALETTE[0].key;
+    hostCommand("/players", { display_name: `Player ${number}`, color_key: color });
+  }
 
   async function saveLayout(layoutKey: string | null) {
     setIsBusy(true);
@@ -349,6 +362,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       onStatus={(change) => actions.changeStatus(player.id, change)}
                       onRemove={isFinished ? undefined : () => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })}
                       removeDisabled={isBusy}
+                      onRename={isFinished ? undefined : (displayName) => hostCommand(`/players/${player.id}`, { display_name: displayName }, "PATCH")}
+                      onRecolor={isFinished ? undefined : (colorKey) => void hostCommand(`/players/${player.id}`, { color_key: colorKey }, "PATCH")}
                       onGripPointerDown={isFinished ? undefined : (event) => startDrag(event, player.id)}
                       onGripKey={(step) => {
                         const other = snapshot.players[index + step];
@@ -365,9 +380,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                     key={`empty-${index}`}
                     style={slotStyle(snapshot.players.length + index)}
                     waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
-                    takenColors={snapshot.players.map((player) => player.color_key)}
                     disabled={isBusy}
-                    onAdd={(displayName, colorKey) => hostCommand("/players", { display_name: displayName, color_key: colorKey })}
+                    onAdd={addPlaceholderPlayer}
                   />
                 ))}
 

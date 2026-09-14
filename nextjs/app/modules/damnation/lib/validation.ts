@@ -53,6 +53,10 @@ export const joinSchema = z.union([
 
 export const addPlayerSchema = z.object({ op_id: uuid, display_name: displayName, color_key: colorKey });
 
+export const editPlayerSchema = z
+  .object({ op_id: uuid, display_name: displayName.optional(), color_key: colorKey.optional() })
+  .refine((body) => body.display_name !== undefined || body.color_key !== undefined, "Nothing to change");
+
 export const lifeSchema = z.object({ op_id: uuid, delta });
 
 export const commanderDamageSchema = z.object({ op_id: uuid, source_player_id: uuid, delta });
