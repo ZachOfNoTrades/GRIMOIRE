@@ -17,6 +17,8 @@ import type { SessionSnapshot } from "../types/damnation";
 // - Until the server confirms a change, it is shown as a pending overlay on top of the last
 //   snapshot. It clears when the op_id shows up in a snapshot's event list or the request
 //   returns, whichever comes first, so a broadcast arriving before the response can't double-count.
+//   The event-list check happens while rendering that snapshot, not in an effect afterwards —
+//   otherwise the new total and the still-pending delta paint together for a frame.
 
 const COALESCE_MS = 5_000;
 const MAX_BACKOFF_MS = 10_000;
@@ -167,20 +169,6 @@ export function useGameActions<T extends SessionSnapshot>({
     };
   }, [pump]);
 
-  // Confirm pending ops the moment their op_id appears in a snapshot.
-  useEffect(() => {
-    if (!snapshot) return;
-    const seen = new Set(snapshot.events.map((event) => event.op_id));
-    let changed = false;
-    for (const operation of queueRef.current) {
-      if (operation.sent && !operation.confirmed && seen.has(operation.opId)) {
-        operation.confirmed = true;
-        changed = true;
-      }
-    }
-    if (changed) bump();
-  }, [snapshot]);
-
   const enqueueDelta = useCallback(
     (kind: "life" | "commander", targetPlayerId: string, sourcePlayerId: string | null, delta: number) => {
       const key = kind === "life" ? `life:${targetPlayerId}` : `cmdr:${targetPlayerId}:${sourcePlayerId}`;
@@ -266,7 +254,10 @@ export function useGameActions<T extends SessionSnapshot>({
   const overlay: PendingOverlay = useMemo(() => {
     const life: Record<string, number> = {};
     const commander: Record<string, number> = {};
+    // Ops already applied in the snapshot being rendered.
+    const seen = new Set(snapshot?.events.map((event) => event.op_id) ?? []);
     for (const operation of queueRef.current) {
+      if (operation.sent && seen.has(operation.opId)) operation.confirmed = true;
       if (operation.confirmed || !operation.targetPlayerId) continue;
       if (operation.kind === "life") {
         life[operation.targetPlayerId] = (life[operation.targetPlayerId] ?? 0) + operation.delta;
