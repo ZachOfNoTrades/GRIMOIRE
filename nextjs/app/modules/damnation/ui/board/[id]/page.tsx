@@ -46,7 +46,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   // STATE
   const [notFound, setNotFound] = useState(false);
-  // DRAG — the player being dragged and the card it would swap with if released now.
+  // DRAG — the player being dragged, and where they'd land if released now: another player's id
+  // (swap) or "spot:<n>" for an open spot.
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropId, setDropId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -161,8 +162,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  // Drag a card by its grip and drop it on another card to swap the two players' places. The
-  // card under the pointer is found with elementFromPoint, so it works across a 2-D layout.
+  // Drag a card by its grip and drop it on another card to swap the two players' places, or on an
+  // open spot to move into it. What's under the pointer is found with elementFromPoint, so it works
+  // across a 2-D layout.
   function startDrag(event: React.PointerEvent, playerId: string) {
     if (event.button !== 0 || isBusy) return;
     event.preventDefault();
@@ -170,8 +172,12 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     let target: string | null = null;
 
     const onMove = (move: PointerEvent) => {
-      const card = document.elementFromPoint(move.clientX, move.clientY)?.closest<HTMLElement>("[data-player-id]");
-      const next = card && card.dataset.playerId !== playerId ? card.dataset.playerId ?? null : null;
+      const under = document.elementFromPoint(move.clientX, move.clientY)?.closest<HTMLElement>("[data-player-id], [data-open-spot]");
+      const next = !under
+        ? null
+        : under.dataset.openSpot
+          ? `spot:${under.dataset.openSpot}`
+          : under.dataset.playerId !== playerId ? under.dataset.playerId ?? null : null;
       if (next !== target) {
         target = next;
         setDropId(next);
@@ -185,9 +191,11 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
       setDropId(null);
     };
     const onUp = () => {
-      const withId = target;
+      const dropped = target;
       cleanup();
-      if (withId) hostCommand(`/players/${playerId}/move`, { with_player_id: withId });
+      if (!dropped) return;
+      if (dropped.startsWith("spot:")) hostCommand(`/players/${playerId}/move`, { to_position: Number(dropped.slice(5)) });
+      else hostCommand(`/players/${playerId}/move`, { with_player_id: dropped });
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -379,6 +387,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                     /* OPEN SPOT — a position nobody holds, with a button to add someone who has no phone */
                     <OpenSpotTile
                       key={`empty-${index}`}
+                      position={index + 1}
+                      isDropTarget={dropId === `spot:${index + 1}`}
                       style={slotStyle(index)}
                       waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
                       disabled={isBusy}

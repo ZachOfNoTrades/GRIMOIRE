@@ -77,7 +77,11 @@ export const statusSchema = z
 
 export const opSchema = z.object({ op_id: uuid });
 
-export const moveSchema = z.object({ op_id: uuid, with_player_id: uuid });
+// Swap with another player, or move into an open spot.
+export const moveSchema = z.union([
+  z.object({ op_id: uuid, with_player_id: uuid }),
+  z.object({ op_id: uuid, to_position: z.number().int().min(1).max(MAX_PLAYERS) }),
+]);
 
 export const layoutSchema = z.object({ board_layout: z.string().max(20).nullable() });
 

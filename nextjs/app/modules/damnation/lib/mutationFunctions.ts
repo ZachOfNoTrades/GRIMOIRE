@@ -575,40 +575,61 @@ export function removePlayer(sessionId: string, opId: string, playerId: string, 
   });
 }
 
-// Swaps two players' seats, which is the order cards fill a board layout. Both seat values
-// change in one statement so the per-game seat index never sees a duplicate mid-update.
-export function movePlayer(sessionId: string, opId: string, playerId: string, withPlayerId: string) {
+// Swaps two players' seats, or moves a player into an open seat. A seat is the player's spot on the
+// board. A swap changes both seat values in one statement so the per-game seat index never sees a
+// duplicate mid-update.
+export function movePlayer(
+  sessionId: string,
+  opId: string,
+  playerId: string,
+  target: { withPlayerId: string } | { toPosition: number }
+) {
   return runMutation({
     sessionId,
     opId,
     actor: { kind: "host" },
     apply: async (transaction) => {
-      if (playerId === withPlayerId) return null;
       await lockPlayer(transaction, sessionId, playerId);
-      await lockPlayer(transaction, sessionId, withPlayerId);
       const order = await request(transaction)
         .input("sessionId", sql.UniqueIdentifier, sessionId)
-        .query<{ id: string; seat: number }>(`
-          SELECT id, seat FROM damnation_players WITH (UPDLOCK)
-          WHERE session_id = @sessionId AND kicked = 0
-          ORDER BY seat
+        .query<{ id: string; seat: number; max_seats: number }>(`
+          SELECT p.id, p.seat, s.max_seats
+          FROM damnation_players p WITH (UPDLOCK)
+          JOIN damnation_sessions s ON s.id = p.session_id
+          WHERE p.session_id = @sessionId AND p.kicked = 0
+          ORDER BY p.seat
         `);
       const rows = order.recordset.map((row) => ({ id: row.id.toLowerCase(), seat: row.seat }));
-      const index = rows.findIndex((row) => row.id === playerId);
-      const neighbor = rows.find((row) => row.id === withPlayerId);
-      if (index < 0 || !neighbor) return null;
+      const mover = rows.find((row) => row.id === playerId);
+      if (!mover) return null;
+
+      if ("toPosition" in target) {
+        const maxSeats = order.recordset[0].max_seats;
+        if (target.toPosition > maxSeats) throw new DamnationError(400, "That spot isn't on the board");
+        if (target.toPosition === mover.seat) return null;
+        if (rows.some((row) => row.seat === target.toPosition)) throw new DamnationError(409, "Someone is already in that spot");
+        await request(transaction)
+          .input("playerId", sql.UniqueIdentifier, playerId)
+          .input("seat", sql.Int, target.toPosition)
+          .query(`UPDATE damnation_players SET seat = @seat, ts_updated = GETDATE() WHERE id = @playerId`);
+        return { eventType: "reorder", targetPlayerId: playerId, payload: { to_position: target.toPosition } };
+      }
+
+      if (target.withPlayerId === playerId) return null;
+      const neighbor = rows.find((row) => row.id === target.withPlayerId);
+      if (!neighbor) throw new DamnationError(404, "Player not found");
 
       await request(transaction)
         .input("playerId", sql.UniqueIdentifier, playerId)
         .input("neighborId", sql.UniqueIdentifier, neighbor.id)
-        .input("playerSeat", sql.Int, rows[index].seat)
+        .input("playerSeat", sql.Int, mover.seat)
         .input("neighborSeat", sql.Int, neighbor.seat)
         .query(`
           UPDATE damnation_players
           SET seat = CASE WHEN id = @playerId THEN @neighborSeat ELSE @playerSeat END, ts_updated = GETDATE()
           WHERE id IN (@playerId, @neighborId)
         `);
-      return { eventType: "reorder", targetPlayerId: playerId, payload: { with_player_id: withPlayerId } };
+      return { eventType: "reorder", targetPlayerId: playerId, payload: { with_player_id: target.withPlayerId } };
     },
   });
 }

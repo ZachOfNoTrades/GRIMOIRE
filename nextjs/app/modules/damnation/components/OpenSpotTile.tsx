@@ -6,19 +6,24 @@ import { UserPlus } from "lucide-react";
 // phone straight away, with a placeholder name and a free color. The host then clicks the name or
 // color on the new card to change it.
 export default function OpenSpotTile({
+  position,
   waitingText,
   disabled,
+  isDropTarget = false,
   style,
   onAdd,
 }: {
+  // The spot's place on the board (1-based); a card dragged here moves into it.
+  position: number;
   waitingText: string;
   disabled: boolean;
+  isDropTarget?: boolean;
   style?: React.CSSProperties;
   onAdd: () => void;
 }) {
   return (
     /* OPEN SPOT */
-    <div className="dmn-empty-seat" style={style}>
+    <div className={`dmn-empty-seat ${isDropTarget ? "dmn-drop-target" : ""}`} data-open-spot={position} style={style}>
 
       {/* WAITING TEXT */}
       <span>{waitingText}</span>
