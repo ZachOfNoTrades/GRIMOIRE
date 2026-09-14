@@ -20,7 +20,7 @@ import type { SessionSnapshot } from "../types/damnation";
 //   The event-list check happens while rendering that snapshot, not in an effect afterwards —
 //   otherwise the new total and the still-pending delta paint together for a frame.
 
-const COALESCE_MS = 5_000;
+const COALESCE_MS = 3_000;
 const MAX_BACKOFF_MS = 10_000;
 
 type OperationKind = "life" | "commander" | "status" | "undo";

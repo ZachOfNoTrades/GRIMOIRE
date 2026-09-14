@@ -102,7 +102,7 @@ export const PLAYER_HELP: HelpSection[] = [
     body: (
       <>
         You can change anyone&apos;s life, commander damage and status from their card. Taps on the same counter are sent
-        together once you pause for 5 seconds, as one change to undo; the small number beside a total is what hasn&apos;t
+        together once you pause for 3 seconds, as one change to undo; the small number beside a total is what hasn&apos;t
         reached the table yet.
       </>
     ),
