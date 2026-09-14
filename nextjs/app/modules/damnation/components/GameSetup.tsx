@@ -48,76 +48,84 @@ export default function GameSetup({
   }
 
   return (
-    /* GAME SETUP */
-    <div className="flex flex-col gap-2">
+    /* GAME SETUP — starting life and players side by side, wrapping under each other when narrow */
+    <div className="flex flex-wrap gap-x-8 gap-y-3">
 
-      {/* STARTING LIFE LABEL */}
-      <div className="text-h2">Starting life</div>
+      {/* STARTING LIFE */}
+      <div className="flex flex-col gap-2">
 
-      {/* STARTING LIFE PICKER */}
-      <div className="flex flex-wrap items-center gap-2">
-        {STARTING_LIFE_PRESETS.map((preset) => (
-          <Button
-            key={preset}
-            className={startingLife === preset ? "btn-blue" : "btn-off"}
-            disabled={disabled}
-            onClick={() => startingLife !== preset && onChange({ starting_life: preset })}
-            aria-pressed={startingLife === preset}
-          >
-            {preset}
-          </Button>
-        ))}
+        {/* STARTING LIFE LABEL */}
+        <div className="text-h2">Starting life</div>
 
-        {/* CUSTOM — a button until clicked, then a number field (autofocused: typing is next) */}
-        {isEditingCustom ? (
-          <input
-            autoFocus
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={999}
-            className="input-field max-w-[7rem]"
-            placeholder="e.g. 25"
-            value={customLife}
-            onChange={(event) => setCustomLife(event.target.value)}
-            onKeyDown={onCustomKey}
-            onBlur={commitCustom}
-            aria-label="Custom starting life"
-            enterKeyHint="done"
-          />
-        ) : (
-          <Button
-            className={isPreset ? "btn-off" : "btn-blue"}
-            disabled={disabled}
-            onClick={() => {
-              setCustomLife(isPreset ? "" : String(startingLife));
-              setIsEditingCustom(true);
-            }}
-            aria-pressed={!isPreset}
-            title="Type a starting life"
-          >
-            {isPreset ? "Custom" : `Custom: ${startingLife}`}
-          </Button>
-        )}
+        {/* STARTING LIFE PICKER */}
+        <div className="flex flex-wrap items-center gap-2">
+          {STARTING_LIFE_PRESETS.map((preset) => (
+            <Button
+              key={preset}
+              className={startingLife === preset ? "btn-blue" : "btn-off"}
+              disabled={disabled}
+              onClick={() => startingLife !== preset && onChange({ starting_life: preset })}
+              aria-pressed={startingLife === preset}
+            >
+              {preset}
+            </Button>
+          ))}
+
+          {/* CUSTOM — a button until clicked, then a number field (autofocused: typing is next) */}
+          {isEditingCustom ? (
+            <input
+              autoFocus
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={999}
+              className="input-field max-w-[7rem]"
+              placeholder="e.g. 25"
+              value={customLife}
+              onChange={(event) => setCustomLife(event.target.value)}
+              onKeyDown={onCustomKey}
+              onBlur={commitCustom}
+              aria-label="Custom starting life"
+              enterKeyHint="done"
+            />
+          ) : (
+            <Button
+              className={isPreset ? "btn-off" : "btn-blue"}
+              disabled={disabled}
+              onClick={() => {
+                setCustomLife(isPreset ? "" : String(startingLife));
+                setIsEditingCustom(true);
+              }}
+              aria-pressed={!isPreset}
+              title="Type a starting life"
+            >
+              {isPreset ? "Custom" : `Custom: ${startingLife}`}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* PLAYER COUNT LABEL */}
-      <div className="text-h2 mt-2">Players</div>
+      {/* PLAYER COUNT */}
+      <div className="flex flex-col gap-2">
 
-      {/* PLAYER COUNT PICKER — fewer than the players already in isn't offered */}
-      <div className="flex flex-wrap gap-2">
-        {PLAYER_COUNT_OPTIONS.map((count) => (
-          <Button
-            key={count}
-            className={maxPlayers === count ? "btn-blue" : "btn-off"}
-            disabled={disabled || count < playerCount}
-            onClick={() => maxPlayers !== count && onChange({ max_players: count })}
-            aria-pressed={maxPlayers === count}
-            title={count < playerCount ? `${playerCount} players are already in` : undefined}
-          >
-            {count}
-          </Button>
-        ))}
+        {/* PLAYER COUNT LABEL */}
+        <div className="text-h2">Players</div>
+
+        {/* PLAYER COUNT PICKER — fewer than the players already in isn't offered */}
+        <div className="flex flex-wrap gap-2">
+          {PLAYER_COUNT_OPTIONS.map((count) => (
+            <Button
+              key={count}
+              className={maxPlayers === count ? "btn-blue" : "btn-off"}
+              disabled={disabled || count < playerCount}
+              onClick={() => maxPlayers !== count && onChange({ max_players: count })}
+              aria-pressed={maxPlayers === count}
+              title={count < playerCount ? `${playerCount} players are already in` : undefined}
+            >
+              {count}
+            </Button>
+          ))}
+        </div>
       </div>
     </div>
   );
