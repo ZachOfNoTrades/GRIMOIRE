@@ -51,6 +51,21 @@ export function cardsPerRow(layout: BoardLayout): number {
   return Math.max(...layout.areas.map((row) => new Set(row.split(" ")).size));
 }
 
+// Spots on the board, in order: each player sits at their own position (seat), and spots nobody
+// holds are null, so removing a player leaves a gap instead of shifting everyone after them. A
+// player whose position is beyond the spot count (or clashes) takes the first free spot.
+export function arrangeSpots<T extends { position: number }>(players: T[], spotCount: number): (T | null)[] {
+  const spots: (T | null)[] = Array.from({ length: Math.max(spotCount, players.length) }, () => null);
+  const overflow: T[] = [];
+  for (const player of players) {
+    const index = player.position - 1;
+    if (index >= 0 && index < spots.length && spots[index] === null) spots[index] = player;
+    else overflow.push(player);
+  }
+  for (const player of overflow) spots[spots.indexOf(null)] = player;
+  return spots;
+}
+
 export function isLayoutKey(value: unknown): value is string {
   return typeof value === "string" && BOARD_LAYOUTS.some((layout) => layout.key === value);
 }

@@ -11,7 +11,7 @@ import { generateUUID } from "@/lib/uuid";
 import { PLAYER_HELP } from "@/app/modules/damnation/components/help";
 import PlayerCard from "@/app/modules/damnation/components/PlayerCard";
 import WikiSearch from "@/app/modules/damnation/components/WikiSearch";
-import { cardsPerRow, findLayout, SLOT_NAMES } from "@/app/modules/damnation/lib/boardLayouts";
+import { arrangeSpots, cardsPerRow, findLayout, SLOT_NAMES } from "@/app/modules/damnation/lib/boardLayouts";
 import {
   JOIN_CODE_PATTERN,
   NAME_MAX_LENGTH,
@@ -513,7 +513,7 @@ function Controller({
             className="dmn-grid"
             style={{ gridTemplateColumns: layout.columns, gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" ") }}
           >
-            {snapshot.players.map((player, index) => (
+            {arrangeSpots(snapshot.players, snapshot.max_players).map((player, index) => player && (
               <div key={player.id} className="flex flex-col min-w-0" style={{ gridArea: SLOT_NAMES[index] }}>
                 <PlayerCard
                   player={player}

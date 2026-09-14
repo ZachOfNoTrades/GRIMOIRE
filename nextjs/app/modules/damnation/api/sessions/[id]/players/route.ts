@@ -8,6 +8,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   return withHost(request, id, "POST /damnation/api/sessions/[id]/players", async (host) => {
     const body = await parseBody(request, addPlayerSchema);
-    return hostResult(await addManualPlayer(host.sessionId, body.op_id, body.display_name, body.color_key));
+    return hostResult(await addManualPlayer(host.sessionId, body.op_id, body.display_name, body.color_key, body.position));
   });
 }

@@ -51,7 +51,13 @@ export const joinSchema = z.union([
   z.object({ op_id: uuid, rejoin_player_id: uuid }),
 ]);
 
-export const addPlayerSchema = z.object({ op_id: uuid, display_name: displayName, color_key: colorKey });
+// `position` is the open spot the host clicked; without it the player takes the first free spot.
+export const addPlayerSchema = z.object({
+  op_id: uuid,
+  display_name: displayName,
+  color_key: colorKey,
+  position: z.number().int().min(1).max(MAX_PLAYERS).optional(),
+});
 
 export const editPlayerSchema = z
   .object({ op_id: uuid, display_name: displayName.optional(), color_key: colorKey.optional() })

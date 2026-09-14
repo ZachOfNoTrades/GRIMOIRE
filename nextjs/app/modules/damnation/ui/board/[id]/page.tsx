@@ -29,7 +29,7 @@ import { HOST_HELP } from "../../../components/help";
 import PlayerCard from "../../../components/PlayerCard";
 import QrCode from "../../../components/QrCode";
 import WikiSearch from "../../../components/WikiSearch";
-import { findLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
+import { arrangeSpots, findLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
 import { PALETTE } from "../../../lib/constants";
 import { useGameActions } from "../../../lib/useGameActions";
 import { useSessionStream } from "../../../lib/useSessionStream";
@@ -72,7 +72,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   const isFinished = snapshot?.status === "finished";
   const connected = new Set(presence?.connected_player_ids ?? []);
-  const openSpots = snapshot ? Math.max(0, snapshot.max_players - snapshot.players.length) : 0;
+  // Board positions in order; null is an open spot. Players keep their position when someone leaves.
+  const spots = snapshot ? arrangeSpots(snapshot.players, snapshot.max_players) : [];
   const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
 
   // A fixed table layout only fits when the board has its full width (the activity column sits
@@ -131,14 +132,14 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   // Adds a player without a phone as "Player N" with a color nobody has; the host renames and
   // recolors them by clicking the name or color on their card.
-  function addPlaceholderPlayer() {
+  function addPlaceholderPlayer(position: number) {
     if (!snapshot) return;
     const names = new Set(snapshot.players.map((player) => player.display_name.toLowerCase()));
     let number = snapshot.players.length + 1;
     while (names.has(`player ${number}`)) number += 1;
     const colors = new Set(snapshot.players.map((player) => player.color_key));
     const color = PALETTE.find((entry) => !colors.has(entry.key))?.key ?? PALETTE[0].key;
-    hostCommand("/players", { display_name: `Player ${number}`, color_key: color });
+    hostCommand("/players", { display_name: `Player ${number}`, color_key: color, position });
   }
 
   async function saveLayout(layoutKey: string | null) {
@@ -339,51 +340,52 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
               {/* PLAYERS GRID */}
               <div className="dmn-grid" style={gridStyle}>
-                {snapshot.players.map((player, index) => (
-                  <div
-                    key={player.id}
-                    data-player-id={player.id}
-                    className={`flex flex-col min-w-0 ${dragId === player.id ? "dmn-dragging" : ""} ${dropId === player.id ? "dmn-drop-target" : ""}`}
-                    style={slotStyle(index)}
-                  >
+                {spots.map((player, index) =>
+                  player ? (
+                    <div
+                      key={player.id}
+                      data-player-id={player.id}
+                      className={`flex flex-col min-w-0 ${dragId === player.id ? "dmn-dragging" : ""} ${dropId === player.id ? "dmn-drop-target" : ""}`}
+                      style={slotStyle(index)}
+                    >
 
-                    {/* PLAYER CARD */}
-                    <PlayerCard
-                      player={player}
-                      players={snapshot.players}
-                      cells={snapshot.commander_damage}
-                      commanderDamage={snapshot.commander_damage_enabled}
-                      overlay={actions.overlay}
-                      variant="board"
-                      editable={!isFinished}
-                      connected={player.rejoinable || player.manual ? null : connected.has(player.id)}
-                      onLife={(delta) => actions.changeLife(player.id, delta)}
-                      onCommander={(sourceId, delta) => actions.changeCommanderDamage(player.id, sourceId, delta)}
-                      onStatus={(change) => actions.changeStatus(player.id, change)}
-                      onRemove={isFinished ? undefined : () => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })}
-                      removeDisabled={isBusy}
-                      onRename={isFinished ? undefined : (displayName) => hostCommand(`/players/${player.id}`, { display_name: displayName }, "PATCH")}
-                      onRecolor={isFinished ? undefined : (colorKey) => void hostCommand(`/players/${player.id}`, { color_key: colorKey }, "PATCH")}
-                      onGripPointerDown={isFinished ? undefined : (event) => startDrag(event, player.id)}
-                      onGripKey={(step) => {
-                        const other = snapshot.players[index + step];
-                        if (other && !isBusy) hostCommand(`/players/${player.id}/move`, { with_player_id: other.id });
-                      }}
-                      fill={layout !== null}
+                      {/* PLAYER CARD */}
+                      <PlayerCard
+                        player={player}
+                        players={snapshot.players}
+                        cells={snapshot.commander_damage}
+                        commanderDamage={snapshot.commander_damage_enabled}
+                        overlay={actions.overlay}
+                        variant="board"
+                        editable={!isFinished}
+                        connected={player.rejoinable || player.manual ? null : connected.has(player.id)}
+                        onLife={(delta) => actions.changeLife(player.id, delta)}
+                        onCommander={(sourceId, delta) => actions.changeCommanderDamage(player.id, sourceId, delta)}
+                        onStatus={(change) => actions.changeStatus(player.id, change)}
+                        onRemove={isFinished ? undefined : () => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })}
+                        removeDisabled={isBusy}
+                        onRename={isFinished ? undefined : (displayName) => hostCommand(`/players/${player.id}`, { display_name: displayName }, "PATCH")}
+                        onRecolor={isFinished ? undefined : (colorKey) => void hostCommand(`/players/${player.id}`, { color_key: colorKey }, "PATCH")}
+                        onGripPointerDown={isFinished ? undefined : (event) => startDrag(event, player.id)}
+                        onGripKey={(step) => {
+                          const order = snapshot.players.findIndex((other) => other.id === player.id);
+                          const other = snapshot.players[order + step];
+                          if (other && !isBusy) hostCommand(`/players/${player.id}/move`, { with_player_id: other.id });
+                        }}
+                        fill={layout !== null}
+                      />
+                    </div>
+                  ) : isFinished ? null : (
+                    /* OPEN SPOT — a position nobody holds, with a button to add someone who has no phone */
+                    <OpenSpotTile
+                      key={`empty-${index}`}
+                      style={slotStyle(index)}
+                      waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
+                      disabled={isBusy}
+                      onAdd={() => addPlaceholderPlayer(index + 1)}
                     />
-                  </div>
-                ))}
-
-                {/* OPEN SPOTS — waiting text, with click-to-edit fields to add someone who has no phone */}
-                {!isFinished && Array.from({ length: openSpots }, (_, index) => (
-                  <OpenSpotTile
-                    key={`empty-${index}`}
-                    style={slotStyle(snapshot.players.length + index)}
-                    waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
-                    disabled={isBusy}
-                    onAdd={addPlaceholderPlayer}
-                  />
-                ))}
+                  )
+                )}
 
                 {/* NO PLAYERS PLACEHOLDER */}
                 {snapshot.players.length === 0 && isFinished && (

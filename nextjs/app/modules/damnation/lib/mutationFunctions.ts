@@ -415,7 +415,8 @@ async function addPlayerToGame(
   sessionId: string,
   displayName: string,
   colorKey: string,
-  tokenHash: Buffer | null
+  tokenHash: Buffer | null,
+  preferredPosition?: number
 ): Promise<string> {
   const roster = await request(transaction)
     .input("sessionId", sql.UniqueIdentifier, sessionId)
@@ -433,10 +434,14 @@ async function addPlayerToGame(
     throw new DamnationError(409, "Someone at the table already has that name");
   }
 
-  // `seat` is only the display order: the lowest position not already in use.
+  // `seat` is the player's spot on the board: the one asked for if it's free, otherwise the lowest
+  // spot not already in use.
   const usedPositions = new Set(taken.map((row) => row.seat));
   let position = 1;
   while (usedPositions.has(position)) position += 1;
+  if (preferredPosition !== undefined && preferredPosition <= maxPlayers && !usedPositions.has(preferredPosition)) {
+    position = preferredPosition;
+  }
 
   const inserted = await request(transaction)
     .input("sessionId", sql.UniqueIdentifier, sessionId)
@@ -485,13 +490,13 @@ export async function joinSession(
 // A player the host adds from the board, for someone playing without a phone. Allowed whether
 // or not joining is open. The card is edited from the board or from any player's phone; nobody
 // can rejoin as a manual player from a phone.
-export function addManualPlayer(sessionId: string, opId: string, displayName: string, colorKey: string) {
+export function addManualPlayer(sessionId: string, opId: string, displayName: string, colorKey: string, position?: number) {
   return runMutation({
     sessionId,
     opId,
     actor: { kind: "host" },
     apply: async (transaction) => {
-      const playerId = await addPlayerToGame(transaction, sessionId, displayName, colorKey, null);
+      const playerId = await addPlayerToGame(transaction, sessionId, displayName, colorKey, null, position);
       return { eventType: "join", actorPlayerId: null, targetPlayerId: playerId, payload: { manual: true } };
     },
   });
@@ -703,6 +708,22 @@ export function changeGameSetup(
           throw new DamnationError(409, `${row.player_count} players are already in — remove someone first`);
         }
         const layoutFits = row.board_layout !== null && findLayout(row.board_layout, change.max_players) !== null;
+        // Players keep their spots; anyone in a spot the smaller table no longer has moves to a free one.
+        const seats = await request(transaction)
+          .input("sessionId", sql.UniqueIdentifier, sessionId)
+          .query<{ id: string; seat: number }>(`
+            SELECT id, seat FROM damnation_players WITH (UPDLOCK) WHERE session_id = @sessionId AND kicked = 0 ORDER BY seat
+          `);
+        const used = new Set(seats.recordset.filter((player) => player.seat <= change.max_players!).map((player) => player.seat));
+        for (const player of seats.recordset.filter((player) => player.seat > change.max_players!)) {
+          let free = 1;
+          while (used.has(free)) free += 1;
+          used.add(free);
+          await request(transaction)
+            .input("playerId", sql.UniqueIdentifier, player.id)
+            .input("seat", sql.Int, free)
+            .query(`UPDATE damnation_players SET seat = @seat, ts_updated = GETDATE() WHERE id = @playerId`);
+        }
         await request(transaction)
           .input("sessionId", sql.UniqueIdentifier, sessionId)
           .input("maxPlayers", sql.Int, change.max_players)
