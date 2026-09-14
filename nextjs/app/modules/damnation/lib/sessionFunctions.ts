@@ -79,10 +79,11 @@ export async function createSession(hostUserId: string, startingLife: number, ma
         .input("joinCode", sql.VarChar(8), generateJoinCode())
         .input("startingLife", sql.Int, startingLife)
         .input("maxPlayers", sql.Int, maxPlayers)
+        .input("layout", sql.VarChar(20), await preferredLayout(transaction, hostUserId, maxPlayers))
         .query<{ id: string }>(`
-          INSERT INTO damnation_sessions (host_user_id, join_code, starting_life, max_seats)
+          INSERT INTO damnation_sessions (host_user_id, join_code, starting_life, max_seats, board_layout)
           OUTPUT INSERTED.id
-          VALUES (@hostUserId, @joinCode, @startingLife, @maxPlayers)
+          VALUES (@hostUserId, @joinCode, @startingLife, @maxPlayers, @layout)
         `);
       await transaction.commit();
       const snapshot = await readSnapshot(pool, inserted.recordset[0].id);
@@ -303,7 +304,7 @@ export async function saveSettings(userId: string, change: { commander_damage_en
 
 // Saves the board arrangement and pushes it to every open board for the game. Not a game event:
 // it changes how the table is drawn, not the game, so it is not undoable and not in the feed.
-export async function saveBoardLayout(sessionId: string, layoutKey: string | null): Promise<HostSnapshot> {
+export async function saveBoardLayout(sessionId: string, layoutKey: string | null, hostUserId: string): Promise<HostSnapshot> {
   const pool = await getMainConnection();
   const current = await readSnapshot(pool, sessionId);
   if (!current) throw new DamnationError(404, "Game not found");
@@ -315,8 +316,46 @@ export async function saveBoardLayout(sessionId: string, layoutKey: string | nul
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .input("layout", sql.VarChar(20), layoutKey)
     .query(`UPDATE damnation_sessions SET board_layout = @layout, version = version + 1 WHERE id = @sessionId`);
+  await rememberLayout(pool, hostUserId, current.max_players, layoutKey);
   const snapshot = await readSnapshot(pool, sessionId);
   if (!snapshot) throw new DamnationError(404, "Game not found");
   broadcastSnapshot(sessionId, snapshot);
   return snapshot;
+}
+
+// LAYOUT PREFERENCES — the last table layout the host picked for each player count, stored as
+// JSON in damnation_settings.board_layouts and applied when a game starts at, or changes to, that
+// count. Keys that no longer name a layout for the count are ignored.
+type Executor = sql.ConnectionPool | sql.Transaction;
+const requestFor = (executor: Executor) => (executor instanceof sql.Transaction ? new sql.Request(executor) : executor.request());
+
+async function readLayoutPreferences(executor: Executor, hostUserId: string): Promise<Record<string, string | null>> {
+  const result = await requestFor(executor)
+    .input("userId", sql.UniqueIdentifier, hostUserId)
+    .query<{ board_layouts: string | null }>(`SELECT board_layouts FROM damnation_settings WHERE user_id = @userId`);
+  try {
+    const parsed = JSON.parse(result.recordset[0]?.board_layouts ?? "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function preferredLayout(executor: Executor, hostUserId: string, playerCount: number): Promise<string | null> {
+  const key = (await readLayoutPreferences(executor, hostUserId))[String(playerCount)];
+  return key && findLayout(key, playerCount) ? key : null;
+}
+
+async function rememberLayout(executor: Executor, hostUserId: string, playerCount: number, layoutKey: string | null): Promise<void> {
+  const preferences = await readLayoutPreferences(executor, hostUserId);
+  preferences[String(playerCount)] = layoutKey;
+  await requestFor(executor)
+    .input("userId", sql.UniqueIdentifier, hostUserId)
+    .input("layouts", sql.NVarChar(400), JSON.stringify(preferences))
+    .query(`
+      MERGE damnation_settings AS target
+      USING (SELECT @userId AS user_id) AS source ON target.user_id = source.user_id
+      WHEN MATCHED THEN UPDATE SET board_layouts = @layouts, ts_updated = GETDATE()
+      WHEN NOT MATCHED THEN INSERT (user_id, board_layouts) VALUES (@userId, @layouts);
+    `);
 }

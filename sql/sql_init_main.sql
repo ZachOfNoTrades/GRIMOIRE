@@ -157,6 +157,7 @@ BEGIN TRY
         CREATE TABLE damnation_settings (
             user_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
             commander_damage_enabled BIT NOT NULL CONSTRAINT DF_damnation_settings_commander_damage DEFAULT 1, -- 0 = hide commander damage in this host's games
+            board_layouts NVARCHAR(400) NULL, -- JSON player count -> last table layout key the host picked, e.g. {"4":"4-grid"}
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 

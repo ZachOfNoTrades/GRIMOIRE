@@ -5,8 +5,7 @@ import {
   LIFE_MAX,
   LIFE_MIN,
 } from "./constants";
-import { findLayout } from "./boardLayouts";
-import { requireNoOpenGame } from "./sessionFunctions";
+import { preferredLayout, requireNoOpenGame } from "./sessionFunctions";
 import { DamnationError, isUniqueViolation } from "./errors";
 import { generatePlayerToken } from "./playerTokens";
 import { broadcastSnapshot, endSession, revokePlayer } from "./sessionBus";
@@ -682,8 +681,8 @@ export function editPlayer(
 
 // Changes starting life and/or the player count while joining is open. A new starting life moves
 // every player's total by the same difference, so taps made before the change are kept. A player
-// count below the players already in the game is refused, and a board layout that no longer fits
-// the count falls back to the automatic grid.
+// count below the players already in the game is refused, and a new count takes the host's last
+// table layout for that count (or the automatic grid if they have none).
 export function changeGameSetup(
   sessionId: string,
   opId: string,
@@ -697,8 +696,8 @@ export function changeGameSetup(
       if (context.status !== "lobby") throw new DamnationError(409, "Reopen joining to change the game setup");
       const current = await request(transaction)
         .input("sessionId", sql.UniqueIdentifier, sessionId)
-        .query<{ starting_life: number; max_seats: number; board_layout: string | null; player_count: number }>(`
-          SELECT s.starting_life, s.max_seats, s.board_layout,
+        .query<{ starting_life: number; max_seats: number; board_layout: string | null; host_user_id: string; player_count: number }>(`
+          SELECT s.starting_life, s.max_seats, s.board_layout, s.host_user_id,
                  (SELECT COUNT(*) FROM damnation_players p WHERE p.session_id = s.id AND p.kicked = 0) AS player_count
           FROM damnation_sessions s WHERE s.id = @sessionId
         `);
@@ -729,7 +728,8 @@ export function changeGameSetup(
         if (change.max_players < row.player_count) {
           throw new DamnationError(409, `${row.player_count} players are already in — remove someone first`);
         }
-        const layoutFits = row.board_layout !== null && findLayout(row.board_layout, change.max_players) !== null;
+        // The host's last layout for this player count, if they have one.
+        const nextLayout = await preferredLayout(transaction, row.host_user_id, change.max_players);
         // Players keep their spots; anyone in a spot the smaller table no longer has moves to a free one.
         const seats = await request(transaction)
           .input("sessionId", sql.UniqueIdentifier, sessionId)
@@ -749,7 +749,7 @@ export function changeGameSetup(
         await request(transaction)
           .input("sessionId", sql.UniqueIdentifier, sessionId)
           .input("maxPlayers", sql.Int, change.max_players)
-          .input("layout", sql.VarChar(20), layoutFits ? row.board_layout : null)
+          .input("layout", sql.VarChar(20), nextLayout)
           .query(`UPDATE damnation_sessions SET max_seats = @maxPlayers, board_layout = @layout WHERE id = @sessionId`);
         payload.max_players = change.max_players;
       }

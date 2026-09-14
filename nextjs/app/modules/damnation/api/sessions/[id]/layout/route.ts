@@ -9,7 +9,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   return withHost(request, id, "PUT /damnation/api/sessions/[id]/layout", async (host) => {
     const body = await parseBody(request, layoutSchema);
-    const snapshot = await saveBoardLayout(host.sessionId, body.board_layout);
+    const snapshot = await saveBoardLayout(host.sessionId, body.board_layout, host.userId);
     return NextResponse.json({ snapshot }, { headers: NO_STORE });
   });
 }
