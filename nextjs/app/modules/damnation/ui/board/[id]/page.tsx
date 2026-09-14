@@ -435,7 +435,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             confirm?.kind === "end"
               ? "Every phone is signed out and the code stops working. Final totals stay on this board."
               : confirm
-                ? `${confirm.name} is removed from the game and their phone is signed out.`
+                ? `${confirm.name} is removed from the game.`
                 : ""
           }
         />
