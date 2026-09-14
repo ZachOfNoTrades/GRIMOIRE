@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { getMainConnection } from "@/lib/db";
+import { resolveLayout } from "./boardLayouts";
 import { eliminationReason } from "./elimination";
 import { wikiConfig } from "./wikiConfig";
 import {
@@ -165,7 +166,7 @@ export async function readSnapshot(
     status: session.status,
     join_code: session.join_code,
     join_url: session.join_code ? joinUrlFor(session.join_code) : null,
-    board_layout: session.board_layout,
+    board_layout: resolveLayout(session.board_layout, session.max_players).key,
     starting_life: session.starting_life,
     max_players: session.max_players,
     ...wikiConfig(),

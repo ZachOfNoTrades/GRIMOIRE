@@ -33,7 +33,7 @@ import { HOST_HELP } from "../../../components/help";
 import PlayerCard from "../../../components/PlayerCard";
 import QrCode from "../../../components/QrCode";
 import WikiSearch from "../../../components/WikiSearch";
-import { arrangeSpots, findLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
+import { arrangeSpots, resolveLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
 import { PALETTE } from "../../../lib/constants";
 import { useGameActions } from "../../../lib/useGameActions";
 import { useSessionStream } from "../../../lib/useSessionStream";
@@ -59,7 +59,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
   const [showLayoutPicker, setShowLayoutPicker] = useState(false);
-  const [isWide, setIsWide] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -83,26 +82,12 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const spots = snapshot ? arrangeSpots(snapshot.players, snapshot.max_players) : [];
   const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
 
-  // The host's table layout applies at every width, phones included; without one, a wide board
-  // picks its columns (below) and a narrow one uses the auto-fit grid.
-  const layout = findLayout(snapshot?.board_layout, snapshot?.max_players ?? 0);
-  // Without a table layout, a wide board picks its column count from the number of spots so
-  // every row fills (2 across for 2 or 4, 3 across otherwise) and the board fits a square screen.
-  const autoColumns = snapshot && snapshot.max_players !== 2 && snapshot.max_players !== 4 ? 3 : 2;
+  // Every game has a table layout, and it applies at every width, phones included.
+  const layout = snapshot ? resolveLayout(snapshot.board_layout, snapshot.max_players) : null;
   const gridStyle = layout
     ? { gridTemplateColumns: layout.columns, gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" ") }
-    : isWide
-      ? { gridTemplateColumns: `repeat(${autoColumns}, minmax(0, 1fr))` }
-      : undefined;
+    : undefined;
   const slotStyle = (index: number) => (layout ? { gridArea: SLOT_NAMES[index] } : undefined);
-
-  useEffect(() => {
-    const query = window.matchMedia("(min-width: 1024px)");
-    const update = () => setIsWide(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
 
   useWakeLock(!!snapshot && !isFinished);
   useEntityTitle(snapshot?.join_code ? `Board ${snapshot.join_code}` : null);
@@ -149,7 +134,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     hostCommand("/players", { display_name: `Player ${number}`, color_key: color, position });
   }
 
-  async function saveLayout(layoutKey: string | null) {
+  async function saveLayout(layoutKey: string) {
     setIsBusy(true);
     try {
       const response = await fetch(`${baseUrl}/layout`, {
@@ -410,7 +395,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                           const other = snapshot.players[order + step];
                           if (other && !isBusy) hostCommand(`/players/${player.id}/move`, { with_player_id: other.id });
                         }}
-                        fill={layout !== null}
+                        fill
                       />
                     </div>
                   ) : isFinished ? null : (

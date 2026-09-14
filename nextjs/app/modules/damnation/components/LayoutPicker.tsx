@@ -42,10 +42,10 @@ export default function LayoutPicker({
 }: {
   isOpen: boolean;
   playerCount: number;
-  current: string | null;
+  current: string;
   isSaving: boolean;
   onCancel: () => void;
-  onPick: (layoutKey: string | null) => void;
+  onPick: (layoutKey: string) => void;
 }) {
   const layouts = layoutsFor(playerCount);
 
@@ -56,23 +56,11 @@ export default function LayoutPicker({
 
         {/* HINT */}
         <p className="text-secondary">
-          Arrange the board like the table. Numbers show the order players fill it in; use Manage players to move
-          someone.
+          Arrange the board like the table. Numbers show each spot; drag a card by its handle to move a player.
         </p>
 
         {/* OPTIONS */}
         <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(10rem, 1fr))" }}>
-
-          {/* AUTO */}
-          <Button
-            className={`${current === null ? "btn-blue" : "btn-off"} flex-col items-stretch text-left`}
-            disabled={isSaving}
-            onClick={() => onPick(null)}
-            aria-pressed={current === null}
-          >
-            <span className="font-bold text-sm">Automatic</span>
-            <span className="text-xs">Fits the screen</span>
-          </Button>
 
           {/* PRESETS */}
           {layouts.map((layout) => (

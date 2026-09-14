@@ -66,9 +66,9 @@ export interface SessionSnapshot {
   wiki_embed: boolean;
   // The host's setting: when false, cards offer no commander damage (status controls remain).
   commander_damage_enabled: boolean;
-  // Table arrangement key from lib/boardLayouts.ts; null = the automatic grid. Shown on the board
-  // and, where the screen is wide enough, on phones.
-  board_layout: string | null;
+  // Table arrangement key from lib/boardLayouts.ts, always one that fits max_players. Shown on the
+  // board and, where the screen is wide enough, on phones.
+  board_layout: string;
   players: PlayerView[];
   // Players no longer in the game, so the activity feed can still name them.
   former_players: { id: string; display_name: string }[];

@@ -6,7 +6,7 @@ import {
   JOIN_CODE_LENGTH,
 } from "./constants";
 import { DamnationError, isUniqueViolation } from "./errors";
-import { findLayout } from "./boardLayouts";
+import { findLayout, resolveLayout } from "./boardLayouts";
 import { readPlayerTokenHash } from "./playerTokens";
 import { broadcastSnapshot, closeSession } from "./sessionBus";
 import { IDLE_EXPIRY_HOURS, normalizeId, readSnapshot } from "./snapshotFunctions";
@@ -304,11 +304,11 @@ export async function saveSettings(userId: string, change: { commander_damage_en
 
 // Saves the board arrangement and pushes it to every open board for the game. Not a game event:
 // it changes how the table is drawn, not the game, so it is not undoable and not in the feed.
-export async function saveBoardLayout(sessionId: string, layoutKey: string | null, hostUserId: string): Promise<HostSnapshot> {
+export async function saveBoardLayout(sessionId: string, layoutKey: string, hostUserId: string): Promise<HostSnapshot> {
   const pool = await getMainConnection();
   const current = await readSnapshot(pool, sessionId);
   if (!current) throw new DamnationError(404, "Game not found");
-  if (layoutKey !== null && !findLayout(layoutKey, current.max_players)) {
+  if (!findLayout(layoutKey, current.max_players)) {
     throw new DamnationError(400, `That layout doesn't fit a ${current.max_players}-player game`);
   }
   await pool
@@ -329,7 +329,7 @@ export async function saveBoardLayout(sessionId: string, layoutKey: string | nul
 type Executor = sql.ConnectionPool | sql.Transaction;
 const requestFor = (executor: Executor) => (executor instanceof sql.Transaction ? new sql.Request(executor) : executor.request());
 
-async function readLayoutPreferences(executor: Executor, hostUserId: string): Promise<Record<string, string | null>> {
+async function readLayoutPreferences(executor: Executor, hostUserId: string): Promise<Record<string, string>> {
   const result = await requestFor(executor)
     .input("userId", sql.UniqueIdentifier, hostUserId)
     .query<{ board_layouts: string | null }>(`SELECT board_layouts FROM damnation_settings WHERE user_id = @userId`);
@@ -341,12 +341,12 @@ async function readLayoutPreferences(executor: Executor, hostUserId: string): Pr
   }
 }
 
-export async function preferredLayout(executor: Executor, hostUserId: string, playerCount: number): Promise<string | null> {
-  const key = (await readLayoutPreferences(executor, hostUserId))[String(playerCount)];
-  return key && findLayout(key, playerCount) ? key : null;
+// The host's last layout for the count, or the first layout for it.
+export async function preferredLayout(executor: Executor, hostUserId: string, playerCount: number): Promise<string> {
+  return resolveLayout((await readLayoutPreferences(executor, hostUserId))[String(playerCount)], playerCount).key;
 }
 
-async function rememberLayout(executor: Executor, hostUserId: string, playerCount: number, layoutKey: string | null): Promise<void> {
+async function rememberLayout(executor: Executor, hostUserId: string, playerCount: number, layoutKey: string): Promise<void> {
   const preferences = await readLayoutPreferences(executor, hostUserId);
   preferences[String(playerCount)] = layoutKey;
   await requestFor(executor)

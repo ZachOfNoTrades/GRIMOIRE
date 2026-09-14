@@ -45,6 +45,12 @@ export function findLayout(key: string | null | undefined, playerCount: number):
   return BOARD_LAYOUTS.find((layout) => layout.key === key && layout.slots === playerCount) ?? null;
 }
 
+// Every game has a table layout: the saved one when it fits the player count, otherwise the first
+// layout for that count. (Older games saved none, and a removed layout no longer matches.)
+export function resolveLayout(key: string | null | undefined, playerCount: number): BoardLayout {
+  return findLayout(key, playerCount) ?? layoutsFor(playerCount)[0];
+}
+
 // The most cards side by side in any row, e.g. 3 for "1 · 2 · 1". Decides whether a screen is
 // wide enough to show the layout.
 export function cardsPerRow(layout: BoardLayout): number {

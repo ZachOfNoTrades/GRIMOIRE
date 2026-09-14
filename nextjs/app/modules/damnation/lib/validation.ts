@@ -83,7 +83,7 @@ export const moveSchema = z.union([
   z.object({ op_id: uuid, to_position: z.number().int().min(1).max(MAX_PLAYERS) }),
 ]);
 
-export const layoutSchema = z.object({ board_layout: z.string().max(20).nullable() });
+export const layoutSchema = z.object({ board_layout: z.string().max(20) });
 
 const startingLife = z.number().int().min(1, "Starting life must be between 1 and 999").max(999, "Starting life must be between 1 and 999");
 const maxPlayers = z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS);

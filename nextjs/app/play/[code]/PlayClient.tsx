@@ -11,7 +11,7 @@ import { generateUUID } from "@/lib/uuid";
 import { PLAYER_HELP } from "@/app/modules/damnation/components/help";
 import PlayerCard from "@/app/modules/damnation/components/PlayerCard";
 import WikiSearch from "@/app/modules/damnation/components/WikiSearch";
-import { arrangeSpots, cardsPerRow, findLayout, SLOT_NAMES } from "@/app/modules/damnation/lib/boardLayouts";
+import { arrangeSpots, cardsPerRow, resolveLayout, SLOT_NAMES } from "@/app/modules/damnation/lib/boardLayouts";
 import {
   JOIN_CODE_PATTERN,
   NAME_MAX_LENGTH,
@@ -463,8 +463,8 @@ function Controller({
   // The host's table layout, with every player (you included) where they sit — when each card
   // gets at least ~9rem. Otherwise (e.g. a 3-across layout on a portrait phone) your card stays on
   // top with everyone else below.
-  const tableLayout = findLayout(snapshot.board_layout, snapshot.max_players);
-  const layout = tableLayout && viewportWidth >= cardsPerRow(tableLayout) * LAYOUT_MIN_CARD_PX + 24 ? tableLayout : null;
+  const tableLayout = resolveLayout(snapshot.board_layout, snapshot.max_players);
+  const layout = viewportWidth >= cardsPerRow(tableLayout) * LAYOUT_MIN_CARD_PX + 24 ? tableLayout : null;
 
   const cardProps = (playerId: string) => ({
     players: snapshot.players,
