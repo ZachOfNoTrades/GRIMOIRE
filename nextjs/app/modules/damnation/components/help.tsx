@@ -28,7 +28,7 @@ export const HOST_HELP: HelpSection[] = [
       <>
         <strong>Start game</strong> closes joining. <strong>Reopen joining</strong> lets a late arrival in.
         <strong> New code</strong> retires the current code; seated players keep playing. <strong>Remove</strong>{" "}
-        takes a player out entirely.
+        (under Manage seats) takes a player out entirely.
       </>
     ),
   },
@@ -47,17 +47,7 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         <strong>Add player</strong> in an empty seat adds someone who is playing without a phone. Their card works
-        straight from the board, and anyone seated can change it from their phone too. <strong>Hand to a phone</strong>{" "}
-        (under Manage seats) lets them take the seat over from a phone later, keeping their totals.
-      </>
-    ),
-  },
-  {
-    heading: "Lost phone",
-    body: (
-      <>
-        <strong>Free seat</strong> signs that seat&apos;s phone out but keeps its life and commander damage. Anyone with
-        the code can then take the seat over from another phone, even after the game has started.
+        straight from the board, and anyone seated can change it from their phone too.
       </>
     ),
   },

@@ -7,7 +7,6 @@ import {
   Expand,
   RefreshCw,
   Shrink,
-  Smartphone,
   Play,
   UserCog,
   UserPlus,
@@ -37,8 +36,7 @@ import type { HostSnapshot } from "../../../types/damnation";
 
 type PendingConfirm =
   | { kind: "end" }
-  | { kind: "kick"; playerId: string; name: string }
-  | { kind: "free"; playerId: string; name: string };
+  | { kind: "kick"; playerId: string; name: string };
 
 export default function DamnationBoardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -122,7 +120,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     if (!pending) return;
     if (pending.kind === "end") await hostCommand("/end");
     if (pending.kind === "kick") await hostCommand(`/players/${pending.playerId}/kick`);
-    if (pending.kind === "free") await hostCommand(`/players/${pending.playerId}/free`);
   }
 
   if (notFound) {
@@ -177,7 +174,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                 className={isEditing ? "btn-blue" : "btn-link"}
                 onClick={() => setIsEditing((value) => !value)}
                 aria-pressed={isEditing}
-                title="Manage seats: free a seat, hand a seat to a phone, or remove a player"
+                title="Manage seats: remove a player"
                 aria-label="Manage seats"
               >
                 <UserCog className="w-5 h-5" />
@@ -238,7 +235,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       <span className="text-secondary">
                         {snapshot.status === "lobby"
                           ? `${snapshot.players.length}/${snapshot.max_seats} seated`
-                          : "Joining is closed — freed seats can still be taken over"}
+                          : "Joining is closed"}
                       </span>
                     </div>
                   </div>
@@ -267,15 +264,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                     {/* SEAT MANAGEMENT */}
                     {isManagingSeats && (
                       <div className="flex gap-1">
-                        {player.manual ? (
-                          <Button className="btn-off flex-1" disabled={isBusy} onClick={() => setConfirm({ kind: "free", playerId: player.id, name: player.display_name })} title="Let this player take the seat over from a phone (keeps totals)">
-                            <Smartphone className="w-4 h-4" /> Hand to a phone
-                          </Button>
-                        ) : (
-                          <Button className="btn-off flex-1" disabled={isBusy || player.open_seat} onClick={() => setConfirm({ kind: "free", playerId: player.id, name: player.display_name })} title="Sign this seat's phone out so it can be taken over (keeps totals)">
-                            Free seat
-                          </Button>
-                        )}
                         <Button className="btn-off flex-1" disabled={isBusy} onClick={() => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })} title="Remove this player from the game">
                           <UserX className="w-4 h-4" /> Remove
                         </Button>
@@ -348,18 +336,14 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
           onCancel={() => setConfirm(null)}
           onConfirm={runConfirmed}
           danger
-          title={confirm?.kind === "end" ? "End this game?" : confirm?.kind === "kick" ? "Remove player?" : "Open this seat to a phone?"}
-          confirmLabel={confirm?.kind === "end" ? "End game" : confirm?.kind === "kick" ? "Remove" : "Open seat"}
+          title={confirm?.kind === "end" ? "End this game?" : "Remove player?"}
+          confirmLabel={confirm?.kind === "end" ? "End game" : "Remove"}
           message={
             confirm?.kind === "end"
               ? "Every phone is signed out and the code stops working. Final totals stay on this board."
-              : confirm?.kind === "kick"
+              : confirm
                 ? `${confirm.name} is removed from the game and their phone is signed out.`
-                : confirm
-                  ? snapshot?.players.find((player) => player.id === confirm.playerId)?.manual
-                    ? `${confirm.name}'s seat opens for a phone: anyone with the code can take it over, keeping the life and commander damage.`
-                    : `${confirm.name}'s phone is signed out. Their life and commander damage stay, and anyone with the code can take the seat over.`
-                  : ""
+                : ""
           }
         />
 

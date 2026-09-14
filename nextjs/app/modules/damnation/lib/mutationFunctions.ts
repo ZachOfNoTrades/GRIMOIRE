@@ -559,8 +559,7 @@ export function removePlayer(sessionId: string, opId: string, playerId: string, 
         .query(
           mode === "kick"
             ? `UPDATE damnation_players SET kicked = 1, token_hash = NULL, ts_updated = GETDATE() WHERE id = @playerId`
-            : // Freeing also releases a manual seat to be claimed from a phone ("Hand to a phone").
-              `UPDATE damnation_players SET token_hash = NULL, is_manual = 0, ts_updated = GETDATE() WHERE id = @playerId`
+            : `UPDATE damnation_players SET token_hash = NULL, ts_updated = GETDATE() WHERE id = @playerId`
         );
       return { eventType: mode, targetPlayerId: playerId, payload: player.is_manual ? { manual: true } : null };
     },
