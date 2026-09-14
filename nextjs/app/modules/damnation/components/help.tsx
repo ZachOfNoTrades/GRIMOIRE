@@ -20,8 +20,7 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         The board and anyone in the game can change anyone&apos;s life, commander damage and status, the way whoever is
-        closest updates the count at a real table. Undo on a phone reverses that phone&apos;s own last change; Undo on the board
-        reverses the latest change at the table.
+        closest updates the count at a real table.
       </>
     ),
   },
@@ -102,14 +101,10 @@ export const PLAYER_HELP: HelpSection[] = [
     body: (
       <>
         You can change anyone&apos;s life, commander damage and status from their card. Taps on the same counter are sent
-        together once you pause for 3 seconds, as one change to undo; the small number beside a total is what hasn&apos;t
+        together once you pause for 3 seconds; the small number beside a total is what hasn&apos;t
         reached the table yet.
       </>
     ),
-  },
-  {
-    heading: "Undo",
-    body: <>Undo reverses your own most recent change. Press it again to go further back.</>,
   },
   {
     heading: "Connection",

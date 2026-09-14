@@ -7,13 +7,12 @@ import {
   changeCommanderDamage,
   changeLife,
   changeStatus,
-  undoLastChange,
   type Actor,
   type MutationResult,
 } from "./mutationFunctions";
 import { requireGuest, requireHostedSession } from "./sessionFunctions";
 import { toGuestSnapshot } from "./snapshotFunctions";
-import { commanderDamageSchema, lifeSchema, opSchema, parseBody, requireUuid, statusSchema } from "./validation";
+import { commanderDamageSchema, lifeSchema, parseBody, requireUuid, statusSchema } from "./validation";
 
 // Guest and host routes share the same game operations; these wrappers do the part that
 // differs — who the caller is and what they may see — so each route file stays a one-liner.
@@ -77,7 +76,7 @@ export function guestResult(result: MutationResult, playerId: string): Response 
 // GAME OPERATIONS — identical for guests and the host apart from the actor
 // ---------------------------------------------------------------------------------------------
 
-type GameOperation = "life" | "commander-damage" | "status" | "undo";
+type GameOperation = "life" | "commander-damage" | "status";
 
 async function runGameOperation(
   request: Request,
@@ -110,10 +109,6 @@ async function runGameOperation(
         conceded: body.conceded,
         eliminated_override: body.eliminated_override,
       });
-    }
-    case "undo": {
-      const body = await parseBody(request, opSchema);
-      return undoLastChange(sessionId, body.op_id, actor);
     }
     default:
       throw new DamnationError(404, "Unknown operation");

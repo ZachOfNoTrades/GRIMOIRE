@@ -6,7 +6,7 @@ export type EventType =
   | "life"
   | "commander_damage"
   | "status"
-  | "undo"
+  | "undo" // no longer created; kept so older games' events still type-check
   | "kick"
   | "start"
   | "reopen"

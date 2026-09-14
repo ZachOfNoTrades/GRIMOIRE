@@ -14,7 +14,7 @@ import type { EventType, HostSnapshot, SessionStatus } from "../types/damnation"
 
 // Every write to a session goes through runMutation, one transaction that:
 //   1. bumps damnation_sessions.version — the row lock this takes serializes every write to
-//      the session, so concurrent taps, joins and undos can never interleave;
+//      the session, so concurrent taps and joins can never interleave;
 //   2. refuses an op_id it has already applied, so a retried request can't double-apply;
 //   3. applies the change and records the event (with the deltas actually applied);
 //   4. commits, then broadcasts a snapshot stamped with the new version. Clients drop any
@@ -325,80 +325,6 @@ export function changeStatus(
           WHERE id = @playerId
         `);
       return { eventType: "status", targetPlayerId, payload: { from, to } };
-    },
-  });
-}
-
-// Undo reverses the most recent not-yet-undone game change. A player can only undo their own
-// changes — with everyone able to edit everyone, a shared stack would let players reverse each
-// other. The host can undo the latest change at the table, whoever made it.
-export function undoLastChange(sessionId: string, opId: string, actor: Actor) {
-  return runMutation({
-    sessionId,
-    opId,
-    actor,
-    apply: async (transaction) => {
-      const lookup = request(transaction).input("sessionId", sql.UniqueIdentifier, sessionId);
-      let actorFilter = "";
-      if (actor.kind === "player") {
-        lookup.input("actorPlayerId", sql.UniqueIdentifier, actor.playerId);
-        actorFilter = "AND e.actor_player_id = @actorPlayerId";
-      }
-      const found = await lookup.query<{
-        id: string;
-        event_type: EventType;
-        target_player_id: string;
-        payload: string | null;
-      }>(`
-        SELECT TOP 1 e.id, e.event_type, e.target_player_id, e.payload
-        FROM damnation_events e
-        WHERE e.session_id = @sessionId
-          AND e.event_type IN ('life', 'commander_damage', 'status')
-          ${actorFilter}
-          AND NOT EXISTS (SELECT 1 FROM damnation_events u WHERE u.undoes_event_id = e.id)
-        ORDER BY e.session_version DESC
-      `);
-      if (found.recordset.length === 0) throw new DamnationError(404, "Nothing to undo");
-
-      const original = found.recordset[0];
-      const targetPlayerId = original.target_player_id.toLowerCase();
-      const payload = JSON.parse(original.payload ?? "{}");
-
-      // The original target may have been kicked since; undo still restores its row.
-      const target = await request(transaction)
-        .input("playerId", sql.UniqueIdentifier, targetPlayerId)
-        .query<{ life_total: number }>(`SELECT life_total FROM damnation_players WITH (UPDLOCK) WHERE id = @playerId`);
-      const currentLife = target.recordset[0]?.life_total ?? 0;
-
-      if (original.event_type === "life") {
-        await setLife(transaction, targetPlayerId, clamp(currentLife - Number(payload.delta ?? 0), LIFE_MIN, LIFE_MAX));
-      } else if (original.event_type === "commander_damage") {
-        await adjustCommanderCell(
-          transaction,
-          sessionId,
-          String(payload.source_player_id),
-          targetPlayerId,
-          -Number(payload.cell_delta ?? 0)
-        );
-        await setLife(transaction, targetPlayerId, clamp(currentLife - Number(payload.life_delta ?? 0), LIFE_MIN, LIFE_MAX));
-      } else {
-        const from = payload.from ?? {};
-        await request(transaction)
-          .input("playerId", sql.UniqueIdentifier, targetPlayerId)
-          .input("conceded", sql.Bit, Boolean(from.conceded))
-          .input("override", sql.Bit, from.eliminated_override ?? null)
-          .query(`
-            UPDATE damnation_players SET conceded = @conceded, eliminated_override = @override, ts_updated = GETDATE()
-            WHERE id = @playerId
-          `);
-      }
-
-      return {
-        eventType: "undo",
-        targetPlayerId,
-        undoesEventId: original.id,
-        payload: { undone_type: original.event_type, ...payload },
-      };
     },
   });
 }

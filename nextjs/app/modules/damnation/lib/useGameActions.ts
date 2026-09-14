@@ -8,8 +8,7 @@ import type { SessionSnapshot } from "../types/damnation";
 // Sends game changes for the board and the phones.
 //
 // - Taps on the same counter coalesce into one request until COALESCE_MS pass without another
-//   tap, so a run of "−1"s becomes one "−5": less load, a readable activity feed, and one undo
-//   per burst. Leaving the page (tab hidden, phone locked, tab closed) sends what's waiting
+//   tap, so a run of "−1"s becomes one "−5": less load and a readable activity feed. Leaving the page (tab hidden, phone locked, tab closed) sends what's waiting
 //   straight away.
 // - Requests go one at a time, in order, each with a client-generated op_id. A request that
 //   fails on the network (or a 5xx / 429) is resent with the SAME op_id, so the server applies
@@ -23,7 +22,7 @@ import type { SessionSnapshot } from "../types/damnation";
 const COALESCE_MS = 3_000;
 const MAX_BACKOFF_MS = 10_000;
 
-type OperationKind = "life" | "commander" | "status" | "undo";
+type OperationKind = "life" | "commander" | "status";
 
 interface Operation {
   opId: string;
@@ -132,7 +131,7 @@ export function useGameActions<T extends SessionSnapshot>({
           break;
         }
         if (status >= 400 && status < 500 && status !== 429) {
-          // A definitive refusal (e.g. "Nothing to undo", player removed): drop it.
+          // A definitive refusal (e.g. the player was removed): drop it.
           const data = await response!.json().catch(() => null);
           queueRef.current.shift();
           bump();
@@ -220,7 +219,7 @@ export function useGameActions<T extends SessionSnapshot>({
   );
 
   const enqueueImmediate = useCallback(
-    (kind: "status" | "undo", path: string, targetPlayerId: string | null, extra: Record<string, unknown>) => {
+    (kind: "status", path: string, targetPlayerId: string | null, extra: Record<string, unknown>) => {
       // Taps still waiting out their coalescing window go first rather than holding this up.
       for (const operation of queueRef.current) operation.readyAt = Math.min(operation.readyAt, Date.now());
       queueRef.current.push({
@@ -228,7 +227,7 @@ export function useGameActions<T extends SessionSnapshot>({
         kind,
         key: null,
         path,
-        method: kind === "status" ? "PATCH" : "POST",
+        method: "PATCH",
         targetPlayerId,
         sourcePlayerId: null,
         delta: 0,
@@ -250,8 +249,6 @@ export function useGameActions<T extends SessionSnapshot>({
     [enqueueImmediate]
   );
 
-  // Waiting taps are sent first (enqueueImmediate), so undo acts on them.
-  const undo = useCallback(() => enqueueImmediate("undo", "/undo", null, {}), [enqueueImmediate]);
 
   const overlay: PendingOverlay = useMemo(() => {
     const life: Record<string, number> = {};
@@ -279,5 +276,5 @@ export function useGameActions<T extends SessionSnapshot>({
   const queued = queueRef.current.length;
   const retrying = queueRef.current.some((operation) => operation.attempts > 0);
 
-  return { changeLife, changeCommanderDamage, changeStatus, undo, overlay, queued, retrying };
+  return { changeLife, changeCommanderDamage, changeStatus, overlay, queued, retrying };
 }

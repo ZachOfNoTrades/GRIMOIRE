@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftFromLine, DoorOpen, Skull, Undo2, WifiOff } from "lucide-react";
+import { ArrowLeftFromLine, DoorOpen, Skull, WifiOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
@@ -557,9 +557,6 @@ function Controller({
 
       {/* ACTION BAR */}
       <div className="dmn-action-bar">
-        <Button className="btn-off" onClick={actions.undo} title="Undo your last change" aria-label="Undo your last change">
-          <Undo2 className="w-5 h-5" /> Undo
-        </Button>
         <WikiSearch template={snapshot.wiki_search_template} embed={snapshot.wiki_embed} />
       </div>
 

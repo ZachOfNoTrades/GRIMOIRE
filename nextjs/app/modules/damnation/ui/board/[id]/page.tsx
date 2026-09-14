@@ -11,7 +11,6 @@ import {
   Settings,
   Skull,
   Trash2,
-  Undo2,
   WifiOff,
 } from "lucide-react";
 import Link from "next/link";
@@ -266,13 +265,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             <Button className="btn-link" onClick={() => setShowLayoutPicker(true)} disabled={!snapshot} title="Table layout: arrange the board like the table" aria-label="Table layout">
               <LayoutGrid className="w-5 h-5" />
             </Button>
-
-            {/* UNDO LAST (any player) */}
-            {!isFinished && (
-              <Button className="btn-link" onClick={actions.undo} disabled={!snapshot} title="Undo the latest change at the table" aria-label="Undo the latest change at the table">
-                <Undo2 className="w-5 h-5" />
-              </Button>
-            )}
 
             {/* FULL SCREEN */}
             <Button className="btn-link" onClick={toggleFullscreen} title={isFullscreen ? "Exit full screen" : "Full screen"} aria-label={isFullscreen ? "Exit full screen" : "Full screen"}>
