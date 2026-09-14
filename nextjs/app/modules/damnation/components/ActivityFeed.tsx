@@ -3,7 +3,7 @@
 import { ArrowDown } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { describeEvent } from "../lib/describeEvent";
+import { describeEvent, FEED_HIDDEN_EVENT_TYPES } from "../lib/describeEvent";
 import type { EventView, PlayerView } from "../types/damnation";
 
 // Within this many pixels of the bottom counts as "at the bottom", so a fractional scroll
@@ -12,7 +12,8 @@ const PIN_THRESHOLD_PX = 24;
 
 // Recent changes at the table, oldest at the top and newest at the bottom. The list follows new
 // activity while it is scrolled to the bottom; once someone scrolls up to read, it stays put and
-// offers a jump back to the latest. Undone changes stay listed, struck through.
+// offers a jump back to the latest. Undone changes stay listed, struck through; housekeeping
+// events (FEED_HIDDEN_EVENT_TYPES) aren't listed.
 export default function ActivityFeed({
   events,
   players,
@@ -31,15 +32,16 @@ export default function ActivityFeed({
     ...players.map((player) => [player.id, player] as const),
   ]);
   // The snapshot lists events newest first.
-  const chronological = [...events].reverse();
-  const newestId = events[0]?.id;
+  const shown = events.filter((event) => !FEED_HIDDEN_EVENT_TYPES.has(event.event_type));
+  const chronological = [...shown].reverse();
+  const newestId = shown[0]?.id;
 
   // Follow new activity only while pinned. Runs before paint, so the list never flashes at the
   // old position when a row is added.
   useLayoutEffect(() => {
     const list = listRef.current;
     if (list && pinnedRef.current) list.scrollTop = list.scrollHeight;
-  }, [newestId, events.length]);
+  }, [newestId, shown.length]);
 
   function onScroll() {
     const list = listRef.current;
@@ -57,7 +59,7 @@ export default function ActivityFeed({
     setIsPinned(true);
   }
 
-  if (events.length === 0) {
+  if (shown.length === 0) {
     return (
       /* EMPTY FEED PLACEHOLDER */
       <p className="text-secondary">Nothing has happened yet.</p>

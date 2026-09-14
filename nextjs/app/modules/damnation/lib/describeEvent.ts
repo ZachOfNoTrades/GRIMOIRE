@@ -1,7 +1,11 @@
-import type { EventView, PlayerView } from "../types/damnation";
+import type { EventType, EventView, PlayerView } from "../types/damnation";
 
 // Plain-text descriptions for the activity feed. Names are guest-supplied, so the result is
 // only ever rendered as React text — never as HTML or markdown.
+
+// Housekeeping the table doesn't need to read about: game setup, moving players around the board,
+// name/color edits and new join codes. Still recorded (phones match their changes by op_id).
+export const FEED_HIDDEN_EVENT_TYPES: ReadonlySet<EventType> = new Set<EventType>(["setup", "reorder", "edit_player", "rotate_code"]);
 
 function signed(value: number): string {
   return value > 0 ? `+${value}` : `−${Math.abs(value)}`;
