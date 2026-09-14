@@ -33,7 +33,7 @@ export const JOIN_CODE_PATTERN = /^[ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
 export const PUBLIC_ORIGIN = "https://grimoire.zsmith.io";
 
 export function joinUrlFor(code: string): string {
-  return `${PUBLIC_ORIGIN}/play/${code}`;
+  return `${PUBLIC_ORIGIN}/damnation/${code}`;
 }
 
 // GAME LIMITS

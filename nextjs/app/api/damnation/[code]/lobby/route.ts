@@ -5,7 +5,7 @@ import { NO_STORE } from "@/app/modules/damnation/lib/routeHandlers";
 import { findSessionIdByCode, getLobbyView } from "@/app/modules/damnation/lib/sessionFunctions";
 import { requireJoinCode } from "@/app/modules/damnation/lib/validation";
 
-// GET /api/play/[code]/lobby — public pre-join view: is the table open, which colors are
+// GET /api/damnation/[code]/lobby — public pre-join view: is the table open, which colors are
 // in use, which players are waiting to rejoin. No life totals; misses are rate-limited per address.
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
@@ -17,6 +17,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     }
     return NextResponse.json(await getLobbyView(session.id), { headers: NO_STORE });
   } catch (error) {
-    return damnationErrorResponse(error, "GET /api/play/[code]/lobby");
+    return damnationErrorResponse(error, "GET /api/damnation/[code]/lobby");
   }
 }

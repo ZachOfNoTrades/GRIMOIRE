@@ -77,7 +77,7 @@ export default function PlayClient({ code }: { code: string }) {
         return;
       }
       try {
-        const response = await fetch(`/api/play/${code}/lobby`, { cache: "no-store" });
+        const response = await fetch(`/api/damnation/${code}/lobby`, { cache: "no-store" });
         const data = await response.json().catch(() => ({}));
         if (response.status === 404) setPhase({ kind: "missing", message: "No game is using that code. It may have ended or been replaced." });
         else if (!response.ok) setPhase({ kind: "missing", message: data.error ?? "Couldn't reach the game. Try again." });
@@ -98,7 +98,7 @@ export default function PlayClient({ code }: { code: string }) {
         return;
       }
       try {
-        const response = await fetch(`/api/play/${code}/state`, { headers: { "x-damnation-token": token }, cache: "no-store" });
+        const response = await fetch(`/api/damnation/${code}/state`, { headers: { "x-damnation-token": token }, cache: "no-store" });
         if (response.ok) {
           setPhase({ kind: "playing", token, initial: await response.json() });
           return;
@@ -141,7 +141,7 @@ export default function PlayClient({ code }: { code: string }) {
           {/* RETRY + ENTER ANOTHER CODE */}
           <div className="flex gap-2">
             <Button className="btn-off flex-1" onClick={() => loadLobby()}>Try again</Button>
-            <Button className="btn-off flex-1" onClick={() => router.push("/play")}>Enter a code</Button>
+            <Button className="btn-off flex-1" onClick={() => router.push("/damnation")}>Enter a code</Button>
           </div>
         </div>
       </div>
@@ -158,7 +158,7 @@ export default function PlayClient({ code }: { code: string }) {
             <p className="alert-title"><Skull className="w-4 h-4" /> Game over</p>
             <p className="alert-text">The host ended this game. Thanks for playing.</p>
           </div>
-          <Button className="btn-off" onClick={() => router.push("/play")}>Join another game</Button>
+          <Button className="btn-off" onClick={() => router.push("/damnation")}>Join another game</Button>
         </div>
       </div>
     );
@@ -197,7 +197,7 @@ export default function PlayClient({ code }: { code: string }) {
         // The host issued a new code: carry the token over so a reload of the new URL still works.
         writeToken(newCode, phase.token);
         clearToken(code);
-        router.replace(`/play/${newCode}`);
+        router.replace(`/damnation/${newCode}`);
       }}
     />
   );
@@ -233,7 +233,7 @@ function JoinScreen({
   async function send(body: Record<string, unknown>) {
     setIsJoining(true);
     try {
-      const response = await fetch(`/api/play/${code}/join`, {
+      const response = await fetch(`/api/damnation/${code}/join`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ op_id: generateUUID(), ...body }),
@@ -408,14 +408,14 @@ function Controller({
   );
 
   const { snapshot, presence, connection, acceptSnapshot } = useSessionStream<GuestSnapshot>({
-    url: `/api/play/${code}/stream`,
+    url: `/api/damnation/${code}/stream`,
     headers,
     initial,
     onRevoked: handleRevoked,
   });
 
   const actions = useGameActions<GuestSnapshot>({
-    baseUrl: `/api/play/${code}`,
+    baseUrl: `/api/damnation/${code}`,
     headers,
     acceptSnapshot,
     snapshot,
@@ -442,7 +442,7 @@ function Controller({
   async function leave() {
     setShowLeave(false);
     try {
-      await fetch(`/api/play/${code}/leave`, {
+      await fetch(`/api/damnation/${code}/leave`, {
         method: "POST",
         headers: { "content-type": "application/json", ...headers },
         body: JSON.stringify({ op_id: generateUUID() }),

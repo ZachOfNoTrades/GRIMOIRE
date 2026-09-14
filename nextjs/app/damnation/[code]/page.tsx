@@ -1,6 +1,6 @@
 import PlayClient from "./PlayClient";
 
-// Public Damnation controller for a guest's phone. middleware.ts excludes /play/ from the
+// Public Damnation controller for a guest's phone. middleware.ts excludes /damnation/ from the
 // sign-in gate on purpose — guests have no account. Everything the page does is authorized by
 // the join code (to join) and then by the X-Damnation-Token issued to that player.
 

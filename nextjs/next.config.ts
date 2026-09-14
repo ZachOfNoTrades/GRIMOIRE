@@ -103,6 +103,15 @@ const nextConfig: NextConfig = {
   experimental: {
     middlewareClientMaxBodySize: "55mb",
   },
+
+  // Damnation's guest pages moved from /play to /damnation so each public module has its own
+  // namespace; links and QR codes from before the move still land on the right page.
+  async redirects() {
+    return [
+      { source: "/play", destination: "/damnation", permanent: false },
+      { source: "/play/:code", destination: "/damnation/:code", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

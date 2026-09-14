@@ -7,7 +7,7 @@ import { findSessionIdByCode } from "@/app/modules/damnation/lib/sessionFunction
 import { toGuestSnapshot } from "@/app/modules/damnation/lib/snapshotFunctions";
 import { joinSchema, parseBody, requireJoinCode } from "@/app/modules/damnation/lib/validation";
 
-// POST /api/play/[code]/join — join as a new player (joining open), or rejoin as a player after a resume.
+// POST /api/damnation/[code]/join — join as a new player (joining open), or rejoin as a player after a resume.
 // Returns the guest token exactly once; only its hash is stored.
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
@@ -30,6 +30,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
       { status: 201, headers: NO_STORE }
     );
   } catch (error) {
-    return damnationErrorResponse(error, "POST /api/play/[code]/join");
+    return damnationErrorResponse(error, "POST /api/damnation/[code]/join");
   }
 }

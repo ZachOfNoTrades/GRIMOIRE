@@ -49,7 +49,7 @@ export interface PendingOverlay {
 }
 
 interface Options<T extends SessionSnapshot> {
-  // e.g. `/api/play/ABC123` or `/modules/damnation/api/sessions/<id>`
+  // e.g. `/api/damnation/ABC123` or `/modules/damnation/api/sessions/<id>`
   baseUrl: string | null;
   headers?: Record<string, string>;
   acceptSnapshot: (snapshot: T) => void;

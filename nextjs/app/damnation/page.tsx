@@ -22,7 +22,7 @@ export default function PlayCodeEntryPage() {
     if (!isValid) return;
     // Drop the on-screen keyboard before the join form loads.
     (document.activeElement as HTMLElement | null)?.blur();
-    router.push(`/play/${code}`);
+    router.push(`/damnation/${code}`);
   }
 
   // Keep only letters that can appear in a code, upper-cased, so a stray digit or an "o"

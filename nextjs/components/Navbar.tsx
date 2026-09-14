@@ -159,7 +159,7 @@ export default function Navbar({ children }: NavbarProps) {
   const isAuthPage = pathname.startsWith("/auth");
   // Damnation's guest pages are served to people with no account; the app chrome would only
   // offer them menus that bounce to sign-in.
-  const isGuestPage = pathname === "/play" || pathname.startsWith("/play/");
+  const isGuestPage = pathname === "/damnation" || pathname.startsWith("/damnation/");
 
   // Don't render on auth / similar unauthenticated pages.
   if (isAuthPage || isGuestPage) {

@@ -2,7 +2,7 @@ import type { HostSnapshot, StreamEvent } from "../types/damnation";
 
 // In-process fan-out of session updates to open SSE streams.
 //
-// Lives on globalThis: under `next dev` the guest routes (app/api/play/…) and the host routes
+// Lives on globalThis: under `next dev` the guest routes (app/api/damnation/…) and the host routes
 // (app/modules/damnation/api/…) compile into separate bundles, and a plain module-level Map
 // would give each its own copy — a guest's write would never reach the board's stream.
 // A single in-memory bus is correct because grimoire runs as one PM2 fork-mode process.
