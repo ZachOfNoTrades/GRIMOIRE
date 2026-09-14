@@ -16,7 +16,7 @@ export const HOST_HELP: HelpSection[] = [
     heading: "Who can change what",
     body: (
       <>
-        The board and anyone seated can change anyone&apos;s life, commander damage and status, the way whoever is
+        The board and anyone in the game can change anyone&apos;s life, commander damage and status, the way whoever is
         closest updates the count at a real table. Undo on a phone reverses that phone&apos;s own last change; Undo on the board
         reverses the latest change at the table.
       </>
@@ -27,8 +27,8 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         <strong>Start game</strong> closes joining. <strong>Reopen joining</strong> lets a late arrival in.
-        <strong> New code</strong> retires the current code; seated players keep playing. <strong>Remove</strong>{" "}
-        (under Manage seats) takes a player out entirely.
+        <strong> New code</strong> retires the current code; players already in keep playing. <strong>Remove</strong>{" "}
+        (under Manage players) takes a player out of the game.
       </>
     ),
   },
@@ -38,7 +38,7 @@ export const HOST_HELP: HelpSection[] = [
       <>
         An ended game — or one left idle for 12 hours — can be picked back up with <strong>Resume</strong> from its board
         or from Your games, for 30 days. Life and commander damage are kept and the game gets a new code; each player
-        scans it and taps <strong>Continue as</strong> their name to take their seat back.
+        scans it and taps <strong>Rejoin as</strong> their name.
       </>
     ),
   },
@@ -46,8 +46,8 @@ export const HOST_HELP: HelpSection[] = [
     heading: "Players without a phone",
     body: (
       <>
-        <strong>Add player</strong> in an empty seat adds someone who is playing without a phone. Their card works
-        straight from the board, and anyone seated can change it from their phone too.
+        <strong>Add player</strong> in an open spot adds someone who is playing without a phone. Their card works
+        straight from the board, and anyone in the game can change it from their phone too.
       </>
     ),
   },
@@ -94,7 +94,7 @@ export const PLAYER_HELP: HelpSection[] = [
     body: (
       <>
         If the connection drops, keep tapping — changes wait and send once you&apos;re back, exactly once. This phone
-        remembers your seat, so reopening the link puts you straight back in.
+        remembers you, so reopening the link puts you straight back in. <strong>Leave</strong> (top corner) takes you out of the game.
       </>
     ),
   },

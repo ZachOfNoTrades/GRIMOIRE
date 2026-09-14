@@ -50,7 +50,7 @@ interface Options<T extends SessionSnapshot> {
   acceptSnapshot: (snapshot: T) => void;
   snapshot: T | null;
   onError: (message: string) => void;
-  // 401 / 410 from a write: the seat was revoked or the game ended.
+  // 401 / 410 from a write: the player was removed or the game ended.
   onAccessLost?: (status: number) => void;
 }
 

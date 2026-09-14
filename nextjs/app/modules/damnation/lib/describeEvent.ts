@@ -7,7 +7,7 @@ function signed(value: number): string {
   return value > 0 ? `+${value}` : `−${Math.abs(value)}`;
 }
 
-export function describeEvent(event: EventView, playersById: Map<string, PlayerView>): string {
+export function describeEvent(event: EventView, playersById: Map<string, Pick<PlayerView, "display_name">>): string {
   const name = (id: string | null) => (id ? playersById.get(id)?.display_name ?? "A former player" : "Host");
   const actor = name(event.actor_player_id);
   const target = name(event.target_player_id);
@@ -20,7 +20,7 @@ export function describeEvent(event: EventView, playersById: Map<string, PlayerV
     case "join":
       return payload.manual ? `Host added ${target}` : `${actor} joined`;
     case "claim":
-      return `${actor} took over their seat`;
+      return `${actor} rejoined`;
     case "life":
       return `${who}${target} ${signed(Number(payload.delta ?? 0))} life`;
     case "commander_damage": {
@@ -39,14 +39,11 @@ export function describeEvent(event: EventView, playersById: Map<string, PlayerV
     case "undo":
       return selfChange ? `${actor} undid a change to their own card` : `${actor} undid a change to ${target}`;
     case "kick":
-      return `Host removed ${target}`;
-    case "free_seat":
-      if (event.actor_player_id) return `${target} left their seat`;
-      return payload.manual ? `Host handed ${target}'s seat to a phone` : `Host freed ${target}'s seat`;
+      return selfChange ? `${target} left the game` : `Host removed ${target}`;
     case "start":
       return "Joining closed — game on";
     case "reopen":
-      return payload.resumed ? "Host resumed the game — phones take their seats back with the new code" : "Joining reopened";
+      return payload.resumed ? "Host resumed the game — players rejoin with the new code" : "Joining reopened";
     case "rotate_code":
       return "Host issued a new join code";
     case "end":

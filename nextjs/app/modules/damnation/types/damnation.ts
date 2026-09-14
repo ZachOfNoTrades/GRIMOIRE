@@ -8,7 +8,6 @@ export type EventType =
   | "status"
   | "undo"
   | "kick"
-  | "free_seat"
   | "start"
   | "reopen"
   | "rotate_code"
@@ -20,7 +19,7 @@ export type EliminationReason = "life" | "commander_damage" | "conceded" | "host
 
 export interface PlayerView {
   id: string;
-  seat: number;
+  position: number;
   display_name: string;
   color_key: string;
   life_total: number;
@@ -28,8 +27,8 @@ export interface PlayerView {
   eliminated_override: boolean | null;
   eliminated: boolean;
   elimination_reason: EliminationReason;
-  // The host freed this seat (lost phone); anyone with the code may claim it.
-  open_seat: boolean;
+  // After a resume, a phone player waiting to rejoin from their phone.
+  rejoinable: boolean;
   // Added by the host from the board; no phone is attached to it.
   manual: boolean;
 }
@@ -59,10 +58,12 @@ export interface SessionSnapshot {
   status: SessionStatus;
   join_code: string | null;
   starting_life: number;
-  max_seats: number;
+  max_players: number;
   wiki_search_template: string;
   wiki_embed: boolean;
   players: PlayerView[];
+  // Players no longer in the game, so the activity feed can still name them.
+  former_players: { id: string; display_name: string }[];
   commander_damage: CommanderDamageCell[];
   events: EventView[];
 }
@@ -82,11 +83,11 @@ export interface GuestSnapshot extends SessionSnapshot {
 export interface LobbyView {
   joinable: boolean;
   status: SessionStatus;
-  max_seats: number;
-  seats_taken: number;
+  max_players: number;
+  player_count: number;
   // Colors already in use — only used to preselect an unused one; any color can be picked.
   taken_colors: string[];
-  open_seats: { player_id: string; seat: number; display_name: string; color_key: string }[];
+  rejoinable_players: { player_id: string; display_name: string; color_key: string }[];
 }
 
 export interface SessionSummary {
@@ -94,7 +95,7 @@ export interface SessionSummary {
   status: SessionStatus;
   join_code: string | null;
   starting_life: number;
-  max_seats: number;
+  max_players: number;
   player_count: number;
   ts_created: string;
   ts_finished: string | null;
@@ -110,4 +111,4 @@ export interface DamnationSettings {
 export type StreamEvent =
   | { type: "snapshot"; data: SessionSnapshot }
   | { type: "presence"; data: { connected_player_ids: string[]; host_connected: boolean } }
-  | { type: "revoked"; data: { reason: "kicked" | "seat_freed" | "ended" } };
+  | { type: "revoked"; data: { reason: "kicked" | "ended" } };

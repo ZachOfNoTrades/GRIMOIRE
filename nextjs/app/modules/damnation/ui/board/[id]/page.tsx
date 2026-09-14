@@ -67,10 +67,10 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   const isFinished = snapshot?.status === "finished";
   const connected = new Set(presence?.connected_player_ids ?? []);
-  // The desktop controls every player's life at any time; the toggle only reveals seat management.
-  const isManagingSeats = isEditing && !isFinished;
-  const emptySeats = snapshot ? Math.max(0, snapshot.max_seats - snapshot.players.length) : 0;
-  const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.open_seat));
+  // The desktop controls every player's life at any time; the toggle only reveals player removal.
+  const isManagingPlayers = isEditing && !isFinished;
+  const openSpots = snapshot ? Math.max(0, snapshot.max_players - snapshot.players.length) : 0;
+  const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
 
   useWakeLock(!!snapshot && !isFinished);
   useEntityTitle(snapshot?.join_code ? `Board ${snapshot.join_code}` : null);
@@ -174,8 +174,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                 className={isEditing ? "btn-blue" : "btn-link"}
                 onClick={() => setIsEditing((value) => !value)}
                 aria-pressed={isEditing}
-                title="Manage seats: remove a player"
-                aria-label="Manage seats"
+                title="Manage players: remove a player"
+                aria-label="Manage players"
               >
                 <UserCog className="w-5 h-5" />
               </Button>
@@ -234,15 +234,15 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
                       <span className="text-secondary">
                         {snapshot.status === "lobby"
-                          ? `${snapshot.players.length}/${snapshot.max_seats} seated`
-                          : "Joining is closed"}
+                          ? `${snapshot.players.length}/${snapshot.max_players} players`
+                          : "Joining is closed — players rejoin with the code"}
                       </span>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* SEATS GRID */}
+              {/* PLAYERS GRID */}
               <div className="dmn-grid">
                 {snapshot.players.map((player) => (
                   <div key={player.id} className="flex flex-col gap-1 min-w-0">
@@ -255,14 +255,14 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       overlay={actions.overlay}
                       variant="board"
                       editable={!isFinished}
-                      connected={player.open_seat || player.manual ? null : connected.has(player.id)}
+                      connected={player.rejoinable || player.manual ? null : connected.has(player.id)}
                       onLife={(delta) => actions.changeLife(player.id, delta)}
                       onCommander={(sourceId, delta) => actions.changeCommanderDamage(player.id, sourceId, delta)}
                       onStatus={(change) => actions.changeStatus(player.id, change)}
                     />
 
-                    {/* SEAT MANAGEMENT */}
-                    {isManagingSeats && (
+                    {/* PLAYER MANAGEMENT */}
+                    {isManagingPlayers && (
                       <div className="flex gap-1">
                         <Button className="btn-off flex-1" disabled={isBusy} onClick={() => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })} title="Remove this player from the game">
                           <UserX className="w-4 h-4" /> Remove
@@ -272,12 +272,12 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                   </div>
                 ))}
 
-                {/* EMPTY SEATS — waiting text, with a way to seat someone who has no phone underneath */}
-                {!isFinished && Array.from({ length: emptySeats }, (_, index) => (
+                {/* OPEN SPOTS — waiting text, with a way to add someone who has no phone underneath */}
+                {!isFinished && Array.from({ length: openSpots }, (_, index) => (
                   <div key={`empty-${index}`} className="dmn-empty-seat">
 
                     {/* WAITING TEXT */}
-                    <span>{snapshot.status === "lobby" ? "Waiting for a player…" : "Empty seat"}</span>
+                    <span>{snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}</span>
 
                     {/* ADD PLAYER */}
                     <button
@@ -310,7 +310,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       <DoorOpen className="w-4 h-4" /> Reopen joining
                     </Button>
                   )}
-                  <Button className="btn-off" disabled={isBusy} onClick={() => hostCommand("/rotate-code")} title="Retire this code; seated players keep playing">
+                  <Button className="btn-off" disabled={isBusy} onClick={() => hostCommand("/rotate-code")} title="Retire this code; players already in keep playing">
                     <RefreshCw className="w-4 h-4" /> New code
                   </Button>
                   <Button className="btn-red" disabled={isBusy} onClick={() => setConfirm({ kind: "end" })}>
@@ -325,7 +325,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               <div className="card-header">
                 <h2 className="text-card-title">Activity</h2>
               </div>
-              <ActivityFeed events={snapshot.events} players={snapshot.players} />
+              <ActivityFeed events={snapshot.events} players={snapshot.players} formerPlayers={snapshot.former_players} />
             </div>
           </div>
         )}

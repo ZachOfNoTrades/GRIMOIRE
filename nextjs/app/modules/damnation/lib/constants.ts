@@ -1,6 +1,6 @@
 // Shared by server and client code — keep this file free of Node-only imports.
 
-// PLAYER PALETTE — seat colors, named for the mana they evoke. Only these keys are ever
+// PLAYER PALETTE — player colors, named for the mana they evoke. Only these keys are ever
 // stored or rendered; each maps to a `.dmn-seat-<key>` design-system class in globals.css,
 // so a guest-chosen color can never carry raw CSS into the host's page.
 export const PALETTE = [
@@ -37,8 +37,8 @@ export function joinUrlFor(code: string): string {
 }
 
 // GAME LIMITS
-export const MIN_SEATS = 2;
-export const MAX_SEATS = 6;
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 6;
 export const LIFE_MIN = -999;
 export const LIFE_MAX = 999;
 export const COMMANDER_DAMAGE_MAX = 999;

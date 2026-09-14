@@ -6,7 +6,7 @@ import { openSessionStream } from "@/app/modules/damnation/lib/sse";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/play/[code]/stream — live updates for a seated guest. A code alone never opens a
+// GET /api/play/[code]/stream — live updates for a guest in the game. A code alone never opens a
 // stream; the token is required, and streams are capped per player and per process.
 export async function GET(request: Request) {
   return withGuest(request, "GET /api/play/[code]/stream", async (guest) => {

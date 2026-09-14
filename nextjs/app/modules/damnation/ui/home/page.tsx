@@ -9,11 +9,11 @@ import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
-import { MAX_SEATS, MIN_SEATS, STARTING_LIFE_PRESETS } from "../../lib/constants";
+import { MAX_PLAYERS, MIN_PLAYERS, STARTING_LIFE_PRESETS } from "../../lib/constants";
 import { HOST_HELP } from "../../components/help";
 import type { SessionSummary } from "../../types/damnation";
 
-const SEAT_OPTIONS = Array.from({ length: MAX_SEATS - MIN_SEATS + 1 }, (_, index) => MIN_SEATS + index);
+const PLAYER_COUNT_OPTIONS = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, index) => MIN_PLAYERS + index);
 
 export default function DamnationHomePage() {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function DamnationHomePage() {
   // INPUT
   const [startingLife, setStartingLife] = useState<number>(40);
   const [customLife, setCustomLife] = useState<string>("");
-  const [maxSeats, setMaxSeats] = useState<number>(4);
+  const [maxPlayers, setMaxPlayers] = useState<number>(4);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -59,7 +59,7 @@ export default function DamnationHomePage() {
       const response = await fetch("/modules/damnation/api/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ starting_life: life, max_seats: maxSeats }),
+        body: JSON.stringify({ starting_life: life, max_players: maxPlayers }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Couldn't start a game");
@@ -172,19 +172,19 @@ export default function DamnationHomePage() {
               />
             )}
 
-            {/* SEATS LABEL */}
-            <div className="text-h2 mt-2">Seats</div>
+            {/* PLAYER COUNT LABEL */}
+            <div className="text-h2 mt-2">Players</div>
 
-            {/* SEATS PICKER */}
+            {/* PLAYER COUNT PICKER */}
             <div className="flex flex-wrap gap-2">
-              {SEAT_OPTIONS.map((seats) => (
+              {PLAYER_COUNT_OPTIONS.map((count) => (
                 <Button
-                  key={seats}
-                  className={maxSeats === seats ? "btn-blue" : "btn-off"}
-                  onClick={() => setMaxSeats(seats)}
-                  aria-pressed={maxSeats === seats}
+                  key={count}
+                  className={maxPlayers === count ? "btn-blue" : "btn-off"}
+                  onClick={() => setMaxPlayers(count)}
+                  aria-pressed={maxPlayers === count}
                 >
-                  {seats}
+                  {count}
                 </Button>
               ))}
             </div>
@@ -219,7 +219,7 @@ export default function DamnationHomePage() {
                   <div key={session.id} className="flex items-center justify-between gap-3 border-b pb-2">
                     <div className="min-w-0">
                       <div className="text-primary font-bold">
-                        {session.join_code} · {session.player_count}/{session.max_seats} players
+                        {session.join_code} · {session.player_count}/{session.max_players} players
                       </div>
                       <div className="text-secondary">
                         {session.status === "lobby" ? "Joining open" : "In progress"} · started{" "}

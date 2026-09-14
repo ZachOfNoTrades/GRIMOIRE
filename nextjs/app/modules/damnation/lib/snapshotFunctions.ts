@@ -33,7 +33,7 @@ interface SessionRow {
   status: SessionStatus;
   join_code: string | null;
   starting_life: number;
-  max_seats: number;
+  max_players: number;
   version: number;
   ts_created: Date;
   wiki_search_template: string | null;
@@ -42,14 +42,14 @@ interface SessionRow {
 
 interface PlayerRow {
   id: string;
-  seat: number;
+  position: number;
   display_name: string;
   color_key: string;
   life_total: number;
   conceded: boolean;
   eliminated_override: boolean | null;
   is_manual: boolean;
-  open_seat: number;
+  rejoinable: number;
 }
 
 interface EventRow {
@@ -96,17 +96,19 @@ export async function readSnapshot(
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .input("eventLimit", sql.Int, RECENT_EVENT_LIMIT)
     .query(`
-      SELECT s.id, s.host_user_id, s.status, s.join_code, s.starting_life, s.max_seats, s.version, s.ts_created,
+      SELECT s.id, s.host_user_id, s.status, s.join_code, s.starting_life, s.max_seats AS max_players, s.version, s.ts_created,
              ds.wiki_search_template, ds.wiki_embed
       FROM damnation_sessions s
       LEFT JOIN damnation_settings ds ON ds.user_id = s.host_user_id
       WHERE s.id = @sessionId;
 
-      SELECT id, seat, display_name, color_key, life_total, conceded, eliminated_override,
-             is_manual, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS open_seat
+      SELECT id, seat AS position, display_name, color_key, life_total, conceded, eliminated_override,
+             is_manual, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS rejoinable
       FROM damnation_players
       WHERE session_id = @sessionId AND kicked = 0
       ORDER BY seat;
+
+      SELECT id, display_name FROM damnation_players WHERE session_id = @sessionId AND kicked = 1;
 
       SELECT source_player_id, target_player_id, damage
       FROM damnation_commander_damage
@@ -120,11 +122,17 @@ export async function readSnapshot(
       ORDER BY e.session_version DESC;
     `);
 
-  const recordsets = result.recordsets as unknown as [SessionRow[], PlayerRow[], CommanderDamageCell[], EventRow[]];
+  const recordsets = result.recordsets as unknown as [
+    SessionRow[],
+    PlayerRow[],
+    { id: string; display_name: string }[],
+    CommanderDamageCell[],
+    EventRow[],
+  ];
   const session = recordsets[0][0];
   if (!session) return null;
 
-  const cells: CommanderDamageCell[] = recordsets[2].map((cell) => ({
+  const cells: CommanderDamageCell[] = recordsets[3].map((cell) => ({
     source_player_id: normalizeId(cell.source_player_id)!,
     target_player_id: normalizeId(cell.target_player_id)!,
     damage: cell.damage,
@@ -134,7 +142,7 @@ export async function readSnapshot(
     const reason = eliminationFor(player, cells);
     return {
       id: normalizeId(player.id)!,
-      seat: player.seat,
+      position: player.position,
       display_name: player.display_name,
       color_key: player.color_key,
       life_total: player.life_total,
@@ -142,12 +150,12 @@ export async function readSnapshot(
       eliminated_override: player.eliminated_override,
       eliminated: reason !== null,
       elimination_reason: reason,
-      open_seat: player.open_seat === 1,
+      rejoinable: player.rejoinable === 1,
       manual: player.is_manual,
     };
   });
 
-  const events: EventView[] = recordsets[3].map((event) => ({
+  const events: EventView[] = recordsets[4].map((event) => ({
     id: normalizeId(event.id)!,
     op_id: normalizeId(event.op_id)!,
     version: event.session_version,
@@ -166,11 +174,12 @@ export async function readSnapshot(
     join_code: session.join_code,
     join_url: session.join_code ? joinUrlFor(session.join_code) : null,
     starting_life: session.starting_life,
-    max_seats: session.max_seats,
+    max_players: session.max_players,
     wiki_search_template: session.wiki_search_template ?? DEFAULT_WIKI_SEARCH_TEMPLATE,
     wiki_embed: session.wiki_embed ?? true,
     ts_created: session.ts_created.toISOString(),
     players,
+    former_players: recordsets[2].map((player) => ({ id: normalizeId(player.id)!, display_name: player.display_name })),
     commander_damage: cells,
     events,
   };

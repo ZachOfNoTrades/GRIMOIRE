@@ -105,9 +105,9 @@ function broadcastPresence(sessionId: string): void {
   for (const subscriber of [...set]) subscriber.sendEvent(event);
 }
 
-// Ends a player's streams after they are kicked or their seat is freed, so a revoked
+// Ends a player's streams after they are removed or leave, so a revoked
 // token stops receiving updates immediately instead of at its next request.
-export function revokePlayer(sessionId: string, playerId: string, reason: "kicked" | "seat_freed"): void {
+export function revokePlayer(sessionId: string, playerId: string, reason: "kicked"): void {
   const set = bus.sessions.get(sessionId);
   if (!set) return;
   for (const subscriber of [...set]) {

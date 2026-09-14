@@ -6,7 +6,7 @@ import type { SessionSnapshot } from "../types/damnation";
 // Live session updates for the board and the phones.
 //
 // Reads Server-Sent Events with fetch rather than EventSource: EventSource can't send the
-// X-Damnation-Token header, and fetch exposes the HTTP status, so a revoked seat (401), an
+// X-Damnation-Token header, and fetch exposes the HTTP status, so a removed player (401), an
 // ended game (410) and a full server (429) are told apart instead of retried forever.
 //
 // The dev server restarts and phones sleep, so a dropped stream is routine. Every
@@ -23,7 +23,7 @@ export interface Presence {
 interface Options<T extends SessionSnapshot> {
   url: string | null;
   headers?: Record<string, string>;
-  // Fired when the server ends this client's access (seat freed, kicked, game ended).
+  // Fired when the server ends this client's access (removed, left, game ended).
   onRevoked?: (reason: string) => void;
   initial?: T | null;
 }

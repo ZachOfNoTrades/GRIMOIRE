@@ -60,7 +60,7 @@ export async function purgeOldSessions(): Promise<number> {
 // HOST
 // ---------------------------------------------------------------------------------------------
 
-export async function createSession(hostUserId: string, startingLife: number, maxSeats: number): Promise<HostSnapshot> {
+export async function createSession(hostUserId: string, startingLife: number, maxPlayers: number): Promise<HostSnapshot> {
   const pool = await getMainConnection();
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
@@ -69,11 +69,11 @@ export async function createSession(hostUserId: string, startingLife: number, ma
         .input("hostUserId", sql.UniqueIdentifier, hostUserId)
         .input("joinCode", sql.VarChar(8), generateJoinCode())
         .input("startingLife", sql.Int, startingLife)
-        .input("maxSeats", sql.Int, maxSeats)
+        .input("maxPlayers", sql.Int, maxPlayers)
         .query<{ id: string }>(`
           INSERT INTO damnation_sessions (host_user_id, join_code, starting_life, max_seats)
           OUTPUT INSERTED.id
-          VALUES (@hostUserId, @joinCode, @startingLife, @maxSeats)
+          VALUES (@hostUserId, @joinCode, @startingLife, @maxPlayers)
         `);
       const snapshot = await readSnapshot(pool, inserted.recordset[0].id);
       if (!snapshot) throw new Error("Failed to read the new Damnation session");
@@ -94,7 +94,7 @@ export async function listSessions(hostUserId: string): Promise<SessionSummary[]
     .request()
     .input("hostUserId", sql.UniqueIdentifier, hostUserId)
     .query<SessionSummary & { ts_created: Date; ts_finished: Date | null }>(`
-      SELECT TOP 50 s.id, s.status, s.join_code, s.starting_life, s.max_seats, s.ts_created, s.ts_finished,
+      SELECT TOP 50 s.id, s.status, s.join_code, s.starting_life, s.max_seats AS max_players, s.ts_created, s.ts_finished,
              (SELECT COUNT(*) FROM damnation_players p WHERE p.session_id = s.id AND p.kicked = 0) AS player_count
       FROM damnation_sessions s
       WHERE s.host_user_id = @hostUserId
@@ -152,29 +152,28 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
     .request()
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .query(`
-      SELECT status, max_seats FROM damnation_sessions WHERE id = @sessionId;
-      SELECT id, seat, display_name, color_key, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS open_seat
+      SELECT status, max_seats AS max_players FROM damnation_sessions WHERE id = @sessionId;
+      SELECT id, display_name, color_key, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS rejoinable
       FROM damnation_players WHERE session_id = @sessionId AND kicked = 0 ORDER BY seat;
     `);
   const recordsets = result.recordsets as unknown as [
-    { status: SessionStatus; max_seats: number }[],
-    { id: string; seat: number; display_name: string; color_key: string; open_seat: number }[],
+    { status: SessionStatus; max_players: number }[],
+    { id: string; display_name: string; color_key: string; rejoinable: number }[],
   ];
   const session = recordsets[0][0];
   if (!session) throw new DamnationError(404, "No game with that code");
   const players = recordsets[1];
 
   return {
-    joinable: session.status === "lobby" && players.length < session.max_seats,
+    joinable: session.status === "lobby" && players.length < session.max_players,
     status: session.status,
-    max_seats: session.max_seats,
-    seats_taken: players.length,
+    max_players: session.max_players,
+    player_count: players.length,
     taken_colors: players.map((player) => player.color_key),
-    open_seats: players
-      .filter((player) => player.open_seat === 1)
+    rejoinable_players: players
+      .filter((player) => player.rejoinable === 1)
       .map((player) => ({
         player_id: normalizeId(player.id)!,
-        seat: player.seat,
         display_name: player.display_name,
         color_key: player.color_key,
       })),
@@ -182,7 +181,7 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
 }
 
 // Resolves the X-Damnation-Token header to the player and session it belongs to. The code in
-// the URL is not consulted: a host may rotate the code mid-game, and seated players must keep
+// the URL is not consulted: a host may rotate the code mid-game, and players already in the game must keep
 // working after that.
 export async function requireGuest(request: Request): Promise<{ sessionId: string; playerId: string }> {
   const tokenHash = readPlayerTokenHash(request);
@@ -200,7 +199,7 @@ export async function requireGuest(request: Request): Promise<{ sessionId: strin
       SELECT id AS player_id, session_id FROM damnation_players WHERE token_hash = @tokenHash AND kicked = 0
     `);
   const player = playerResult.recordset[0];
-  if (!player) throw new DamnationError(401, "This seat is no longer yours — rejoin or ask the host");
+  if (!player) throw new DamnationError(401, "You're no longer in this game — join again or ask the host");
 
   const sessionResult = await pool
     .request()

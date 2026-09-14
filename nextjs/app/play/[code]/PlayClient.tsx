@@ -23,7 +23,7 @@ import { useWakeLock } from "@/app/modules/damnation/lib/useWakeLock";
 import type { GuestSnapshot, LobbyView } from "@/app/modules/damnation/types/damnation";
 
 // TOKEN STORAGE — the guest's only credential. localStorage so a closed tab or a sleeping
-// phone gets its seat back; an in-memory fallback where storage is blocked (private mode),
+// phone gets back into the game; an in-memory fallback where storage is blocked (private mode),
 // which still survives everything short of a reload.
 const memoryTokens = new Map<string, string>();
 
@@ -85,7 +85,7 @@ export default function PlayClient({ code }: { code: string }) {
     [code]
   );
 
-  // INITIAL LOAD — a stored token for this code puts the phone straight back in its seat.
+  // INITIAL LOAD — a stored token for this code puts the phone straight back into the game.
   useEffect(() => {
     async function init() {
       const token = readToken(code);
@@ -181,7 +181,7 @@ export default function PlayClient({ code }: { code: string }) {
       code={code}
       token={phase.token}
       initial={phase.initial}
-      onSeatLost={(notice) => {
+      onRemoved={(notice) => {
         clearToken(code);
         loadLobby(notice);
       }}
@@ -190,7 +190,7 @@ export default function PlayClient({ code }: { code: string }) {
         setPhase({ kind: "ended" });
       }}
       onCodeChanged={(newCode) => {
-        // The host issued a new code: carry the seat over so a reload of the new URL still works.
+        // The host issued a new code: carry the token over so a reload of the new URL still works.
         writeToken(newCode, phase.token);
         clearToken(code);
         router.replace(`/play/${newCode}`);
@@ -237,7 +237,7 @@ function JoinScreen({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         toast.error(data.error ?? "Couldn't join");
-        // Someone may have taken the seat or the name; show the table as it is now.
+        // Someone may have taken the last spot or the name; show the game as it is now.
         if (response.status === 409) onRefresh(null);
         return;
       }
@@ -270,7 +270,7 @@ function JoinScreen({
           <HelpButton title="Damnation" sections={PLAYER_HELP} />
         </div>
 
-        {/* NOTICE — e.g. why this phone lost its seat */}
+        {/* NOTICE — e.g. why this phone is no longer in the game */}
         {notice && (
           <div className="alert-yellow">
             <p className="alert-text">{notice}</p>
@@ -283,7 +283,7 @@ function JoinScreen({
             <div className="card-content">
 
               {/* TABLE STATUS */}
-              <p className="text-secondary">Game {code} · {lobby.seats_taken}/{lobby.max_seats} seated</p>
+              <p className="text-secondary">Game {code} · {lobby.player_count}/{lobby.max_players} players</p>
 
               {/* NAME LABEL */}
               <label className="text-h2" htmlFor="dmn-name">Your name</label>
@@ -327,29 +327,29 @@ function JoinScreen({
         ) : (
           /* CLOSED STATE */
           <div className="alert-blue">
-            <p className="alert-title">{lobby.seats_taken >= lobby.max_seats ? "The table is full" : "Joining is closed"}</p>
-            <p className="alert-text">Ask the host to reopen joining{lobby.open_seats.length > 0 ? ", or take over a freed seat below" : ""}.</p>
+            <p className="alert-title">{lobby.player_count >= lobby.max_players ? "The game is full" : "Joining is closed"}</p>
+            <p className="alert-text">Ask the host to reopen joining{lobby.rejoinable_players.length > 0 ? ", or rejoin as your player below" : ""}.</p>
           </div>
         )}
 
-        {/* OPEN SEATS — seats the host freed (a player's phone died) */}
-        {lobby.open_seats.length > 0 && (
+        {/* REJOIN — after the host resumes a game, each phone picks its player again */}
+        {lobby.rejoinable_players.length > 0 && (
           <div className="card">
             <div className="card-header">
-              <h2 className="text-card-title">Take over a seat</h2>
+              <h2 className="text-card-title">Rejoin as</h2>
             </div>
             <div className="card-content">
-              {lobby.open_seats.map((seat) => (
+              {lobby.rejoinable_players.map((player) => (
                 <button
-                  key={seat.player_id}
+                  key={player.player_id}
                   type="button"
-                  className={`dmn-card dmn-seat-${seat.color_key}`}
+                  className={`dmn-card dmn-seat-${player.color_key}`}
                   disabled={isJoining}
-                  onClick={() => send({ claim_player_id: seat.player_id })}
-                  title={`Continue as ${seat.display_name}`}
+                  onClick={() => send({ rejoin_player_id: player.player_id })}
+                  title={`Rejoin as ${player.display_name}`}
                 >
-                  <span className="dmn-card-name">{seat.display_name}</span>
-                  <span className="dmn-tag">Continue as this player</span>
+                  <span className="dmn-card-name">{player.display_name}</span>
+                  <span className="dmn-tag">This is me</span>
                 </button>
               ))}
             </div>
@@ -375,14 +375,14 @@ function Controller({
   code,
   token,
   initial,
-  onSeatLost,
+  onRemoved,
   onEnded,
   onCodeChanged,
 }: {
   code: string;
   token: string;
   initial: GuestSnapshot;
-  onSeatLost: (notice: string) => void;
+  onRemoved: (notice: string) => void;
   onEnded: () => void;
   onCodeChanged: (code: string) => void;
 }) {
@@ -397,11 +397,10 @@ function Controller({
       if (handledRef.current) return;
       handledRef.current = true;
       if (reason === "ended") onEnded();
-      else if (reason === "kicked") onSeatLost("The host removed you from the game.");
-      else if (reason === "seat_freed") onSeatLost("The host freed your seat. You can take it back over below.");
-      else onSeatLost("This phone is no longer seated in the game.");
+      else if (reason === "kicked") onRemoved("You're no longer in the game.");
+      else onRemoved("This phone is no longer in the game.");
     },
-    [onEnded, onSeatLost]
+    [onEnded, onRemoved]
   );
 
   const { snapshot, presence, connection, acceptSnapshot } = useSessionStream<GuestSnapshot>({
@@ -439,7 +438,7 @@ function Controller({
       /* leaving locally regardless */
     }
     handledRef.current = true;
-    onSeatLost("You left your seat. It stays open, so you can take it back over.");
+    onRemoved("You left the game.");
   }
 
   if (!snapshot) return null;
@@ -468,7 +467,7 @@ function Controller({
           <span className="text-secondary">Game {snapshot.join_code ?? code}</span>
           <div className="flex items-center gap-1">
             <HelpButton title="Damnation" sections={PLAYER_HELP} />
-            <Button className="btn-link" onClick={() => setShowLeave(true)} title="Leave your seat" aria-label="Leave your seat">
+            <Button className="btn-link" onClick={() => setShowLeave(true)} title="Leave the game" aria-label="Leave the game">
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
@@ -492,7 +491,7 @@ function Controller({
               key={player.id}
               player={player}
               variant="other"
-              connected={player.open_seat ? null : connected.has(player.id)}
+              connected={player.rejoinable || player.manual ? null : connected.has(player.id)}
               {...cardProps(player.id)}
             />
           ))}
@@ -515,9 +514,9 @@ function Controller({
         isOpen={showLeave}
         onCancel={() => setShowLeave(false)}
         onConfirm={leave}
-        title="Leave your seat?"
+        title="Leave the game?"
         confirmLabel="Leave"
-        message="Your life and commander damage stay on the seat, and anyone with the code can take it over — including you."
+        message="You're taken out of the game along with your life and commander damage. You can join again while joining is open."
       />
     </div>
   );

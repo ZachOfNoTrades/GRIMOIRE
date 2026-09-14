@@ -5,7 +5,7 @@ import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { NAME_MAX_LENGTH, PALETTE } from "../lib/constants";
 
-// Board-side form for seating a player who has no phone. Same rules as a guest join: any color,
+// Board-side form for adding a player who has no phone. Same rules as a guest join: any color,
 // unique name (re-checked by the server under the session lock).
 export default function AddPlayerModal({
   isOpen,
@@ -83,7 +83,7 @@ export default function AddPlayerModal({
 
         {/* HINT */}
         <p className="text-secondary">
-          For someone playing without a phone. You change their card from the board, and anyone seated can change it from
+          For someone playing without a phone. You change their card from the board, and anyone in the game can change it from
           their phone too.
         </p>
 

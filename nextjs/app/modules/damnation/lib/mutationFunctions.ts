@@ -52,7 +52,7 @@ function conflictFor(error: unknown): DamnationError | null {
   if (!isUniqueViolation(error)) return null;
   const message = String((error as Error).message ?? "");
   if (message.includes("UX_damnation_players_name")) return new DamnationError(409, "Someone at the table already has that name");
-  if (message.includes("UX_damnation_players_seat")) return new DamnationError(409, "That seat was just taken — try again");
+  if (message.includes("UX_damnation_players_seat")) return new DamnationError(409, "Someone joined at the same moment — try again");
   if (message.includes("UX_damnation_events_undoes")) return new DamnationError(409, "That change was already undone");
   return null;
 }
@@ -180,7 +180,7 @@ async function currentSnapshot(sessionId: string): Promise<HostSnapshot> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// GAME CHANGES — callable by any seated player or by the host
+// GAME CHANGES — callable by any player in the game or by the host
 // ---------------------------------------------------------------------------------------------
 
 async function lockPlayer(transaction: sql.Transaction, sessionId: string, playerId: string) {
@@ -403,20 +403,20 @@ export function undoLastChange(sessionId: string, opId: string, actor: Actor) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// SEATING
+// PLAYERS
 // ---------------------------------------------------------------------------------------------
 
-// Seats a new player in the lowest free seat. Colors may be shared; names may not. Shared by guest joins (with a token) and
+// Adds a player at the next free position. Colors may be shared; names may not. Shared by guest joins (with a token) and
 // players the host adds from the board (no token, is_manual = 1). Runs inside runMutation,
-// so the session row lock already serializes it against every other seat change.
-async function seatPlayer(
+// so the session row lock already serializes it against every other change to the roster.
+async function addPlayerToGame(
   transaction: sql.Transaction,
   sessionId: string,
   displayName: string,
   colorKey: string,
   tokenHash: Buffer | null
 ): Promise<string> {
-  const seating = await request(transaction)
+  const roster = await request(transaction)
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .query<{ seat: number; display_name: string; max_seats: number; starting_life: number }>(`
       SELECT p.seat, p.display_name, s.max_seats, s.starting_life
@@ -424,21 +424,22 @@ async function seatPlayer(
       LEFT JOIN damnation_players p ON p.session_id = s.id AND p.kicked = 0
       WHERE s.id = @sessionId
     `);
-  const { max_seats: maxSeats, starting_life: startingLife } = seating.recordset[0];
-  const taken = seating.recordset.filter((row) => row.seat !== null);
+  const { max_seats: maxPlayers, starting_life: startingLife } = roster.recordset[0];
+  const taken = roster.recordset.filter((row) => row.seat !== null);
 
-  if (taken.length >= maxSeats) throw new DamnationError(409, "The table is full");
+  if (taken.length >= maxPlayers) throw new DamnationError(409, "The table is full");
   if (taken.some((row) => row.display_name.toLowerCase() === displayName.toLowerCase())) {
     throw new DamnationError(409, "Someone at the table already has that name");
   }
 
-  const takenSeats = new Set(taken.map((row) => row.seat));
-  let seat = 1;
-  while (takenSeats.has(seat)) seat += 1;
+  // `seat` is only the display order: the lowest position not already in use.
+  const usedPositions = new Set(taken.map((row) => row.seat));
+  let position = 1;
+  while (usedPositions.has(position)) position += 1;
 
   const inserted = await request(transaction)
     .input("sessionId", sql.UniqueIdentifier, sessionId)
-    .input("seat", sql.Int, seat)
+    .input("seat", sql.Int, position)
     .input("displayName", sql.NVarChar(24), displayName)
     .input("colorKey", sql.VarChar(20), colorKey)
     .input("tokenHash", sql.VarBinary(32), tokenHash)
@@ -469,38 +470,38 @@ export async function joinSession(
       if (context.status !== "lobby") {
         throw new DamnationError(409, "Joining is closed — ask the host to reopen joins");
       }
-      playerId = await seatPlayer(transaction, sessionId, displayName, colorKey, token.hash);
+      playerId = await addPlayerToGame(transaction, sessionId, displayName, colorKey, token.hash);
       return { eventType: "join", actorPlayerId: playerId, targetPlayerId: playerId };
     },
   });
 
   // A replayed join can't hand the token back (only its hash is stored); the first response
-  // was lost, so the orphaned seat is for the host to remove.
-  if (result.duplicate) throw new DamnationError(409, "That join was already processed — ask the host to free the seat");
+  // was lost, so the duplicate player is for the host to remove.
+  if (result.duplicate) throw new DamnationError(409, "That join was already processed — ask the host to remove the duplicate player");
   return { token: token.plaintext, playerId, result };
 }
 
 // A player the host adds from the board, for someone playing without a phone. Allowed whether
-// or not joining is open — it's the host's own seat to fill. The card is edited from the board
-// or from any seated phone; the seat is not claimable until the host hands it to a phone.
+// or not joining is open. The card is edited from the board or from any player's phone; nobody
+// can rejoin as a manual player from a phone.
 export function addManualPlayer(sessionId: string, opId: string, displayName: string, colorKey: string) {
   return runMutation({
     sessionId,
     opId,
     actor: { kind: "host" },
     apply: async (transaction) => {
-      const playerId = await seatPlayer(transaction, sessionId, displayName, colorKey, null);
+      const playerId = await addPlayerToGame(transaction, sessionId, displayName, colorKey, null);
       return { eventType: "join", actorPlayerId: null, targetPlayerId: playerId, payload: { manual: true } };
     },
   });
 }
 
-// Takes over a seat the host freed (a player whose phone died). Keeps the seat's life and
-// commander damage; works whether or not joins are open.
-export async function claimSeat(
+// Reconnects a phone to its player after the host resumes a finished game (phones drop their
+// token when a game ends). Keeps the player's life and commander damage; joining can be closed.
+export async function rejoinPlayer(
   sessionId: string,
   opId: string,
-  claimPlayerId: string
+  rejoinPlayerId: string
 ): Promise<{ token: string; playerId: string; result: MutationResult }> {
   const token = generatePlayerToken();
 
@@ -511,19 +512,19 @@ export async function claimSeat(
     apply: async (transaction) => {
       const updated = await request(transaction)
         .input("sessionId", sql.UniqueIdentifier, sessionId)
-        .input("playerId", sql.UniqueIdentifier, claimPlayerId)
+        .input("playerId", sql.UniqueIdentifier, rejoinPlayerId)
         .input("tokenHash", sql.VarBinary(32), token.hash)
         .query(`
           UPDATE damnation_players SET token_hash = @tokenHash, ts_updated = GETDATE()
           WHERE id = @playerId AND session_id = @sessionId AND kicked = 0 AND token_hash IS NULL AND is_manual = 0
         `);
-      if (updated.rowsAffected[0] === 0) throw new DamnationError(409, "That seat isn't open");
-      return { eventType: "claim", actorPlayerId: claimPlayerId, targetPlayerId: claimPlayerId };
+      if (updated.rowsAffected[0] === 0) throw new DamnationError(409, "That player isn't waiting to rejoin");
+      return { eventType: "claim", actorPlayerId: rejoinPlayerId, targetPlayerId: rejoinPlayerId };
     },
   });
 
-  if (result.duplicate) throw new DamnationError(409, "That claim was already processed — ask the host to free the seat again");
-  return { token: token.plaintext, playerId: claimPlayerId, result };
+  if (result.duplicate) throw new DamnationError(409, "That rejoin was already processed — ask the host to remove and re-add the player");
+  return { token: token.plaintext, playerId: rejoinPlayerId, result };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -547,25 +548,23 @@ export function setJoinsOpen(sessionId: string, opId: string, open: boolean) {
   });
 }
 
-export function removePlayer(sessionId: string, opId: string, playerId: string, mode: "kick" | "free_seat") {
+// Takes a player out of the game: the host removing them, or the player leaving from their phone.
+// Their card, life and commander damage go with them and their phone is signed out.
+export function removePlayer(sessionId: string, opId: string, playerId: string, actor: Actor) {
   return runMutation({
     sessionId,
     opId,
-    actor: { kind: "host" },
+    actor,
     apply: async (transaction) => {
-      const player = await lockPlayer(transaction, sessionId, playerId);
+      await lockPlayer(transaction, sessionId, playerId);
       await request(transaction)
         .input("playerId", sql.UniqueIdentifier, playerId)
-        .query(
-          mode === "kick"
-            ? `UPDATE damnation_players SET kicked = 1, token_hash = NULL, ts_updated = GETDATE() WHERE id = @playerId`
-            : `UPDATE damnation_players SET token_hash = NULL, ts_updated = GETDATE() WHERE id = @playerId`
-        );
-      return { eventType: mode, targetPlayerId: playerId, payload: player.is_manual ? { manual: true } : null };
+        .query(`UPDATE damnation_players SET kicked = 1, token_hash = NULL, ts_updated = GETDATE() WHERE id = @playerId`);
+      return { eventType: "kick", targetPlayerId: playerId };
     },
   }).then((result) => {
     // Cut the removed phone's live stream now rather than at its next request.
-    if (result.changed) revokePlayer(sessionId, playerId, mode === "kick" ? "kicked" : "seat_freed");
+    if (result.changed) revokePlayer(sessionId, playerId, "kicked");
     return result;
   });
 }
@@ -600,8 +599,8 @@ export function rotateJoinCode(sessionId: string, opId: string, generateCode: ()
 }
 
 // Reopens a finished game (ended by the host or expired while idle) with its totals intact.
-// Phones lost their seats when the game ended, so every phone seat reopens to be taken over
-// with the new code; players without a phone stay as they were. Joining stays closed.
+// Phones drop their tokens when a game ends, so every phone player waits to rejoin with the new
+// code ("Rejoin as"); players without a phone stay as they were. Joining stays closed.
 export function resumeSession(sessionId: string, opId: string, generateCode: () => string) {
   return runMutation({
     sessionId,

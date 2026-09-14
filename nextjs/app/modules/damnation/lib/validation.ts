@@ -4,8 +4,8 @@ import {
   DEFAULT_WIKI_SEARCH_TEMPLATE,
   JOIN_CODE_PATTERN,
   MAX_DELTA,
-  MAX_SEATS,
-  MIN_SEATS,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
   NAME_MAX_LENGTH,
   PUBLIC_ORIGIN,
   WIKI_QUERY_PLACEHOLDER,
@@ -46,7 +46,7 @@ const colorKey = z.string().refine((value) => COLOR_KEYS.includes(value), "Unkno
 
 export const joinSchema = z.union([
   z.object({ op_id: uuid, display_name: displayName, color_key: colorKey }),
-  z.object({ op_id: uuid, claim_player_id: uuid }),
+  z.object({ op_id: uuid, rejoin_player_id: uuid }),
 ]);
 
 export const addPlayerSchema = z.object({ op_id: uuid, display_name: displayName, color_key: colorKey });
@@ -67,7 +67,7 @@ export const opSchema = z.object({ op_id: uuid });
 
 export const createSessionSchema = z.object({
   starting_life: z.number().int().min(1).max(999),
-  max_seats: z.number().int().min(MIN_SEATS).max(MAX_SEATS),
+  max_players: z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS),
 });
 
 // A wiki search template must be an http(s) URL with the {query} placeholder. The scheme

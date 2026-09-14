@@ -7,10 +7,10 @@ import type { PendingOverlay } from "../lib/useGameActions";
 import type { CommanderDamageCell, PlayerView } from "../types/damnation";
 
 // One player's card. Used three ways:
-//   self  — the phone owner's own seat: huge number, tap left/right halves for −1/+1
+//   self  — the phone owner's own card: huge number, tap left/right halves for −1/+1
 //   other — another player on a phone: ±1/±5 steppers
 //   board — the shared screen: the desktop can change every card
-// Any seated player may change any card, so every variant can edit when `editable` is set.
+// Any player may change any card, so every variant can edit when `editable` is set.
 
 interface PlayerCardProps {
   player: PlayerView;

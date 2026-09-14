@@ -26,7 +26,7 @@ export async function getDamnationBadges(userId: string): Promise<ModuleBadge[]>
       key: "damnation-live",
       label: live === 1 ? "Game live" : `${live} games live`,
       tone: "blue",
-      detail: `You're hosting ${live === 1 ? "a game" : `${live} games`} with ${players} player${players === 1 ? "" : "s"} seated`,
+      detail: `You're hosting ${live === 1 ? "a game" : `${live} games`} with ${players} player${players === 1 ? "" : "s"} in the game`,
     },
   ];
 }

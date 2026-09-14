@@ -4,8 +4,19 @@ import { describeEvent } from "../lib/describeEvent";
 import type { EventView, PlayerView } from "../types/damnation";
 
 // Recent changes at the table, newest first. Undone changes stay listed, struck through.
-export default function ActivityFeed({ events, players }: { events: EventView[]; players: PlayerView[] }) {
-  const playersById = new Map(players.map((player) => [player.id, player]));
+export default function ActivityFeed({
+  events,
+  players,
+  formerPlayers,
+}: {
+  events: EventView[];
+  players: PlayerView[];
+  formerPlayers: { id: string; display_name: string }[];
+}) {
+  const playersById = new Map<string, Pick<PlayerView, "display_name">>([
+    ...formerPlayers.map((player) => [player.id, player] as const),
+    ...players.map((player) => [player.id, player] as const),
+  ]);
 
   if (events.length === 0) {
     return (

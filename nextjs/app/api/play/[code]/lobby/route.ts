@@ -6,7 +6,7 @@ import { findSessionIdByCode, getLobbyView } from "@/app/modules/damnation/lib/s
 import { requireJoinCode } from "@/app/modules/damnation/lib/validation";
 
 // GET /api/play/[code]/lobby — public pre-join view: is the table open, which colors are
-// taken, which seats the host has freed. No life totals; misses are rate-limited per address.
+// in use, which players are waiting to rejoin. No life totals; misses are rate-limited per address.
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;

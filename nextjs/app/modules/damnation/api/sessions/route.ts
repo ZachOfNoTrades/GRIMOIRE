@@ -10,11 +10,11 @@ export async function GET(request: Request) {
   );
 }
 
-// POST /modules/damnation/api/sessions — start a new game. Body: { starting_life, max_seats }.
+// POST /modules/damnation/api/sessions — start a new game. Body: { starting_life, max_players }.
 export async function POST(request: Request) {
   return withHost(request, null, "POST /damnation/api/sessions", async (host) => {
     const body = await parseBody(request, createSessionSchema);
-    const snapshot = await createSession(host.userId, body.starting_life, body.max_seats);
+    const snapshot = await createSession(host.userId, body.starting_life, body.max_players);
     return NextResponse.json(snapshot, { status: 201, headers: NO_STORE });
   });
 }
