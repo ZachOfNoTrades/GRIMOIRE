@@ -40,8 +40,9 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         The grid button on the board arranges the cards like the table — 2 × 2, 1 left and 2 right, and so on, for the
-        game&apos;s player count. Cards fill the layout in order; under <strong>Manage players</strong>, the arrows move a
-        player earlier or later. Narrow screens use the automatic grid.
+        game&apos;s player count. Cards fill the layout in order; drag a card by the handle in its top-left corner onto
+        another card to swap the two players (or focus the handle and use the arrow keys). Narrow screens use the
+        automatic grid.
       </>
     ),
   },

@@ -55,6 +55,8 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
       return `Host set ${parts.join(" and ")}`;
     }
     case "reorder":
+      // Events from before drag-to-swap recorded a direction instead of a partner.
+      if (payload.with_player_id) return `Host swapped ${target} and ${name(String(payload.with_player_id))} on the board`;
       return `Host moved ${target} ${payload.direction === "earlier" ? "earlier" : "later"} on the board`;
     default:
       return "Something changed";

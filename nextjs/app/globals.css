@@ -7704,6 +7704,34 @@ body:has(.quest-cal-page) > .page {
   flex: 1;
 }
 
+/* GRIP — the board's drag handle in a card's top-left corner. Always shown; dropping a card on
+   another swaps the two players' places. */
+.dmn-card-grip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 2rem;
+  margin: -0.35rem 0 -0.35rem -0.35rem;
+  background: transparent;
+  color: var(--dmn-seat-fg);
+  border: none;
+  opacity: 0.75;
+  cursor: grab;
+  /* Without this the browser takes the gesture for scrolling and the drag never starts on touch. */
+  touch-action: none;
+}
+
+.dmn-card-grip:hover,
+.dmn-card-grip:focus-visible {
+  opacity: 1;
+}
+
+.dmn-card-grip:active {
+  cursor: grabbing;
+}
+
 .dmn-tag {
   font-size: 0.65rem;
   text-transform: uppercase;
@@ -8181,4 +8209,14 @@ body:has(.quest-cal-page) > .page {
   height: min(70vh, 48rem);
   border: 1px solid var(--card-border);
   background: var(--card-bg);
+}
+
+/* DRAG — while a card is being moved it recedes, and the card it would swap with is outlined. */
+.dmn-dragging {
+  opacity: 0.45;
+}
+
+.dmn-drop-target {
+  outline: 3px dashed var(--color-primary);
+  outline-offset: 3px;
 }

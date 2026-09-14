@@ -2,8 +2,6 @@
 
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   LayoutGrid,
   DoorClosed,
   DoorOpen,
@@ -11,7 +9,6 @@ import {
   RefreshCw,
   Shrink,
   Play,
-  UserCog,
   Skull,
   Undo2,
   WifiOff,
@@ -48,7 +45,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   // STATE
   const [notFound, setNotFound] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  // DRAG — the player being dragged and the card it would swap with if released now.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropId, setDropId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
   const [showLayoutPicker, setShowLayoutPicker] = useState(false);
@@ -72,8 +71,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   const isFinished = snapshot?.status === "finished";
   const connected = new Set(presence?.connected_player_ids ?? []);
-  // The desktop controls every player's life at any time; the toggle only reveals reordering.
-  const isManagingPlayers = isEditing && !isFinished;
   const openSpots = snapshot ? Math.max(0, snapshot.max_players - snapshot.players.length) : 0;
   const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
 
@@ -145,6 +142,39 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     }
   }
 
+  // Drag a card by its grip and drop it on another card to swap the two players' places. The
+  // card under the pointer is found with elementFromPoint, so it works across a 2-D layout.
+  function startDrag(event: React.PointerEvent, playerId: string) {
+    if (event.button !== 0 || isBusy) return;
+    event.preventDefault();
+    setDragId(playerId);
+    let target: string | null = null;
+
+    const onMove = (move: PointerEvent) => {
+      const card = document.elementFromPoint(move.clientX, move.clientY)?.closest<HTMLElement>("[data-player-id]");
+      const next = card && card.dataset.playerId !== playerId ? card.dataset.playerId ?? null : null;
+      if (next !== target) {
+        target = next;
+        setDropId(next);
+      }
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", cleanup);
+      setDragId(null);
+      setDropId(null);
+    };
+    const onUp = () => {
+      const withId = target;
+      cleanup();
+      if (withId) hostCommand(`/players/${playerId}/move`, { with_player_id: withId });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", cleanup);
+  }
+
   async function toggleFullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -210,19 +240,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             {!isFinished && (
               <Button className="btn-link" onClick={actions.undo} disabled={!snapshot} title="Undo the latest change at the table" aria-label="Undo the latest change at the table">
                 <Undo2 className="w-5 h-5" />
-              </Button>
-            )}
-
-            {/* CORRECTIONS TOGGLE */}
-            {!isFinished && (
-              <Button
-                className={isEditing ? "btn-blue" : "btn-link"}
-                onClick={() => setIsEditing((value) => !value)}
-                aria-pressed={isEditing}
-                title="Manage players: move a player"
-                aria-label="Manage players"
-              >
-                <UserCog className="w-5 h-5" />
               </Button>
             )}
 
@@ -303,7 +320,12 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               {/* PLAYERS GRID */}
               <div className="dmn-grid" style={gridStyle}>
                 {snapshot.players.map((player, index) => (
-                  <div key={player.id} className="flex flex-col gap-1 min-w-0" style={slotStyle(index)}>
+                  <div
+                    key={player.id}
+                    data-player-id={player.id}
+                    className={`flex flex-col min-w-0 ${dragId === player.id ? "dmn-dragging" : ""} ${dropId === player.id ? "dmn-drop-target" : ""}`}
+                    style={slotStyle(index)}
+                  >
 
                     {/* PLAYER CARD */}
                     <PlayerCard
@@ -320,20 +342,13 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       onStatus={(change) => actions.changeStatus(player.id, change)}
                       onRemove={isFinished ? undefined : () => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })}
                       removeDisabled={isBusy}
+                      onGripPointerDown={isFinished ? undefined : (event) => startDrag(event, player.id)}
+                      onGripKey={(step) => {
+                        const other = snapshot.players[index + step];
+                        if (other && !isBusy) hostCommand(`/players/${player.id}/move`, { with_player_id: other.id });
+                      }}
                       fill={layout !== null}
                     />
-
-                    {/* PLAYER MANAGEMENT */}
-                    {isManagingPlayers && (
-                      <div className="flex gap-1">
-                        <Button className="btn-off" disabled={isBusy || index === 0} onClick={() => hostCommand(`/players/${player.id}/move`, { direction: "earlier" })} title="Move earlier in the table layout" aria-label={`Move ${player.display_name} earlier`}>
-                          <ChevronLeft className="w-4 h-4" />
-                        </Button>
-                        <Button className="btn-off" disabled={isBusy || index === snapshot.players.length - 1} onClick={() => hostCommand(`/players/${player.id}/move`, { direction: "later" })} title="Move later in the table layout" aria-label={`Move ${player.display_name} later`}>
-                          <ChevronRight className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 ))}
 

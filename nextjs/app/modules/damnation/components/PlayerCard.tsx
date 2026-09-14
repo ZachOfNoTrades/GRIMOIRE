@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Skull, Swords, X } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, Skull, Swords, X } from "lucide-react";
 import { useState } from "react";
 import { COMMANDER_DAMAGE_LETHAL, isColorKey } from "../lib/constants";
 import type { PendingOverlay } from "../lib/useGameActions";
@@ -29,6 +29,9 @@ interface PlayerCardProps {
   onLife: (delta: number) => void;
   onCommander: (sourcePlayerId: string, delta: number) => void;
   onStatus: (change: { conceded?: boolean; eliminated_override?: boolean | null }) => void;
+  // Board only: a drag handle in the top-left corner. Arrow keys on it move the player too.
+  onGripPointerDown?: (event: React.PointerEvent) => void;
+  onGripKey?: (step: -1 | 1) => void;
   // Board only: shows an X in the top-right corner that removes the player (after a confirm).
   onRemove?: () => void;
   removeDisabled?: boolean;
@@ -61,6 +64,8 @@ export default function PlayerCard({
   onStatus,
   onRemove,
   removeDisabled = false,
+  onGripPointerDown,
+  onGripKey,
 }: PlayerCardProps) {
   // STATE
   const [showCommander, setShowCommander] = useState(false);
@@ -93,6 +98,25 @@ export default function PlayerCard({
 
       {/* CARD HEAD */}
       <div className="dmn-card-head">
+
+        {/* GRIP */}
+        {onGripPointerDown && (
+          <button
+            type="button"
+            className="dmn-card-grip"
+            onPointerDown={onGripPointerDown}
+            onKeyDown={(event) => {
+              const step = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : 0;
+              if (step === 0 || !onGripKey) return;
+              event.preventDefault();
+              onGripKey(step);
+            }}
+            aria-label={`Move ${player.display_name}`}
+            title="Drag onto another card to swap places"
+          >
+            <GripVertical className="w-4 h-4" aria-hidden />
+          </button>
+        )}
 
         {/* PRESENCE */}
         {connected !== null && (

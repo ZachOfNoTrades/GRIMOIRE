@@ -570,16 +570,17 @@ export function removePlayer(sessionId: string, opId: string, playerId: string, 
   });
 }
 
-// Swaps a player with their neighbor in seat order, which is the order cards fill a board
-// layout. Both seat values change in one statement so the per-game seat index never sees a
-// duplicate mid-update.
-export function movePlayer(sessionId: string, opId: string, playerId: string, direction: "earlier" | "later") {
+// Swaps two players' seats, which is the order cards fill a board layout. Both seat values
+// change in one statement so the per-game seat index never sees a duplicate mid-update.
+export function movePlayer(sessionId: string, opId: string, playerId: string, withPlayerId: string) {
   return runMutation({
     sessionId,
     opId,
     actor: { kind: "host" },
     apply: async (transaction) => {
+      if (playerId === withPlayerId) return null;
       await lockPlayer(transaction, sessionId, playerId);
+      await lockPlayer(transaction, sessionId, withPlayerId);
       const order = await request(transaction)
         .input("sessionId", sql.UniqueIdentifier, sessionId)
         .query<{ id: string; seat: number }>(`
@@ -589,7 +590,7 @@ export function movePlayer(sessionId: string, opId: string, playerId: string, di
         `);
       const rows = order.recordset.map((row) => ({ id: row.id.toLowerCase(), seat: row.seat }));
       const index = rows.findIndex((row) => row.id === playerId);
-      const neighbor = rows[direction === "earlier" ? index - 1 : index + 1];
+      const neighbor = rows.find((row) => row.id === withPlayerId);
       if (index < 0 || !neighbor) return null;
 
       await request(transaction)
@@ -602,7 +603,7 @@ export function movePlayer(sessionId: string, opId: string, playerId: string, di
           SET seat = CASE WHEN id = @playerId THEN @neighborSeat ELSE @playerSeat END, ts_updated = GETDATE()
           WHERE id IN (@playerId, @neighborId)
         `);
-      return { eventType: "reorder", targetPlayerId: playerId, payload: { direction } };
+      return { eventType: "reorder", targetPlayerId: playerId, payload: { with_player_id: withPlayerId } };
     },
   });
 }

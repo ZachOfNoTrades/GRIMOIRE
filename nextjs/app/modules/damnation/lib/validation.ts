@@ -67,7 +67,7 @@ export const statusSchema = z
 
 export const opSchema = z.object({ op_id: uuid });
 
-export const moveSchema = z.object({ op_id: uuid, direction: z.enum(["earlier", "later"]) });
+export const moveSchema = z.object({ op_id: uuid, with_player_id: uuid });
 
 export const layoutSchema = z.object({ board_layout: z.string().max(20).nullable() });
 
