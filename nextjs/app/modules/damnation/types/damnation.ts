@@ -34,6 +34,9 @@ export interface PlayerView {
   rejoinable: boolean;
   // Added by the host from the board; no phone is attached to it.
   manual: boolean;
+  // Client only: a player just added (by the host, or this phone joining), shown before the server
+  // has confirmed it.
+  pending?: boolean;
 }
 
 export interface CommanderDamageCell {
@@ -91,6 +94,8 @@ export interface GuestSnapshot extends SessionSnapshot {
 export interface LobbyView {
   joinable: boolean;
   status: SessionStatus;
+  // So a phone can show its new card at once while the join request is on its way.
+  starting_life: number;
   max_players: number;
   player_count: number;
   // Colors already in use — only used to preselect an unused one; any color can be picked.

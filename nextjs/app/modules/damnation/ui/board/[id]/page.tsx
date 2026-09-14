@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import PopoverMenu from "@/components/PopoverMenu";
 import { useRouter } from "next/navigation";
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { BackLink } from "@/components/BackLink";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -36,6 +36,16 @@ import QrCode from "../../../components/QrCode";
 import WikiSearch from "../../../components/WikiSearch";
 import { arrangeSpots, resolveLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
 import { PALETTE } from "../../../lib/constants";
+import {
+  addPlayerPatch,
+  editPlayerPatch,
+  layoutPatch,
+  positionsPatch,
+  removePlayerPatch,
+  setupPatch,
+  statusPatch,
+  type SnapshotPatch,
+} from "../../../lib/optimisticPatches";
 import { useGameActions } from "../../../lib/useGameActions";
 import { useSessionStream } from "../../../lib/useSessionStream";
 import { useWakeLock } from "../../../lib/useWakeLock";
@@ -66,7 +76,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const menuButtonRef = useRef<HTMLSpanElement>(null);
   const [isBusy, setIsBusy] = useState(false);
 
-  const { snapshot, presence, connection, acceptSnapshot } = useSessionStream<HostSnapshot>({
+  const { snapshot: serverSnapshot, presence, connection, acceptSnapshot } = useSessionStream<HostSnapshot>({
     url: `${baseUrl}/stream`,
     onRevoked: (reason) => {
       if (reason === "not_found" || reason === "unauthorized") setNotFound(true);
@@ -76,9 +86,18 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const actions = useGameActions<HostSnapshot>({
     baseUrl,
     acceptSnapshot,
-    snapshot,
+    snapshot: serverSnapshot,
     onError: (message) => toast.error(message),
   });
+
+  // OPTIMISTIC CHANGES — host commands show on the board at once; each patch sits on top of the
+  // latest snapshot until its request settles (lib/optimisticPatches.ts).
+  const [patches, setPatches] = useState<{ id: number; apply: SnapshotPatch }[]>([]);
+  const patchIdRef = useRef(0);
+  const snapshot = useMemo(
+    () => (serverSnapshot ? patches.reduce((view, patch) => patch.apply(view), serverSnapshot) : null),
+    [serverSnapshot, patches]
+  );
 
   const isFinished = snapshot?.status === "finished";
   const connected = new Set(presence?.connected_player_ids ?? []);
@@ -102,10 +121,13 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
-  // Host controls that aren't counter taps: sent straight away, each with its own op_id.
+  // Host controls that aren't counter taps: sent straight away, each with its own op_id. With a
+  // patch, the change shows immediately and is dropped when the request settles — replaced by the
+  // server's snapshot on success, or rolled back with a toast on failure.
   const hostCommand = useCallback(
-    async (path: string, body: Record<string, unknown> = {}, method: "POST" | "PATCH" = "POST") => {
-      setIsBusy(true);
+    async (path: string, body: Record<string, unknown> = {}, method: "POST" | "PATCH" | "PUT" = "POST", patch?: SnapshotPatch) => {
+      const patchId = (patchIdRef.current += 1);
+      if (patch) setPatches((current) => [...current, { id: patchId, apply: patch }]);
       try {
         const response = await fetch(`${baseUrl}${path}`, {
           method,
@@ -120,7 +142,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
         toast.error(error instanceof Error ? error.message : "That didn't work");
         return false;
       } finally {
-        setIsBusy(false);
+        if (patch) setPatches((current) => current.filter((entry) => entry.id !== patchId));
       }
     },
     [baseUrl, acceptSnapshot]
@@ -135,26 +157,31 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     while (names.has(`player ${number}`)) number += 1;
     const colors = new Set(snapshot.players.map((player) => player.color_key));
     const color = PALETTE.find((entry) => !colors.has(entry.key))?.key ?? PALETTE[0].key;
-    hostCommand("/players", { display_name: `Player ${number}`, color_key: color, position });
+    const displayName = `Player ${number}`;
+    hostCommand("/players", { display_name: displayName, color_key: color, position }, "POST", addPlayerPatch(displayName, color, position));
   }
 
-  async function saveLayout(layoutKey: string) {
-    setIsBusy(true);
-    try {
-      const response = await fetch(`${baseUrl}/layout`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ board_layout: layoutKey }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Couldn't change the layout");
-      if (data.snapshot) acceptSnapshot(data.snapshot);
-      setShowLayoutPicker(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't change the layout");
-    } finally {
-      setIsBusy(false);
+  function saveLayout(layoutKey: string) {
+    setShowLayoutPicker(false);
+    hostCommand("/layout", { board_layout: layoutKey }, "PUT", layoutPatch(layoutKey));
+  }
+
+  // Moves a player: onto another player's spot (the two swap) or into an open spot.
+  function movePlayer(playerId: string, target: { withPlayerId: string } | { toPosition: number }) {
+    const mover = snapshot?.players.find((player) => player.id === playerId);
+    if (!snapshot || !mover) return;
+    if ("toPosition" in target) {
+      hostCommand(`/players/${playerId}/move`, { to_position: target.toPosition }, "POST", positionsPatch({ [playerId]: target.toPosition }));
+      return;
     }
+    const other = snapshot.players.find((player) => player.id === target.withPlayerId);
+    if (!other) return;
+    hostCommand(
+      `/players/${playerId}/move`,
+      { with_player_id: other.id },
+      "POST",
+      positionsPatch({ [playerId]: other.position, [other.id]: mover.position })
+    );
   }
 
   // Drag a card by its grip and drop it on another card to swap the two players' places, or on an
@@ -189,8 +216,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
       const dropped = target;
       cleanup();
       if (!dropped) return;
-      if (dropped.startsWith("spot:")) hostCommand(`/players/${playerId}/move`, { to_position: Number(dropped.slice(5)) });
-      else hostCommand(`/players/${playerId}/move`, { with_player_id: dropped });
+      if (dropped.startsWith("spot:")) movePlayer(playerId, { toPosition: Number(dropped.slice(5)) });
+      else movePlayer(playerId, { withPlayerId: dropped });
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -225,9 +252,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     const pending = confirm;
     setConfirm(null);
     if (!pending) return;
-    if (pending.kind === "end") await hostCommand("/end");
+    if (pending.kind === "end") await hostCommand("/end", {}, "POST", statusPatch("finished"));
     if (pending.kind === "delete") await deleteGame();
-    if (pending.kind === "kick") await hostCommand(`/players/${pending.playerId}/kick`);
+    if (pending.kind === "kick") await hostCommand(`/players/${pending.playerId}/kick`, {}, "POST", removePlayerPatch(pending.playerId));
   }
 
   if (notFound) {
@@ -337,7 +364,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                   <p className="alert-text">Final totals are shown below. Resume to keep playing from here with a new code.</p>
 
                   {/* RESUME */}
-                  <Button className="btn-green mt-2 self-start" disabled={isBusy} onClick={() => hostCommand("/resume")} title="Reopen this game with its totals and a new join code">
+                  <Button className="btn-green mt-2 self-start" disabled={isBusy} onClick={async () => { setIsBusy(true); await hostCommand("/resume"); setIsBusy(false); }} title="Reopen this game with its totals and a new join code">
                     <Play className="w-4 h-4" /> Resume game
                   </Button>
                 </div>
@@ -372,7 +399,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                           maxPlayers={snapshot.max_players}
                           playerCount={snapshot.players.length}
                           disabled={isBusy}
-                          onChange={(change) => hostCommand("/setup", change)}
+                          onChange={(change) => hostCommand("/setup", change, "POST", setupPatch(change))}
                           onOpenLayout={() => setShowLayoutPicker(true)}
                         />
                       )}
@@ -400,20 +427,20 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                         commanderDamage={snapshot.commander_damage_enabled}
                         overlay={actions.overlay}
                         variant="board"
-                        editable={!isFinished}
+                        editable={!isFinished && !player.pending}
                         connected={player.rejoinable || player.manual ? null : connected.has(player.id)}
                         onLife={(delta) => actions.changeLife(player.id, delta)}
                         onCommander={(sourceId, delta) => actions.changeCommanderDamage(player.id, sourceId, delta)}
                         onStatus={(change) => actions.changeStatus(player.id, change)}
-                        onRemove={isFinished ? undefined : () => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })}
+                        onRemove={isFinished || player.pending ? undefined : () => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })}
                         removeDisabled={isBusy}
-                        onRename={isFinished ? undefined : (displayName) => hostCommand(`/players/${player.id}`, { display_name: displayName }, "PATCH")}
-                        onRecolor={isFinished ? undefined : (colorKey) => void hostCommand(`/players/${player.id}`, { color_key: colorKey }, "PATCH")}
-                        onGripPointerDown={isFinished ? undefined : (event) => startDrag(event, player.id)}
+                        onRename={isFinished || player.pending ? undefined : (displayName) => hostCommand(`/players/${player.id}`, { display_name: displayName }, "PATCH", editPlayerPatch(player.id, { display_name: displayName }))}
+                        onRecolor={isFinished || player.pending ? undefined : (colorKey) => void hostCommand(`/players/${player.id}`, { color_key: colorKey }, "PATCH", editPlayerPatch(player.id, { color_key: colorKey }))}
+                        onGripPointerDown={isFinished || player.pending ? undefined : (event) => startDrag(event, player.id)}
                         onGripKey={(step) => {
                           const order = snapshot.players.findIndex((other) => other.id === player.id);
                           const other = snapshot.players[order + step];
-                          if (other && !isBusy) hostCommand(`/players/${player.id}/move`, { with_player_id: other.id });
+                          if (other && !other.pending) movePlayer(player.id, { withPlayerId: other.id });
                         }}
                         fill
                       />
@@ -442,11 +469,11 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               {!isFinished && (
                 <div className="flex flex-wrap gap-2">
                   {snapshot.status === "lobby" ? (
-                    <Button className="btn-green" disabled={isBusy || snapshot.players.length === 0} onClick={() => hostCommand("/joins", { open: false })} title="Close joining and start playing">
+                    <Button className="btn-green" disabled={isBusy || snapshot.players.length === 0} onClick={() => hostCommand("/joins", { open: false }, "POST", statusPatch("active"))} title="Close joining and start playing">
                       <DoorClosed className="w-4 h-4" /> Start game
                     </Button>
                   ) : (
-                    <Button className="btn-off" disabled={isBusy} onClick={() => hostCommand("/joins", { open: true })} title="Let a late arrival join">
+                    <Button className="btn-off" disabled={isBusy} onClick={() => hostCommand("/joins", { open: true }, "POST", statusPatch("lobby"))} title="Let a late arrival join">
                       <DoorOpen className="w-4 h-4" /> Reopen joining
                     </Button>
                   )}
@@ -492,7 +519,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             isOpen={showLayoutPicker}
             playerCount={snapshot.max_players}
             current={snapshot.board_layout}
-            isSaving={isBusy}
+            isSaving={false}
             onCancel={() => setShowLayoutPicker(false)}
             onPick={saveLayout}
           />

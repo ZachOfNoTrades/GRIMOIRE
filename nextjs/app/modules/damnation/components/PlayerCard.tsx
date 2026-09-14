@@ -112,8 +112,13 @@ export default function PlayerCard({
       setIsEditingName(false);
       return;
     }
-    // A refused name (already taken) keeps the field open with the text.
-    if (await onRename(trimmed)) setIsEditingName(false);
+    // The new name shows at once (the board patches it in); a refused one (already taken) reopens
+    // the field with the text.
+    setIsEditingName(false);
+    if (!(await onRename(trimmed))) {
+      setNameDraft(trimmed);
+      setIsEditingName(true);
+    }
   }
 
   function onNameKey(event: KeyboardEvent<HTMLInputElement>) {

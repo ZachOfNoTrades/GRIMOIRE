@@ -21,7 +21,7 @@ import {
 import { useGameActions } from "@/app/modules/damnation/lib/useGameActions";
 import { useSessionStream } from "@/app/modules/damnation/lib/useSessionStream";
 import { useWakeLock } from "@/app/modules/damnation/lib/useWakeLock";
-import type { GuestSnapshot, LobbyView } from "@/app/modules/damnation/types/damnation";
+import type { GuestSnapshot, LobbyView, PlayerView } from "@/app/modules/damnation/types/damnation";
 
 // Narrowest a card may get in the table layout before the phone falls back to the stacked view.
 const LAYOUT_MIN_CARD_PX = 150;
@@ -228,10 +228,13 @@ function JoinScreen({
 
   // STATE
   const [isJoining, setIsJoining] = useState(false);
+  // The player being joined, shown as their card straight away; cleared if the join is refused.
+  const [joiningAs, setJoiningAs] = useState<PlayerView | null>(null);
   const canJoin = lobby.joinable && !!color && name.trim().length > 0 && !isJoining;
 
-  async function send(body: Record<string, unknown>) {
+  async function send(body: Record<string, unknown>, provisional: PlayerView | null = null) {
     setIsJoining(true);
+    setJoiningAs(provisional);
     try {
       const response = await fetch(`/api/damnation/${code}/join`, {
         method: "POST",
@@ -240,6 +243,7 @@ function JoinScreen({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        setJoiningAs(null);
         toast.error(data.error ?? "Couldn't join");
         // Someone may have taken the last spot or the name; show the game as it is now.
         if (response.status === 409) onRefresh(null);
@@ -247,6 +251,7 @@ function JoinScreen({
       }
       onJoined(data.token, data.snapshot);
     } catch {
+      setJoiningAs(null);
       toast.error("Couldn't reach the game — check your connection");
     } finally {
       setIsJoining(false);
@@ -258,7 +263,51 @@ function JoinScreen({
     if (!canJoin) return;
     // Drop the on-screen keyboard; on a refusal (name or color taken) the toast must be visible.
     (document.activeElement as HTMLElement | null)?.blur();
-    send({ display_name: name.trim(), color_key: color });
+    send(
+      { display_name: name.trim(), color_key: color },
+      {
+        id: "joining",
+        position: lobby.player_count + 1,
+        display_name: name.trim(),
+        color_key: color,
+        life_total: lobby.starting_life,
+        conceded: false,
+        eliminated_override: null,
+        eliminated: false,
+        elimination_reason: null,
+        rejoinable: false,
+        manual: false,
+        pending: true,
+      }
+    );
+  }
+
+  if (joiningAs) {
+    return (
+      <div className="page">
+        <div className="dmn-controller">
+          <Toaster position="top-center" />
+
+          {/* HEADER */}
+          <span className="text-secondary">Game {code} · Joining…</span>
+
+          {/* YOUR CARD — shown before the server confirms; its controls arrive with the game */}
+          <PlayerCard
+            player={joiningAs}
+            players={[joiningAs]}
+            cells={[]}
+            overlay={{ life: {}, commander: {}, status: {} }}
+            variant="self"
+            editable={false}
+            connected={null}
+            isMe
+            onLife={() => {}}
+            onCommander={() => {}}
+            onStatus={() => {}}
+          />
+        </div>
+      </div>
+    );
   }
 
   return (
