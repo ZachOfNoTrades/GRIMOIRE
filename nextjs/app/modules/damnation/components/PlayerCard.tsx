@@ -333,14 +333,10 @@ export default function PlayerCard({
                     Back in
                   </button>
                 ) : (
-                  <>
-                    <button type="button" className="dmn-step" onClick={() => onStatus({ conceded: true })} title="Mark this player as having conceded">
-                      Concede
-                    </button>
-                    <button type="button" className="dmn-step" onClick={() => onStatus({ eliminated_override: true })} title="Mark this player as out">
-                      Out
-                    </button>
-                  </>
+                  /* OUT — one button for conceding or being knocked out */
+                  <button type="button" className="dmn-step" onClick={() => onStatus({ eliminated_override: true })} title="Mark this player as out (conceded or knocked out)">
+                    Out
+                  </button>
                 )}
                 {override !== null && !isOut && (
                   <button type="button" className="dmn-step" onClick={() => onStatus({ eliminated_override: null })} title="Go back to deciding from life and commander damage">

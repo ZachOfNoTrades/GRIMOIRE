@@ -15,7 +15,7 @@ const SETTINGS_HELP = [
     body: (
       <>
         On: every card in your games has a Commander damage taken section, and 21 from one commander puts a player out.
-        Off: for other formats — the section only holds the Concede and Out controls. Changes reach games already in
+        Off: for other formats — the section only holds the Out control. Changes reach games already in
         progress straight away.
       </>
     ),
