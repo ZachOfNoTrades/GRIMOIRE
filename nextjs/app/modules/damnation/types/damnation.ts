@@ -10,7 +10,7 @@ export type EventType =
   | "kick"
   | "start"
   | "reopen"
-  | "rotate_code"
+  | "rotate_code" // no longer created; kept so older games' events still type-check
   | "end"
   | "reorder"
   | "setup"

@@ -6,7 +6,6 @@ import {
   DoorClosed,
   DoorOpen,
   Expand,
-  RefreshCw,
   Shrink,
   Play,
   Settings,
@@ -430,9 +429,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       <DoorOpen className="w-4 h-4" /> Reopen joining
                     </Button>
                   )}
-                  <Button className="btn-off" disabled={isBusy} onClick={() => hostCommand("/rotate-code")} title="Retire this code; players already in keep playing">
-                    <RefreshCw className="w-4 h-4" /> New code
-                  </Button>
                   <Button className="btn-red" disabled={isBusy} onClick={() => setConfirm({ kind: "end" })}>
                     <Skull className="w-4 h-4" /> End game
                   </Button>

@@ -776,18 +776,6 @@ async function assignNewJoinCode(transaction: sql.Transaction, sessionId: string
   throw new DamnationError(503, "Couldn't generate a new code — try again");
 }
 
-export function rotateJoinCode(sessionId: string, opId: string, generateCode: () => string) {
-  return runMutation({
-    sessionId,
-    opId,
-    actor: { kind: "host" },
-    apply: async (transaction) => {
-      await assignNewJoinCode(transaction, sessionId, generateCode);
-      return { eventType: "rotate_code" };
-    },
-  });
-}
-
 // Reopens a finished game (ended by the host or expired while idle) with its totals intact.
 // Phones drop their tokens when a game ends, so every phone player waits to rejoin with the new
 // code ("Rejoin as"); players without a phone stay as they were. Joining stays closed.

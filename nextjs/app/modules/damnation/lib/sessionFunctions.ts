@@ -230,7 +230,7 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
 }
 
 // Resolves the X-Damnation-Token header to the player and session it belongs to. The code in
-// the URL is not consulted: a host may rotate the code mid-game, and players already in the game must keep
+// the URL is not consulted: resuming a game gives it a new code, and players already in the game must keep
 // working after that.
 export async function requireGuest(request: Request): Promise<{ sessionId: string; playerId: string }> {
   const tokenHash = readPlayerTokenHash(request);
