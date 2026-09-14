@@ -9,10 +9,12 @@ import {
   RefreshCw,
   Shrink,
   Play,
+  Settings,
   Skull,
   Undo2,
   WifiOff,
 } from "lucide-react";
+import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { BackLink } from "@/components/BackLink";
@@ -274,6 +276,11 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             <Button className="btn-link" onClick={toggleFullscreen} title={isFullscreen ? "Exit full screen" : "Full screen"} aria-label={isFullscreen ? "Exit full screen" : "Full screen"}>
               {isFullscreen ? <Shrink className="w-5 h-5" /> : <Expand className="w-5 h-5" />}
             </Button>
+
+            {/* SETTINGS */}
+            <Link className="btn btn-link" href="/modules/damnation/ui/settings" aria-label="Damnation settings" title="Settings">
+              <Settings className="w-5 h-5" />
+            </Link>
 
             {/* HELP */}
             <HelpButton title="Damnation" sections={HOST_HELP} />
