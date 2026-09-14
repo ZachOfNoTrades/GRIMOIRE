@@ -24,6 +24,7 @@ export default function DamnationHomePage() {
   const [resumingId, setResumingId] = useState<string | null>(null);
   const liveSessions = sessions.filter((session) => session.status !== "finished");
   const pastSessions = sessions.filter((session) => session.status === "finished");
+  const openGame = liveSessions[0] ?? null;
 
   useEffect(() => {
     async function load() {
@@ -117,14 +118,27 @@ export default function DamnationHomePage() {
 
           {/* CARD CONTENT */}
           <div className="card-content">
+            {openGame ? (
+              <>
+                {/* OPEN GAME HINT — one open game at a time */}
+                <p className="text-secondary">You have a game open ({openGame.join_code}). End it to start a new one.</p>
 
-            {/* HINT */}
-            <p className="text-secondary">Starting life and the number of players are set on the board.</p>
+                {/* OPEN BOARD BUTTON */}
+                <Button className="btn-blue" onClick={() => router.push(`/modules/damnation/ui/board/${openGame.id}`)}>
+                  <Monitor className="w-4 h-4" /> Open board
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* HINT */}
+                <p className="text-secondary">Starting life and the number of players are set on the board.</p>
 
-            {/* START BUTTON */}
-            <Button className="btn-green" onClick={createGame} disabled={isCreating}>
-              <Monitor className="w-4 h-4" /> {isCreating ? "Starting…" : "Start game & open board"}
-            </Button>
+                {/* START BUTTON */}
+                <Button className="btn-green" onClick={createGame} disabled={isCreating || isLoading}>
+                  <Monitor className="w-4 h-4" /> {isCreating ? "Starting…" : "Start game & open board"}
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -177,7 +191,12 @@ export default function DamnationHomePage() {
                       <Button className="btn-off" onClick={() => router.push(`/modules/damnation/ui/board/${session.id}`)}>
                         View
                       </Button>
-                      <Button className="btn-green" disabled={resumingId !== null} onClick={() => resumeGame(session.id)} title="Reopen this game with its totals and a new join code">
+                      <Button
+                        className="btn-green"
+                        disabled={resumingId !== null || openGame !== null}
+                        onClick={() => resumeGame(session.id)}
+                        title={openGame ? "End your open game to resume this one" : "Reopen this game with its totals and a new join code"}
+                      >
                         {resumingId === session.id ? "Resuming…" : "Resume"}
                       </Button>
                     </div>

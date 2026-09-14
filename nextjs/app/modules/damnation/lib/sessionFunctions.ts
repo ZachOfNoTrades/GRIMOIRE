@@ -61,12 +61,20 @@ export async function purgeOldSessions(): Promise<number> {
 // HOST
 // ---------------------------------------------------------------------------------------------
 
+// A host has at most one open game. The per-host application lock makes the check and the insert
+// atomic, so two quick clicks can't both create one.
 export async function createSession(hostUserId: string, startingLife: number, maxPlayers: number): Promise<HostSnapshot> {
+  await expireIdleSessions();
   const pool = await getMainConnection();
   for (let attempt = 0; attempt < 5; attempt += 1) {
+    const transaction = pool.transaction();
+    await transaction.begin();
     try {
-      const inserted = await pool
-        .request()
+      await new sql.Request(transaction)
+        .input("resource", sql.NVarChar(80), `damnation-host-${normalizeId(hostUserId)}`)
+        .query(`EXEC sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 5000`);
+      await requireNoOpenGame(transaction, hostUserId);
+      const inserted = await new sql.Request(transaction)
         .input("hostUserId", sql.UniqueIdentifier, hostUserId)
         .input("joinCode", sql.VarChar(8), generateJoinCode())
         .input("startingLife", sql.Int, startingLife)
@@ -76,16 +84,34 @@ export async function createSession(hostUserId: string, startingLife: number, ma
           OUTPUT INSERTED.id
           VALUES (@hostUserId, @joinCode, @startingLife, @maxPlayers)
         `);
+      await transaction.commit();
       const snapshot = await readSnapshot(pool, inserted.recordset[0].id);
       if (!snapshot) throw new Error("Failed to read the new Damnation session");
       return snapshot;
     } catch (error) {
+      await transaction.rollback().catch(() => {});
       // A live session already holds this code; draw another.
       if (isUniqueViolation(error)) continue;
       throw error;
     }
   }
   throw new DamnationError(503, "Couldn't generate a join code — try again");
+}
+
+// Refuses when the host already has a game that isn't finished (other than `exceptSessionId`).
+export async function requireNoOpenGame(
+  transaction: sql.Transaction,
+  hostUserId: string,
+  exceptSessionId?: string
+): Promise<void> {
+  const open = await new sql.Request(transaction)
+    .input("hostUserId", sql.UniqueIdentifier, hostUserId)
+    .input("exceptId", sql.UniqueIdentifier, exceptSessionId ?? null)
+    .query(`
+      SELECT TOP 1 id FROM damnation_sessions WITH (UPDLOCK, HOLDLOCK)
+      WHERE host_user_id = @hostUserId AND status <> 'finished' AND (@exceptId IS NULL OR id <> @exceptId)
+    `);
+  if (open.recordset.length > 0) throw new DamnationError(409, "You already have a game open — end it first");
 }
 
 export async function listSessions(hostUserId: string): Promise<SessionSummary[]> {

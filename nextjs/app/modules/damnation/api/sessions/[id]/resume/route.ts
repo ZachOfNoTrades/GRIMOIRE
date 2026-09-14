@@ -8,6 +8,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   return withHost(request, id, "POST /damnation/api/sessions/[id]/resume", async (host) => {
     const body = await parseBody(request, opSchema);
-    return hostResult(await resumeSession(host.sessionId, body.op_id, generateJoinCode));
+    return hostResult(await resumeSession(host.sessionId, body.op_id, host.userId, generateJoinCode));
   });
 }

@@ -6,6 +6,7 @@ import {
   LIFE_MIN,
 } from "./constants";
 import { findLayout } from "./boardLayouts";
+import { requireNoOpenGame } from "./sessionFunctions";
 import { DamnationError, isUniqueViolation } from "./errors";
 import { generatePlayerToken } from "./playerTokens";
 import { broadcastSnapshot, endSession, revokePlayer } from "./sessionBus";
@@ -790,7 +791,7 @@ export function rotateJoinCode(sessionId: string, opId: string, generateCode: ()
 // Reopens a finished game (ended by the host or expired while idle) with its totals intact.
 // Phones drop their tokens when a game ends, so every phone player waits to rejoin with the new
 // code ("Rejoin as"); players without a phone stay as they were. Joining stays closed.
-export function resumeSession(sessionId: string, opId: string, generateCode: () => string) {
+export function resumeSession(sessionId: string, opId: string, hostUserId: string, generateCode: () => string) {
   return runMutation({
     sessionId,
     opId,
@@ -798,6 +799,8 @@ export function resumeSession(sessionId: string, opId: string, generateCode: () 
     allowFinished: true,
     apply: async (transaction, context) => {
       if (context.status !== "finished") throw new DamnationError(409, "This game is still running");
+      // A host has at most one open game.
+      await requireNoOpenGame(transaction, hostUserId, sessionId);
       await assignNewJoinCode(transaction, sessionId, generateCode);
       await request(transaction)
         .input("sessionId", sql.UniqueIdentifier, sessionId)
