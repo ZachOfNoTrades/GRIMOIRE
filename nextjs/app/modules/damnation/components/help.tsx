@@ -30,8 +30,8 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         <strong>Start game</strong> closes joining. <strong>Reopen joining</strong> lets a late arrival in.
-        <strong> New code</strong> retires the current code; players already in keep playing. <strong>Remove</strong>{" "}
-        (under Manage players) takes a player out of the game.
+        <strong> New code</strong> retires the current code; players already in keep playing. The{" "}
+        <strong>X</strong> in the top-right corner of a card on the board takes that player out of the game.
       </>
     ),
   },

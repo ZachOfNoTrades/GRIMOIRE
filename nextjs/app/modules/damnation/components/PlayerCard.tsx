@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Skull, Swords } from "lucide-react";
+import { ChevronDown, ChevronUp, Skull, Swords, X } from "lucide-react";
 import { useState } from "react";
 import { COMMANDER_DAMAGE_LETHAL, isColorKey } from "../lib/constants";
 import type { PendingOverlay } from "../lib/useGameActions";
@@ -29,6 +29,9 @@ interface PlayerCardProps {
   onLife: (delta: number) => void;
   onCommander: (sourcePlayerId: string, delta: number) => void;
   onStatus: (change: { conceded?: boolean; eliminated_override?: boolean | null }) => void;
+  // Board only: shows an X in the top-right corner that removes the player (after a confirm).
+  onRemove?: () => void;
+  removeDisabled?: boolean;
 }
 
 const REASON_LABEL: Record<string, string> = {
@@ -56,6 +59,8 @@ export default function PlayerCard({
   onLife,
   onCommander,
   onStatus,
+  onRemove,
+  removeDisabled = false,
 }: PlayerCardProps) {
   // STATE
   const [showCommander, setShowCommander] = useState(false);
@@ -103,6 +108,20 @@ export default function PlayerCard({
 
         {/* TAGS */}
         {isMe && <span className="dmn-tag">You</span>}
+
+        {/* REMOVE */}
+        {onRemove && (
+          <button
+            type="button"
+            className="dmn-card-remove"
+            disabled={removeDisabled}
+            onClick={onRemove}
+            aria-label={`Remove ${player.display_name}`}
+            title="Remove this player from the game"
+          >
+            <X className="w-4 h-4" aria-hidden />
+          </button>
+        )}
       </div>
 
       {/* ELIMINATION */}

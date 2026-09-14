@@ -14,7 +14,6 @@ import {
   UserCog,
   Skull,
   Undo2,
-  UserX,
   WifiOff,
 } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
@@ -73,7 +72,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   const isFinished = snapshot?.status === "finished";
   const connected = new Set(presence?.connected_player_ids ?? []);
-  // The desktop controls every player's life at any time; the toggle only reveals player removal.
+  // The desktop controls every player's life at any time; the toggle only reveals reordering.
   const isManagingPlayers = isEditing && !isFinished;
   const openSpots = snapshot ? Math.max(0, snapshot.max_players - snapshot.players.length) : 0;
   const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
@@ -220,7 +219,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                 className={isEditing ? "btn-blue" : "btn-link"}
                 onClick={() => setIsEditing((value) => !value)}
                 aria-pressed={isEditing}
-                title="Manage players: move or remove a player"
+                title="Manage players: move a player"
                 aria-label="Manage players"
               >
                 <UserCog className="w-5 h-5" />
@@ -319,6 +318,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       onLife={(delta) => actions.changeLife(player.id, delta)}
                       onCommander={(sourceId, delta) => actions.changeCommanderDamage(player.id, sourceId, delta)}
                       onStatus={(change) => actions.changeStatus(player.id, change)}
+                      onRemove={isFinished ? undefined : () => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })}
+                      removeDisabled={isBusy}
                       fill={layout !== null}
                     />
 
@@ -330,9 +331,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                         </Button>
                         <Button className="btn-off" disabled={isBusy || index === snapshot.players.length - 1} onClick={() => hostCommand(`/players/${player.id}/move`, { direction: "later" })} title="Move later in the table layout" aria-label={`Move ${player.display_name} later`}>
                           <ChevronRight className="w-4 h-4" />
-                        </Button>
-                        <Button className="btn-off flex-1" disabled={isBusy} onClick={() => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })} title="Remove this player from the game">
-                          <UserX className="w-4 h-4" /> Remove
                         </Button>
                       </div>
                     )}
