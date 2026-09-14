@@ -48,11 +48,12 @@ export default function GameSetup({
   }
 
   return (
-    /* GAME SETUP — starting life and players side by side, wrapping under each other when narrow */
-    <div className="flex flex-wrap gap-x-8 gap-y-3">
+    /* GAME SETUP — starting life and players side by side, wrapping under each other when narrow.
+       Each label sits left of its buttons to keep the join panel short. */
+    <div className="flex flex-wrap gap-x-8 gap-y-2">
 
       {/* STARTING LIFE */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
 
         {/* STARTING LIFE LABEL */}
         <div className="text-h2">Starting life</div>
@@ -106,7 +107,7 @@ export default function GameSetup({
       </div>
 
       {/* PLAYER COUNT */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
 
         {/* PLAYER COUNT LABEL */}
         <div className="text-h2">Players</div>

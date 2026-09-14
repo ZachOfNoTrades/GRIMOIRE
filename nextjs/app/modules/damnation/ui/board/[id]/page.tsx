@@ -77,9 +77,14 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   // A fixed table layout only fits when the board has its full width (the activity column sits
   // beside it from 1024px); narrower screens keep the automatic grid.
   const layout = isWide ? findLayout(snapshot?.board_layout, snapshot?.max_players ?? 0) : null;
+  // Without a table layout, a wide board picks its column count from the number of spots so
+  // every row fills (2 across for 2 or 4, 3 across otherwise) and the board fits a square screen.
+  const autoColumns = snapshot && snapshot.max_players !== 2 && snapshot.max_players !== 4 ? 3 : 2;
   const gridStyle = layout
     ? { gridTemplateColumns: layout.columns, gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" ") }
-    : undefined;
+    : isWide
+      ? { gridTemplateColumns: `repeat(${autoColumns}, minmax(0, 1fr))` }
+      : undefined;
   const slotStyle = (index: number) => (layout ? { gridArea: SLOT_NAMES[index] } : undefined);
 
   useEffect(() => {
@@ -282,7 +287,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                 </div>
               )}
 
-              {/* JOIN PANEL */}
+              {/* JOIN PANEL — QR on the left; the code, and while joining is open the game setup, beside it */}
               {showJoinPanel && snapshot.join_url && snapshot.join_code && (
                 <div className="card">
                   <div className="dmn-join">
@@ -290,30 +295,32 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                     {/* QR CODE */}
                     <QrCode value={snapshot.join_url} label={`QR code to join game ${snapshot.join_code}`} />
 
-                    {/* JOIN TEXT */}
-                    <div className="flex flex-col gap-2 min-w-0">
-                      <span className="text-secondary">Scan, or go to <strong>{snapshot.join_url.replace("https://", "").replace(`/${snapshot.join_code}`, "")}</strong> and enter</span>
-                      <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
-                      <span className="text-secondary">
-                        {snapshot.status === "lobby"
-                          ? `${snapshot.players.length}/${snapshot.max_players} players`
-                          : "Joining is closed — players rejoin with the code"}
-                      </span>
+                    {/* JOIN BODY */}
+                    <div className="dmn-join-body">
+
+                      {/* JOIN TEXT */}
+                      <div className="flex flex-col gap-2 min-w-0">
+                        <span className="text-secondary">Scan, or go to <strong>{snapshot.join_url.replace("https://", "").replace(`/${snapshot.join_code}`, "")}</strong> and enter</span>
+                        <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
+                        <span className="text-secondary">
+                          {snapshot.status === "lobby"
+                            ? `${snapshot.players.length}/${snapshot.max_players} players`
+                            : "Joining is closed — players rejoin with the code"}
+                        </span>
+                      </div>
+
+                      {/* GAME SETUP — while joining is open */}
+                      {snapshot.status === "lobby" && (
+                        <GameSetup
+                          startingLife={snapshot.starting_life}
+                          maxPlayers={snapshot.max_players}
+                          playerCount={snapshot.players.length}
+                          disabled={isBusy}
+                          onChange={(change) => hostCommand("/setup", change)}
+                        />
+                      )}
                     </div>
                   </div>
-
-                  {/* GAME SETUP — while joining is open */}
-                  {snapshot.status === "lobby" && (
-                    <div className="border-t mt-4 pt-4">
-                      <GameSetup
-                        startingLife={snapshot.starting_life}
-                        maxPlayers={snapshot.max_players}
-                        playerCount={snapshot.players.length}
-                        disabled={isBusy}
-                        onChange={(change) => hostCommand("/setup", change)}
-                      />
-                    </div>
-                  )}
                 </div>
               )}
 

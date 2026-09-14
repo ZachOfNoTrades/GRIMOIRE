@@ -7837,6 +7837,16 @@ body:has(.quest-cal-page) > .page {
   font-size: clamp(3rem, 32cqi, 9rem);
 }
 
+/* On the board every player's card has to fit on one screen, so its tap zones are shorter than
+   on a phone, where the card is the whole screen width. */
+.dmn-card-board .dmn-tap-zones {
+  min-height: clamp(4.5rem, 24cqi, 11rem);
+}
+
+.dmn-card-board .dmn-tap-zones .dmn-life {
+  font-size: clamp(2.5rem, 22cqi, 9rem);
+}
+
 .dmn-tap-zones {
   position: relative;
   display: grid;
@@ -7940,6 +7950,14 @@ body:has(.quest-cal-page) > .page {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   cursor: pointer;
+}
+
+/* One line however narrow the card: a wrapped label made the card taller. */
+.dmn-toggle > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dmn-cmdr-rows {
@@ -8108,12 +8126,30 @@ body:has(.quest-cal-page) > .page {
   height: 2rem;
 }
 
-/* JOIN PANEL — code + QR while seats are open. */
+/* JOIN PANEL — QR on the left, the code and game setup beside it. Side by side from 640px, so
+   the panel stays short enough for the whole board to fit a square screen. */
 .dmn-join {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
+}
+
+.dmn-join .dmn-qr {
+  flex: none;
+}
+
+.dmn-join-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .dmn-join {
+    flex-wrap: nowrap;
+  }
 }
 
 .dmn-code {
