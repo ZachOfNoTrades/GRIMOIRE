@@ -330,7 +330,7 @@ export default function PlayerCard({
               <div className="dmn-status-row">
                 {isOut ? (
                   <button type="button" className="dmn-step" onClick={() => onStatus({ conceded: false, eliminated_override: false })} title="Put this player back in the game">
-                    Back in
+                    Jump back in
                   </button>
                 ) : (
                   /* OUT — one button for conceding or being knocked out */
