@@ -116,7 +116,7 @@ export default function WikiSearch({ template, embed, className = "btn-off" }: W
         {!resultUrl && (
           <p className="text-secondary">
             {embed
-              ? `Results from ${siteHost} show here.`
+              ? `Results provided by ${siteHost}`
               : `Results from ${siteHost} open in a new tab.`}
           </p>
         )}
