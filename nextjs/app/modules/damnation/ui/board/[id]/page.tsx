@@ -311,6 +311,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       player={player}
                       players={snapshot.players}
                       cells={snapshot.commander_damage}
+                      commanderDamage={snapshot.commander_damage_enabled}
                       overlay={actions.overlay}
                       variant="board"
                       editable={!isFinished}

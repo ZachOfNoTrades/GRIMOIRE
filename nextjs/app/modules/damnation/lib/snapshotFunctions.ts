@@ -39,6 +39,7 @@ interface SessionRow {
   board_layout: string | null;
   wiki_search_template: string | null;
   wiki_embed: boolean | null;
+  commander_damage_enabled: boolean | null;
 }
 
 interface PlayerRow {
@@ -98,7 +99,7 @@ export async function readSnapshot(
     .input("eventLimit", sql.Int, RECENT_EVENT_LIMIT)
     .query(`
       SELECT s.id, s.host_user_id, s.status, s.join_code, s.starting_life, s.max_seats AS max_players, s.version, s.ts_created, s.board_layout,
-             ds.wiki_search_template, ds.wiki_embed
+             ds.wiki_search_template, ds.wiki_embed, ds.commander_damage_enabled
       FROM damnation_sessions s
       LEFT JOIN damnation_settings ds ON ds.user_id = s.host_user_id
       WHERE s.id = @sessionId;
@@ -179,6 +180,7 @@ export async function readSnapshot(
     max_players: session.max_players,
     wiki_search_template: session.wiki_search_template ?? DEFAULT_WIKI_SEARCH_TEMPLATE,
     wiki_embed: session.wiki_embed ?? true,
+    commander_damage_enabled: session.commander_damage_enabled ?? true,
     ts_created: session.ts_created.toISOString(),
     players,
     former_players: recordsets[2].map((player) => ({ id: normalizeId(player.id)!, display_name: player.display_name })),

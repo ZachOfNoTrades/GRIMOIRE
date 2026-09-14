@@ -6,19 +6,22 @@ import { getSettings, saveSettings } from "../../lib/sessionFunctions";
 import { readSnapshot } from "../../lib/snapshotFunctions";
 import { normalizeWikiTemplate, parseBody, settingsSchema } from "../../lib/validation";
 
-// GET /modules/damnation/api/settings — the host's wiki search settings.
+// GET /modules/damnation/api/settings — the host's wiki search and commander damage settings.
 export async function GET(request: Request) {
   return withHost(request, null, "GET /damnation/api/settings", async (host) =>
     NextResponse.json(await getSettings(host.userId), { headers: NO_STORE })
   );
 }
 
-// PUT /modules/damnation/api/settings — save them, then push the change to the host's live games
-// so phones pick up a replacement wiki straight away.
+// PUT /modules/damnation/api/settings — save any subset of them, then push the change to the
+// host's live games so boards and phones pick it up straight away.
 export async function PUT(request: Request) {
   return withHost(request, null, "PUT /damnation/api/settings", async (host) => {
     const body = await parseBody(request, settingsSchema);
-    const saved = await saveSettings(host.userId, normalizeWikiTemplate(body.wiki_search_template), body.wiki_embed);
+    const saved = await saveSettings(host.userId, {
+      ...body,
+      ...(body.wiki_search_template !== undefined ? { wiki_search_template: normalizeWikiTemplate(body.wiki_search_template) } : {}),
+    });
 
     const pool = await getMainConnection();
     const live = await pool

@@ -112,9 +112,11 @@ export function normalizeWikiTemplate(raw: string | null | undefined): string | 
   return template;
 }
 
+// Any subset of the settings; fields left out keep their saved value.
 export const settingsSchema = z.object({
-  wiki_search_template: z.string().nullable(),
-  wiki_embed: z.boolean(),
+  wiki_search_template: z.string().nullable().optional(),
+  wiki_embed: z.boolean().optional(),
+  commander_damage_enabled: z.boolean().optional(),
 });
 
 // Parses a JSON body against a schema, turning failures into a 400 with the first message.

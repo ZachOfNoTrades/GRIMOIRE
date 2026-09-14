@@ -22,6 +22,8 @@ interface PlayerCardProps {
   editable: boolean;
   connected: boolean | null;
   isMe?: boolean;
+  // The host's commander damage setting; off leaves only the status controls behind the toggle.
+  commanderDamage?: boolean;
   // Stretch to fill a table-layout cell: name stays at the top, the tap zones take the space.
   fill?: boolean;
   onLife: (delta: number) => void;
@@ -49,6 +51,7 @@ export default function PlayerCard({
   editable,
   connected,
   isMe = false,
+  commanderDamage = true,
   fill = false,
   onLife,
   onCommander,
@@ -66,9 +69,9 @@ export default function PlayerCard({
     const stored = cells.find((cell) => cell.source_player_id === sourceId && cell.target_player_id === player.id)?.damage ?? 0;
     return Math.max(0, stored + (overlay.commander[`${player.id}:${sourceId}`] ?? 0));
   };
-  const damageChips = opponents
-    .map((source) => ({ source, damage: damageFrom(source.id) }))
-    .filter((entry) => entry.damage > 0);
+  const damageChips = commanderDamage
+    ? opponents.map((source) => ({ source, damage: damageFrom(source.id) })).filter((entry) => entry.damage > 0)
+    : [];
 
   const cardClass = [
     "dmn-card",
@@ -159,8 +162,8 @@ export default function PlayerCard({
         </div>
       )}
 
-      {/* COMMANDER DAMAGE EDITOR */}
-      {editable && opponents.length > 0 && (
+      {/* COMMANDER DAMAGE + STATUS EDITOR */}
+      {editable && (!commanderDamage || opponents.length > 0) && (
         <>
           {/* TOGGLE */}
           <button
@@ -169,14 +172,14 @@ export default function PlayerCard({
             onClick={() => setShowCommander((open) => !open)}
             aria-expanded={showCommander}
           >
-            <span>Commander damage taken</span>
+            <span>{commanderDamage ? "Commander damage taken" : "Status"}</span>
             {showCommander ? <ChevronUp className="w-4 h-4" aria-hidden /> : <ChevronDown className="w-4 h-4" aria-hidden />}
           </button>
 
           {/* ROWS — one per opposing commander */}
           {showCommander && (
             <div className="dmn-cmdr-rows">
-              {opponents.map((source) => (
+              {commanderDamage && opponents.map((source) => (
                 <div key={source.id} className="dmn-cmdr-row">
                   <Swords className="w-4 h-4" aria-hidden />
                   <span className="dmn-card-name">{source.display_name}</span>

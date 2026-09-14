@@ -11,6 +11,16 @@ import type { DamnationSettings } from "../../types/damnation";
 
 const SETTINGS_HELP = [
   {
+    heading: "Commander damage",
+    body: (
+      <>
+        On: every card in your games has a Commander damage taken section, and 21 from one commander puts a player out.
+        Off: for other formats — the section only holds the Concede and Out controls. Changes reach games already in
+        progress straight away.
+      </>
+    ),
+  },
+  {
     heading: "Wiki search",
     body: (
       <>
@@ -44,6 +54,7 @@ export default function DamnationSettingsPage() {
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingGame, setIsSavingGame] = useState(false);
   const isDirty = !!settings && (template !== settings.wiki_search_template || embed !== settings.wiki_embed);
   const previewUrl = template.includes(WIKI_QUERY_PLACEHOLDER) && /^https?:\/\//i.test(template)
     ? buildWikiSearchUrl(template, testQuery)
@@ -88,6 +99,26 @@ export default function DamnationSettingsPage() {
     }
   }
 
+  // Saves on change: a single switch has nothing to review before saving.
+  async function saveCommanderDamage(enabled: boolean) {
+    setIsSavingGame(true);
+    try {
+      const response = await fetch("/modules/damnation/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ commander_damage_enabled: enabled }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Couldn't save");
+      setSettings((current) => (current ? { ...current, commander_damage_enabled: data.commander_damage_enabled } : data));
+      toast.success(enabled ? "Commander damage on" : "Commander damage off");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't save");
+    } finally {
+      setIsSavingGame(false);
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-container">
@@ -112,6 +143,35 @@ export default function DamnationSettingsPage() {
 
         {/* LOADING PLACEHOLDER */}
         {isLoading && <p className="text-secondary">Loading settings…</p>}
+
+        {/* GAME CARD */}
+        {!isLoading && settings && (
+          <div className="card max-w-3xl mb-6">
+
+            {/* CARD HEADER */}
+            <div className="card-header">
+              <h2 className="text-card-title">Games</h2>
+            </div>
+
+            {/* CARD CONTENT */}
+            <div className="card-content">
+
+              {/* COMMANDER DAMAGE TOGGLE */}
+              <label className="flex items-center gap-2 text-primary">
+                <input
+                  type="checkbox"
+                  checked={settings.commander_damage_enabled}
+                  disabled={isSavingGame}
+                  onChange={(event) => saveCommanderDamage(event.target.checked)}
+                />
+                Track commander damage
+              </label>
+
+              {/* COMMANDER DAMAGE HINT */}
+              <p className="text-secondary">Turn off for formats other than Commander.</p>
+            </div>
+          </div>
+        )}
 
         {/* WIKI CARD */}
         {!isLoading && settings && (

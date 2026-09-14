@@ -63,6 +63,8 @@ export interface SessionSnapshot {
   max_players: number;
   wiki_search_template: string;
   wiki_embed: boolean;
+  // The host's setting: when false, cards offer no commander damage (status controls remain).
+  commander_damage_enabled: boolean;
   players: PlayerView[];
   // Players no longer in the game, so the activity feed can still name them.
   former_players: { id: string; display_name: string }[];
@@ -108,6 +110,7 @@ export interface SessionSummary {
 export interface DamnationSettings {
   wiki_search_template: string;
   wiki_embed: boolean;
+  commander_damage_enabled: boolean;
   is_default_template: boolean;
 }
 

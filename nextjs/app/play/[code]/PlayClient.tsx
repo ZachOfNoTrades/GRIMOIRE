@@ -450,6 +450,7 @@ function Controller({
   const cardProps = (playerId: string) => ({
     players: snapshot.players,
     cells: snapshot.commander_damage,
+    commanderDamage: snapshot.commander_damage_enabled,
     overlay: actions.overlay,
     editable: true,
     onLife: (delta: number) => actions.changeLife(playerId, delta),

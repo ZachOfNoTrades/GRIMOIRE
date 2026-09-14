@@ -70,7 +70,8 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         Open <strong>Commander damage taken</strong> on a player&apos;s card and step the counter for the commander that
-        hit them. It also takes that much life. 21 from one commander puts a player out.
+        hit them. It also takes that much life. 21 from one commander puts a player out. Turn it off in Damnation settings
+        for other formats.
       </>
     ),
   },
