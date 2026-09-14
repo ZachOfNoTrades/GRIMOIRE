@@ -513,7 +513,12 @@ function Controller({
             className="dmn-grid"
             style={{ gridTemplateColumns: layout.columns, gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" ") }}
           >
-            {arrangeSpots(snapshot.players, snapshot.max_players).map((player, index) => player && (
+            {arrangeSpots(snapshot.players, snapshot.max_players).map((player, index) => !player ? (
+              /* OPEN SPOT — holds its place in the layout so the other cards keep their size */
+              <div key={`open-${index}`} className="dmn-empty-seat" style={{ gridArea: SLOT_NAMES[index] }}>
+                {snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
+              </div>
+            ) : (
               <div key={player.id} className="flex flex-col min-w-0" style={{ gridArea: SLOT_NAMES[index] }}>
                 <PlayerCard
                   player={player}
