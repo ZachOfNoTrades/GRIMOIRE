@@ -97,8 +97,9 @@ export const PLAYER_HELP: HelpSection[] = [
     heading: "Other players",
     body: (
       <>
-        You can change anyone&apos;s life, commander damage and status from their card. Quick taps are sent together a moment
-        later; the small number beside a total is what hasn&apos;t reached the table yet.
+        You can change anyone&apos;s life, commander damage and status from their card. Taps on the same counter are sent
+        together once you pause for 5 seconds, as one change to undo; the small number beside a total is what hasn&apos;t
+        reached the table yet.
       </>
     ),
   },

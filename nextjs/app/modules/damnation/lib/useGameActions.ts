@@ -7,8 +7,10 @@ import type { SessionSnapshot } from "../types/damnation";
 
 // Sends game changes for the board and the phones.
 //
-// - Rapid taps on the same counter coalesce for COALESCE_MS into one request, so five quick
-//   "−1"s become one "−5": less load, a readable activity feed, and one undo per burst.
+// - Taps on the same counter coalesce into one request until COALESCE_MS pass without another
+//   tap, so a run of "−1"s becomes one "−5": less load, a readable activity feed, and one undo
+//   per burst. Leaving the page (tab hidden, phone locked, tab closed) sends what's waiting
+//   straight away.
 // - Requests go one at a time, in order, each with a client-generated op_id. A request that
 //   fails on the network (or a 5xx / 429) is resent with the SAME op_id, so the server applies
 //   it exactly once however many times it arrives.
@@ -16,7 +18,7 @@ import type { SessionSnapshot } from "../types/damnation";
 //   snapshot. It clears when the op_id shows up in a snapshot's event list or the request
 //   returns, whichever comes first, so a broadcast arriving before the response can't double-count.
 
-const COALESCE_MS = 400;
+const COALESCE_MS = 5_000;
 const MAX_BACKOFF_MS = 10_000;
 
 type OperationKind = "life" | "commander" | "status" | "undo";
@@ -103,6 +105,8 @@ export function useGameActions<T extends SessionSnapshot>({
             headers: { "content-type": "application/json", ...headersRef.current },
             body: JSON.stringify(body),
             cache: "no-store",
+            // Lets a request started as the page is being closed still reach the server.
+            keepalive: true,
           });
         } catch {
           response = null;
@@ -142,15 +146,23 @@ export function useGameActions<T extends SessionSnapshot>({
     }
   }, [baseUrl]);
 
-  // Retry immediately when the phone regains signal.
+  // Send everything now instead of waiting out the coalescing window or a retry backoff: when
+  // the phone regains signal, and when the page is hidden or closed.
   useEffect(() => {
-    const onOnline = () => {
+    const flush = () => {
       for (const operation of queueRef.current) operation.readyAt = Math.min(operation.readyAt, Date.now());
       void pump();
     };
-    window.addEventListener("online", onOnline);
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("online", flush);
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHidden);
     return () => {
-      window.removeEventListener("online", onOnline);
+      window.removeEventListener("online", flush);
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onHidden);
       clearTimeout(timerRef.current);
     };
   }, [pump]);
@@ -219,6 +231,8 @@ export function useGameActions<T extends SessionSnapshot>({
 
   const enqueueImmediate = useCallback(
     (kind: "status" | "undo", path: string, targetPlayerId: string | null, extra: Record<string, unknown>) => {
+      // Taps still waiting out their coalescing window go first rather than holding this up.
+      for (const operation of queueRef.current) operation.readyAt = Math.min(operation.readyAt, Date.now());
       queueRef.current.push({
         opId: generateUUID(),
         kind,
@@ -246,11 +260,8 @@ export function useGameActions<T extends SessionSnapshot>({
     [enqueueImmediate]
   );
 
-  const undo = useCallback(() => {
-    // Anything still waiting out its coalescing window goes first, so undo acts on it.
-    for (const operation of queueRef.current) operation.readyAt = Math.min(operation.readyAt, Date.now());
-    enqueueImmediate("undo", "/undo", null, {});
-  }, [enqueueImmediate]);
+  // Waiting taps are sent first (enqueueImmediate), so undo acts on them.
+  const undo = useCallback(() => enqueueImmediate("undo", "/undo", null, {}), [enqueueImmediate]);
 
   const overlay: PendingOverlay = useMemo(() => {
     const life: Record<string, number> = {};
