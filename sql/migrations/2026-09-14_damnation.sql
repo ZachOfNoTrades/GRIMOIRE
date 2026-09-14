@@ -80,7 +80,7 @@ BEGIN
         life_total INT NOT NULL,
         conceded BIT NOT NULL DEFAULT 0,
         eliminated_override BIT NULL, -- NULL = derive from life/commander damage, 1 = forced out, 0 = forced alive
-        kicked BIT NOT NULL DEFAULT 0, -- 1 = removed from the game; seat, colour and name are released
+        kicked BIT NOT NULL DEFAULT 0, -- 1 = removed from the game; seat, color and name are released
         ts_created DATETIME DEFAULT GETDATE(),
         ts_updated DATETIME DEFAULT GETDATE(),
 
@@ -89,7 +89,7 @@ BEGIN
         CONSTRAINT FK_damnation_players_session FOREIGN KEY (session_id) REFERENCES damnation_sessions(id) ON DELETE CASCADE
     );
 
-    -- Seat, colour and name are unique among players still in the game (kicked rows keep history)
+    -- Seat, color and name are unique among players still in the game (kicked rows keep history)
     CREATE UNIQUE INDEX UX_damnation_players_seat ON damnation_players (session_id, seat) WHERE kicked = 0;
     CREATE UNIQUE INDEX UX_damnation_players_color ON damnation_players (session_id, color_key) WHERE kicked = 0;
     CREATE UNIQUE INDEX UX_damnation_players_name ON damnation_players (session_id, display_name) WHERE kicked = 0;

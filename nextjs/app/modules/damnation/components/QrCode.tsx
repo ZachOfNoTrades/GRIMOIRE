@@ -11,16 +11,16 @@ export default function QrCode({ value, label }: { value: string; label: string 
   const [dataUrl, setDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    let canceled = false;
     QRCode.toDataURL(value, { errorCorrectionLevel: "M", margin: 1, width: 512 })
       .then((url) => {
-        if (!cancelled) setDataUrl(url);
+        if (!canceled) setDataUrl(url);
       })
       .catch(() => {
-        if (!cancelled) setDataUrl(null);
+        if (!canceled) setDataUrl(null);
       });
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [value]);
 

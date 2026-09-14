@@ -1,9 +1,9 @@
 -- =============================================================================
--- Migration: Damnation — players may share a colour
+-- Migration: Damnation — players may share a color
 -- Date: 2026-09-14
 -- DB: GRIMOIRE-MAIN
 --
--- Colours are a way to tell cards apart, not an identity; two players may pick the same
+-- Colors are a way to tell cards apart, not an identity; two players may pick the same
 -- one. Names stay unique per game.
 -- =============================================================================
 

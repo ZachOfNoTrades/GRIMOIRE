@@ -218,7 +218,7 @@ function JoinScreen({
 }) {
   // INPUT
   const [name, setName] = useState("");
-  // Colours can be shared; preselecting one nobody has yet just makes cards easier to tell apart.
+  // Colors can be shared; preselecting one nobody has yet just makes cards easier to tell apart.
   const firstUnused = PALETTE.find((entry) => !lobby.taken_colors.includes(entry.key))?.key ?? PALETTE[0].key;
   const [color, setColor] = useState<string>(firstUnused);
 
@@ -252,7 +252,7 @@ function JoinScreen({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!canJoin) return;
-    // Drop the on-screen keyboard; on a refusal (name or colour taken) the toast must be visible.
+    // Drop the on-screen keyboard; on a refusal (name or color taken) the toast must be visible.
     (document.activeElement as HTMLElement | null)?.blur();
     send({ display_name: name.trim(), color_key: color });
   }
@@ -300,11 +300,11 @@ function JoinScreen({
                 enterKeyHint="go"
               />
 
-              {/* COLOUR LABEL */}
-              <div className="text-h2">Your colour</div>
+              {/* COLOR LABEL */}
+              <div className="text-h2">Your color</div>
 
-              {/* COLOUR PICKER */}
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Colour">
+              {/* COLOR PICKER */}
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Color">
                 {PALETTE.map((entry) => (
                   <button
                     key={entry.key}

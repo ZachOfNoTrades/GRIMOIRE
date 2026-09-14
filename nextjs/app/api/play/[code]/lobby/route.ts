@@ -5,7 +5,7 @@ import { NO_STORE } from "@/app/modules/damnation/lib/routeHandlers";
 import { findSessionIdByCode, getLobbyView } from "@/app/modules/damnation/lib/sessionFunctions";
 import { requireJoinCode } from "@/app/modules/damnation/lib/validation";
 
-// GET /api/play/[code]/lobby — public pre-join view: is the table open, which colours are
+// GET /api/play/[code]/lobby — public pre-join view: is the table open, which colors are
 // taken, which seats the host has freed. No life totals; misses are rate-limited per address.
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {

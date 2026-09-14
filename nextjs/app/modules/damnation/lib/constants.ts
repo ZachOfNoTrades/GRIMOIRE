@@ -1,8 +1,8 @@
 // Shared by server and client code — keep this file free of Node-only imports.
 
-// PLAYER PALETTE — seat colours, named for the mana they evoke. Only these keys are ever
+// PLAYER PALETTE — seat colors, named for the mana they evoke. Only these keys are ever
 // stored or rendered; each maps to a `.dmn-seat-<key>` design-system class in globals.css,
-// so a guest-chosen colour can never carry raw CSS into the host's page.
+// so a guest-chosen color can never carry raw CSS into the host's page.
 export const PALETTE = [
   { key: "plains", label: "White" },
   { key: "island", label: "Blue" },
@@ -10,7 +10,7 @@ export const PALETTE = [
   { key: "mountain", label: "Red" },
   { key: "forest", label: "Green" },
   { key: "gold", label: "Gold" },
-  { key: "artifact", label: "Grey" },
+  { key: "artifact", label: "Gray" },
 ] as const;
 
 export type ColorKey = (typeof PALETTE)[number]["key"];

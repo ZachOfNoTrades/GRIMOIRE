@@ -209,7 +209,7 @@ BEGIN TRY
             conceded BIT NOT NULL DEFAULT 0,
             eliminated_override BIT NULL, -- NULL = derive from life/commander damage, 1 = forced out, 0 = forced alive
             is_manual BIT NOT NULL CONSTRAINT DF_damnation_players_is_manual DEFAULT 0, -- 1 = added by the host from the board, no phone; not claimable until handed to a phone
-            kicked BIT NOT NULL DEFAULT 0, -- 1 = removed from the game; seat, colour and name are released
+            kicked BIT NOT NULL DEFAULT 0, -- 1 = removed from the game; seat, color and name are released
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 
@@ -218,7 +218,7 @@ BEGIN TRY
             CONSTRAINT FK_damnation_players_session FOREIGN KEY (session_id) REFERENCES damnation_sessions(id) ON DELETE CASCADE
         );
 
-        -- Seat and name are unique among players still in the game (kicked rows keep history); colours may be shared
+        -- Seat and name are unique among players still in the game (kicked rows keep history); colors may be shared
         CREATE UNIQUE INDEX UX_damnation_players_seat ON damnation_players (session_id, seat) WHERE kicked = 0;
         CREATE UNIQUE INDEX UX_damnation_players_name ON damnation_players (session_id, display_name) WHERE kicked = 0;
         CREATE UNIQUE INDEX UX_damnation_players_token ON damnation_players (token_hash) WHERE token_hash IS NOT NULL;

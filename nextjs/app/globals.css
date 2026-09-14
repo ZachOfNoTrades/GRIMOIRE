@@ -7614,12 +7614,12 @@ body:has(.quest-cal-page) > .page {
 
 /* ============================================================================
    DAMNATION — multiplayer MTG life tracker (app/modules/damnation, app/play).
-   A player's whole card takes their seat colour, and the life total is the
+   A player's whole card takes their seat color, and the life total is the
    largest thing on it, so the table can read everyone's life from across the room.
    ========================================================================== */
 
-/* SEAT PALETTE — the only colours a guest can choose. The same in both themes: a seat
-   colour is the player's identity on every phone and the board, so it must not change
+/* SEAT PALETTE — the only colors a guest can choose. The same in both themes: a seat
+   color is the player's identity on every phone and the board, so it must not change
    when one device is in dark mode. Each pairs a fill with a legible foreground. */
 :root {
   --dmn-plains-bg: #d9cfae;
@@ -7648,7 +7648,7 @@ body:has(.quest-cal-page) > .page {
 .dmn-seat-gold { --dmn-seat-bg: var(--dmn-gold-bg); --dmn-seat-fg: var(--dmn-gold-fg); }
 .dmn-seat-artifact { --dmn-seat-bg: var(--dmn-artifact-bg); --dmn-seat-fg: var(--dmn-artifact-fg); }
 
-/* SWATCH — a colour choice in the join form. */
+/* SWATCH — a color choice in the join form. */
 .dmn-swatch {
   width: 2.75rem;
   height: 2.75rem;

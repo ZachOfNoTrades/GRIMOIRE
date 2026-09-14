@@ -42,7 +42,7 @@ const displayName = z
   .refine((value) => [...value].length <= NAME_MAX_LENGTH, `Names are at most ${NAME_MAX_LENGTH} characters`)
   .refine((value) => !FORBIDDEN_NAME_CHARACTERS.test(value), "That name has characters that aren't allowed");
 
-const colorKey = z.string().refine((value) => COLOR_KEYS.includes(value), "Unknown colour");
+const colorKey = z.string().refine((value) => COLOR_KEYS.includes(value), "Unknown color");
 
 export const joinSchema = z.union([
   z.object({ op_id: uuid, display_name: displayName, color_key: colorKey }),

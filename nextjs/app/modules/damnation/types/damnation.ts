@@ -84,7 +84,7 @@ export interface LobbyView {
   status: SessionStatus;
   max_seats: number;
   seats_taken: number;
-  // Colours already in use — only used to preselect an unused one; any colour can be picked.
+  // Colors already in use — only used to preselect an unused one; any color can be picked.
   taken_colors: string[];
   open_seats: { player_id: string; seat: number; display_name: string; color_key: string }[];
 }

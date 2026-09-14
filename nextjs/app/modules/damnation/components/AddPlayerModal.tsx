@@ -5,7 +5,7 @@ import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { NAME_MAX_LENGTH, PALETTE } from "../lib/constants";
 
-// Board-side form for seating a player who has no phone. Same rules as a guest join: any colour,
+// Board-side form for seating a player who has no phone. Same rules as a guest join: any color,
 // unique name (re-checked by the server under the session lock).
 export default function AddPlayerModal({
   isOpen,
@@ -27,7 +27,7 @@ export default function AddPlayerModal({
   // STATE
   const canAdd = name.trim().length > 0 && !isSaving;
 
-  // Fresh form each time it opens, preselecting a colour nobody has yet (colours can be shared).
+  // Fresh form each time it opens, preselecting a color nobody has yet (colors can be shared).
   useEffect(() => {
     if (!isOpen) return;
     setName("");
@@ -63,11 +63,11 @@ export default function AddPlayerModal({
           enterKeyHint="done"
         />
 
-        {/* COLOUR LABEL */}
-        <div className="text-h2">Colour</div>
+        {/* COLOR LABEL */}
+        <div className="text-h2">Color</div>
 
-        {/* COLOUR PICKER */}
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Colour">
+        {/* COLOR PICKER */}
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Color">
           {PALETTE.map((entry) => (
             <button
               key={entry.key}

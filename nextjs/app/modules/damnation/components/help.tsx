@@ -8,7 +8,7 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         Start a game and open its board on a screen everyone can see. Players scan the QR code or go to the
-        join address and type the code — no account needed. Each player picks a name and a colour on their phone.
+        join address and type the code — no account needed. Each player picks a name and a color on their phone.
       </>
     ),
   },

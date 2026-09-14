@@ -12,7 +12,7 @@ import { readSnapshot } from "./snapshotFunctions";
 import type { EventType, HostSnapshot, SessionStatus } from "../types/damnation";
 
 // Every write to a session goes through runMutation, one transaction that:
-//   1. bumps damnation_sessions.version — the row lock this takes serialises every write to
+//   1. bumps damnation_sessions.version — the row lock this takes serializes every write to
 //      the session, so concurrent taps, joins and undos can never interleave;
 //   2. refuses an op_id it has already applied, so a retried request can't double-apply;
 //   3. applies the change and records the event (with the deltas actually applied);
@@ -406,9 +406,9 @@ export function undoLastChange(sessionId: string, opId: string, actor: Actor) {
 // SEATING
 // ---------------------------------------------------------------------------------------------
 
-// Seats a new player in the lowest free seat. Colours may be shared; names may not. Shared by guest joins (with a token) and
+// Seats a new player in the lowest free seat. Colors may be shared; names may not. Shared by guest joins (with a token) and
 // players the host adds from the board (no token, is_manual = 1). Runs inside runMutation,
-// so the session row lock already serialises it against every other seat change.
+// so the session row lock already serializes it against every other seat change.
 async function seatPlayer(
   transaction: sql.Transaction,
   sessionId: string,
