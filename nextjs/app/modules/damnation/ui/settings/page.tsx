@@ -1,24 +1,10 @@
 "use client";
 
-import { ArrowLeft, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
-import { BackLink } from "@/components/BackLink";
-import HelpButton from "@/components/ui/HelpButton";
+import { SettingsBackLink, SettingsToggleRow } from "@/components/settings/SettingsList";
 import type { DamnationSettings } from "../../types/damnation";
-
-const SETTINGS_HELP = [
-  {
-    heading: "Commander damage",
-    body: (
-      <>
-        On: every card in your games has a Commander damage taken section, and 21 from one commander puts a player out.
-        Off: for other formats — the section only holds the Out control. Changes reach games already in
-        progress straight away.
-      </>
-    ),
-  },
-];
 
 export default function DamnationSettingsPage() {
   // DATA
@@ -26,16 +12,17 @@ export default function DamnationSettingsPage() {
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
-  const [isSavingGame, setIsSavingGame] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
         const response = await fetch("/modules/damnation/api/settings", { cache: "no-store" });
-        if (!response.ok) throw new Error("Couldn't load settings");
+        if (!response.ok) throw new Error(`Failed to load settings (${response.status})`);
         setSettings(await response.json());
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Couldn't load settings");
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Failed to load settings");
       } finally {
         setIsLoading(false);
       }
@@ -45,7 +32,10 @@ export default function DamnationSettingsPage() {
 
   // Saves on change: a single switch has nothing to review before saving.
   async function saveCommanderDamage(enabled: boolean) {
-    setIsSavingGame(true);
+    if (isSaving || !settings) return;
+    const previous = settings;
+    setSettings({ ...settings, commander_damage_enabled: enabled });
+    setIsSaving(true);
     try {
       const response = await fetch("/modules/damnation/api/settings", {
         method: "PUT",
@@ -53,70 +43,74 @@ export default function DamnationSettingsPage() {
         body: JSON.stringify({ commander_damage_enabled: enabled }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Couldn't save");
-      setSettings((current) => (current ? { ...current, commander_damage_enabled: data.commander_damage_enabled } : data));
-      toast.success(enabled ? "Commander damage on" : "Commander damage off");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't save");
+      if (!response.ok) throw new Error(data.error ?? `Failed to save settings (${response.status})`);
+      setSettings(data);
+    } catch (saveError) {
+      setSettings(previous);
+      toast.error(saveError instanceof Error ? saveError.message : "Failed to save settings");
     } finally {
-      setIsSavingGame(false);
+      setIsSaving(false);
     }
   }
 
-  return (
-    <div className="page">
-      <div className="page-container">
-        <Toaster position="top-center" />
+  if (isLoading) {
 
-        {/* HEADER ROW */}
-        <div className="flex items-center justify-between mb-6">
-
-          {/* BACK TO DAMNATION HOME */}
-          <BackLink className="btn btn-link !pl-0" fallback="/modules/damnation/ui/home" aria-label="Back to Damnation">
-            <ArrowLeft className="w-5 h-5" />
-          </BackLink>
-
-          {/* HELP */}
-          <HelpButton title="Damnation settings" sections={SETTINGS_HELP} />
+    // LOADING PLACEHOLDER
+    return (
+      <div className="page">
+        <div className="page-container">
+          <p className="text-secondary">Loading settings...</p>
         </div>
+      </div>
+    );
+  }
+
+  return (
+
+    // PAGE
+    <div className="page">
+
+      {/* TOAST CONTAINER */}
+      <Toaster position="bottom-right" />
+
+      {/* PAGE CONTAINER */}
+      <div className="page-container">
+
+        {/* BACK */}
+        <SettingsBackLink label="Damnation" fallback="/modules/damnation/ui/home" />
 
         {/* PAGE TITLE */}
-        <h1 className="text-page-title">
-          <Settings className="w-7 h-7" /> Settings
+        <h1 className="text-page-title settings-title">
+          <Settings className="w-6 h-6" /> Settings
         </h1>
 
-        {/* LOADING PLACEHOLDER */}
-        {isLoading && <p className="text-secondary">Loading settings…</p>}
+        {/* LOAD ERROR */}
+        {error && <div className="alert-error mb-4">{error}</div>}
 
-        {/* GAME CARD */}
-        {!isLoading && settings && (
-          <div className="card max-w-3xl">
-
-            {/* CARD HEADER */}
-            <div className="card-header">
-              <h2 className="text-card-title">Games</h2>
-            </div>
-
-            {/* CARD CONTENT */}
-            <div className="card-content">
+        {settings && (
+          <>
+            {/* GAMES SECTION */}
+            <h2 className="settings-section-title">Games</h2>
+            <div className="settings-group">
 
               {/* COMMANDER DAMAGE TOGGLE */}
-              <label className="flex items-center gap-2 text-primary">
-                <input
-                  type="checkbox"
-                  checked={settings.commander_damage_enabled}
-                  disabled={isSavingGame}
-                  onChange={(event) => saveCommanderDamage(event.target.checked)}
-                />
-                Track commander damage
-              </label>
-
-              {/* COMMANDER DAMAGE HINT */}
-              <p className="text-secondary">Turn off for formats other than Commander.</p>
+              <SettingsToggleRow
+                label="Track commander damage"
+                hint="Turn off for formats other than Commander"
+                checked={settings.commander_damage_enabled}
+                disabled={isSaving}
+                onChange={saveCommanderDamage}
+              />
             </div>
-          </div>
-        )}
 
+            {/* GROUP NOTE */}
+            <p className="settings-group-note">
+              On: every card in your games has a Commander damage taken section, and 21 from one commander puts a
+              player out. Off: the section only holds the Out control. Saved as soon as you switch it, and games
+              already in progress update straight away.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
