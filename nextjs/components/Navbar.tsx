@@ -69,25 +69,19 @@ export default function Navbar({ children }: NavbarProps) {
     function handleScroll(event: Event) {
       const target = event.target as (Document | HTMLElement | null);
 
-      // Ignore scrolls inside an open overlay — a nav/drawer (.forage-drawer-backdrop)
-      // or a modal (.modal-backdrop). Their inner scrolling must not be mistaken for
-      // page scroll and autohide the navbar: harmless on a full-screen modal (it's
-      // covered), but on a desktop centered-card modal the navbar is still visible
-      // around the dimmed backdrop and would visibly slide as the modal body scrolls.
-      // Same reasoning for .flashcard-face-scroll: the rune study page locks its own
-      // height (no page scroll) so this inner div is the only thing that can ever
-      // fire a scroll event there, and it must not drive the navbar while the page
-      // itself never moves. Same for .erow-scroll (ExpandableRowList's internal,
-      // maxItemsInView-capped row list) — scrolling through the row list is not
-      // page scroll, even though (unlike the other two) it does chain into an
-      // actual page scroll once it hits either end; that follow-on page scroll
-      // fires its own separate, un-excluded event and drives the navbar normally.
-      if (target instanceof HTMLElement && target.closest(".forage-drawer-backdrop, .modal-backdrop, .flashcard-face-scroll, .erow-scroll")) {
-        return;
-      }
-
+      // Only the page itself drives the navbar: the window, or the page shell's own scroller
+      // (`.page` / `.page-scroll`, which scroll instead of the window on locked app-shell pages).
+      // Any other scrolling element — a modal body, a drawer, the rune flashcard face, an
+      // ExpandableRowList, a board's activity feed, a table — is ignored, so scrolling inside
+      // one at the top of a page can't collapse the navbar. When an inner scroller reaches its
+      // end and the gesture chains into the page, that page scroll fires its own event and
+      // drives the navbar normally.
       const isWindow =
         !target || target === document || target === document.documentElement || target === document.body;
+      const isPageScroller =
+        isWindow || (target instanceof HTMLElement && target.matches(".page, .page-scroll, .page-with-bottom-bar, .page-container"));
+      if (!isPageScroller) return;
+
       const currentY = isWindow ? window.scrollY : (target as HTMLElement).scrollTop ?? 0;
       // Max scrollable distance of the active scroller. When this SHRINKS, the
       // shrink itself was caused by us hiding the navbar (its negative margin-top
