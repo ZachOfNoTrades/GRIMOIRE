@@ -11,7 +11,8 @@ export type EventType =
   | "start"
   | "reopen"
   | "rotate_code"
-  | "end";
+  | "end"
+  | "reorder";
 
 // Why a player counts as out of the game. Derived on read, never stored, so an undo can't
 // leave a stale flag behind.
@@ -71,6 +72,8 @@ export interface SessionSnapshot {
 // Host-only additions. Guests never receive the session id or anything about the host.
 export interface HostSnapshot extends SessionSnapshot {
   id: string;
+  // Board arrangement key from lib/boardLayouts.ts; null = the automatic grid.
+  board_layout: string | null;
   join_url: string | null;
   ts_created: string;
 }

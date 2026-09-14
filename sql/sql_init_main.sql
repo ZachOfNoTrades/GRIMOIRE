@@ -178,6 +178,7 @@ BEGIN TRY
             max_seats INT NOT NULL DEFAULT 4,
             status VARCHAR(10) NOT NULL DEFAULT 'lobby', -- lobby = joins open, active = joins closed, finished
             version INT NOT NULL DEFAULT 0, -- bumped by every mutation; doubles as the per-session write lock
+            board_layout VARCHAR(20) NULL, -- board arrangement key (lib/boardLayouts.ts); NULL = automatic grid
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
             ts_finished DATETIME NULL,
@@ -265,7 +266,7 @@ BEGIN TRY
 
             CONSTRAINT UK_damnation_events_op UNIQUE (op_id),
             CONSTRAINT CK_damnation_events_type CHECK (event_type IN
-                ('join','claim','life','commander_damage','status','undo','kick','free_seat','start','reopen','rotate_code','end')),
+                ('join','claim','life','commander_damage','status','undo','kick','free_seat','start','reopen','rotate_code','end','reorder')),
             CONSTRAINT FK_damnation_events_session FOREIGN KEY (session_id) REFERENCES damnation_sessions(id) ON DELETE CASCADE,
             CONSTRAINT FK_damnation_events_actor FOREIGN KEY (actor_player_id) REFERENCES damnation_players(id),
             CONSTRAINT FK_damnation_events_target FOREIGN KEY (target_player_id) REFERENCES damnation_players(id),

@@ -36,6 +36,7 @@ interface SessionRow {
   max_players: number;
   version: number;
   ts_created: Date;
+  board_layout: string | null;
   wiki_search_template: string | null;
   wiki_embed: boolean | null;
 }
@@ -96,7 +97,7 @@ export async function readSnapshot(
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .input("eventLimit", sql.Int, RECENT_EVENT_LIMIT)
     .query(`
-      SELECT s.id, s.host_user_id, s.status, s.join_code, s.starting_life, s.max_seats AS max_players, s.version, s.ts_created,
+      SELECT s.id, s.host_user_id, s.status, s.join_code, s.starting_life, s.max_seats AS max_players, s.version, s.ts_created, s.board_layout,
              ds.wiki_search_template, ds.wiki_embed
       FROM damnation_sessions s
       LEFT JOIN damnation_settings ds ON ds.user_id = s.host_user_id
@@ -173,6 +174,7 @@ export async function readSnapshot(
     status: session.status,
     join_code: session.join_code,
     join_url: session.join_code ? joinUrlFor(session.join_code) : null,
+    board_layout: session.board_layout,
     starting_life: session.starting_life,
     max_players: session.max_players,
     wiki_search_template: session.wiki_search_template ?? DEFAULT_WIKI_SEARCH_TEMPLATE,
@@ -189,8 +191,8 @@ export async function readSnapshotFromPool(sessionId: string): Promise<HostSnaps
   return readSnapshot(await getMainConnection(), sessionId);
 }
 
-// Guests never see the session id, the host-only share URL, or anything about the host.
+// Guests never see the session id, the host-only share URL, the board layout, or anything about the host.
 export function toGuestSnapshot(snapshot: SessionSnapshot, playerId: string): GuestSnapshot {
-  const { id: _id, join_url: _joinUrl, ts_created: _created, ...rest } = snapshot as HostSnapshot;
+  const { id: _id, join_url: _joinUrl, ts_created: _created, board_layout: _layout, ...rest } = snapshot as HostSnapshot;
   return { ...rest, me: playerId };
 }

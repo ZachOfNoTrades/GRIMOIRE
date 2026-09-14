@@ -33,6 +33,16 @@ export const HOST_HELP: HelpSection[] = [
     ),
   },
   {
+    heading: "Table layout",
+    body: (
+      <>
+        The grid button on the board arranges the cards like the table — 2 × 2, 1 left and 2 right, and so on, for the
+        game&apos;s player count. Cards fill the layout in order; under <strong>Manage players</strong>, the arrows move a
+        player earlier or later. Narrow screens use the automatic grid.
+      </>
+    ),
+  },
+  {
     heading: "Resuming a game",
     body: (
       <>

@@ -2,6 +2,9 @@
 
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
   DoorClosed,
   DoorOpen,
   Expand,
@@ -25,10 +28,12 @@ import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
 import ActivityFeed from "../../../components/ActivityFeed";
 import AddPlayerModal from "../../../components/AddPlayerModal";
+import LayoutPicker from "../../../components/LayoutPicker";
 import { HOST_HELP } from "../../../components/help";
 import PlayerCard from "../../../components/PlayerCard";
 import QrCode from "../../../components/QrCode";
 import WikiSearch from "../../../components/WikiSearch";
+import { findLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
 import { useGameActions } from "../../../lib/useGameActions";
 import { useSessionStream } from "../../../lib/useSessionStream";
 import { useWakeLock } from "../../../lib/useWakeLock";
@@ -48,6 +53,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [showLayoutPicker, setShowLayoutPicker] = useState(false);
+  const [isWide, setIsWide] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +78,22 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const isManagingPlayers = isEditing && !isFinished;
   const openSpots = snapshot ? Math.max(0, snapshot.max_players - snapshot.players.length) : 0;
   const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
+
+  // A fixed table layout only fits when the board has its full width (the activity column sits
+  // beside it from 1024px); narrower screens keep the automatic grid.
+  const layout = isWide ? findLayout(snapshot?.board_layout, snapshot?.max_players ?? 0) : null;
+  const gridStyle = layout
+    ? { gridTemplateColumns: layout.columns, gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" ") }
+    : undefined;
+  const slotStyle = (index: number) => (layout ? { gridArea: SLOT_NAMES[index] } : undefined);
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsWide(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   useWakeLock(!!snapshot && !isFinished);
   useEntityTitle(snapshot?.join_code ? `Board ${snapshot.join_code}` : null);
@@ -104,6 +127,25 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     },
     [baseUrl, acceptSnapshot]
   );
+
+  async function saveLayout(layoutKey: string | null) {
+    setIsBusy(true);
+    try {
+      const response = await fetch(`${baseUrl}/layout`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ board_layout: layoutKey }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Couldn't change the layout");
+      if (data.snapshot) acceptSnapshot(data.snapshot);
+      setShowLayoutPicker(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change the layout");
+    } finally {
+      setIsBusy(false);
+    }
+  }
 
   async function toggleFullscreen() {
     try {
@@ -161,6 +203,11 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             {/* WIKI */}
             {snapshot && <WikiSearch template={snapshot.wiki_search_template} embed={snapshot.wiki_embed} className="btn-link" />}
 
+            {/* TABLE LAYOUT */}
+            <Button className="btn-link" onClick={() => setShowLayoutPicker(true)} disabled={!snapshot} title="Table layout: arrange the board like the table" aria-label="Table layout">
+              <LayoutGrid className="w-5 h-5" />
+            </Button>
+
             {/* UNDO LAST (any player) */}
             {!isFinished && (
               <Button className="btn-link" onClick={actions.undo} disabled={!snapshot} title="Undo the latest change at the table" aria-label="Undo the latest change at the table">
@@ -174,7 +221,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                 className={isEditing ? "btn-blue" : "btn-link"}
                 onClick={() => setIsEditing((value) => !value)}
                 aria-pressed={isEditing}
-                title="Manage players: remove a player"
+                title="Manage players: move or remove a player"
                 aria-label="Manage players"
               >
                 <UserCog className="w-5 h-5" />
@@ -243,9 +290,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               )}
 
               {/* PLAYERS GRID */}
-              <div className="dmn-grid">
-                {snapshot.players.map((player) => (
-                  <div key={player.id} className="flex flex-col gap-1 min-w-0">
+              <div className="dmn-grid" style={gridStyle}>
+                {snapshot.players.map((player, index) => (
+                  <div key={player.id} className="flex flex-col gap-1 min-w-0" style={slotStyle(index)}>
 
                     {/* PLAYER CARD */}
                     <PlayerCard
@@ -259,11 +306,18 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       onLife={(delta) => actions.changeLife(player.id, delta)}
                       onCommander={(sourceId, delta) => actions.changeCommanderDamage(player.id, sourceId, delta)}
                       onStatus={(change) => actions.changeStatus(player.id, change)}
+                      fill={layout !== null}
                     />
 
                     {/* PLAYER MANAGEMENT */}
                     {isManagingPlayers && (
                       <div className="flex gap-1">
+                        <Button className="btn-off" disabled={isBusy || index === 0} onClick={() => hostCommand(`/players/${player.id}/move`, { direction: "earlier" })} title="Move earlier in the table layout" aria-label={`Move ${player.display_name} earlier`}>
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <Button className="btn-off" disabled={isBusy || index === snapshot.players.length - 1} onClick={() => hostCommand(`/players/${player.id}/move`, { direction: "later" })} title="Move later in the table layout" aria-label={`Move ${player.display_name} later`}>
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
                         <Button className="btn-off flex-1" disabled={isBusy} onClick={() => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })} title="Remove this player from the game">
                           <UserX className="w-4 h-4" /> Remove
                         </Button>
@@ -274,7 +328,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
                 {/* OPEN SPOTS — waiting text, with a way to add someone who has no phone underneath */}
                 {!isFinished && Array.from({ length: openSpots }, (_, index) => (
-                  <div key={`empty-${index}`} className="dmn-empty-seat">
+                  <div key={`empty-${index}`} className="dmn-empty-seat" style={slotStyle(snapshot.players.length + index)}>
 
                     {/* WAITING TEXT */}
                     <span>{snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}</span>
@@ -346,6 +400,18 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                 : ""
           }
         />
+
+        {/* TABLE LAYOUT MODAL */}
+        {snapshot && (
+          <LayoutPicker
+            isOpen={showLayoutPicker}
+            playerCount={snapshot.max_players}
+            current={snapshot.board_layout}
+            isSaving={isBusy}
+            onCancel={() => setShowLayoutPicker(false)}
+            onPick={saveLayout}
+          />
+        )}
 
         {/* ADD PLAYER MODAL */}
         <AddPlayerModal

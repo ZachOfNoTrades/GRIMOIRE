@@ -21,6 +21,8 @@ interface PlayerCardProps {
   editable: boolean;
   connected: boolean | null;
   isMe?: boolean;
+  // Stretch to fill a table-layout cell: name stays at the top, the number centers in the space.
+  fill?: boolean;
   onLife: (delta: number) => void;
   onCommander: (sourcePlayerId: string, delta: number) => void;
   onStatus: (change: { conceded?: boolean; eliminated_override?: boolean | null }) => void;
@@ -46,6 +48,7 @@ export default function PlayerCard({
   editable,
   connected,
   isMe = false,
+  fill = false,
   onLife,
   onCommander,
   onStatus,
@@ -72,6 +75,7 @@ export default function PlayerCard({
     variant === "self" ? "dmn-card-self" : "",
     variant === "board" ? "dmn-card-board" : "",
     player.eliminated ? "dmn-card-out" : "",
+    fill ? "flex-1" : "",
   ].join(" ");
 
   return (
@@ -128,7 +132,7 @@ export default function PlayerCard({
         /* LIFE BLOCK — one grid for board and phone cards. The number sits above a row of four
            steppers; on a card wide enough (container query in globals.css) the steppers move
            to flank it. Everything sizes from the card's own width, never the window's. */
-        <div className={`dmn-life-block ${editable ? "dmn-life-block-editable" : ""}`}>
+        <div className={`dmn-life-block ${editable ? "dmn-life-block-editable" : ""}`} style={fill ? { marginBlock: "auto" } : undefined}>
 
           {/* MINUS STEPPERS */}
           {editable && (

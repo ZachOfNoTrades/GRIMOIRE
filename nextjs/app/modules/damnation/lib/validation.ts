@@ -65,6 +65,10 @@ export const statusSchema = z
 
 export const opSchema = z.object({ op_id: uuid });
 
+export const moveSchema = z.object({ op_id: uuid, direction: z.enum(["earlier", "later"]) });
+
+export const layoutSchema = z.object({ board_layout: z.string().max(20).nullable() });
+
 export const createSessionSchema = z.object({
   starting_life: z.number().int().min(1).max(999),
   max_players: z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS),

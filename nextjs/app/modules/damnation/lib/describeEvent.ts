@@ -48,6 +48,8 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
       return "Host issued a new join code";
     case "end":
       return "Game over";
+    case "reorder":
+      return `Host moved ${target} ${payload.direction === "earlier" ? "earlier" : "later"} on the board`;
     default:
       return "Something changed";
   }

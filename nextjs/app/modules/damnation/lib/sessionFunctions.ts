@@ -7,7 +7,9 @@ import {
   JOIN_CODE_LENGTH,
 } from "./constants";
 import { DamnationError, isUniqueViolation } from "./errors";
+import { findLayout } from "./boardLayouts";
 import { readPlayerTokenHash } from "./playerTokens";
+import { broadcastSnapshot } from "./sessionBus";
 import { IDLE_EXPIRY_HOURS, normalizeId, readSnapshot } from "./snapshotFunctions";
 import type {
   DamnationSettings,
@@ -252,4 +254,28 @@ export async function saveSettings(userId: string, template: string | null, embe
         INSERT (user_id, wiki_search_template, wiki_embed) VALUES (@userId, @template, @embed);
     `);
   return getSettings(userId);
+}
+
+// ---------------------------------------------------------------------------------------------
+// BOARD LAYOUT
+// ---------------------------------------------------------------------------------------------
+
+// Saves the board arrangement and pushes it to every open board for the game. Not a game event:
+// it changes how the table is drawn, not the game, so it is not undoable and not in the feed.
+export async function saveBoardLayout(sessionId: string, layoutKey: string | null): Promise<HostSnapshot> {
+  const pool = await getMainConnection();
+  const current = await readSnapshot(pool, sessionId);
+  if (!current) throw new DamnationError(404, "Game not found");
+  if (layoutKey !== null && !findLayout(layoutKey, current.max_players)) {
+    throw new DamnationError(400, `That layout doesn't fit a ${current.max_players}-player game`);
+  }
+  await pool
+    .request()
+    .input("sessionId", sql.UniqueIdentifier, sessionId)
+    .input("layout", sql.VarChar(20), layoutKey)
+    .query(`UPDATE damnation_sessions SET board_layout = @layout, version = version + 1 WHERE id = @sessionId`);
+  const snapshot = await readSnapshot(pool, sessionId);
+  if (!snapshot) throw new DamnationError(404, "Game not found");
+  broadcastSnapshot(sessionId, snapshot);
+  return snapshot;
 }

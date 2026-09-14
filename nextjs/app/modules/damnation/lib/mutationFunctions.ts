@@ -569,6 +569,43 @@ export function removePlayer(sessionId: string, opId: string, playerId: string, 
   });
 }
 
+// Swaps a player with their neighbor in seat order, which is the order cards fill a board
+// layout. Both seat values change in one statement so the per-game seat index never sees a
+// duplicate mid-update.
+export function movePlayer(sessionId: string, opId: string, playerId: string, direction: "earlier" | "later") {
+  return runMutation({
+    sessionId,
+    opId,
+    actor: { kind: "host" },
+    apply: async (transaction) => {
+      await lockPlayer(transaction, sessionId, playerId);
+      const order = await request(transaction)
+        .input("sessionId", sql.UniqueIdentifier, sessionId)
+        .query<{ id: string; seat: number }>(`
+          SELECT id, seat FROM damnation_players WITH (UPDLOCK)
+          WHERE session_id = @sessionId AND kicked = 0
+          ORDER BY seat
+        `);
+      const rows = order.recordset.map((row) => ({ id: row.id.toLowerCase(), seat: row.seat }));
+      const index = rows.findIndex((row) => row.id === playerId);
+      const neighbor = rows[direction === "earlier" ? index - 1 : index + 1];
+      if (index < 0 || !neighbor) return null;
+
+      await request(transaction)
+        .input("playerId", sql.UniqueIdentifier, playerId)
+        .input("neighborId", sql.UniqueIdentifier, neighbor.id)
+        .input("playerSeat", sql.Int, rows[index].seat)
+        .input("neighborSeat", sql.Int, neighbor.seat)
+        .query(`
+          UPDATE damnation_players
+          SET seat = CASE WHEN id = @playerId THEN @neighborSeat ELSE @playerSeat END, ts_updated = GETDATE()
+          WHERE id IN (@playerId, @neighborId)
+        `);
+      return { eventType: "reorder", targetPlayerId: playerId, payload: { direction } };
+    },
+  });
+}
+
 // Gives a session a fresh join code inside the current mutation.
 async function assignNewJoinCode(transaction: sql.Transaction, sessionId: string, generateCode: () => string): Promise<void> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
