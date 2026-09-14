@@ -1,6 +1,6 @@
 "use client";
 
-import { DoorOpen, LogOut, Skull, Undo2, WifiOff } from "lucide-react";
+import { ArrowLeftFromLine, DoorOpen, Skull, Undo2, WifiOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
@@ -462,15 +462,21 @@ function Controller({
       <div className="dmn-controller">
         <Toaster position="top-center" />
 
-        {/* HEADER */}
+        {/* HEADER — leave sits top-left, where a phone's back/exit control is expected */}
         <div className="flex items-center justify-between gap-2">
-          <span className="text-secondary">Game {snapshot.join_code ?? code}</span>
-          <div className="flex items-center gap-1">
-            <HelpButton title="Damnation" sections={PLAYER_HELP} />
-            <Button className="btn-link" onClick={() => setShowLeave(true)} title="Leave the game" aria-label="Leave the game">
-              <LogOut className="w-5 h-5" />
+          <div className="flex items-center gap-1 min-w-0">
+
+            {/* LEAVE */}
+            <Button className="btn-link !pl-0" onClick={() => setShowLeave(true)} title="Leave the game" aria-label="Leave the game">
+              <ArrowLeftFromLine className="w-5 h-5" />
             </Button>
+
+            {/* GAME CODE */}
+            <span className="text-secondary">Game {snapshot.join_code ?? code}</span>
           </div>
+
+          {/* HELP */}
+          <HelpButton title="Damnation" sections={PLAYER_HELP} />
         </div>
 
         {/* CONNECTION BANNER */}
