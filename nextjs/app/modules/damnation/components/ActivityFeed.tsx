@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, History } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { describeEvent, FEED_HIDDEN_EVENT_TYPES } from "../lib/describeEvent";
@@ -61,8 +61,11 @@ export default function ActivityFeed({
 
   if (shown.length === 0) {
     return (
-      /* EMPTY FEED PLACEHOLDER */
-      <p className="text-secondary">Nothing has happened yet.</p>
+      /* EMPTY FEED PLACEHOLDER — centered in whatever height the card has */
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-secondary">
+        <History className="w-6 h-6" aria-hidden />
+        <span>No activity</span>
+      </div>
     );
   }
 
