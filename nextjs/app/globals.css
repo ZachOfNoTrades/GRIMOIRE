@@ -7726,36 +7726,31 @@ body:has(.quest-cal-page) > .page {
   background: currentColor;
 }
 
-/* LIFE BLOCK — number above four steppers; on a wide card the steppers flank the number. */
-.dmn-life-block {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-areas:
-    "life life life life"
-    "m5 m1 p1 p5";
+/* REMOVE — the board's X in a card's top-right corner. */
+.dmn-card-remove {
+  flex: none;
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: -0.35rem -0.35rem -0.35rem 0;
+  background: transparent;
+  color: var(--dmn-seat-fg);
+  border: none;
+  opacity: 0.75;
+  cursor: pointer;
 }
 
-.dmn-life-block:not(.dmn-life-block-editable) {
-  grid-template-areas: "life life life life";
+.dmn-card-remove:hover:not(:disabled),
+.dmn-card-remove:focus-visible {
+  opacity: 1;
+  background: color-mix(in srgb, var(--dmn-seat-fg) 15%, transparent);
 }
 
-.dmn-life-block .dmn-life { grid-area: life; }
-.dmn-step-m5 { grid-area: m5; }
-.dmn-step-m1 { grid-area: m1; }
-.dmn-step-p1 { grid-area: p1; }
-.dmn-step-p5 { grid-area: p5; }
-
-@container (min-width: 26rem) {
-  .dmn-card:not(.dmn-card-board) .dmn-life-block-editable {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: "m5 m1 life p1 p5";
-  }
-
-  .dmn-card:not(.dmn-card-board) .dmn-life-block-editable .dmn-life {
-    font-size: clamp(2.5rem, 13cqi, 4.5rem);
-  }
+.dmn-card-remove:disabled {
+  cursor: progress;
+  opacity: 0.4;
 }
 
 .dmn-life {
@@ -7808,10 +7803,10 @@ body:has(.quest-cal-page) > .page {
   cursor: not-allowed;
 }
 
-/* SELF CARD — the phone owner's own seat: tap the left half to lose life, the right half
-   to gain it, like a dedicated life-counter app. */
-.dmn-card-self .dmn-life {
-  font-size: clamp(4rem, 32cqi, 9rem);
+/* TAP ZONES — every card, on the board and on phones: tap the left half to lose 1 life, the
+   right half to gain 1, like a dedicated life-counter app. ±5 are buttons underneath. */
+.dmn-tap-zones .dmn-life {
+  font-size: clamp(3rem, 32cqi, 9rem);
 }
 
 .dmn-tap-zones {
@@ -7824,8 +7819,8 @@ body:has(.quest-cal-page) > .page {
 .dmn-tap-zone {
   display: flex;
   align-items: center;
-  padding: 0 0.75rem;
-  font-size: 2rem;
+  padding: 0 clamp(0.25rem, 3cqi, 0.75rem);
+  font-size: clamp(1.25rem, 9cqi, 2.25rem);
   font-weight: 700;
   background: transparent;
   color: var(--dmn-seat-fg);
@@ -7985,9 +7980,6 @@ body:has(.quest-cal-page) > .page {
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 }
 
-.dmn-card-board .dmn-life {
-  font-size: clamp(3rem, 32cqi, 9rem);
-}
 
 .dmn-empty-seat {
   display: flex;

@@ -9,6 +9,7 @@ export const HOST_HELP: HelpSection[] = [
       <>
         Start a game and open its board on a screen everyone can see. Players scan the QR code or go to the
         join address and type the code — no account needed. Each player picks a name and a color on their phone.
+        On any card, tap the left or right half of the number for −1 or +1; the buttons below do 5.
       </>
     ),
   },
@@ -84,8 +85,13 @@ export const HOST_HELP: HelpSection[] = [
 
 export const PLAYER_HELP: HelpSection[] = [
   {
-    heading: "Your card",
-    body: <>Tap the left half of your number to lose 1 life and the right half to gain 1. The buttons below do 5 at a time.</>,
+    heading: "Changing life",
+    body: (
+      <>
+        Every card works the same way: tap the left half of the number to lose 1 life and the right half to gain 1. The
+        buttons below do 5 at a time.
+      </>
+    ),
   },
   {
     heading: "Other players",

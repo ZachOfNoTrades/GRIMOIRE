@@ -6,10 +6,11 @@ import { COMMANDER_DAMAGE_LETHAL, isColorKey } from "../lib/constants";
 import type { PendingOverlay } from "../lib/useGameActions";
 import type { CommanderDamageCell, PlayerView } from "../types/damnation";
 
-// One player's card. Used three ways:
-//   self  — the phone owner's own card: huge number, tap left/right halves for −1/+1
-//   other — another player on a phone: ±1/±5 steppers
-//   board — the shared screen: the desktop can change every card
+// One player's card, laid out the same everywhere: tap the left or right half of the number for
+// −1/+1, with ±5 buttons underneath. Variants only tag where it is shown:
+//   self  — the phone owner's own card
+//   other — another player on a phone
+//   board — the shared screen
 // Any player may change any card, so every variant can edit when `editable` is set.
 
 interface PlayerCardProps {
@@ -21,7 +22,7 @@ interface PlayerCardProps {
   editable: boolean;
   connected: boolean | null;
   isMe?: boolean;
-  // Stretch to fill a table-layout cell: name stays at the top, the number centers in the space.
+  // Stretch to fill a table-layout cell: name stays at the top, the tap zones take the space.
   fill?: boolean;
   onLife: (delta: number) => void;
   onCommander: (sourcePlayerId: string, delta: number) => void;
@@ -108,9 +109,9 @@ export default function PlayerCard({
         </span>
       )}
 
-      {/* LIFE — self variant: the two halves of the number are the buttons */}
-      {variant === "self" && editable ? (
-        <div className="dmn-tap-zones">
+      {editable ? (
+        /* LIFE — the two halves of the number are the ±1 buttons, the same on every card */
+        <div className={`dmn-tap-zones ${fill ? "flex-1" : ""}`}>
 
           {/* LOSE ONE */}
           <button type="button" className="dmn-tap-zone dmn-tap-zone-minus" onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">
@@ -129,40 +130,17 @@ export default function PlayerCard({
           </div>
         </div>
       ) : (
-        /* LIFE BLOCK — one grid for board and phone cards. The number sits above a row of four
-           steppers; on a card wide enough (container query in globals.css) the steppers move
-           to flank it. Everything sizes from the card's own width, never the window's. */
-        <div className={`dmn-life-block ${editable ? "dmn-life-block-editable" : ""}`} style={fill ? { marginBlock: "auto" } : undefined}>
-
-          {/* MINUS STEPPERS */}
-          {editable && (
-            <>
-              <button type="button" className="dmn-step dmn-step-m5" onClick={() => onLife(-5)} aria-label={`${player.display_name} lose 5 life`} title="Lose 5 life">−5</button>
-              <button type="button" className="dmn-step dmn-step-m1" onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">−1</button>
-            </>
-          )}
-
-          {/* LIFE TOTAL */}
-          <div className="dmn-life" aria-live="polite">
-            {life}
-            {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
-          </div>
-
-          {/* PLUS STEPPERS */}
-          {editable && (
-            <>
-              <button type="button" className="dmn-step dmn-step-p1" onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">+1</button>
-              <button type="button" className="dmn-step dmn-step-p5" onClick={() => onLife(5)} aria-label={`${player.display_name} gain 5 life`} title="Gain 5 life">+5</button>
-            </>
-          )}
+        /* LIFE — read only (game over) */
+        <div className="dmn-life" aria-live="polite" style={fill ? { marginBlock: "auto" } : undefined}>
+          {life}
         </div>
       )}
 
-      {/* SELF ±5 — the tap zones cover ±1 */}
-      {variant === "self" && editable && (
+      {/* ±5 */}
+      {editable && (
         <div className="dmn-status-row">
-          <button type="button" className="dmn-step" onClick={() => onLife(-5)} aria-label="Lose 5 life" title="Lose 5 life">−5</button>
-          <button type="button" className="dmn-step" onClick={() => onLife(5)} aria-label="Gain 5 life" title="Gain 5 life">+5</button>
+          <button type="button" className="dmn-step" onClick={() => onLife(-5)} aria-label={`${player.display_name} lose 5 life`} title="Lose 5 life">−5</button>
+          <button type="button" className="dmn-step" onClick={() => onLife(5)} aria-label={`${player.display_name} gain 5 life`} title="Gain 5 life">+5</button>
         </div>
       )}
 
