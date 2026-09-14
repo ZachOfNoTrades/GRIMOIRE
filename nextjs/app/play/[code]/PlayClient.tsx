@@ -11,6 +11,7 @@ import { generateUUID } from "@/lib/uuid";
 import { PLAYER_HELP } from "@/app/modules/damnation/components/help";
 import PlayerCard from "@/app/modules/damnation/components/PlayerCard";
 import WikiSearch from "@/app/modules/damnation/components/WikiSearch";
+import { cardsPerRow, findLayout, SLOT_NAMES } from "@/app/modules/damnation/lib/boardLayouts";
 import {
   JOIN_CODE_PATTERN,
   NAME_MAX_LENGTH,
@@ -21,6 +22,9 @@ import { useGameActions } from "@/app/modules/damnation/lib/useGameActions";
 import { useSessionStream } from "@/app/modules/damnation/lib/useSessionStream";
 import { useWakeLock } from "@/app/modules/damnation/lib/useWakeLock";
 import type { GuestSnapshot, LobbyView } from "@/app/modules/damnation/types/damnation";
+
+// Narrowest a card may get in the table layout before the phone falls back to the stacked view.
+const LAYOUT_MIN_CARD_PX = 150;
 
 // TOKEN STORAGE — the guest's only credential. localStorage so a closed tab or a sleeping
 // phone gets back into the game; an in-memory fallback where storage is blocked (private mode),
@@ -421,6 +425,15 @@ function Controller({
 
   useWakeLock(true);
 
+  // Width of the screen, for deciding whether the host's table layout fits.
+  const [viewportWidth, setViewportWidth] = useState(0);
+  useEffect(() => {
+    const update = () => setViewportWidth(window.innerWidth);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
   // Follow a code rotation so the address bar (and a reload) matches the live code.
   useEffect(() => {
     if (snapshot?.join_code && snapshot.join_code !== code) onCodeChanged(snapshot.join_code);
@@ -446,6 +459,12 @@ function Controller({
   const me = snapshot.players.find((player) => player.id === snapshot.me) ?? null;
   const others = snapshot.players.filter((player) => player.id !== snapshot.me);
   const connected = new Set(presence?.connected_player_ids ?? []);
+
+  // The host's table layout, with every player (you included) where they sit — when each card
+  // gets at least ~9rem. Otherwise (e.g. a 3-across layout on a portrait phone) your card stays on
+  // top with everyone else below.
+  const tableLayout = findLayout(snapshot.board_layout, snapshot.max_players);
+  const layout = tableLayout && viewportWidth >= cardsPerRow(tableLayout) * LAYOUT_MIN_CARD_PX + 24 ? tableLayout : null;
 
   const cardProps = (playerId: string) => ({
     players: snapshot.players,
@@ -488,21 +507,44 @@ function Controller({
           </div>
         )}
 
+        {/* TABLE LAYOUT */}
+        {layout && (
+          <div
+            className="dmn-grid"
+            style={{ gridTemplateColumns: layout.columns, gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" ") }}
+          >
+            {snapshot.players.map((player, index) => (
+              <div key={player.id} className="flex flex-col min-w-0" style={{ gridArea: SLOT_NAMES[index] }}>
+                <PlayerCard
+                  player={player}
+                  variant={player.id === snapshot.me ? "self" : "other"}
+                  isMe={player.id === snapshot.me}
+                  connected={player.id === snapshot.me || player.rejoinable || player.manual ? null : connected.has(player.id)}
+                  fill
+                  {...cardProps(player.id)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* MY CARD */}
-        {me && <PlayerCard player={me} variant="self" isMe connected={null} {...cardProps(me.id)} />}
+        {!layout && me && <PlayerCard player={me} variant="self" isMe connected={null} {...cardProps(me.id)} />}
 
         {/* OTHER PLAYERS */}
-        <div className="dmn-controller-others">
-          {others.map((player) => (
-            <PlayerCard
-              key={player.id}
-              player={player}
-              variant="other"
-              connected={player.rejoinable || player.manual ? null : connected.has(player.id)}
-              {...cardProps(player.id)}
-            />
-          ))}
-        </div>
+        {!layout && (
+          <div className="dmn-controller-others">
+            {others.map((player) => (
+              <PlayerCard
+                key={player.id}
+                player={player}
+                variant="other"
+                connected={player.rejoinable || player.manual ? null : connected.has(player.id)}
+                {...cardProps(player.id)}
+              />
+            ))}
+          </div>
+        )}
 
         {/* WAITING PLACEHOLDER */}
         {others.length === 0 && <p className="text-secondary">Waiting for others to join…</p>}

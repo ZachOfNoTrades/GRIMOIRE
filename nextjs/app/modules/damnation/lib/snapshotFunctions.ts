@@ -193,8 +193,8 @@ export async function readSnapshotFromPool(sessionId: string): Promise<HostSnaps
   return readSnapshot(await getMainConnection(), sessionId);
 }
 
-// Guests never see the session id, the host-only share URL, the board layout, or anything about the host.
+// Guests never see the session id, the host-only share URL, or anything about the host.
 export function toGuestSnapshot(snapshot: SessionSnapshot, playerId: string): GuestSnapshot {
-  const { id: _id, join_url: _joinUrl, ts_created: _created, board_layout: _layout, ...rest } = snapshot as HostSnapshot;
+  const { id: _id, join_url: _joinUrl, ts_created: _created, ...rest } = snapshot as HostSnapshot;
   return { ...rest, me: playerId };
 }

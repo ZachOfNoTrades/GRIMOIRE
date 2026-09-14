@@ -65,6 +65,9 @@ export interface SessionSnapshot {
   wiki_embed: boolean;
   // The host's setting: when false, cards offer no commander damage (status controls remain).
   commander_damage_enabled: boolean;
+  // Table arrangement key from lib/boardLayouts.ts; null = the automatic grid. Shown on the board
+  // and, where the screen is wide enough, on phones.
+  board_layout: string | null;
   players: PlayerView[];
   // Players no longer in the game, so the activity feed can still name them.
   former_players: { id: string; display_name: string }[];
@@ -75,8 +78,6 @@ export interface SessionSnapshot {
 // Host-only additions. Guests never receive the session id or anything about the host.
 export interface HostSnapshot extends SessionSnapshot {
   id: string;
-  // Board arrangement key from lib/boardLayouts.ts; null = the automatic grid.
-  board_layout: string | null;
   join_url: string | null;
   ts_created: string;
 }

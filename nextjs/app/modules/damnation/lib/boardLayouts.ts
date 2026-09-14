@@ -45,6 +45,12 @@ export function findLayout(key: string | null | undefined, playerCount: number):
   return BOARD_LAYOUTS.find((layout) => layout.key === key && layout.slots === playerCount) ?? null;
 }
 
+// The most cards side by side in any row, e.g. 3 for "1 · 2 · 1". Decides whether a screen is
+// wide enough to show the layout.
+export function cardsPerRow(layout: BoardLayout): number {
+  return Math.max(...layout.areas.map((row) => new Set(row.split(" ")).size));
+}
+
 export function isLayoutKey(value: unknown): value is string {
   return typeof value === "string" && BOARD_LAYOUTS.some((layout) => layout.key === value);
 }
