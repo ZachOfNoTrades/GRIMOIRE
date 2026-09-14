@@ -66,7 +66,7 @@ export default function ActivityFeed({
 
   return (
     /* FEED FRAME */
-    <div className="relative">
+    <div className="dmn-feed-frame relative">
 
       {/* FEED */}
       <ol ref={listRef} className="dmn-feed" aria-label="Recent changes" onScroll={onScroll}>

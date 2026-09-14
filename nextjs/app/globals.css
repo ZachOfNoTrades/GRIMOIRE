@@ -8002,6 +8002,27 @@ body:has(.quest-cal-page) > .page {
   .dmn-board-layout {
     grid-template-columns: 1fr 20rem;
   }
+
+  /* ACTIVITY COLUMN — fills the height of the board beside it. contain: size keeps the feed's
+     length out of the row height, so the card stretches to the board and the feed scrolls
+     inside it instead of stopping at a fixed height. */
+  .dmn-activity {
+    contain: size;
+    min-height: 24rem;
+  }
+
+  .dmn-activity .dmn-feed-frame {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .dmn-activity .dmn-feed {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
 .dmn-grid {

@@ -392,8 +392,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               )}
             </div>
 
-            {/* ACTIVITY COLUMN */}
-            <div className="card">
+            {/* ACTIVITY COLUMN — as tall as the board beside it on wide screens (globals.css) */}
+            <div className="card dmn-activity">
               <div className="card-header">
                 <h2 className="text-card-title">Activity</h2>
               </div>
