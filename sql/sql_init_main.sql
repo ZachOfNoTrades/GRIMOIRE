@@ -208,6 +208,7 @@ BEGIN TRY
             life_total INT NOT NULL,
             conceded BIT NOT NULL DEFAULT 0,
             eliminated_override BIT NULL, -- NULL = derive from life/commander damage, 1 = forced out, 0 = forced alive
+            is_manual BIT NOT NULL CONSTRAINT DF_damnation_players_is_manual DEFAULT 0, -- 1 = added by the host from the board, no phone; not claimable until handed to a phone
             kicked BIT NOT NULL DEFAULT 0, -- 1 = removed from the game; seat, colour and name are released
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),

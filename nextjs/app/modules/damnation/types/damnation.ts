@@ -30,6 +30,8 @@ export interface PlayerView {
   elimination_reason: EliminationReason;
   // The host freed this seat (lost phone); anyone with the code may claim it.
   open_seat: boolean;
+  // Added by the host from the board; no phone is attached to it.
+  manual: boolean;
 }
 
 export interface CommanderDamageCell {

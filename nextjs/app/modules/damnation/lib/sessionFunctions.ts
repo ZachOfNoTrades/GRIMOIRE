@@ -153,7 +153,7 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .query(`
       SELECT status, max_seats FROM damnation_sessions WHERE id = @sessionId;
-      SELECT id, seat, display_name, color_key, CASE WHEN token_hash IS NULL THEN 1 ELSE 0 END AS open_seat
+      SELECT id, seat, display_name, color_key, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS open_seat
       FROM damnation_players WHERE session_id = @sessionId AND kicked = 0 ORDER BY seat;
     `);
   const recordsets = result.recordsets as unknown as [

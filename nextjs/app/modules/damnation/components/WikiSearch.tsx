@@ -47,6 +47,8 @@ export default function WikiSearch({ template, embed, className = "btn-off" }: W
     if (!query.trim()) return;
     const url = safeUrl(buildWikiSearchUrl(template, query));
     if (!url) return;
+    // Drop the on-screen keyboard so the results aren't hidden behind it.
+    inputRef.current?.blur();
     if (embed) {
       setResultUrl(url);
     } else {

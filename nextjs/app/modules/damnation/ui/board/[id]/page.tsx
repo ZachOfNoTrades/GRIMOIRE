@@ -5,9 +5,12 @@ import {
   DoorClosed,
   DoorOpen,
   Expand,
-  Pencil,
   RefreshCw,
   Shrink,
+  Smartphone,
+  Play,
+  UserCog,
+  UserPlus,
   Skull,
   Undo2,
   UserX,
@@ -22,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
 import ActivityFeed from "../../../components/ActivityFeed";
+import AddPlayerModal from "../../../components/AddPlayerModal";
 import { HOST_HELP } from "../../../components/help";
 import PlayerCard from "../../../components/PlayerCard";
 import QrCode from "../../../components/QrCode";
@@ -45,6 +49,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [isEditing, setIsEditing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
+  const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -64,7 +69,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   const isFinished = snapshot?.status === "finished";
   const connected = new Set(presence?.connected_player_ids ?? []);
-  const canEdit = isEditing && !isFinished;
+  // The desktop controls every player's life at any time; the toggle only reveals seat management.
+  const isManagingSeats = isEditing && !isFinished;
   const emptySeats = snapshot ? Math.max(0, snapshot.max_seats - snapshot.players.length) : 0;
   const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.open_seat));
 
@@ -90,8 +96,10 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error ?? "That didn't work");
         if (data.snapshot) acceptSnapshot(data.snapshot);
+        return true;
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "That didn't work");
+        return false;
       } finally {
         setIsBusy(false);
       }
@@ -122,16 +130,16 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
       <div className="page">
         <div className="page-container">
 
+          {/* BACK LINK */}
+          <BackLink className="btn btn-link mb-4 !pl-0" fallback="/modules/damnation/ui/home">
+            <ArrowLeft className="w-5 h-5" /> Damnation
+          </BackLink>
+
           {/* NOT FOUND STATE */}
           <div className="alert-red">
             <p className="alert-title">Game not found</p>
             <p className="alert-text">This game doesn&apos;t exist or isn&apos;t yours.</p>
           </div>
-
-          {/* BACK LINK */}
-          <BackLink className="btn btn-link mt-4 !pl-0" fallback="/modules/damnation/ui/home">
-            <ArrowLeft className="w-5 h-5" /> Damnation
-          </BackLink>
         </div>
       </div>
     );
@@ -169,10 +177,10 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                 className={isEditing ? "btn-blue" : "btn-link"}
                 onClick={() => setIsEditing((value) => !value)}
                 aria-pressed={isEditing}
-                title="Edit from the board: change totals and manage seats"
-                aria-label="Edit from the board"
+                title="Manage seats: free a seat, hand a seat to a phone, or remove a player"
+                aria-label="Manage seats"
               >
-                <Pencil className="w-5 h-5" />
+                <UserCog className="w-5 h-5" />
               </Button>
             )}
 
@@ -206,7 +214,12 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               {isFinished && (
                 <div className="alert-blue">
                   <p className="alert-title"><Skull className="w-4 h-4" /> Game over</p>
-                  <p className="alert-text">Final totals are shown below.</p>
+                  <p className="alert-text">Final totals are shown below. Resume to keep playing from here with a new code.</p>
+
+                  {/* RESUME */}
+                  <Button className="btn-green mt-2 self-start" disabled={isBusy} onClick={() => hostCommand("/resume")} title="Reopen this game with its totals and a new join code">
+                    <Play className="w-4 h-4" /> Resume game
+                  </Button>
                 </div>
               )}
 
@@ -244,19 +257,25 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       cells={snapshot.commander_damage}
                       overlay={actions.overlay}
                       variant="board"
-                      editable={canEdit}
-                      connected={player.open_seat ? null : connected.has(player.id)}
+                      editable={!isFinished}
+                      connected={player.open_seat || player.manual ? null : connected.has(player.id)}
                       onLife={(delta) => actions.changeLife(player.id, delta)}
                       onCommander={(sourceId, delta) => actions.changeCommanderDamage(player.id, sourceId, delta)}
                       onStatus={(change) => actions.changeStatus(player.id, change)}
                     />
 
                     {/* SEAT MANAGEMENT */}
-                    {canEdit && (
+                    {isManagingSeats && (
                       <div className="flex gap-1">
-                        <Button className="btn-off flex-1" disabled={isBusy || player.open_seat} onClick={() => setConfirm({ kind: "free", playerId: player.id, name: player.display_name })} title="Sign this seat's phone out so it can be taken over (keeps totals)">
-                          Free seat
-                        </Button>
+                        {player.manual ? (
+                          <Button className="btn-off flex-1" disabled={isBusy} onClick={() => setConfirm({ kind: "free", playerId: player.id, name: player.display_name })} title="Let this player take the seat over from a phone (keeps totals)">
+                            <Smartphone className="w-4 h-4" /> Hand to a phone
+                          </Button>
+                        ) : (
+                          <Button className="btn-off flex-1" disabled={isBusy || player.open_seat} onClick={() => setConfirm({ kind: "free", playerId: player.id, name: player.display_name })} title="Sign this seat's phone out so it can be taken over (keeps totals)">
+                            Free seat
+                          </Button>
+                        )}
                         <Button className="btn-off flex-1" disabled={isBusy} onClick={() => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })} title="Remove this player from the game">
                           <UserX className="w-4 h-4" /> Remove
                         </Button>
@@ -265,9 +284,24 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                   </div>
                 ))}
 
-                {/* EMPTY SEAT PLACEHOLDERS */}
-                {!isFinished && snapshot.status === "lobby" && Array.from({ length: emptySeats }, (_, index) => (
-                  <div key={`empty-${index}`} className="dmn-empty-seat">Waiting for a player…</div>
+                {/* EMPTY SEATS — waiting text, with a way to seat someone who has no phone underneath */}
+                {!isFinished && Array.from({ length: emptySeats }, (_, index) => (
+                  <div key={`empty-${index}`} className="dmn-empty-seat">
+
+                    {/* WAITING TEXT */}
+                    <span>{snapshot.status === "lobby" ? "Waiting for a player…" : "Empty seat"}</span>
+
+                    {/* ADD PLAYER */}
+                    <button
+                      type="button"
+                      className="dmn-add-player"
+                      disabled={isBusy}
+                      onClick={() => setShowAddPlayer(true)}
+                      title="Add a player who has no phone"
+                    >
+                      <UserPlus className="w-4 h-4" aria-hidden /> Add player
+                    </button>
+                  </div>
                 ))}
 
                 {/* NO PLAYERS PLACEHOLDER */}
@@ -314,17 +348,30 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
           onCancel={() => setConfirm(null)}
           onConfirm={runConfirmed}
           danger
-          title={confirm?.kind === "end" ? "End this game?" : confirm?.kind === "kick" ? "Remove player?" : "Free this seat?"}
-          confirmLabel={confirm?.kind === "end" ? "End game" : confirm?.kind === "kick" ? "Remove" : "Free seat"}
+          title={confirm?.kind === "end" ? "End this game?" : confirm?.kind === "kick" ? "Remove player?" : "Open this seat to a phone?"}
+          confirmLabel={confirm?.kind === "end" ? "End game" : confirm?.kind === "kick" ? "Remove" : "Open seat"}
           message={
             confirm?.kind === "end"
               ? "Every phone is signed out and the code stops working. Final totals stay on this board."
               : confirm?.kind === "kick"
                 ? `${confirm.name} is removed from the game and their phone is signed out.`
                 : confirm
-                  ? `${confirm.name}'s phone is signed out. Their life and commander damage stay, and anyone with the code can take the seat over.`
+                  ? snapshot?.players.find((player) => player.id === confirm.playerId)?.manual
+                    ? `${confirm.name}'s seat opens for a phone: anyone with the code can take it over, keeping the life and commander damage.`
+                    : `${confirm.name}'s phone is signed out. Their life and commander damage stay, and anyone with the code can take the seat over.`
                   : ""
           }
+        />
+
+        {/* ADD PLAYER MODAL */}
+        <AddPlayerModal
+          isOpen={showAddPlayer}
+          takenColors={snapshot?.players.map((player) => player.color_key) ?? []}
+          isSaving={isBusy}
+          onCancel={() => setShowAddPlayer(false)}
+          onAdd={async (displayName, colorKey) => {
+            if (await hostCommand("/players", { display_name: displayName, color_key: colorKey })) setShowAddPlayer(false);
+          }}
         />
       </div>
     </div>

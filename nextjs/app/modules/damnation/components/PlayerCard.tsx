@@ -9,7 +9,7 @@ import type { CommanderDamageCell, PlayerView } from "../types/damnation";
 // One player's card. Used three ways:
 //   self  — the phone owner's own seat: huge number, tap left/right halves for −1/+1
 //   other — another player on a phone: ±1/±5 steppers
-//   board — the shared screen: read-only unless the host switches on corrections
+//   board — the shared screen: the desktop can change every card
 // Any seated player may change any card, so every variant can edit when `editable` is set.
 
 interface PlayerCardProps {
@@ -94,7 +94,6 @@ export default function PlayerCard({
 
         {/* TAGS */}
         {isMe && <span className="dmn-tag">You</span>}
-        {player.open_seat && <span className="dmn-tag" title="The host freed this seat; anyone with the code can take it over">Open seat</span>}
       </div>
 
       {/* ELIMINATION */}
@@ -124,6 +123,24 @@ export default function PlayerCard({
             {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
           </div>
         </div>
+      ) : variant === "board" ? (
+        <>
+          {/* LIFE TOTAL — the board's numbers are too big to share a row with steppers */}
+          <div className="dmn-life" aria-live="polite">
+            {life}
+            {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
+          </div>
+
+          {/* STEPPER ROW */}
+          {editable && (
+            <div className="dmn-step-row">
+              <button type="button" className="dmn-step" onClick={() => onLife(-5)} aria-label={`${player.display_name} lose 5 life`} title="Lose 5 life">−5</button>
+              <button type="button" className="dmn-step" onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">−1</button>
+              <button type="button" className="dmn-step" onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">+1</button>
+              <button type="button" className="dmn-step" onClick={() => onLife(5)} aria-label={`${player.display_name} gain 5 life`} title="Gain 5 life">+5</button>
+            </div>
+          )}
+        </>
       ) : (
         <div className="dmn-life-row">
 

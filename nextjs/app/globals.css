@@ -7961,12 +7961,50 @@ body:has(.quest-cal-page) > .page {
 
 .dmn-empty-seat {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.75rem;
   min-height: 10rem;
+  padding: 1rem;
   border: 1px dashed var(--card-border);
   color: var(--color-gray);
   font-size: 0.9rem;
+}
+
+/* ADD PLAYER — outlined, under the waiting text in an empty seat. */
+.dmn-add-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 1rem;
+  background: var(--card-bg);
+  color: var(--color-primary);
+  border: 1px solid var(--card-border);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.dmn-add-player:hover:not(:disabled),
+.dmn-add-player:focus-visible {
+  background: var(--hover-bg);
+  border-color: var(--color-primary);
+}
+
+.dmn-add-player:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* STEPPER ROW — board cards: the number is too large to share a row with its steppers. */
+.dmn-step-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.35rem;
 }
 
 /* JOIN PANEL — code + QR while seats are open. */

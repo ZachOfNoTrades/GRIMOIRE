@@ -19,10 +19,13 @@ export default function PlayCodeEntryPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (isValid) router.push(`/play/${code}`);
+    if (!isValid) return;
+    // Drop the on-screen keyboard before the join form loads.
+    (document.activeElement as HTMLElement | null)?.blur();
+    router.push(`/play/${code}`);
   }
 
-  // Keep only characters that can appear in a code, upper-cased, so typing "o" or "0"
+  // Keep only letters that can appear in a code, upper-cased, so a stray digit or an "o"
   // doesn't produce a code that can never match.
   function normalize(value: string): string {
     return value
@@ -56,7 +59,7 @@ export default function PlayCodeEntryPage() {
               className="input-field dmn-code"
               value={code}
               onChange={(event) => setCode(normalize(event.target.value))}
-              placeholder="ABC234"
+              placeholder="ABCD"
               autoCapitalize="characters"
               autoComplete="off"
               autoCorrect="off"

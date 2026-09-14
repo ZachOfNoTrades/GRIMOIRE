@@ -110,7 +110,7 @@ async function runMutationOnce(options: {
         UPDATE damnation_sessions
         SET version = version + 1, ts_updated = GETDATE()
         OUTPUT INSERTED.version, INSERTED.status
-        WHERE id = @sessionId AND status <> 'finished'
+        WHERE id = @sessionId ${options.allowFinished ? "" : "AND status <> 'finished'"}
       `);
     if (bump.recordset.length === 0) {
       await rollback();
@@ -188,8 +188,8 @@ async function lockPlayer(transaction: sql.Transaction, sessionId: string, playe
   const result = await request(transaction)
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .input("playerId", sql.UniqueIdentifier, playerId)
-    .query<{ life_total: number; conceded: boolean; eliminated_override: boolean | null; token_hash: Buffer | null }>(`
-      SELECT life_total, conceded, eliminated_override, token_hash
+    .query<{ life_total: number; conceded: boolean; eliminated_override: boolean | null; token_hash: Buffer | null; is_manual: boolean }>(`
+      SELECT life_total, conceded, eliminated_override, token_hash, is_manual
       FROM damnation_players WITH (UPDLOCK)
       WHERE id = @playerId AND session_id = @sessionId AND kicked = 0
     `);
@@ -407,6 +407,53 @@ export function undoLastChange(sessionId: string, opId: string, actor: Actor) {
 // SEATING
 // ---------------------------------------------------------------------------------------------
 
+// Seats a new player in the lowest free seat. Shared by guest joins (with a token) and
+// players the host adds from the board (no token, is_manual = 1). Runs inside runMutation,
+// so the session row lock already serialises it against every other seat change.
+async function seatPlayer(
+  transaction: sql.Transaction,
+  sessionId: string,
+  displayName: string,
+  colorKey: string,
+  tokenHash: Buffer | null
+): Promise<string> {
+  const seating = await request(transaction)
+    .input("sessionId", sql.UniqueIdentifier, sessionId)
+    .query<{ seat: number; color_key: string; display_name: string; max_seats: number; starting_life: number }>(`
+      SELECT p.seat, p.color_key, p.display_name, s.max_seats, s.starting_life
+      FROM damnation_sessions s
+      LEFT JOIN damnation_players p ON p.session_id = s.id AND p.kicked = 0
+      WHERE s.id = @sessionId
+    `);
+  const { max_seats: maxSeats, starting_life: startingLife } = seating.recordset[0];
+  const taken = seating.recordset.filter((row) => row.seat !== null);
+
+  if (taken.length >= maxSeats) throw new DamnationError(409, "The table is full");
+  if (taken.some((row) => row.color_key === colorKey)) throw new DamnationError(409, "That colour is taken");
+  if (taken.some((row) => row.display_name.toLowerCase() === displayName.toLowerCase())) {
+    throw new DamnationError(409, "Someone at the table already has that name");
+  }
+
+  const takenSeats = new Set(taken.map((row) => row.seat));
+  let seat = 1;
+  while (takenSeats.has(seat)) seat += 1;
+
+  const inserted = await request(transaction)
+    .input("sessionId", sql.UniqueIdentifier, sessionId)
+    .input("seat", sql.Int, seat)
+    .input("displayName", sql.NVarChar(24), displayName)
+    .input("colorKey", sql.VarChar(20), colorKey)
+    .input("tokenHash", sql.VarBinary(32), tokenHash)
+    .input("isManual", sql.Bit, tokenHash === null)
+    .input("life", sql.Int, startingLife)
+    .query<{ id: string }>(`
+      INSERT INTO damnation_players (session_id, seat, display_name, color_key, token_hash, is_manual, life_total)
+      OUTPUT INSERTED.id
+      VALUES (@sessionId, @seat, @displayName, @colorKey, @tokenHash, @isManual, @life)
+    `);
+  return inserted.recordset[0].id.toLowerCase();
+}
+
 export async function joinSession(
   sessionId: string,
   opId: string,
@@ -424,40 +471,7 @@ export async function joinSession(
       if (context.status !== "lobby") {
         throw new DamnationError(409, "Joining is closed — ask the host to reopen joins");
       }
-      const seating = await request(transaction)
-        .input("sessionId", sql.UniqueIdentifier, sessionId)
-        .query<{ seat: number; color_key: string; display_name: string; max_seats: number; starting_life: number }>(`
-          SELECT p.seat, p.color_key, p.display_name, s.max_seats, s.starting_life
-          FROM damnation_sessions s
-          LEFT JOIN damnation_players p ON p.session_id = s.id AND p.kicked = 0
-          WHERE s.id = @sessionId
-        `);
-      const { max_seats: maxSeats, starting_life: startingLife } = seating.recordset[0];
-      const taken = seating.recordset.filter((row) => row.seat !== null);
-
-      if (taken.length >= maxSeats) throw new DamnationError(409, "The table is full");
-      if (taken.some((row) => row.color_key === colorKey)) throw new DamnationError(409, "That colour is taken");
-      if (taken.some((row) => row.display_name.toLowerCase() === displayName.toLowerCase())) {
-        throw new DamnationError(409, "Someone at the table already has that name");
-      }
-
-      const takenSeats = new Set(taken.map((row) => row.seat));
-      let seat = 1;
-      while (takenSeats.has(seat)) seat += 1;
-
-      const inserted = await request(transaction)
-        .input("sessionId", sql.UniqueIdentifier, sessionId)
-        .input("seat", sql.Int, seat)
-        .input("displayName", sql.NVarChar(24), displayName)
-        .input("colorKey", sql.VarChar(20), colorKey)
-        .input("tokenHash", sql.VarBinary(32), token.hash)
-        .input("life", sql.Int, startingLife)
-        .query<{ id: string }>(`
-          INSERT INTO damnation_players (session_id, seat, display_name, color_key, token_hash, life_total)
-          OUTPUT INSERTED.id
-          VALUES (@sessionId, @seat, @displayName, @colorKey, @tokenHash, @life)
-        `);
-      playerId = inserted.recordset[0].id.toLowerCase();
+      playerId = await seatPlayer(transaction, sessionId, displayName, colorKey, token.hash);
       return { eventType: "join", actorPlayerId: playerId, targetPlayerId: playerId };
     },
   });
@@ -466,6 +480,21 @@ export async function joinSession(
   // was lost, so the orphaned seat is for the host to remove.
   if (result.duplicate) throw new DamnationError(409, "That join was already processed — ask the host to free the seat");
   return { token: token.plaintext, playerId, result };
+}
+
+// A player the host adds from the board, for someone playing without a phone. Allowed whether
+// or not joining is open — it's the host's own seat to fill. The card is edited from the board
+// or from any seated phone; the seat is not claimable until the host hands it to a phone.
+export function addManualPlayer(sessionId: string, opId: string, displayName: string, colorKey: string) {
+  return runMutation({
+    sessionId,
+    opId,
+    actor: { kind: "host" },
+    apply: async (transaction) => {
+      const playerId = await seatPlayer(transaction, sessionId, displayName, colorKey, null);
+      return { eventType: "join", actorPlayerId: null, targetPlayerId: playerId, payload: { manual: true } };
+    },
+  });
 }
 
 // Takes over a seat the host freed (a player whose phone died). Keeps the seat's life and
@@ -488,7 +517,7 @@ export async function claimSeat(
         .input("tokenHash", sql.VarBinary(32), token.hash)
         .query(`
           UPDATE damnation_players SET token_hash = @tokenHash, ts_updated = GETDATE()
-          WHERE id = @playerId AND session_id = @sessionId AND kicked = 0 AND token_hash IS NULL
+          WHERE id = @playerId AND session_id = @sessionId AND kicked = 0 AND token_hash IS NULL AND is_manual = 0
         `);
       if (updated.rowsAffected[0] === 0) throw new DamnationError(409, "That seat isn't open");
       return { eventType: "claim", actorPlayerId: claimPlayerId, targetPlayerId: claimPlayerId };
@@ -526,15 +555,16 @@ export function removePlayer(sessionId: string, opId: string, playerId: string, 
     opId,
     actor: { kind: "host" },
     apply: async (transaction) => {
-      await lockPlayer(transaction, sessionId, playerId);
+      const player = await lockPlayer(transaction, sessionId, playerId);
       await request(transaction)
         .input("playerId", sql.UniqueIdentifier, playerId)
         .query(
           mode === "kick"
             ? `UPDATE damnation_players SET kicked = 1, token_hash = NULL, ts_updated = GETDATE() WHERE id = @playerId`
-            : `UPDATE damnation_players SET token_hash = NULL, ts_updated = GETDATE() WHERE id = @playerId`
+            : // Freeing also releases a manual seat to be claimed from a phone ("Hand to a phone").
+              `UPDATE damnation_players SET token_hash = NULL, is_manual = 0, ts_updated = GETDATE() WHERE id = @playerId`
         );
-      return { eventType: mode, targetPlayerId: playerId };
+      return { eventType: mode, targetPlayerId: playerId, payload: player.is_manual ? { manual: true } : null };
     },
   }).then((result) => {
     // Cut the removed phone's live stream now rather than at its next request.
@@ -543,25 +573,55 @@ export function removePlayer(sessionId: string, opId: string, playerId: string, 
   });
 }
 
+// Gives a session a fresh join code inside the current mutation.
+async function assignNewJoinCode(transaction: sql.Transaction, sessionId: string, generateCode: () => string): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = generateCode();
+    const clash = await request(transaction)
+      .input("code", sql.VarChar(8), code)
+      .query(`SELECT 1 AS clash FROM damnation_sessions WHERE join_code = @code`);
+    if (clash.recordset.length > 0) continue;
+    await request(transaction)
+      .input("sessionId", sql.UniqueIdentifier, sessionId)
+      .input("code", sql.VarChar(8), code)
+      .query(`UPDATE damnation_sessions SET join_code = @code WHERE id = @sessionId`);
+    return;
+  }
+  throw new DamnationError(503, "Couldn't generate a new code — try again");
+}
+
 export function rotateJoinCode(sessionId: string, opId: string, generateCode: () => string) {
   return runMutation({
     sessionId,
     opId,
     actor: { kind: "host" },
     apply: async (transaction) => {
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const code = generateCode();
-        const clash = await request(transaction)
-          .input("code", sql.VarChar(8), code)
-          .query(`SELECT 1 AS clash FROM damnation_sessions WHERE join_code = @code`);
-        if (clash.recordset.length > 0) continue;
-        await request(transaction)
-          .input("sessionId", sql.UniqueIdentifier, sessionId)
-          .input("code", sql.VarChar(8), code)
-          .query(`UPDATE damnation_sessions SET join_code = @code WHERE id = @sessionId`);
-        return { eventType: "rotate_code" };
-      }
-      throw new DamnationError(503, "Couldn't generate a new code — try again");
+      await assignNewJoinCode(transaction, sessionId, generateCode);
+      return { eventType: "rotate_code" };
+    },
+  });
+}
+
+// Reopens a finished game (ended by the host or expired while idle) with its totals intact.
+// Phones lost their seats when the game ended, so every phone seat reopens to be taken over
+// with the new code; players without a phone stay as they were. Joining stays closed.
+export function resumeSession(sessionId: string, opId: string, generateCode: () => string) {
+  return runMutation({
+    sessionId,
+    opId,
+    actor: { kind: "host" },
+    allowFinished: true,
+    apply: async (transaction, context) => {
+      if (context.status !== "finished") throw new DamnationError(409, "This game is still running");
+      await assignNewJoinCode(transaction, sessionId, generateCode);
+      await request(transaction)
+        .input("sessionId", sql.UniqueIdentifier, sessionId)
+        .query(`
+          UPDATE damnation_sessions SET status = 'active', ts_finished = NULL WHERE id = @sessionId;
+          UPDATE damnation_players SET token_hash = NULL, ts_updated = GETDATE()
+          WHERE session_id = @sessionId AND kicked = 0 AND is_manual = 0;
+        `);
+      return { eventType: "reopen", payload: { resumed: true } };
     },
   });
 }

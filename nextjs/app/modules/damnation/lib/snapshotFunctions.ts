@@ -48,6 +48,7 @@ interface PlayerRow {
   life_total: number;
   conceded: boolean;
   eliminated_override: boolean | null;
+  is_manual: boolean;
   open_seat: number;
 }
 
@@ -102,7 +103,7 @@ export async function readSnapshot(
       WHERE s.id = @sessionId;
 
       SELECT id, seat, display_name, color_key, life_total, conceded, eliminated_override,
-             CASE WHEN token_hash IS NULL THEN 1 ELSE 0 END AS open_seat
+             is_manual, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS open_seat
       FROM damnation_players
       WHERE session_id = @sessionId AND kicked = 0
       ORDER BY seat;
@@ -142,6 +143,7 @@ export async function readSnapshot(
       eliminated: reason !== null,
       elimination_reason: reason,
       open_seat: player.open_seat === 1,
+      manual: player.is_manual,
     };
   });
 

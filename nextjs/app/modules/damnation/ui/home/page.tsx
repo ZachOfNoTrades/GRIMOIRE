@@ -8,6 +8,7 @@ import { Toaster, toast } from "react-hot-toast";
 import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
+import { generateUUID } from "@/lib/uuid";
 import { MAX_SEATS, MIN_SEATS, STARTING_LIFE_PRESETS } from "../../lib/constants";
 import { HOST_HELP } from "../../components/help";
 import type { SessionSummary } from "../../types/damnation";
@@ -28,6 +29,7 @@ export default function DamnationHomePage() {
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [resumingId, setResumingId] = useState<string | null>(null);
   const isCustom = !STARTING_LIFE_PRESETS.includes(startingLife as (typeof STARTING_LIFE_PRESETS)[number]);
   const liveSessions = sessions.filter((session) => session.status !== "finished");
   const pastSessions = sessions.filter((session) => session.status === "finished");
@@ -65,6 +67,23 @@ export default function DamnationHomePage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't start a game");
       setIsCreating(false);
+    }
+  }
+
+  async function resumeGame(sessionId: string) {
+    setResumingId(sessionId);
+    try {
+      const response = await fetch(`/modules/damnation/api/sessions/${sessionId}/resume`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op_id: generateUUID() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Couldn't resume that game");
+      router.push(`/modules/damnation/ui/board/${sessionId}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't resume that game");
+      setResumingId(null);
     }
   }
 
@@ -222,9 +241,14 @@ export default function DamnationHomePage() {
                         {new Date(session.ts_created).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
                       </div>
                     </div>
-                    <Button className="btn-off" onClick={() => router.push(`/modules/damnation/ui/board/${session.id}`)}>
-                      View
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button className="btn-off" onClick={() => router.push(`/modules/damnation/ui/board/${session.id}`)}>
+                        View
+                      </Button>
+                      <Button className="btn-green" disabled={resumingId !== null} onClick={() => resumeGame(session.id)} title="Reopen this game with its totals and a new join code">
+                        {resumingId === session.id ? "Resuming…" : "Resume"}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </>

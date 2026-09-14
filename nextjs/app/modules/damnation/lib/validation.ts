@@ -49,6 +49,8 @@ export const joinSchema = z.union([
   z.object({ op_id: uuid, claim_player_id: uuid }),
 ]);
 
+export const addPlayerSchema = z.object({ op_id: uuid, display_name: displayName, color_key: colorKey });
+
 export const lifeSchema = z.object({ op_id: uuid, delta });
 
 export const commanderDamageSchema = z.object({ op_id: uuid, source_player_id: uuid, delta });

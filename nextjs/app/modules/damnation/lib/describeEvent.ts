@@ -18,7 +18,7 @@ export function describeEvent(event: EventView, playersById: Map<string, PlayerV
 
   switch (event.event_type) {
     case "join":
-      return `${actor} joined`;
+      return payload.manual ? `Host added ${target}` : `${actor} joined`;
     case "claim":
       return `${actor} took over their seat`;
     case "life":
@@ -41,11 +41,12 @@ export function describeEvent(event: EventView, playersById: Map<string, PlayerV
     case "kick":
       return `Host removed ${target}`;
     case "free_seat":
-      return event.actor_player_id ? `${target} left their seat` : `Host freed ${target}'s seat`;
+      if (event.actor_player_id) return `${target} left their seat`;
+      return payload.manual ? `Host handed ${target}'s seat to a phone` : `Host freed ${target}'s seat`;
     case "start":
       return "Joining closed — game on";
     case "reopen":
-      return "Joining reopened";
+      return payload.resumed ? "Host resumed the game — phones take their seats back with the new code" : "Joining reopened";
     case "rotate_code":
       return "Host issued a new join code";
     case "end":

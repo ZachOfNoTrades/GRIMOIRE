@@ -21,10 +21,12 @@ export function isColorKey(value: unknown): value is ColorKey {
   return typeof value === "string" && COLOR_KEYS.includes(value);
 }
 
-// JOIN CODE — 6 characters with the easily confused O/0/I/1/L removed (31^6 ≈ 887M codes).
-export const JOIN_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-export const JOIN_CODE_LENGTH = 6;
-export const JOIN_CODE_PATTERN = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
+// JOIN CODE — 4 letters, no digits, easy to read off a TV and type on a phone. I, L and O are
+// left out because they're easily misread (23^4 ≈ 280k codes). The small space is acceptable
+// because joining closes once the game starts and code misses are rate-limited per address.
+export const JOIN_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
+export const JOIN_CODE_LENGTH = 4;
+export const JOIN_CODE_PATTERN = /^[ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
 
 // The QR code and share link always point at the public hostname, even when the board is
 // opened over the LAN: a LAN URL is unreachable on cellular and is not a secure context.

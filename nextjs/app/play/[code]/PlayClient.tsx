@@ -250,7 +250,10 @@ function JoinScreen({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (canJoin) send({ display_name: name.trim(), color_key: color });
+    if (!canJoin) return;
+    // Drop the on-screen keyboard; on a refusal (name or colour taken) the toast must be visible.
+    (document.activeElement as HTMLElement | null)?.blur();
+    send({ display_name: name.trim(), color_key: color });
   }
 
   return (
