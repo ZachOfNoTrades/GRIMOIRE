@@ -213,6 +213,9 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
   const session = recordsets[0][0];
   if (!session) throw new DamnationError(404, "No game with that code");
   const players = recordsets[1];
+  const snapshot = await readSnapshot(pool, sessionId);
+  if (!snapshot) throw new DamnationError(404, "No game with that code");
+  const { version: _version, events: _events, former_players: _former, id: _id, join_url: _url, ts_created: _created, ...table } = snapshot;
 
   return {
     joinable: session.status === "lobby" && players.length < session.max_players,
@@ -228,6 +231,7 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
         display_name: player.display_name,
         color_key: player.color_key,
       })),
+    table,
   };
 }
 

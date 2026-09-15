@@ -63,14 +63,55 @@ type Phase =
   | { kind: "loading" }
   | { kind: "missing"; message: string }
   | { kind: "lobby"; lobby: LobbyView; notice: string | null }
+  // Join pressed: the game is drawn from the lobby's table with this phone's card added, and the
+  // real game takes over in place when the join comes back.
+  | { kind: "joining"; lobby: LobbyView; provisional: GuestSnapshot; draft: JoinDraft }
   | { kind: "playing"; token: string; initial: GuestSnapshot }
   | { kind: "ended" };
+
+interface JoinDraft {
+  name: string;
+  color: string;
+}
+
+// The game a joining phone is about to be part of, built from the lobby's view of the table. The
+// server gives a new player the first free spot, so the provisional card goes there too.
+function provisionalSnapshot(code: string, lobby: LobbyView, draft: JoinDraft): GuestSnapshot {
+  const taken = new Set(lobby.table.players.map((player) => player.position));
+  let position = 1;
+  while (taken.has(position)) position += 1;
+  const me: PlayerView = {
+    id: "joining",
+    position,
+    display_name: draft.name,
+    color_key: draft.color,
+    life_total: lobby.table.starting_life,
+    conceded: false,
+    eliminated_override: null,
+    eliminated: false,
+    elimination_reason: null,
+    rejoinable: false,
+    manual: false,
+    pending: true,
+  };
+  return {
+    ...lobby.table,
+    join_code: lobby.table.join_code ?? code,
+    version: -1,
+    events: [],
+    former_players: [],
+    players: [...lobby.table.players, me].sort((a, b) => a.position - b.position),
+    me: me.id,
+  };
+}
 
 export default function PlayClient({ code }: { code: string }) {
   const router = useRouter();
 
   // STATE
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  // The join form's name and color, kept here so a refused join returns to a filled-in form.
+  const [draft, setDraft] = useState<JoinDraft | null>(null);
 
   const loadLobby = useCallback(
     async (notice: string | null = null) => {
@@ -172,10 +213,17 @@ export default function PlayClient({ code }: { code: string }) {
         code={code}
         lobby={phase.lobby}
         notice={phase.notice}
+        draft={draft}
+        onJoining={(nextDraft) => {
+          setDraft(nextDraft);
+          setPhase({ kind: "joining", lobby: phase.lobby, draft: nextDraft, provisional: provisionalSnapshot(code, phase.lobby, nextDraft) });
+        }}
         onJoined={(token, snapshot) => {
           writeToken(code, token);
+          setDraft(null);
           setPhase({ kind: "playing", token, initial: snapshot });
         }}
+        onJoinFailed={(refresh) => (refresh ? loadLobby(null) : setPhase({ kind: "lobby", lobby: phase.lobby, notice: null }))}
         onRefresh={(notice) => loadLobby(notice)}
       />
     );
@@ -183,10 +231,12 @@ export default function PlayClient({ code }: { code: string }) {
 
   return (
     <Controller
-      key={phase.token}
+      // One instance from Join through to playing, so the real game replaces the provisional one
+      // in place rather than redrawing the screen.
+      key="controller"
       code={code}
-      token={phase.token}
-      initial={phase.initial}
+      token={phase.kind === "playing" ? phase.token : null}
+      initial={phase.kind === "playing" ? phase.initial : phase.provisional}
       onRemoved={(notice) => {
         clearToken(code);
         loadLobby(notice);
@@ -197,7 +247,7 @@ export default function PlayClient({ code }: { code: string }) {
       }}
       onCodeChanged={(newCode) => {
         // The host issued a new code: carry the token over so a reload of the new URL still works.
-        writeToken(newCode, phase.token);
+        if (phase.kind === "playing") writeToken(newCode, phase.token);
         clearToken(code);
         router.replace(`/damnation/${newCode}`);
       }}
@@ -213,30 +263,38 @@ function JoinScreen({
   code,
   lobby,
   notice,
+  draft,
+  onJoining,
   onJoined,
+  onJoinFailed,
   onRefresh,
 }: {
   code: string;
   lobby: LobbyView;
   notice: string | null;
+  draft: JoinDraft | null;
+  onJoining: (draft: JoinDraft) => void;
   onJoined: (token: string, snapshot: GuestSnapshot) => void;
+  // After a refusal: `refresh` reloads the lobby (someone took the last spot or the name).
+  onJoinFailed: (refresh: boolean) => void;
   onRefresh: (notice: string | null) => void;
 }) {
   // INPUT
-  const [name, setName] = useState("");
+  const [name, setName] = useState(draft?.name ?? "");
   // Colors can be shared; preselecting one nobody has yet just makes cards easier to tell apart.
   const firstUnused = PALETTE.find((entry) => !lobby.taken_colors.includes(entry.key))?.key ?? PALETTE[0].key;
-  const [color, setColor] = useState<string>(firstUnused);
+  const [color, setColor] = useState<string>(draft?.color ?? firstUnused);
 
   // STATE
   const [isJoining, setIsJoining] = useState(false);
-  // The player being joined, shown as their card straight away; cleared if the join is refused.
-  const [joiningAs, setJoiningAs] = useState<PlayerView | null>(null);
   const canJoin = lobby.joinable && !!color && name.trim().length > 0 && !isJoining;
 
-  async function send(body: Record<string, unknown>, provisional: PlayerView | null = null) {
+  // A new player switches to the game at once (onJoining) and the request finishes in the
+  // background; rejoining as an existing player waits here, since that card's totals are already
+  // on the table.
+  async function send(body: Record<string, unknown>, joiningDraft: JoinDraft | null = null) {
     setIsJoining(true);
-    setJoiningAs(provisional);
+    if (joiningDraft) onJoining(joiningDraft);
     try {
       const response = await fetch(`/api/damnation/${code}/join`, {
         method: "POST",
@@ -245,16 +303,14 @@ function JoinScreen({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setJoiningAs(null);
         toast.error(data.error ?? "Couldn't join");
-        // Someone may have taken the last spot or the name; show the game as it is now.
-        if (response.status === 409) onRefresh(null);
+        onJoinFailed(response.status === 409);
         return;
       }
       onJoined(data.token, data.snapshot);
     } catch {
-      setJoiningAs(null);
       toast.error("Couldn't reach the game — check your connection");
+      onJoinFailed(false);
     } finally {
       setIsJoining(false);
     }
@@ -265,51 +321,7 @@ function JoinScreen({
     if (!canJoin) return;
     // Drop the on-screen keyboard; on a refusal (name or color taken) the toast must be visible.
     (document.activeElement as HTMLElement | null)?.blur();
-    send(
-      { display_name: name.trim(), color_key: color },
-      {
-        id: "joining",
-        position: lobby.player_count + 1,
-        display_name: name.trim(),
-        color_key: color,
-        life_total: lobby.starting_life,
-        conceded: false,
-        eliminated_override: null,
-        eliminated: false,
-        elimination_reason: null,
-        rejoinable: false,
-        manual: false,
-        pending: true,
-      }
-    );
-  }
-
-  if (joiningAs) {
-    return (
-      <div className="page">
-        <div className="dmn-controller">
-          <Toaster position="top-center" />
-
-          {/* HEADER */}
-          <span className="text-secondary">Game {code} · Joining…</span>
-
-          {/* YOUR CARD — shown before the server confirms; its controls arrive with the game */}
-          <PlayerCard
-            player={joiningAs}
-            players={[joiningAs]}
-            cells={[]}
-            overlay={{ life: {}, commander: {}, status: {} }}
-            variant="self"
-            editable={false}
-            connected={null}
-            isMe
-            onLife={() => {}}
-            onCommander={() => {}}
-            onStatus={() => {}}
-          />
-        </div>
-      </div>
-    );
+    send({ display_name: name.trim(), color_key: color }, { name: name.trim(), color });
   }
 
   return (
@@ -435,13 +447,14 @@ function Controller({
   onCodeChanged,
 }: {
   code: string;
-  token: string;
+  // null while joining: the provisional game is shown, with nothing sent or streamed yet.
+  token: string | null;
   initial: GuestSnapshot;
   onRemoved: (notice: string) => void;
   onEnded: () => void;
   onCodeChanged: (code: string) => void;
 }) {
-  const headers = useMemo(() => ({ "x-damnation-token": token }), [token]);
+  const headers = useMemo(() => (token ? { "x-damnation-token": token } : undefined), [token]);
 
   // STATE
   const [showLeave, setShowLeave] = useState(false);
@@ -459,14 +472,20 @@ function Controller({
   );
 
   const { snapshot, presence, connection, acceptSnapshot } = useSessionStream<GuestSnapshot>({
-    url: `/api/damnation/${code}/stream`,
+    url: token ? `/api/damnation/${code}/stream` : null,
     headers,
     initial,
     onRevoked: handleRevoked,
   });
 
+  // The join came back: the real game replaces the provisional one (its version is -1, so this
+  // snapshot is always accepted) before the stream's first snapshot arrives.
+  useEffect(() => {
+    if (token) acceptSnapshot(initial);
+  }, [token, initial, acceptSnapshot]);
+
   const actions = useGameActions<GuestSnapshot>({
-    baseUrl: `/api/damnation/${code}`,
+    baseUrl: token ? `/api/damnation/${code}` : null,
     headers,
     acceptSnapshot,
     snapshot,
@@ -477,7 +496,8 @@ function Controller({
   useWakeLock(true);
 
   // Width of the screen, for deciding whether the host's table layout fits.
-  const [viewportWidth, setViewportWidth] = useState(0);
+  // Read on first render (this only renders in the browser), so the layout doesn't redraw a frame later.
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 0 : window.innerWidth));
   useEffect(() => {
     const update = () => setViewportWidth(window.innerWidth);
     update();
@@ -523,9 +543,10 @@ function Controller({
     commanderDamage: snapshot.commander_damage_enabled,
     overlay: actions.overlay,
     editable: true,
-    onLife: (delta: number) => actions.changeLife(playerId, delta),
-    onCommander: (sourceId: string, delta: number) => actions.changeCommanderDamage(playerId, sourceId, delta),
-    onStatus: (change: { conceded?: boolean; eliminated_override?: boolean | null }) => actions.changeStatus(playerId, change),
+    // Until the join comes back nothing can be sent, so taps do nothing for that moment.
+    onLife: (delta: number) => token && actions.changeLife(playerId, delta),
+    onCommander: (sourceId: string, delta: number) => token && actions.changeCommanderDamage(playerId, sourceId, delta),
+    onStatus: (change: { conceded?: boolean; eliminated_override?: boolean | null }) => token && actions.changeStatus(playerId, change),
   });
 
   return (
@@ -538,7 +559,7 @@ function Controller({
           <div className="flex items-center gap-1 min-w-0">
 
             {/* LEAVE */}
-            <Button className="btn-link !pl-0" onClick={() => setShowLeave(true)} title="Leave the game" aria-label="Leave the game">
+            <Button className="btn-link !pl-0" onClick={() => setShowLeave(true)} disabled={!token} title="Leave the game" aria-label="Leave the game">
               <ArrowLeftFromLine className="w-5 h-5" />
             </Button>
 
@@ -551,7 +572,9 @@ function Controller({
         </div>
 
         {/* CONNECTION BANNER */}
-        {(connection !== "live" || actions.retrying) && (
+        {/* Only once a connection has dropped — not while it is first opening, which would flash
+            the notice on every join and reload. */}
+        {token && (connection === "reconnecting" || actions.retrying) && (
           <div className="dmn-connection" role="status">
             <WifiOff className="w-4 h-4" aria-hidden />
             {actions.queued > 0 ? "Connection trouble — your changes will send when it's back" : "Reconnecting…"}

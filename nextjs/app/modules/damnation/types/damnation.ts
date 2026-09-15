@@ -102,6 +102,10 @@ export interface LobbyView {
   // Colors already in use — only used to preselect an unused one; any color can be picked.
   taken_colors: string[];
   rejoinable_players: { player_id: string; display_name: string; color_key: string }[];
+  // The table as it is now, so a phone that presses Join can draw the game it is joining straight
+  // away (with its own card added) instead of waiting for the join to come back. Anyone holding
+  // the code could join and see the same.
+  table: Omit<SessionSnapshot, "version" | "events" | "former_players">;
 }
 
 export interface SessionSummary {
