@@ -417,7 +417,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                     <div
                       key={player.id}
                       data-player-id={player.id}
-                      className={`flex flex-col min-w-0 ${dragId === player.id ? "dmn-dragging" : ""} ${dropId === player.id ? "dmn-drop-target" : ""}`}
+                      className={`dmn-slot flex flex-col min-w-0 ${dragId === player.id ? "dmn-dragging" : ""} ${dropId === player.id ? "dmn-drop-target" : ""}`}
                       style={slotStyle(index)}
                     >
 

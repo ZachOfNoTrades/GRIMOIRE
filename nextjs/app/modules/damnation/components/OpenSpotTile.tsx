@@ -30,7 +30,7 @@ export default function OpenSpotTile({
   return (
     /* OPEN SPOT */
     <div
-      className={`dmn-empty-seat ${isDropTarget ? "dmn-drop-target" : ""}`}
+      className={`dmn-slot dmn-empty-seat ${isDropTarget ? "dmn-drop-target" : ""}`}
       data-open-spot={position}
       style={sizer ? { ...style, position: "relative", padding: 0, justifyContent: "stretch", alignItems: "stretch" } : style}
     >

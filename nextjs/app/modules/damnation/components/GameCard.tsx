@@ -1,6 +1,6 @@
 "use client";
 
-import { DoorClosed, DoorOpen, History, SlidersHorizontal } from "lucide-react";
+import { Check, DoorClosed, DoorOpen, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ActivityFeed from "./ActivityFeed";
 import GameSetup from "./GameSetup";
@@ -42,16 +42,6 @@ export default function GameCard({
         {/* SETUP FACE */}
         <section className="card dmn-game-face dmn-game-face-setup" inert={!showSetup} aria-label="Game setup">
 
-          {/* SETUP HEADER — back to the history while the game is under way */}
-          {isActive && (
-            <div className="dmn-game-face-header">
-              <h2 className="text-card-title">Edit game</h2>
-              <Button className="btn-link" onClick={() => onShowSetup(false)} title="Show the game's activity">
-                <History className="w-4 h-4" aria-hidden /> Activity
-              </Button>
-            </div>
-          )}
-
           <div className="dmn-join">
 
             {/* QR CODE */}
@@ -65,9 +55,9 @@ export default function GameCard({
               {/* JOIN TEXT */}
               {snapshot.join_code && (
                 <div className="dmn-join-text">
-                  <span className="text-secondary">Scan, or go to <strong>{joinHost}</strong> and enter</span>
+                  <span className="dmn-join-hint text-secondary">Scan, or go to <strong>{joinHost}</strong> and enter</span>
                   <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
-                  <span className="text-secondary">
+                  <span className="dmn-join-count text-secondary">
                     {isLobby
                       ? `${snapshot.players.length}/${snapshot.max_players} players`
                       : "Joining is closed — players rejoin with the code"}
@@ -76,25 +66,35 @@ export default function GameCard({
               )}
 
               {/* GAME SETUP */}
-              <GameSetup
-                startingLife={snapshot.starting_life}
-                maxPlayers={snapshot.max_players}
-                playerCount={snapshot.players.length}
-                disabled={isBusy}
-                onChange={onSetupChange}
-                onOpenLayout={onOpenLayout}
-              />
+              <div className="dmn-join-setup">
+                <GameSetup
+                  startingLife={snapshot.starting_life}
+                  maxPlayers={snapshot.max_players}
+                  playerCount={snapshot.players.length}
+                  disabled={isBusy}
+                  onChange={onSetupChange}
+                  onOpenLayout={onOpenLayout}
+                />
+              </div>
 
-              {/* START GAME — closes joining; once under way, joining can be reopened for a late arrival */}
+              {/* START GAME — closes joining. Once under way (Edit game): reopen joining for a late
+                  arrival, or go back to the activity. */}
               <div className="dmn-game-actions">
                 {isLobby ? (
                   <Button className="btn-green" disabled={isBusy || snapshot.players.length === 0} onClick={onStart} title="Close joining and start playing">
                     <DoorClosed className="w-4 h-4" aria-hidden /> Start game
                   </Button>
                 ) : (
-                  <Button className="btn-off" disabled={isBusy} onClick={onReopenJoining} title="Let a late arrival join">
-                    <DoorOpen className="w-4 h-4" aria-hidden /> Reopen joining
-                  </Button>
+                  <>
+                    <Button className="btn-off" disabled={isBusy} onClick={onReopenJoining} title="Let a late arrival join">
+                      <DoorOpen className="w-4 h-4" aria-hidden /> Reopen joining
+                    </Button>
+                    {isActive && (
+                      <Button className="btn-blue" onClick={() => onShowSetup(false)} title="Back to the game's activity">
+                        <Check className="w-4 h-4" aria-hidden /> Done
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
