@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronUp, GripVertical, Palette, Skull, Swords, X } from "lucide-react";
-import { KeyboardEvent, useState } from "react";
+import { KeyboardEvent, useRef, useState } from "react";
 import { COMMANDER_DAMAGE_LETHAL, isColorKey, NAME_MAX_LENGTH, PALETTE } from "../lib/constants";
 import { eliminationReason } from "../lib/elimination";
 import type { PendingOverlay } from "../lib/useGameActions";
@@ -81,6 +81,22 @@ export default function PlayerCard({
   const [showCommander, setShowCommander] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [isPickingColor, setIsPickingColor] = useState(false);
+  // Which tap zone is being pressed. Set from pointer events rather than relying on :active, which
+  // mobile Safari doesn't apply to touches, and held briefly after release so a quick tap still
+  // shows its flash.
+  const [pressedZone, setPressedZone] = useState<"minus" | "plus" | null>(null);
+  const releaseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pressHandlers = (zone: "minus" | "plus") => ({
+    onPointerDown: () => {
+      clearTimeout(releaseTimerRef.current);
+      setPressedZone(zone);
+    },
+    onPointerUp: () => {
+      releaseTimerRef.current = setTimeout(() => setPressedZone(null), 120);
+    },
+    onPointerLeave: () => setPressedZone(null),
+    onPointerCancel: () => setPressedZone(null),
+  });
   const pendingLife = overlay.life[player.id] ?? 0;
   const life = player.life_total + pendingLife;
   const seatClass = isColorKey(player.color_key) ? `dmn-seat-${player.color_key}` : "dmn-seat-artifact";
@@ -274,13 +290,13 @@ export default function PlayerCard({
         <div className={`dmn-tap-zones ${fill ? "flex-1" : ""}`}>
 
           {/* LOSE ONE */}
-          <button type="button" className="dmn-tap-zone dmn-tap-zone-minus" onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">
-            −
+          <button type="button" className="dmn-tap-zone dmn-tap-zone-minus" data-pressed={pressedZone === "minus"} {...pressHandlers("minus")} onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">
+            <span className="dmn-tap-symbol" aria-hidden>−</span>
           </button>
 
           {/* GAIN ONE */}
-          <button type="button" className="dmn-tap-zone dmn-tap-zone-plus" onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">
-            +
+          <button type="button" className="dmn-tap-zone dmn-tap-zone-plus" data-pressed={pressedZone === "plus"} {...pressHandlers("plus")} onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">
+            <span className="dmn-tap-symbol" aria-hidden>+</span>
           </button>
 
           {/* LIFE TOTAL */}

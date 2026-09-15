@@ -7941,8 +7941,34 @@ body:has(.quest-cal-page) > .page {
   -webkit-tap-highlight-color: transparent;
 }
 
-.dmn-tap-zone:active {
-  background: color-mix(in srgb, var(--dmn-seat-fg) 12%, transparent);
+/* The press feedback is a square behind the − / + symbol, not the whole half of the card: a
+   half-card flash reads as a glitch, especially on touch where the whole zone lights up. */
+.dmn-tap-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  transition: background-color 120ms;
+}
+
+.dmn-tap-zone:active .dmn-tap-symbol,
+.dmn-tap-zone[data-pressed="true"] .dmn-tap-symbol {
+  background: color-mix(in srgb, var(--dmn-seat-fg) 22%, transparent);
+}
+
+@media (hover: hover) {
+  .dmn-tap-zone:hover .dmn-tap-symbol {
+    background: color-mix(in srgb, var(--dmn-seat-fg) 10%, transparent);
+  }
+}
+
+.dmn-tap-zone:focus-visible {
+  outline: none;
+}
+
+.dmn-tap-zone:focus-visible .dmn-tap-symbol {
+  outline: 2px solid currentColor;
 }
 
 .dmn-tap-zone-minus {
@@ -8037,6 +8063,53 @@ body:has(.quest-cal-page) > .page {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+/* COLLAPSIBLE EDITOR — toggle plus its rows in one card child, so the closed rows add no gap. The
+   rows open and close by animating the grid track from 0fr to 1fr, which needs no fixed height. */
+.dmn-editor {
+  display: flex;
+  flex-direction: column;
+}
+
+.dmn-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease;
+}
+
+.dmn-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.dmn-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dmn-collapse[data-open="true"] > .dmn-cmdr-rows {
+  padding-top: 0.5rem;
+}
+
+.dmn-collapse > .dmn-cmdr-rows {
+  transition: padding-top 200ms ease;
+}
+
+.dmn-toggle-chevron {
+  transition: transform 200ms ease;
+}
+
+.dmn-toggle[aria-expanded="true"] .dmn-toggle-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dmn-collapse,
+  .dmn-collapse > .dmn-cmdr-rows,
+  .dmn-toggle-chevron,
+  .dmn-tap-symbol {
+    transition: none;
+  }
 }
 
 .dmn-cmdr-row {
