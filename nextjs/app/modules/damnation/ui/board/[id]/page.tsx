@@ -256,7 +256,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
         {!snapshot && <p className="text-secondary">Loading board…</p>}
 
         {snapshot && (
-          <div className={`dmn-board-layout ${showSetup ? "dmn-board-layout--setup" : ""}`}>
+          <div className="dmn-board-layout">
 
             {/* MAIN COLUMN */}
             <div className="dmn-board-main flex flex-col gap-4 min-w-0">

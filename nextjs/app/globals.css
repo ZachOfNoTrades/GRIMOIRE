@@ -8615,18 +8615,14 @@ body:has(.quest-cal-page) > .page {
   overflow: auto;
 }
 
-/* Board and the game card. Narrow: the game card on top while it shows the setup (the QR code is
-   what people need first), below the board once it shows the activity. Wide: the board on the
-   left, the game card filling the column on the right. */
+/* Board and the game card. Narrow: the game card stays below the board whichever face it shows, so
+   flipping it never moves it past the board and every card is on screen first. Wide: the board on
+   the left, the game card filling the column on the right. */
 .dmn-board-layout {
   display: grid;
   grid-template-columns: 1fr;
   grid-template-areas: "main" "side";
   gap: 1rem;
-}
-
-.dmn-board-layout--setup {
-  grid-template-areas: "side" "main";
 }
 
 .dmn-board-main {
@@ -8638,8 +8634,7 @@ body:has(.quest-cal-page) > .page {
 }
 
 @media (min-width: 1024px) {
-  .dmn-board-layout,
-  .dmn-board-layout--setup {
+  .dmn-board-layout {
     grid-template-columns: 1fr 20rem;
     grid-template-rows: minmax(0, 1fr);
     grid-template-areas: "main side";
