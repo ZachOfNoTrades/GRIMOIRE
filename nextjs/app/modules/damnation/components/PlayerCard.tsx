@@ -46,11 +46,11 @@ interface PlayerCardProps {
 }
 
 // Short label in the card head (it shares the line with the name); the full reason is the tooltip.
-const REASON_LABEL: Record<string, { short: string; full: string }> = {
-  life: { short: "Out", full: "Out — no life" },
-  commander_damage: { short: "Out", full: "Out — commander damage" },
-  conceded: { short: "Conceded", full: "Conceded" },
-  host: { short: "Out", full: "Marked out" },
+const REASON_LABEL: Record<string, string> = {
+  life: "out, no life",
+  commander_damage: "out, commander damage",
+  conceded: "conceded",
+  host: "marked out",
 };
 
 function formatSigned(value: number): string {
@@ -179,7 +179,15 @@ export default function PlayerCard({
 
   return (
     /* PLAYER CARD */
-    <section className={cardClass} data-expanded={showCommander} aria-label={`${player.display_name}, ${life} life`}>
+    <section
+      className={cardClass}
+      data-expanded={showCommander}
+      aria-label={`${player.display_name}, ${life} life${outReason ? `, ${REASON_LABEL[outReason]}` : ""}`}
+    >
+
+      {/* OUT — a large translucent skull behind the whole card */}
+      {outReason && <Skull className="dmn-card-skull" aria-hidden />}
+
 
       {/* CARD HEAD */}
       <div className="dmn-card-head">
@@ -260,12 +268,6 @@ export default function PlayerCard({
         {/* TAGS */}
         {isMe && <span className="dmn-tag">You</span>}
 
-        {/* ELIMINATION — in the head so a player going out doesn't push the card's contents down */}
-        {outReason && (
-          <span className="dmn-out-reason" title={REASON_LABEL[outReason].full} aria-label={REASON_LABEL[outReason].full}>
-            <Skull className="w-4 h-4" aria-hidden /> {REASON_LABEL[outReason].short}
-          </span>
-        )}
 
         {/* REMOVE */}
         {onRemove && (
