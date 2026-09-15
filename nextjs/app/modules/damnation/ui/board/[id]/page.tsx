@@ -11,7 +11,6 @@ import {
   Play,
   Settings,
   Skull,
-  Swords,
   Trash2,
   WifiOff,
 } from "lucide-react";
@@ -337,24 +336,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             </button>
           )}
 
-          {/* COMMANDER DAMAGE ITEM — a switch for this game only (the setting is the default for new
-              games); the shared settings switch, driven by aria-checked on the row */}
-          <button
-            className="popover-item"
-            role="menuitemcheckbox"
-            aria-checked={snapshot?.commander_damage_enabled ?? false}
-            onClick={() => {
-              // The menu stays open so the switch can be seen to flip.
-              if (!snapshot) return;
-              const enabled = !snapshot.commander_damage_enabled;
-              hostCommand("/commander-damage", { enabled }, "PUT", commanderDamagePatch(enabled));
-            }}
-          >
-            <Swords className="w-4 h-4 mr-3" />
-            <span className="popover-item-label">Commander damage</span>
-            <span className="settings-switch" aria-hidden />
-          </button>
-
           {/* FULL SCREEN ITEM */}
           <button className="popover-item" onClick={() => { setIsMenuOpen(false); toggleFullscreen(); }}>
             {isFullscreen ? <Shrink className="w-4 h-4 mr-3" /> : <Expand className="w-4 h-4 mr-3" />}
@@ -498,6 +479,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               onShowSetup={setIsEditingGame}
               onSetupChange={(change) => hostCommand("/setup", change, "POST", setupPatch(change))}
               onOpenLayout={() => setShowLayoutPicker(true)}
+              onCommanderDamageChange={(enabled) => void hostCommand("/commander-damage", { enabled }, "PUT", commanderDamagePatch(enabled))}
               onStart={() => {
                 setIsEditingGame(false);
                 void hostCommand("/joins", { open: false }, "POST", statusPatch("active"));

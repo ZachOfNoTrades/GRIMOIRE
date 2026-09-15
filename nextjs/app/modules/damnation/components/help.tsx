@@ -72,8 +72,8 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         Open <strong>Commander damage taken</strong> on a player&apos;s card and step the counter for the commander that
-        hit them. It also takes that much life. 21 from one commander puts a player out. Turn it off for a game from the board&apos;s ⋯
-        menu; Damnation settings sets whether new games start with it on.
+        hit them. It also takes that much life. 21 from one commander puts a player out. Turn it off for a game with the switch in the game
+        setup (Edit game, once it has started); Damnation settings sets whether new games start with it on.
       </>
     ),
   },

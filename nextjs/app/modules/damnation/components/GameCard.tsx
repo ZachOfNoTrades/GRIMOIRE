@@ -8,7 +8,7 @@ import QrCode from "./QrCode";
 import type { HostSnapshot } from "../types/damnation";
 
 // The board's side card, two faces of one card that flips between them: setup (QR code, join
-// code, starting life, players, layout, Start game) and activity (the game's history). The board
+// code, starting life, players, layout, commander damage, Start game) and activity (the game's history). The board
 // decides which face shows: setup before the game starts, activity once it is under way, and
 // setup again from Edit game to change the game in flight.
 
@@ -19,6 +19,7 @@ export default function GameCard({
   onShowSetup,
   onSetupChange,
   onOpenLayout,
+  onCommanderDamageChange,
   onStart,
   onReopenJoining,
 }: {
@@ -28,6 +29,7 @@ export default function GameCard({
   onShowSetup: (show: boolean) => void;
   onSetupChange: (change: { starting_life?: number; max_players?: number }) => Promise<boolean>;
   onOpenLayout: () => void;
+  onCommanderDamageChange: (enabled: boolean) => void;
   onStart: () => void;
   onReopenJoining: () => void;
 }) {
@@ -74,6 +76,8 @@ export default function GameCard({
                   disabled={isBusy}
                   onChange={onSetupChange}
                   onOpenLayout={onOpenLayout}
+                  commanderDamage={snapshot.commander_damage_enabled}
+                  onCommanderDamageChange={onCommanderDamageChange}
                 />
               </div>
 

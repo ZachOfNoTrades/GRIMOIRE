@@ -5,8 +5,8 @@ import { KeyboardEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { MAX_PLAYERS, MIN_PLAYERS, STARTING_LIFE_PRESETS } from "../lib/constants";
 
-// Starting life and player count for a game, set on the board while joining is open. Each choice
-// is saved as soon as it is made.
+// Starting life, player count and commander damage for a game, set on the board's game card before
+// the game and from Edit game during it. Each choice is saved as soon as it is made.
 
 const PLAYER_COUNT_OPTIONS = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, index) => MIN_PLAYERS + index);
 
@@ -17,6 +17,8 @@ export default function GameSetup({
   disabled,
   onChange,
   onOpenLayout,
+  commanderDamage,
+  onCommanderDamageChange,
 }: {
   startingLife: number;
   maxPlayers: number;
@@ -25,6 +27,9 @@ export default function GameSetup({
   onChange: (change: { starting_life?: number; max_players?: number }) => Promise<boolean>;
   // Opens the table layout picker; its button sits beside the player count.
   onOpenLayout: () => void;
+  // This game's commander damage tracking (the Damnation setting is only the default for new games).
+  commanderDamage: boolean;
+  onCommanderDamageChange: (enabled: boolean) => void;
 }) {
   // INPUT
   const [customLife, setCustomLife] = useState("");
@@ -137,6 +142,20 @@ export default function GameSetup({
           </Button>
         </div>
       </div>
+
+      {/* COMMANDER DAMAGE — the shared settings switch, driven by aria-checked on the row */}
+      <button
+        type="button"
+        role="switch"
+        className="dmn-setup-switch"
+        aria-checked={commanderDamage}
+        disabled={disabled}
+        onClick={() => onCommanderDamageChange(!commanderDamage)}
+        title="Track commander damage in this game"
+      >
+        <span className="text-h2">Commander damage</span>
+        <span className="settings-switch" aria-hidden />
+      </button>
     </div>
   );
 }
