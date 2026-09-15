@@ -558,7 +558,7 @@ function Controller({
 
   return (
     <div className="page">
-      <div className="dmn-controller">
+      <div className="dmn-controller dmn-controller-game">
         <Toaster position="top-center" />
 
         {/* HEADER — leave sits top-left, where a phone's back/exit control is expected */}
@@ -596,7 +596,14 @@ function Controller({
         {/* TABLE LAYOUT */}
         <div
           className="dmn-grid"
-          style={{ gridTemplateColumns: layout.columns, gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" ") }}
+          style={
+            {
+              gridTemplateColumns: layout.columns,
+              gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" "),
+              // The layout's rows split the screen height evenly (globals.css).
+              "--dmn-rows": layout.areas.length,
+            } as React.CSSProperties
+          }
         >
           {arrangeSpots(snapshot.players, snapshot.max_players).map((player, index) => !player ? (
             /* OPEN SPOT — holds its place in the layout so the other cards keep their size */
@@ -622,7 +629,7 @@ function Controller({
             <div
               key={player.id}
               data-player-id={player.id}
-              className={`flex flex-col min-w-0 ${table.dragId === player.id ? "dmn-dragging" : ""} ${table.dropId === player.id ? "dmn-drop-target" : ""}`}
+              className={`dmn-slot flex flex-col min-w-0 ${table.dragId === player.id ? "dmn-dragging" : ""} ${table.dropId === player.id ? "dmn-drop-target" : ""}`}
               style={{ gridArea: SLOT_NAMES[index] }}
             >
               <PlayerCard
