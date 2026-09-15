@@ -8842,26 +8842,35 @@ body:has(.quest-cal-page) > .page {
   gap: 0.35rem;
 }
 
-/* SETUP SWITCHES — full-width rows under the setup groups, close together: label, then the shared
-   settings switch (driven by aria-checked, like the settings page rows). */
+/* SETUP SWITCHES — a two-column grid under the setup groups: every label in the first column and
+   every switch in the second, so they line up however long the labels are. Each row is a button
+   spanning both columns and passing them to its label and switch (subgrid); the switch is the
+   shared settings switch, driven by aria-checked like the settings page rows. */
 .dmn-setup-switches {
-  display: flex;
+  display: grid;
   flex-basis: 100%;
-  flex-direction: column;
-  gap: 0.25rem;
+  grid-template-columns: max-content max-content;
+  justify-content: center;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
 }
 
 .dmn-setup-switch {
-  display: flex;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
   padding: 0.25rem 0;
   background: none;
   border: 0;
   color: inherit;
   font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+
+.dmn-setup-switch > .settings-switch {
+  justify-self: start;
 }
 
 .dmn-setup-switch:disabled {
