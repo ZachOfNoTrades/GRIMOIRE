@@ -8759,6 +8759,63 @@ body:has(.quest-cal-page) > .page {
   background: var(--card-bg);
 }
 
+/* WIKI CARD VIEW — Scryfall cards opened from a wiki page, in the space the page had. */
+.dmn-wiki-cards {
+  height: min(70vh, 48rem);
+  overflow-y: auto;
+}
+
+.dmn-wiki-card-faces {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+/* Card proportions are held before an image loads, so the view doesn't jump as cards arrive. */
+.dmn-wiki-card-faces img {
+  width: min(100%, 22rem);
+  height: auto;
+  aspect-ratio: 488 / 680;
+  border-radius: 4.75% / 3.5%;
+}
+
+.dmn-wiki-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0.5rem;
+}
+
+.dmn-wiki-card-pick {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 4.75% / 3.5%;
+  overflow: hidden;
+}
+
+.dmn-wiki-card-pick img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 488 / 680;
+}
+
+.dmn-wiki-card-pick span {
+  display: flex;
+  aspect-ratio: 488 / 680;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: 1px solid var(--card-border);
+}
+
+.dmn-wiki-card-pick:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 /* DRAG — while a card is being moved it recedes, and the card it would swap with is outlined. */
 .dmn-dragging {
   opacity: 0.45;

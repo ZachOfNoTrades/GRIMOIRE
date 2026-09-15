@@ -58,4 +58,7 @@ export const RATE_LIMITS = {
   codeMiss: { limit: 30, windowMs: 10 * 60 * 1000 },
   // Join / claim attempts per address.
   join: { limit: 20, windowMs: 10 * 60 * 1000 },
+  // Wiki pages shown in the panel. Phones on the same Wi-Fi share one address, so this allows a
+  // whole table looking things up.
+  wiki: { limit: 300, windowMs: 10 * 60 * 1000 },
 } as const;
