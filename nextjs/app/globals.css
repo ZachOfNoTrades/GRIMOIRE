@@ -8539,7 +8539,11 @@ body:has(.quest-cal-page) > .page {
   .dmn-board-main > .dmn-grid {
     gap: 0.5rem;
   }
+}
 
+/* COMPACT SETUP — phones, and wide screens with little height: tighter card padding, the QR code
+   beside the join code, and slimmer rows, so the whole setup fits on the screen. */
+@media (max-width: 1023px), (min-width: 1024px) and (max-height: 56rem) {
   .dmn-game-face.card {
     padding-top: 0.75rem;
     padding-bottom: 0.75rem;
@@ -8657,24 +8661,25 @@ body:has(.quest-cal-page) > .page {
     inset: 0;
     overflow-y: auto;
   }
+}
 
-  .dmn-activity .dmn-feed-frame {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-  }
+/* The feed fills the activity face below its header and scrolls inside it. */
+.dmn-activity .dmn-feed-frame {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 
-  .dmn-activity .dmn-feed {
-    flex: 1;
-    min-height: 0;
-    max-height: none;
-  }
+.dmn-activity .dmn-feed {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 /* GAME CARD FLIP — both faces share one grid cell; the flipper turns a half-turn to show the
-   activity on the back. The face turned away sits out of the flow so the card takes the height of
-   the face showing. */
+   activity on the back. The setup face always sets the card's height and the activity face lies
+   over it at the same size, scrolling its feed inside, so flipping never resizes the card. */
 .dmn-game-card {
   perspective: 1600px;
   min-width: 0;
@@ -8705,8 +8710,7 @@ body:has(.quest-cal-page) > .page {
   transform: rotateY(180deg);
 }
 
-.dmn-game-card[data-face="setup"] .dmn-game-face-activity.card,
-.dmn-game-card[data-face="activity"] .dmn-game-face-setup.card {
+.dmn-game-face-activity.card {
   position: absolute;
   inset: 0;
   overflow: hidden;
