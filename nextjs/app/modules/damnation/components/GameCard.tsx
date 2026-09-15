@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, DoorClosed, DoorOpen, SlidersHorizontal } from "lucide-react";
+import { DoorClosed, DoorOpen, History, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ActivityFeed from "./ActivityFeed";
 import GameSetup from "./GameSetup";
@@ -47,6 +47,17 @@ export default function GameCard({
 
         {/* SETUP FACE */}
         <section className="card dmn-game-face dmn-game-face-setup" inert={!showSetup} aria-label="Game setup">
+
+          {/* SETUP HEADER — during the game (Edit game): back to the activity, mirroring Edit game */}
+          {isActive && (
+            <div className="dmn-game-face-header">
+              <h2 className="text-card-title">Edit game</h2>
+              <Button className="btn-link" onClick={() => onShowSetup(false)} title="Back to the game's activity">
+                <History className="w-4 h-4" aria-hidden /> View activity
+              </Button>
+            </div>
+          )}
+
           <div className="dmn-join">
 
             {/* JOIN CODE — QR code, hint, code and count. Once the game has started joining is closed:
@@ -95,19 +106,14 @@ export default function GameCard({
               />
             </div>
 
-            {/* START GAME — closes joining; during the game (Edit game), Done goes back to the activity */}
-            <div className="dmn-game-actions">
-              {isLobby && (
+            {/* START GAME — closes joining */}
+            {isLobby && (
+              <div className="dmn-game-actions">
                 <Button className="btn-green" disabled={isBusy || snapshot.players.length === 0} onClick={onStart} title="Close joining and start playing">
                   <DoorClosed className="w-4 h-4" aria-hidden /> Start game
                 </Button>
-              )}
-              {isActive && (
-                <Button className="btn-blue" onClick={() => onShowSetup(false)} title="Back to the game's activity">
-                  <Check className="w-4 h-4" aria-hidden /> Done
-                </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </section>
 

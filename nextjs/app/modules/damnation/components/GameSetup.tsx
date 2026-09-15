@@ -59,7 +59,7 @@ export default function GameSetup({
   return (
     /* GAME SETUP — starting life and players side by side, wrapping under each other when narrow.
        Each label sits left of its buttons to keep the join panel short. */
-    <div className="flex flex-wrap gap-x-8 gap-y-2">
+    <div className="dmn-setup flex flex-wrap gap-x-8">
 
       {/* STARTING LIFE */}
       <div className="dmn-setup-group flex flex-wrap items-center gap-x-3 gap-y-2">

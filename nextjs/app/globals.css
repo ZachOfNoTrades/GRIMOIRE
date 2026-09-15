@@ -8826,6 +8826,11 @@ body:has(.quest-cal-page) > .page {
   flex-basis: 100%;
 }
 
+/* Starting life, players and commander damage, with room between the groups. */
+.dmn-setup {
+  row-gap: 1rem;
+}
+
 /* Player counts and the icon-only layout button share one line in the side column. */
 .dmn-join .dmn-player-count {
   flex-wrap: nowrap;
