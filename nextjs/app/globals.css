@@ -8024,10 +8024,15 @@ body:has(.quest-cal-page) > .page {
   min-height: clamp(7rem, 42cqi, 11rem);
 }
 
+/* − and + are buttons the size of their symbol at the edges of the life area (at least a 44px touch
+   target), not the whole half of the card, so a tap near the number doesn't change it. */
 .dmn-tap-zone {
   display: flex;
   align-items: center;
-  padding: 0 clamp(0.25rem, 3cqi, 0.75rem);
+  justify-content: center;
+  align-self: center;
+  margin: 0 clamp(0.25rem, 3cqi, 0.75rem);
+  padding: 0;
   font-size: clamp(1.25rem, 9cqi, 2.25rem);
   font-weight: 700;
   background: transparent;
@@ -8069,11 +8074,11 @@ body:has(.quest-cal-page) > .page {
 }
 
 .dmn-tap-zone-minus {
-  justify-content: flex-start;
+  justify-self: start;
 }
 
 .dmn-tap-zone-plus {
-  justify-content: flex-end;
+  justify-self: end;
 }
 
 .dmn-tap-zones .dmn-life {
@@ -8336,13 +8341,13 @@ body:has(.quest-cal-page) > .page {
   }
 
   .dmn-tap-zone {
-    padding: 0;
+    margin: 0;
     font-size: 1rem;
   }
 
   .dmn-tap-symbol {
-    width: 1.4em;
-    height: 1.4em;
+    width: max(1.4em, 2.25rem);
+    height: max(1.4em, 2.25rem);
   }
 
   .dmn-tap-zones .dmn-life,
@@ -8389,7 +8394,13 @@ body:has(.quest-cal-page) > .page {
   }
 
   .dmn-tap-zone {
-    align-items: flex-end;
+    align-self: end;
+  }
+
+  /* Two buttons must leave a gap in the middle of a card this narrow. */
+  .dmn-tap-symbol {
+    width: 1.75rem;
+    height: 1.75rem;
   }
 
   .dmn-tap-zones .dmn-life,
