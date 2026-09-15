@@ -378,7 +378,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
         {/* CONNECTION BANNER */}
         {snapshot && connection !== "live" && !isFinished && (
           <div className="dmn-connection mb-3" role="status">
-            <WifiOff className="w-4 h-4" aria-hidden /> Reconnecting — the board will catch up
+            <WifiOff className="w-4 h-4" aria-hidden /> Reconnecting…
           </div>
         )}
 
