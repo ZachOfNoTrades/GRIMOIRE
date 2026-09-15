@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/Toaster";
 import { DailyTotals } from "../../types/entry";
 import { MacroTarget } from "../../types/target";
 import { Nutrient, ResolvedNutrientTarget } from "../../types/food";

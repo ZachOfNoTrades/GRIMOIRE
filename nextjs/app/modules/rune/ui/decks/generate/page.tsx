@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Zap } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useGenerationJob } from "@/lib/useGenerationJob";
 

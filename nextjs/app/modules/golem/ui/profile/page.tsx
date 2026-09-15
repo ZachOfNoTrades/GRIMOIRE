@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, User, Pencil } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { SettingsToggleRow } from "@/components/settings/SettingsList";
 import { UserProfile } from "../../types/userProfile";

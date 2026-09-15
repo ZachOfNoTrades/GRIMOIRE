@@ -5,7 +5,7 @@ import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
 import { ArrowLeft, Layers, Pencil, Trash2 } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { CardWithProgress } from "../../../types/card";
 import { CollectionWithDecks } from "../../../types/collection";

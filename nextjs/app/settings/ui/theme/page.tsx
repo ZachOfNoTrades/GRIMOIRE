@@ -1,7 +1,7 @@
 "use client";
 
 import { SunMoon } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { SettingsBackLink, SettingsControlRow } from "@/components/settings/SettingsList";
 import SegmentedToggle, { type SegmentedOption } from "@/components/ui/SegmentedToggle";
 import HelpButton from "@/components/ui/HelpButton";

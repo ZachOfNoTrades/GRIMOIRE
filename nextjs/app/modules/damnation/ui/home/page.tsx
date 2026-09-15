@@ -4,7 +4,7 @@ import { ArrowLeft, Monitor, Settings, Skull } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster, toast } from "@/components/Toaster";
 import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";

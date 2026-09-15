@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BackLink } from "@/components/BackLink";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { ArrowLeft, ChevronRight, Plus, Apple } from "lucide-react";
 import { SearchField } from "@/components/SearchField";
 import { Button } from "@/components/ui/button";

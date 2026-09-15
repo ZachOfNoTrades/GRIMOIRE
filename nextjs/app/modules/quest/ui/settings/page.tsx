@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Settings, Coins, Heart, History, Flame, Repeat, Skull, Sparkles, Bell, Send, CalendarClock, Trophy, Quote, Plus, Pencil, Trash2, Check, X, Dices } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";

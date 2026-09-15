@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/Toaster";
 import { Food } from "../../../types/food";
 import { CreateFoodWizard } from "../../_diary";
 import "./createFood.css";

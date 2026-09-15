@@ -5,7 +5,7 @@ import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
 import { ArrowLeft, Eye, EyeOff, Layers, Plus, Star } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { SearchField, SMART_MATCH_HINT } from "@/components/SearchField";
 import { DeckSummary } from "../../types/deck";

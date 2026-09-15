@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, BarChart3, Dumbbell, History, Pencil } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
 import { ExerciseHistoryEntry } from "../../../types/exercise";

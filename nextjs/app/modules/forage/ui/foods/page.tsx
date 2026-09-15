@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/Toaster";
 import { Apple, CalendarClock, ChevronLeft, ChevronRight, Copy, ListChecks, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

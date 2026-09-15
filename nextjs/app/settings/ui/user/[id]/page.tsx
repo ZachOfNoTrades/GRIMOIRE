@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Edit2, Plus, Save, Trash2 } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { User } from "@/types/user";
 import { Module } from "@/types/module";
 import { UserApiKeySummary } from "@/types/apiKey";

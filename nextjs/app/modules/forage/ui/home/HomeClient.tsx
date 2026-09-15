@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/Toaster";
 import {
   ChevronRight,
   Flame,

@@ -5,7 +5,7 @@ import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
 import { ArrowLeft, Boxes, Plus } from "lucide-react";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { SearchField, SMART_MATCH_HINT } from "@/components/SearchField";
 import { CollectionSummary } from "../../types/collection";

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster, toast } from "@/components/Toaster";
 import { ChevronLeft, ChevronUp, ChevronDown, X, Check, Plus } from "lucide-react";
 import { Nutrient } from "../../types/food";
 import { DEFAULT_NUTRITION_CARDS } from "../../types/dashboard";

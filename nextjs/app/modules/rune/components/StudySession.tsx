@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, Pencil, Layers, History } from "lucide-react";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";

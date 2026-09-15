@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { ArrowLeft, Camera, ChefHat, Plus, Trash2, Save, RotateCcw, Pencil, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { selectOnFocus, blurOnEnter } from "@/lib/inputBehavior";

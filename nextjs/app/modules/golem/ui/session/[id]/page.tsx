@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, use } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter, useSearchParams } from "next/navigation";
 import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
 import { SegmentWithSets, TargetSegment, SuggestedExercise } from "../../../types/segment";

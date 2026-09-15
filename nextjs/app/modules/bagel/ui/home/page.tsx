@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster, toast } from "@/components/Toaster";
 import { ArrowLeft, Donut, HelpCircle, History, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppHeight } from "@/lib/useAppHeight";

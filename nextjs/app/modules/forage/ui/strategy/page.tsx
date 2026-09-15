@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/Toaster";
 import {
   Plus, Pencil, CalendarClock, Target, Hourglass, CheckCircle2,
 } from "lucide-react";

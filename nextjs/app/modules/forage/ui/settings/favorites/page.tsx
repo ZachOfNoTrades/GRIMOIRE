@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import toast, { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "@/components/Toaster";
 import { SettingsBackLink, SettingsRadioGroup } from "@/components/settings/SettingsList";
 
 // History windows offered for the picker's hourly "favorites" suggestions. `days`

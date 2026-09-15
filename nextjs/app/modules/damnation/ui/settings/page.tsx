@@ -2,7 +2,7 @@
 
 import { Settings } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster, toast } from "@/components/Toaster";
 import { SettingsBackLink, SettingsToggleRow } from "@/components/settings/SettingsList";
 import type { DamnationSettings } from "../../types/damnation";
 
