@@ -7497,6 +7497,10 @@ body:has(.quest-cal-page) > .page {
   flex: none;
 }
 
+.popover-item:has(.settings-switch) {
+  cursor: pointer;
+}
+
 .popover-item-label {
   flex: 1;
   text-align: left;
