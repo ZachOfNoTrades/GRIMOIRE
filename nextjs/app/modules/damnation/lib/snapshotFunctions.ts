@@ -1,6 +1,6 @@
 import sql from "mssql";
 import { getMainConnection } from "@/lib/db";
-import { resolveLayout } from "./boardLayouts";
+import { parseLayoutPreferences, resolveLayout } from "./boardLayouts";
 import { eliminationReason } from "./elimination";
 import { wikiConfig } from "./wikiConfig";
 import {
@@ -39,6 +39,7 @@ interface SessionRow {
   ts_created: Date;
   board_layout: string | null;
   commander_damage_enabled: boolean;
+  board_layouts: string | null;
 }
 
 interface PlayerRow {
@@ -86,7 +87,8 @@ export async function readSnapshot(
     .input("eventLimit", sql.Int, RECENT_EVENT_LIMIT)
     .query(`
       SELECT s.id, s.host_user_id, s.status, s.join_code, s.starting_life, s.max_seats AS max_players, s.version, s.ts_created, s.board_layout,
-             s.commander_damage_enabled
+             s.commander_damage_enabled,
+             (SELECT st.board_layouts FROM damnation_settings st WHERE st.user_id = s.host_user_id) AS board_layouts
       FROM damnation_sessions s
       WHERE s.id = @sessionId;
 
@@ -170,6 +172,7 @@ export async function readSnapshot(
     max_players: session.max_players,
     ...wikiConfig(),
     commander_damage_enabled: session.commander_damage_enabled,
+    layout_preferences: parseLayoutPreferences(session.board_layouts),
     ts_created: session.ts_created.toISOString(),
     players,
     former_players: recordsets[2].map((player) => ({ id: normalizeId(player.id)!, display_name: player.display_name })),
@@ -184,6 +187,6 @@ export async function readSnapshotFromPool(sessionId: string): Promise<HostSnaps
 
 // Guests never see the session id, the host-only share URL, or anything about the host.
 export function toGuestSnapshot(snapshot: SessionSnapshot, playerId: string): GuestSnapshot {
-  const { id: _id, join_url: _joinUrl, ts_created: _created, ...rest } = snapshot as HostSnapshot;
+  const { id: _id, join_url: _joinUrl, ts_created: _created, layout_preferences: _preferences, ...rest } = snapshot as HostSnapshot;
   return { ...rest, me: playerId };
 }

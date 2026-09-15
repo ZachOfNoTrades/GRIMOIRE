@@ -6,7 +6,7 @@ import {
   JOIN_CODE_LENGTH,
 } from "./constants";
 import { DamnationError, isUniqueViolation } from "./errors";
-import { findLayout, resolveLayout } from "./boardLayouts";
+import { findLayout, parseLayoutPreferences, resolveLayout } from "./boardLayouts";
 import { readPlayerTokenHash } from "./playerTokens";
 import { broadcastSnapshot, closeSession } from "./sessionBus";
 import { IDLE_EXPIRY_HOURS, normalizeId, readSnapshot } from "./snapshotFunctions";
@@ -215,7 +215,7 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
   const players = recordsets[1];
   const snapshot = await readSnapshot(pool, sessionId);
   if (!snapshot) throw new DamnationError(404, "No game with that code");
-  const { version: _version, events: _events, former_players: _former, id: _id, join_url: _url, ts_created: _created, ...table } = snapshot;
+  const { version: _version, events: _events, former_players: _former, id: _id, join_url: _url, ts_created: _created, layout_preferences: _preferences, ...table } = snapshot;
 
   return {
     joinable: session.status === "lobby" && players.length < session.max_players,
@@ -354,12 +354,7 @@ async function readLayoutPreferences(executor: Executor, hostUserId: string): Pr
   const result = await requestFor(executor)
     .input("userId", sql.UniqueIdentifier, hostUserId)
     .query<{ board_layouts: string | null }>(`SELECT board_layouts FROM damnation_settings WHERE user_id = @userId`);
-  try {
-    const parsed = JSON.parse(result.recordset[0]?.board_layouts ?? "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+  return parseLayoutPreferences(result.recordset[0]?.board_layouts);
 }
 
 // The host's last layout for the count, or the first layout for it.

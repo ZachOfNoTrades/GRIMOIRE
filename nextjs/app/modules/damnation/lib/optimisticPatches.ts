@@ -1,5 +1,6 @@
 import { LIFE_MAX, LIFE_MIN } from "./constants";
-import type { PlayerView, SessionSnapshot, SessionStatus } from "../types/damnation";
+import { resolveLayout } from "./boardLayouts";
+import type { HostSnapshot, PlayerView, SessionSnapshot, SessionStatus } from "../types/damnation";
 
 // Board changes shown the moment the host makes them, before the server answers. Each patch is
 // applied on top of the latest snapshot until its request settles, so every patch must be
@@ -79,7 +80,12 @@ export function setupPatch(change: { starting_life?: number; max_players?: numbe
         life_total: Math.min(LIFE_MAX, Math.max(LIFE_MIN, player.life_total + difference)),
       }));
     }
-    if (change.max_players !== undefined) next = { ...next, max_players: change.max_players };
+    if (change.max_players !== undefined && change.max_players !== snapshot.max_players) {
+      // Same rule as the server: the host's last layout for the new count, else its first layout.
+      const preferences = (next as Partial<HostSnapshot>).layout_preferences ?? {};
+      const board_layout = resolveLayout(preferences[String(change.max_players)], change.max_players).key;
+      next = { ...next, max_players: change.max_players, board_layout };
+    }
     return next;
   };
 }
@@ -88,8 +94,13 @@ export function commanderDamagePatch(enabled: boolean): SnapshotPatch {
   return (snapshot) => ({ ...snapshot, commander_damage_enabled: enabled });
 }
 
+// Also remembered as the host's layout for this count, as the server does.
 export function layoutPatch(layoutKey: string): SnapshotPatch {
-  return (snapshot) => ({ ...snapshot, board_layout: layoutKey });
+  return (snapshot) => {
+    const preferences = (snapshot as Partial<HostSnapshot>).layout_preferences;
+    if (!preferences) return { ...snapshot, board_layout: layoutKey };
+    return { ...snapshot, board_layout: layoutKey, layout_preferences: { ...preferences, [String(snapshot.max_players)]: layoutKey } };
+  };
 }
 
 export function statusPatch(status: SessionStatus): SnapshotPatch {

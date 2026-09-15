@@ -85,6 +85,8 @@ export interface HostSnapshot extends SessionSnapshot {
   id: string;
   join_url: string | null;
   ts_created: string;
+  // The host's last layout per player count, so changing the count shows the right layout at once.
+  layout_preferences: Record<string, string>;
 }
 
 export interface GuestSnapshot extends SessionSnapshot {

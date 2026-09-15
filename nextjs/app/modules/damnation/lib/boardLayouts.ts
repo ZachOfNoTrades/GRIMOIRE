@@ -47,6 +47,17 @@ export function findLayout(key: string | null | undefined, playerCount: number):
 
 // Every game has a table layout: the saved one when it fits the player count, otherwise the first
 // layout for that count. (Older games saved none, and a removed layout no longer matches.)
+// The host's saved layout per player count (damnation_settings.board_layouts, JSON like
+// {"4":"4-grid"}). Anything unreadable counts as no preferences.
+export function parseLayoutPreferences(json: string | null | undefined): Record<string, string> {
+  try {
+    const parsed = JSON.parse(json ?? "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export function resolveLayout(key: string | null | undefined, playerCount: number): BoardLayout {
   return findLayout(key, playerCount) ?? layoutsFor(playerCount)[0];
 }
