@@ -8153,34 +8153,66 @@ body:has(.quest-cal-page) > .page {
   gap: 0.35rem;
 }
 
-/* COLLAPSIBLE EDITOR — toggle plus its rows in one card child, so the closed rows add no gap. The
-   rows open and close by animating the grid track from 0fr to 1fr, which needs no fixed height. */
+/* CARD BODY — the life controls and the Status section share one space. The section lies over
+   the life controls (absolutely placed, so it never sets the card's height and scrolls when it has
+   more rows than fit), and the two crossfade, so opening and closing it never move the card. */
 .dmn-editor {
   display: flex;
   flex-direction: column;
 }
 
-.dmn-collapse {
+.dmn-card-body {
+  position: relative;
   display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 200ms ease;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
 }
 
-.dmn-collapse[data-open="true"] {
-  grid-template-rows: 1fr;
-}
-
-.dmn-collapse > * {
+.dmn-card-life {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   min-height: 0;
-  overflow: hidden;
+  transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 0s;
 }
 
-.dmn-collapse[data-open="true"] > .dmn-cmdr-rows {
-  padding-top: 0.5rem;
+.dmn-card-life > .dmn-tap-zones {
+  flex: 1;
 }
 
-.dmn-collapse > .dmn-cmdr-rows {
-  transition: padding-top 200ms ease;
+.dmn-collapse {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(0.5rem);
+  transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms;
+}
+
+.dmn-card-body[data-open="true"] > .dmn-collapse {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 0s;
+}
+
+.dmn-card-body[data-open="true"] > .dmn-card-life {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-0.5rem);
+  transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms;
+}
+
+/* The closed-section summary keeps its space while the section is open, so the card holds still. */
+.dmn-cmdr-summary {
+  transition: opacity 180ms ease;
+}
+
+.dmn-cmdr-summary[data-hidden] {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .dmn-toggle-chevron {
@@ -8192,8 +8224,9 @@ body:has(.quest-cal-page) > .page {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dmn-card-life,
   .dmn-collapse,
-  .dmn-collapse > .dmn-cmdr-rows,
+  .dmn-cmdr-summary,
   .dmn-toggle-chevron,
   .dmn-tap-symbol {
     transition: none;
@@ -8315,22 +8348,8 @@ body:has(.quest-cal-page) > .page {
     display: none;
   }
 
-  .dmn-card[data-expanded="true"] > .dmn-tap-zones,
-  .dmn-card[data-expanded="true"] > .dmn-status-row {
-    display: none;
-  }
-
-  .dmn-card[data-expanded="true"] .dmn-collapse > .dmn-cmdr-rows {
-    max-height: calc(clamp(7rem, 42cqi, 11rem) + 3.25rem);
-    overflow-y: auto;
-  }
-
   .dmn-card-board .dmn-tap-zones {
     min-height: 3.5rem;
-  }
-
-  .dmn-card-board[data-expanded="true"] .dmn-collapse > .dmn-cmdr-rows {
-    max-height: 6.25rem;
   }
 }
 
@@ -8399,9 +8418,9 @@ body:has(.quest-cal-page) > .page {
 /* WIDE BOARD — the page is exactly the screen under the navbar: header, then the board filling the
    rest. The player grid splits its height evenly between the layout's rows (--dmn-rows) and each
    card fits its slot: the number sizes from the tap area's height as well as its width, and an
-   open Commander damage / Status section replaces the number and ±5 and scrolls, instead of
-   growing the card. The side column holds the join panel and Activity. Nothing scrolls unless the
-   window is shorter than 40rem. */
+   open Status section lies over the number and ±5 and scrolls, instead of growing the card. The
+   side column holds the game card. Nothing scrolls unless the window is shorter than the board's
+   minimum height. */
 @media (min-width: 1024px) {
   .dmn-board:not(:fullscreen) {
     display: flex;
@@ -8446,25 +8465,8 @@ body:has(.quest-cal-page) > .page {
     font-size: clamp(1.75rem, min(24cqi, 70cqh), 9rem);
   }
 
-  .dmn-card-board[data-expanded="true"] > .dmn-tap-zones,
-  .dmn-card-board[data-expanded="true"] > .dmn-status-row {
-    display: none;
-  }
-
-  .dmn-card-board[data-expanded="true"] > .dmn-editor {
-    flex: 1;
+  .dmn-card-board > .dmn-card-body {
     min-height: 0;
-  }
-
-  .dmn-card-board[data-expanded="true"] .dmn-collapse {
-    flex: 1;
-    min-height: 0;
-  }
-
-  /* The rows fill the card here; the small-card cap (for phones, where rows aren't fixed) is lifted. */
-  .dmn-card-board[data-expanded="true"] .dmn-collapse > .dmn-cmdr-rows {
-    max-height: none;
-    overflow-y: auto;
   }
 }
 
@@ -8492,7 +8494,11 @@ body:has(.quest-cal-page) > .page {
       min-height: 2.5rem;
     }
 
-    .dmn-card-board > .dmn-status-row .dmn-step {
+    .dmn-card-board .dmn-card-life {
+      gap: 0.25rem;
+    }
+
+    .dmn-card-board .dmn-card-life > .dmn-status-row .dmn-step {
       min-height: 1.9rem;
       padding-block: 0;
     }

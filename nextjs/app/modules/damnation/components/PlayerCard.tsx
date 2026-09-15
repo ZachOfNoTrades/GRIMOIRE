@@ -298,59 +298,41 @@ export default function PlayerCard({
       )}
 
       {editable ? (
-        /* LIFE — the two halves of the number are the ±1 buttons, the same on every card */
-        <div className={`dmn-tap-zones ${fill ? "flex-1" : ""}`}>
+        /* CARD BODY — the life controls and the Status section share one space and crossfade, so
+           opening or closing the section never changes the card's height */
+        <div className={`dmn-card-body ${fill ? "flex-1" : ""}`} data-open={showCommander}>
 
-          {/* LOSE ONE */}
-          <button type="button" className="dmn-tap-zone dmn-tap-zone-minus" data-pressed={pressedZone === "minus"} {...pressHandlers("minus")} onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">
-            <span className="dmn-tap-symbol" aria-hidden>−</span>
-          </button>
+          {/* LIFE — the two halves of the number are the ±1 buttons, then ±5 */}
+          <div className="dmn-card-life" inert={showCommander}>
+            <div className="dmn-tap-zones">
 
-          {/* GAIN ONE */}
-          <button type="button" className="dmn-tap-zone dmn-tap-zone-plus" data-pressed={pressedZone === "plus"} {...pressHandlers("plus")} onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">
-            <span className="dmn-tap-symbol" aria-hidden>+</span>
-          </button>
+              {/* LOSE ONE */}
+              <button type="button" className="dmn-tap-zone dmn-tap-zone-minus" data-pressed={pressedZone === "minus"} {...pressHandlers("minus")} onClick={() => onLife(-1)} aria-label={`${player.display_name} lose 1 life`} title="Lose 1 life">
+                <span className="dmn-tap-symbol" aria-hidden>−</span>
+              </button>
 
-          {/* LIFE TOTAL */}
-          <div className="dmn-life" aria-live="polite">
-            {life}
-            {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
+              {/* GAIN ONE */}
+              <button type="button" className="dmn-tap-zone dmn-tap-zone-plus" data-pressed={pressedZone === "plus"} {...pressHandlers("plus")} onClick={() => onLife(1)} aria-label={`${player.display_name} gain 1 life`} title="Gain 1 life">
+                <span className="dmn-tap-symbol" aria-hidden>+</span>
+              </button>
+
+              {/* LIFE TOTAL */}
+              <div className="dmn-life" aria-live="polite">
+                {life}
+                {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
+              </div>
+            </div>
+
+            {/* ±5 */}
+            <div className="dmn-status-row">
+              <button type="button" className="dmn-step" onClick={() => onLife(-5)} aria-label={`${player.display_name} lose 5 life`} title="Lose 5 life">−5</button>
+              <button type="button" className="dmn-step" onClick={() => onLife(5)} aria-label={`${player.display_name} gain 5 life`} title="Gain 5 life">+5</button>
+            </div>
           </div>
-        </div>
-      ) : (
-        /* LIFE — read only (game over) */
-        <div className="dmn-life" aria-live="polite" style={fill ? { marginBlock: "auto" } : undefined}>
-          {life}
-        </div>
-      )}
 
-      {/* ±5 */}
-      {editable && (
-        <div className="dmn-status-row">
-          <button type="button" className="dmn-step" onClick={() => onLife(-5)} aria-label={`${player.display_name} lose 5 life`} title="Lose 5 life">−5</button>
-          <button type="button" className="dmn-step" onClick={() => onLife(5)} aria-label={`${player.display_name} gain 5 life`} title="Gain 5 life">+5</button>
-        </div>
-      )}
-
-      {/* COMMANDER DAMAGE + STATUS EDITOR */}
-      {/* Shown on every editable card, even before anyone else joins (it holds the status controls
-          too), so a card is the same height whoever else is at the table. */}
-      {editable && (
-        <div className="dmn-editor">
-          {/* TOGGLE */}
-          <button
-            type="button"
-            className="dmn-toggle"
-            onClick={() => setShowCommander((open) => !open)}
-            aria-expanded={showCommander}
-            aria-label="Status"
-          >
-            <span>Status</span>
-            <ChevronDown className="dmn-toggle-chevron w-4 h-4" aria-hidden />
-          </button>
-
-          {/* ROWS — one per opposing commander, then status. Always rendered so opening and closing
-              can animate; inert while closed so nothing hidden can be tapped or focused. */}
+          {/* STATUS SECTION — one row per opposing commander, then status. Always rendered so opening
+              and closing can animate; inert while closed so nothing hidden can be tapped or focused.
+              Scrolls inside the space the life controls take. */}
           <div className="dmn-collapse" data-open={showCommander} inert={!showCommander}>
             <div className="dmn-cmdr-rows">
               {commanderDamage && opponents.map((source) => (
@@ -384,12 +366,35 @@ export default function PlayerCard({
             </div>
           </div>
         </div>
+      ) : (
+        /* LIFE — read only (game over) */
+        <div className="dmn-life" aria-live="polite" style={fill ? { marginBlock: "auto" } : undefined}>
+          {life}
+        </div>
       )}
 
-      {/* COMMANDER DAMAGE SUMMARY — under the toggle and only while it's closed (the open rows show the
-          same numbers), so the first damage never pushes the rows being tapped */}
-      {!showCommander && damageChips.length > 0 && (
-        <div className="dmn-cmdr-summary" aria-label="Commander damage taken">
+      {/* STATUS TOGGLE — shown on every editable card, even before anyone else joins (the section
+          holds the status controls too), so a card is the same height whoever else is at the table */}
+      {editable && (
+        <div className="dmn-editor">
+          {/* TOGGLE */}
+          <button
+            type="button"
+            className="dmn-toggle"
+            onClick={() => setShowCommander((open) => !open)}
+            aria-expanded={showCommander}
+            aria-label="Status"
+          >
+            <span>Status</span>
+            <ChevronDown className="dmn-toggle-chevron w-4 h-4" aria-hidden />
+          </button>
+        </div>
+      )}
+
+      {/* COMMANDER DAMAGE SUMMARY — under the toggle; hidden while the section is open (its rows show
+          the same numbers) but keeping its space, so opening and closing never move the card */}
+      {damageChips.length > 0 && (
+        <div className="dmn-cmdr-summary" data-hidden={showCommander || undefined} aria-hidden={showCommander || undefined} aria-label="Commander damage taken">
           {damageChips.map(({ source, damage }) => (
             <span
               key={source.id}
