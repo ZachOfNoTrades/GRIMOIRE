@@ -8855,6 +8855,7 @@ body:has(.quest-cal-page) > .page {
 
 /* Setup in the narrow panel: each label on its own line, its buttons centered under it. */
 .dmn-join .dmn-setup-group {
+  flex-basis: 100%;
   justify-content: center;
 }
 
@@ -8871,6 +8872,13 @@ body:has(.quest-cal-page) > .page {
 .dmn-join .dmn-player-count {
   flex-wrap: nowrap;
   gap: 0.35rem;
+}
+
+/* Slimmer buttons, so the six counts and the layout icon fit the side column without overflowing
+   (which pushed the row, and its centered title, off center). */
+.dmn-join .dmn-player-count > button {
+  min-width: 0;
+  padding-inline: 0.6rem;
 }
 
 /* SETUP SWITCHES — a two-column grid under the setup groups: every label in the first column and
