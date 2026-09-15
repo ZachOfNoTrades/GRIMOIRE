@@ -8975,18 +8975,6 @@ body:has(.quest-cal-page) > .page {
   margin: 0 auto;
 }
 
-.dmn-controller-others {
-  display: grid;
-  gap: 0.5rem;
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 560px) {
-  .dmn-controller-others {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 /* ACTION BAR — undo + wiki, pinned to the bottom of the phone screen. */
 .dmn-action-bar {
   position: fixed;
