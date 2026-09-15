@@ -112,8 +112,13 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
   // Every game has a table layout, and it applies at every width, phones included.
   const layout = snapshot ? resolveLayout(snapshot.board_layout, snapshot.max_players) : null;
+  // --dmn-rows lets a wide board split its height evenly between the layout's rows (globals.css).
   const gridStyle = layout
-    ? { gridTemplateColumns: layout.columns, gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" ") }
+    ? ({
+        gridTemplateColumns: layout.columns,
+        gridTemplateAreas: layout.areas.map((row) => `"${row}"`).join(" "),
+        "--dmn-rows": layout.areas.length,
+      } as React.CSSProperties)
     : undefined;
   const slotStyle = (index: number) => (layout ? { gridArea: SLOT_NAMES[index] } : undefined);
 
@@ -301,8 +306,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
       <div className="dmn-board page-container">
         <Toaster position="top-center" />
 
-        {/* HEADER ROW */}
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        {/* HEADER ROW — kept short so the board gets the height */}
+        <div className="dmn-board-header flex flex-wrap items-center justify-between gap-2 mb-2">
 
           {/* BACK TO DAMNATION HOME */}
           <BackLink className="btn btn-link !pl-0" fallback="/modules/damnation/ui/home" aria-label="Back to Damnation">

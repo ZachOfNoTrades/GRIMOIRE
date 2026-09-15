@@ -7772,6 +7772,7 @@ body:has(.quest-cal-page) > .page {
   /* Everything inside sizes from the card's own width (cqi units, @container below), so a card
      is correct in any grid column, drawer or full-screen board regardless of the window width. */
   container-type: inline-size;
+  container-name: dmn-card;
 }
 
 .dmn-card-head {
@@ -8219,7 +8220,7 @@ body:has(.quest-cal-page) > .page {
   display: none;
 }
 
-@container (max-width: 16rem) {
+@container dmn-card (max-width: 16rem) {
   .dmn-toggle-long {
     display: none;
   }
@@ -8272,7 +8273,7 @@ body:has(.quest-cal-page) > .page {
    - the section toggle is just its chevron;
    - an open section replaces the number and ±5 in place, scrolling within the card's usual
      height, so opening it doesn't make the card (or its row) taller. */
-@container (max-width: 12rem) {
+@container dmn-card (max-width: 12rem) {
   .dmn-card-head {
     flex-wrap: wrap;
     gap: 0.25rem;
@@ -8348,7 +8349,7 @@ body:has(.quest-cal-page) > .page {
 
 /* TINY CARDS — 4 across on a phone (under 7rem): too narrow for − and + beside the number, so the
    number sits at the top of the tap area and the symbols in its bottom corners. */
-@container (max-width: 7rem) {
+@container dmn-card (max-width: 7rem) {
   .dmn-card-head {
     gap: 0.125rem;
   }
@@ -8406,6 +8407,78 @@ body:has(.quest-cal-page) > .page {
   background: var(--solid-background);
   color: var(--color-primary);
   min-height: calc(var(--app-height, 100dvh) - var(--navbar-height, 0px));
+}
+
+/* WIDE BOARD — the page is exactly the screen under the navbar: header, then the board filling the
+   rest. The player grid splits its height evenly between the layout's rows (--dmn-rows) and each
+   card fits its slot: the number sizes from the tap area's height as well as its width, and an
+   open Commander damage / Status section replaces the number and ±5 and scrolls, instead of
+   growing the card. The side column holds the join panel and Activity. Nothing scrolls unless the
+   window is shorter than 40rem. */
+@media (min-width: 1024px) {
+  .dmn-board:not(:fullscreen) {
+    display: flex;
+    flex-direction: column;
+    height: calc(var(--app-height, 100dvh) - var(--navbar-height, 0px));
+    min-height: 40rem;
+    padding-top: 0.75rem;
+    padding-bottom: 1rem;
+  }
+
+  .dmn-board > .dmn-board-layout {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .dmn-board-main {
+    min-height: 0;
+  }
+
+  .dmn-board-main > .dmn-grid {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: repeat(var(--dmn-rows, 1), minmax(0, 1fr));
+  }
+
+  .dmn-board-main > .dmn-grid > * {
+    min-height: 0;
+  }
+
+  .dmn-card-board {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .dmn-card-board .dmn-tap-zones {
+    flex: 1;
+    min-height: 3.5rem;
+    container-type: size;
+  }
+
+  .dmn-card-board .dmn-tap-zones .dmn-life {
+    font-size: clamp(1.75rem, min(24cqi, 70cqh), 9rem);
+  }
+
+  .dmn-card-board[data-expanded="true"] > .dmn-tap-zones,
+  .dmn-card-board[data-expanded="true"] > .dmn-status-row {
+    display: none;
+  }
+
+  .dmn-card-board[data-expanded="true"] > .dmn-editor {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .dmn-card-board[data-expanded="true"] .dmn-collapse {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* The rows fill the card here; the small-card cap (for phones, where rows aren't fixed) is lifted. */
+  .dmn-card-board[data-expanded="true"] .dmn-collapse > .dmn-cmdr-rows {
+    max-height: none;
+    overflow-y: auto;
+  }
 }
 
 .dmn-board:fullscreen {
