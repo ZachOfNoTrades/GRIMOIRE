@@ -503,7 +503,8 @@ export function setJoinsOpen(sessionId: string, opId: string, open: boolean) {
         .input("sessionId", sql.UniqueIdentifier, sessionId)
         .input("open", sql.Bit, open)
         .query(`UPDATE damnation_sessions SET joins_open = @open WHERE id = @sessionId`);
-      return { eventType: open ? "reopen" : "start" };
+      // Closing joining mid-game doesn't start anything; the feed tells the two apart by the payload.
+      return open ? { eventType: "reopen" } : { eventType: "start", payload: { during_game: true } };
     },
   });
 }

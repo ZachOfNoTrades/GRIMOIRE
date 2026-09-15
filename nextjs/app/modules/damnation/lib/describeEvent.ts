@@ -56,9 +56,9 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
     case "kick":
       return selfChange ? { text: `${target} left the game`, detail: `${target} left the game` } : by(`${target} removed`);
     case "start":
-      return by("Joining closed — game on");
+      return by(payload.during_game ? "Lobby closed" : "Game started");
     case "reopen":
-      return by(payload.resumed ? "Game resumed — players rejoin with the new code" : "Joining reopened");
+      return by(payload.resumed ? "Game resumed — players rejoin with the new code" : "Lobby opened");
     case "rotate_code":
       return by("New join code issued");
     case "end":
