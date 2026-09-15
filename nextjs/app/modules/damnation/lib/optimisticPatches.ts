@@ -103,6 +103,16 @@ export function layoutPatch(layoutKey: string): SnapshotPatch {
   };
 }
 
+// Same rule as the server: closing joining before the game starts it; during the game joining
+// opens and closes without leaving it.
+export function joiningPatch(open: boolean): SnapshotPatch {
+  return (snapshot) => {
+    if (snapshot.status === "lobby") return open ? snapshot : { ...snapshot, status: "active", joining_open: false };
+    if (snapshot.status === "active") return { ...snapshot, joining_open: open };
+    return snapshot;
+  };
+}
+
 export function statusPatch(status: SessionStatus): SnapshotPatch {
   return (snapshot) => ({ ...snapshot, status });
 }

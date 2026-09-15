@@ -37,7 +37,7 @@ export interface MutationResult {
   changed: boolean;
 }
 
-type Apply = (transaction: sql.Transaction, context: { sessionId: string; status: SessionStatus; version: number }) =>
+type Apply = (transaction: sql.Transaction, context: { sessionId: string; status: SessionStatus; joinsOpen: boolean; version: number }) =>
   Promise<EventDraft | null>;
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -106,17 +106,17 @@ async function runMutationOnce(options: {
     // LOCK + VERSION
     const bump = await request(transaction)
       .input("sessionId", sql.UniqueIdentifier, sessionId)
-      .query<{ version: number; status: SessionStatus }>(`
+      .query<{ version: number; status: SessionStatus; joins_open: boolean }>(`
         UPDATE damnation_sessions
         SET version = version + 1, ts_updated = GETDATE()
-        OUTPUT INSERTED.version, INSERTED.status
+        OUTPUT INSERTED.version, INSERTED.status, INSERTED.joins_open
         WHERE id = @sessionId ${options.allowFinished ? "" : "AND status <> 'finished'"}
       `);
     if (bump.recordset.length === 0) {
       await rollback();
       throw new DamnationError(410, "This game has ended");
     }
-    const { version, status } = bump.recordset[0];
+    const { version, status, joins_open: joinsOpen } = bump.recordset[0];
 
     // IDEMPOTENCY
     const seen = await request(transaction)
@@ -128,7 +128,7 @@ async function runMutationOnce(options: {
     }
 
     // APPLY
-    const draft = await apply(transaction, { sessionId, status, version });
+    const draft = await apply(transaction, { sessionId, status, joinsOpen, version });
     if (!draft) {
       // Nothing changed (e.g. a clamp absorbed the delta) — don't spend a version on it.
       await rollback();
@@ -401,7 +401,8 @@ export async function joinSession(
     opId,
     actor: { kind: "host" },
     apply: async (transaction, context) => {
-      if (context.status !== "lobby") {
+      // Open before the game starts, and during it once the host allows joining.
+      if (context.status !== "lobby" && !context.joinsOpen) {
         throw new DamnationError(409, "Joining is closed — ask the host to reopen joins");
       }
       playerId = await addPlayerToGame(transaction, sessionId, displayName, colorKey, token.hash);
@@ -472,18 +473,27 @@ export async function rejoinPlayer(
 // HOST CONTROLS
 // ---------------------------------------------------------------------------------------------
 
+// Opens or closes joining. Before the game, closing joining starts it. During the game joining
+// opens and closes without leaving the game (joins_open), so a late arrival or a lost phone can
+// join while the totals keep counting.
 export function setJoinsOpen(sessionId: string, opId: string, open: boolean) {
   return runMutation({
     sessionId,
     opId,
     actor: { kind: "host" },
     apply: async (transaction, context) => {
-      const nextStatus: SessionStatus = open ? "lobby" : "active";
-      if (context.status === nextStatus) return null;
+      if (context.status === "lobby") {
+        if (open) return null;
+        await request(transaction)
+          .input("sessionId", sql.UniqueIdentifier, sessionId)
+          .query(`UPDATE damnation_sessions SET status = 'active', joins_open = 0 WHERE id = @sessionId`);
+        return { eventType: "start" };
+      }
+      if (context.joinsOpen === open) return null;
       await request(transaction)
         .input("sessionId", sql.UniqueIdentifier, sessionId)
-        .input("status", sql.VarChar(10), nextStatus)
-        .query(`UPDATE damnation_sessions SET status = @status WHERE id = @sessionId`);
+        .input("open", sql.Bit, open)
+        .query(`UPDATE damnation_sessions SET joins_open = @open WHERE id = @sessionId`);
       return { eventType: open ? "reopen" : "start" };
     },
   });
@@ -727,7 +737,7 @@ export function resumeSession(sessionId: string, opId: string, hostUserId: strin
       await request(transaction)
         .input("sessionId", sql.UniqueIdentifier, sessionId)
         .query(`
-          UPDATE damnation_sessions SET status = 'active', ts_finished = NULL WHERE id = @sessionId;
+          UPDATE damnation_sessions SET status = 'active', joins_open = 0, ts_finished = NULL WHERE id = @sessionId;
           UPDATE damnation_players SET token_hash = NULL, ts_updated = GETDATE()
           WHERE session_id = @sessionId AND kicked = 0 AND is_manual = 0;
         `);

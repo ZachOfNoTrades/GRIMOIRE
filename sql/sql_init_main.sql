@@ -180,6 +180,7 @@ BEGIN TRY
             version INT NOT NULL DEFAULT 0, -- bumped by every mutation; doubles as the per-session write lock
             board_layout VARCHAR(20) NULL, -- board arrangement key (lib/boardLayouts.ts); NULL = the first layout for the count
             commander_damage_enabled BIT NOT NULL CONSTRAINT DF_damnation_sessions_commander_damage DEFAULT 1, -- set from the host's setting at creation, switchable on the board
+            joins_open BIT NOT NULL CONSTRAINT DF_damnation_sessions_joins_open DEFAULT 0, -- joining opened during a game (status active); lobby is always open
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
             ts_finished DATETIME NULL,

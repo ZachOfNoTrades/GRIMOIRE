@@ -73,6 +73,8 @@ export interface SessionSnapshot {
   // Table arrangement key from lib/boardLayouts.ts, always one that fits max_players. Shown on the
   // board and, where the screen is wide enough, on phones.
   board_layout: string;
+  // Whether new players can join: always before the game, and during it once the host allows joining.
+  joining_open: boolean;
   players: PlayerView[];
   // Players no longer in the game, so the activity feed can still name them.
   former_players: { id: string; display_name: string }[];

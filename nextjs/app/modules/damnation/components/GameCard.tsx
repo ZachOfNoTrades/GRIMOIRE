@@ -25,7 +25,7 @@ export default function GameCard({
   onOpenLayout,
   onCommanderDamageChange,
   onStart,
-  onReopenJoining,
+  onAllowJoining,
 }: {
   snapshot: HostSnapshot;
   showSetup: boolean;
@@ -35,10 +35,13 @@ export default function GameCard({
   onOpenLayout: () => void;
   onCommanderDamageChange: (enabled: boolean) => void;
   onStart: () => void;
-  onReopenJoining: () => void;
+  // Opens (Allow joining) or closes joining during the game.
+  onAllowJoining: (open: boolean) => void;
 }) {
   const isLobby = snapshot.status === "lobby";
   const isActive = snapshot.status === "active";
+  // During the game with joining closed, the code is hidden behind Allow joining.
+  const isClosed = isActive && !snapshot.joining_open;
   const joinHost = snapshot.join_url && snapshot.join_code ? snapshot.join_url.replace("https://", "").replace(`/${snapshot.join_code}`, "") : null;
 
   return (
@@ -48,10 +51,10 @@ export default function GameCard({
         {/* SETUP FACE */}
         <section className="card dmn-game-face dmn-game-face-setup" inert={!showSetup} aria-label="Game setup">
 
-          {/* SETUP HEADER — during the game (Edit game): back to the activity, mirroring Edit game */}
+          {/* SETUP HEADER — during the game (Edit game), joining open or not: back to the activity, mirroring Edit game */}
           {isActive && (
             <div className="dmn-game-face-header">
-              <h2 className="text-card-title">Edit game</h2>
+              <h2 className="text-card-title">Setup</h2>
               <Button className="btn-link" onClick={() => onShowSetup(false)} title="Back to the game's activity">
                 <History className="w-4 h-4" aria-hidden /> View activity
               </Button>
@@ -64,27 +67,33 @@ export default function GameCard({
                 a stand-in code sits under a disabled overlay (the real one isn't rendered) until
                 Allow joining reopens it. */}
             {snapshot.join_url && snapshot.join_code && (
-              <div className="dmn-join-code" data-closed={isActive || undefined}>
-                <div className="dmn-join-code-content" aria-hidden={isActive || undefined} inert={isActive}>
+              <div className="dmn-join-code" data-closed={isClosed || undefined}>
+                <div className="dmn-join-code-content" aria-hidden={isClosed || undefined} inert={isClosed}>
                   <QrCode
-                    value={isActive ? CLOSED_JOIN_URL : snapshot.join_url}
-                    label={isActive ? "Joining is closed" : `QR code to join game ${snapshot.join_code}`}
+                    value={isClosed ? CLOSED_JOIN_URL : snapshot.join_url}
+                    label={isClosed ? "Joining is closed" : `QR code to join game ${snapshot.join_code}`}
                   />
                   <span className="dmn-join-hint text-secondary">Scan, or go to <strong>{joinHost}</strong> and enter</span>
-                  {isActive ? (
+                  {isClosed ? (
                     <span className="dmn-code">{CLOSED_JOIN_CODE}</span>
                   ) : (
                     <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
                   )}
                   <span className="dmn-join-count text-secondary">
-                    {isActive ? "Joining is closed" : `${snapshot.players.length}/${snapshot.max_players} players`}
+                    {isClosed ? "Joining is closed" : `${snapshot.players.length}/${snapshot.max_players} players`}
                   </span>
+                  {isActive && snapshot.joining_open && (
+                    /* CLOSE JOINING — during the game, once joining has been allowed */
+                    <Button className="btn-link dmn-join-close" disabled={isBusy} onClick={() => onAllowJoining(false)} title="Stop new players from joining">
+                      <DoorClosed className="w-4 h-4" aria-hidden /> Close joining
+                    </Button>
+                  )}
                 </div>
 
                 {/* ALLOW JOINING — over the stand-in; reopens joining, which shows the real code */}
-                {isActive && (
+                {isClosed && (
                   <div className="dmn-join-closed">
-                    <Button className="btn-blue" disabled={isBusy} onClick={onReopenJoining} title="Reopen joining so a late arrival or a lost phone can join">
+                    <Button className="btn-blue" disabled={isBusy} onClick={() => onAllowJoining(true)} title="Reopen joining so a late arrival or a lost phone can join">
                       <DoorOpen className="w-4 h-4" aria-hidden /> Allow joining
                     </Button>
                   </div>
@@ -114,6 +123,7 @@ export default function GameCard({
                 </Button>
               </div>
             )}
+
           </div>
         </section>
 

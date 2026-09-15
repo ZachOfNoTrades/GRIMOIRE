@@ -8575,6 +8575,14 @@ body:has(.quest-cal-page) > .page {
     font-size: 0.8rem;
   }
 
+  .dmn-game-face .dmn-join-close {
+    grid-area: close;
+    justify-self: center;
+    padding: 0;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
   .dmn-game-face .dmn-join-hint {
     grid-area: hint;
     font-size: 0.8rem;

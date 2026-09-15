@@ -202,12 +202,12 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
     .request()
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .query(`
-      SELECT status, starting_life, max_seats AS max_players FROM damnation_sessions WHERE id = @sessionId;
+      SELECT status, joins_open, starting_life, max_seats AS max_players FROM damnation_sessions WHERE id = @sessionId;
       SELECT id, display_name, color_key, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS rejoinable
       FROM damnation_players WHERE session_id = @sessionId AND kicked = 0 ORDER BY seat;
     `);
   const recordsets = result.recordsets as unknown as [
-    { status: SessionStatus; starting_life: number; max_players: number }[],
+    { status: SessionStatus; joins_open: boolean; starting_life: number; max_players: number }[],
     { id: string; display_name: string; color_key: string; rejoinable: number }[],
   ];
   const session = recordsets[0][0];
@@ -218,7 +218,7 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
   const { version: _version, events: _events, former_players: _former, id: _id, join_url: _url, ts_created: _created, layout_preferences: _preferences, ...table } = snapshot;
 
   return {
-    joinable: session.status === "lobby" && players.length < session.max_players,
+    joinable: (session.status === "lobby" || (session.status === "active" && session.joins_open)) && players.length < session.max_players,
     status: session.status,
     starting_life: session.starting_life,
     max_players: session.max_players,

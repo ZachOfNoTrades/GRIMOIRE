@@ -36,12 +36,12 @@ import {
   addPlayerPatch,
   commanderDamagePatch,
   editPlayerPatch,
+  joiningPatch,
   placeholderPlayer,
   layoutPatch,
   positionsPatch,
   removePlayerPatch,
   setupPatch,
-  statusPatch,
   type SnapshotPatch,
 } from "../../../lib/optimisticPatches";
 import { useGameActions } from "../../../lib/useGameActions";
@@ -482,9 +482,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               onCommanderDamageChange={(enabled) => void hostCommand("/commander-damage", { enabled }, "PUT", commanderDamagePatch(enabled))}
               onStart={() => {
                 setIsEditingGame(false);
-                void hostCommand("/joins", { open: false }, "POST", statusPatch("active"));
+                void hostCommand("/joins", { open: false }, "POST", joiningPatch(false));
               }}
-              onReopenJoining={() => void hostCommand("/joins", { open: true }, "POST", statusPatch("lobby"))}
+              onAllowJoining={(open) => void hostCommand("/joins", { open }, "POST", joiningPatch(open))}
             />
           </div>
         )}
