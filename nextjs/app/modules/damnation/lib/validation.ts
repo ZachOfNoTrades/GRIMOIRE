@@ -87,6 +87,8 @@ export const moveSchema = z.union([
 
 export const layoutSchema = z.object({ board_layout: z.string().max(20) });
 
+export const commanderDamageToggleSchema = z.object({ enabled: z.boolean() });
+
 const startingLife = z.number().int().min(1, "Starting life must be between 1 and 999").max(999, "Starting life must be between 1 and 999");
 const maxPlayers = z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS);
 

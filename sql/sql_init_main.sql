@@ -156,7 +156,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE damnation_settings (
             user_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-            commander_damage_enabled BIT NOT NULL CONSTRAINT DF_damnation_settings_commander_damage DEFAULT 1, -- 0 = hide commander damage in this host's games
+            commander_damage_enabled BIT NOT NULL CONSTRAINT DF_damnation_settings_commander_damage DEFAULT 1, -- default for this host's new games; each game can switch it on the board
             board_layouts NVARCHAR(400) NULL, -- JSON player count -> last table layout key the host picked, e.g. {"4":"4-grid"}
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
@@ -178,7 +178,8 @@ BEGIN TRY
             max_seats INT NOT NULL DEFAULT 4,
             status VARCHAR(10) NOT NULL DEFAULT 'lobby', -- lobby = joins open, active = joins closed, finished
             version INT NOT NULL DEFAULT 0, -- bumped by every mutation; doubles as the per-session write lock
-            board_layout VARCHAR(20) NULL, -- board arrangement key (lib/boardLayouts.ts); NULL = automatic grid
+            board_layout VARCHAR(20) NULL, -- board arrangement key (lib/boardLayouts.ts); NULL = the first layout for the count
+            commander_damage_enabled BIT NOT NULL CONSTRAINT DF_damnation_sessions_commander_damage DEFAULT 1, -- set from the host's setting at creation, switchable on the board
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
             ts_finished DATETIME NULL,

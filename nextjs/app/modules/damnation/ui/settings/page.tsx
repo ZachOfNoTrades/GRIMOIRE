@@ -96,7 +96,7 @@ export default function DamnationSettingsPage() {
               {/* COMMANDER DAMAGE TOGGLE */}
               <SettingsToggleRow
                 label="Track commander damage"
-                hint="Turn off for formats other than Commander"
+                hint="Default for new games; switch it for a game from the board's menu"
                 checked={settings.commander_damage_enabled}
                 disabled={isSaving}
                 onChange={saveCommanderDamage}
@@ -105,9 +105,9 @@ export default function DamnationSettingsPage() {
 
             {/* GROUP NOTE */}
             <p className="settings-group-note">
-              On: every card in your games has a Commander damage taken section, and 21 from one commander puts a
-              player out. Off: the section only holds the Out control. Saved as soon as you switch it, and games
-              already in progress update straight away.
+              On: every card in a new game has a Commander damage taken section, and 21 from one commander puts a
+              player out. Off: the section only holds the Out control. This is only where new games start — turn it
+              on or off for a game from the ⋯ menu on its board. Saved as soon as you switch it.
             </p>
           </>
         )}

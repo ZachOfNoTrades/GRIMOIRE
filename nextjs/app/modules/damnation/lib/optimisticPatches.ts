@@ -84,6 +84,10 @@ export function setupPatch(change: { starting_life?: number; max_players?: numbe
   };
 }
 
+export function commanderDamagePatch(enabled: boolean): SnapshotPatch {
+  return (snapshot) => ({ ...snapshot, commander_damage_enabled: enabled });
+}
+
 export function layoutPatch(layoutKey: string): SnapshotPatch {
   return (snapshot) => ({ ...snapshot, board_layout: layoutKey });
 }

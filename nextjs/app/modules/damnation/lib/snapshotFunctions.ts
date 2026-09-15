@@ -38,7 +38,7 @@ interface SessionRow {
   version: number;
   ts_created: Date;
   board_layout: string | null;
-  commander_damage_enabled: boolean | null;
+  commander_damage_enabled: boolean;
 }
 
 interface PlayerRow {
@@ -86,9 +86,8 @@ export async function readSnapshot(
     .input("eventLimit", sql.Int, RECENT_EVENT_LIMIT)
     .query(`
       SELECT s.id, s.host_user_id, s.status, s.join_code, s.starting_life, s.max_seats AS max_players, s.version, s.ts_created, s.board_layout,
-             ds.commander_damage_enabled
+             s.commander_damage_enabled
       FROM damnation_sessions s
-      LEFT JOIN damnation_settings ds ON ds.user_id = s.host_user_id
       WHERE s.id = @sessionId;
 
       SELECT id, seat AS position, display_name, color_key, life_total, conceded, eliminated_override,
@@ -170,7 +169,7 @@ export async function readSnapshot(
     starting_life: session.starting_life,
     max_players: session.max_players,
     ...wikiConfig(),
-    commander_damage_enabled: session.commander_damage_enabled ?? true,
+    commander_damage_enabled: session.commander_damage_enabled,
     ts_created: session.ts_created.toISOString(),
     players,
     former_players: recordsets[2].map((player) => ({ id: normalizeId(player.id)!, display_name: player.display_name })),

@@ -13,6 +13,7 @@ import {
   Play,
   Settings,
   Skull,
+  Swords,
   Trash2,
   WifiOff,
 } from "lucide-react";
@@ -38,6 +39,7 @@ import { arrangeSpots, resolveLayout, SLOT_NAMES } from "../../../lib/boardLayou
 import { PALETTE } from "../../../lib/constants";
 import {
   addPlayerPatch,
+  commanderDamagePatch,
   editPlayerPatch,
   placeholderPlayer,
   layoutPatch,
@@ -329,6 +331,22 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               <LayoutGrid className="w-4 h-4 mr-3" /> Table layout
             </button>
           )}
+
+          {/* COMMANDER DAMAGE ITEM — this game only; the setting is the default for new games */}
+          <button
+            className="popover-item"
+            role="menuitemcheckbox"
+            aria-checked={snapshot?.commander_damage_enabled ?? false}
+            onClick={() => {
+              setIsMenuOpen(false);
+              if (!snapshot) return;
+              const enabled = !snapshot.commander_damage_enabled;
+              hostCommand("/commander-damage", { enabled }, "PUT", commanderDamagePatch(enabled));
+            }}
+          >
+            <Swords className="w-4 h-4 mr-3" />
+            {snapshot?.commander_damage_enabled ? "Turn off commander damage" : "Turn on commander damage"}
+          </button>
 
           {/* FULL SCREEN ITEM */}
           <button className="popover-item" onClick={() => { setIsMenuOpen(false); toggleFullscreen(); }}>

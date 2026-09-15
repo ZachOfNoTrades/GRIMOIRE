@@ -81,9 +81,10 @@ export async function createSession(hostUserId: string, startingLife: number, ma
         .input("maxPlayers", sql.Int, maxPlayers)
         .input("layout", sql.VarChar(20), await preferredLayout(transaction, hostUserId, maxPlayers))
         .query<{ id: string }>(`
-          INSERT INTO damnation_sessions (host_user_id, join_code, starting_life, max_seats, board_layout)
+          INSERT INTO damnation_sessions (host_user_id, join_code, starting_life, max_seats, board_layout, commander_damage_enabled)
           OUTPUT INSERTED.id
-          VALUES (@hostUserId, @joinCode, @startingLife, @maxPlayers, @layout)
+          SELECT @hostUserId, @joinCode, @startingLife, @maxPlayers, @layout,
+                 COALESCE((SELECT commander_damage_enabled FROM damnation_settings WHERE user_id = @hostUserId), 1)
         `);
       await transaction.commit();
       const snapshot = await readSnapshot(pool, inserted.recordset[0].id);
@@ -279,8 +280,8 @@ export async function getSettings(userId: string): Promise<DamnationSettings> {
   return { commander_damage_enabled: result.recordset[0]?.commander_damage_enabled ?? true };
 }
 
-// Saves the fields present in `change`, keeping the rest. Running games read the host's settings
-// live, so a change reaches phones on their next snapshot.
+// Saves the fields present in `change`, keeping the rest. These are defaults for the host's new
+// games; a running game keeps its own values.
 export async function saveSettings(userId: string, change: { commander_damage_enabled?: boolean }): Promise<DamnationSettings> {
   const pool = await getMainConnection();
   const current = await getSettings(userId);
@@ -318,6 +319,21 @@ export async function saveBoardLayout(sessionId: string, layoutKey: string, host
     .input("layout", sql.VarChar(20), layoutKey)
     .query(`UPDATE damnation_sessions SET board_layout = @layout, version = version + 1 WHERE id = @sessionId`);
   await rememberLayout(pool, hostUserId, current.max_players, layoutKey);
+  const snapshot = await readSnapshot(pool, sessionId);
+  if (!snapshot) throw new DamnationError(404, "Game not found");
+  broadcastSnapshot(sessionId, snapshot);
+  return snapshot;
+}
+
+// Switches commander damage for one game and pushes it to the board and phones. Like the layout,
+// not a game event: it changes what the cards offer, not anyone's totals.
+export async function saveCommanderDamage(sessionId: string, enabled: boolean): Promise<HostSnapshot> {
+  const pool = await getMainConnection();
+  await pool
+    .request()
+    .input("sessionId", sql.UniqueIdentifier, sessionId)
+    .input("enabled", sql.Bit, enabled)
+    .query(`UPDATE damnation_sessions SET commander_damage_enabled = @enabled, version = version + 1 WHERE id = @sessionId`);
   const snapshot = await readSnapshot(pool, sessionId);
   if (!snapshot) throw new DamnationError(404, "Game not found");
   broadcastSnapshot(sessionId, snapshot);

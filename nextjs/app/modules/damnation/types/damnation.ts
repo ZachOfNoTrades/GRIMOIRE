@@ -67,7 +67,8 @@ export interface SessionSnapshot {
   max_players: number;
   wiki_search_template: string;
   wiki_embed: boolean;
-  // The host's setting: when false, cards offer no commander damage (status controls remain).
+  // Switched per game on the board (starting from the host's setting): when false, cards offer no
+  // commander damage (status controls remain).
   commander_damage_enabled: boolean;
   // Table arrangement key from lib/boardLayouts.ts, always one that fits max_players. Shown on the
   // board and, where the screen is wide enough, on phones.
