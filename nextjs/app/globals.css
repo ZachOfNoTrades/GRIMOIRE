@@ -8164,6 +8164,55 @@ body:has(.quest-cal-page) > .page {
   min-height: 2.5rem;
 }
 
+/* NARROW CARDS — a phone's 2 × 2, or a 3-across board: the commander's name gets its own line
+   with the stepper under it, and the toggle uses its short label, so nothing is squeezed to
+   nothing or pushed past the card's edge. */
+.dmn-toggle-short {
+  display: none;
+}
+
+@container (max-width: 16rem) {
+  .dmn-toggle-long {
+    display: none;
+  }
+
+  .dmn-toggle-short {
+    display: inline;
+  }
+
+  .dmn-cmdr-row {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas:
+      "name name name"
+      "minus value plus";
+    row-gap: 0.25rem;
+  }
+
+  .dmn-cmdr-row > svg {
+    display: none;
+  }
+
+  .dmn-cmdr-row > .dmn-card-name {
+    grid-area: name;
+  }
+
+  .dmn-cmdr-row > .dmn-step:first-of-type {
+    grid-area: minus;
+  }
+
+  .dmn-cmdr-row > .dmn-cmdr-value {
+    grid-area: value;
+  }
+
+  .dmn-cmdr-row > .dmn-step:last-of-type {
+    grid-area: plus;
+  }
+
+  .dmn-cmdr-row .dmn-step {
+    min-width: 0;
+  }
+}
+
 .dmn-cmdr-value {
   min-width: 2.25rem;
   text-align: center;
