@@ -9059,28 +9059,9 @@ body:has(.quest-cal-page) > .page {
   flex-direction: column;
   gap: 0.75rem;
   padding: 0.75rem;
-  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   max-width: 40rem;
   margin: 0 auto;
-}
-
-/* ACTION BAR — undo + wiki, pinned to the bottom of the phone screen. */
-.dmn-action-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
-  background: var(--card-bg);
-  border-top: 1px solid var(--card-border);
-}
-
-.dmn-action-bar .btn {
-  flex: 1;
-  min-height: 2.75rem;
 }
 
 /* WIKI FRAME */

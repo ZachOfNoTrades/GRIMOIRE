@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftFromLine, DoorOpen, Skull, WifiOff } from "lucide-react";
+import { ArrowLeftFromLine, BookOpen, DoorOpen, Skull, WifiOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -459,6 +459,7 @@ function Controller({
 
   // STATE
   const [showLeave, setShowLeave] = useState(false);
+  const [showWiki, setShowWiki] = useState(false);
   // A player someone asked to remove, waiting for them to confirm.
   const [removeTarget, setRemoveTarget] = useState<PlayerView | null>(null);
   // At most one card's Commander damage / Status section is open at a time.
@@ -573,8 +574,13 @@ function Controller({
             <span className="text-secondary">Game {snapshot.join_code ?? code}</span>
           </div>
 
-          {/* HELP */}
-          <HelpButton title="Damnation" sections={PLAYER_HELP} />
+          {/* WIKI + HELP */}
+          <div className="flex items-center">
+            <Button className="btn-link" onClick={() => setShowWiki(true)} title="Search the wiki" aria-label="Search the wiki">
+              <BookOpen className="w-5 h-5" />
+            </Button>
+            <HelpButton title="Damnation" sections={PLAYER_HELP} />
+          </div>
         </div>
 
         {/* CONNECTION BANNER */}
@@ -641,10 +647,8 @@ function Controller({
         </div>
       </div>
 
-      {/* ACTION BAR */}
-      <div className="dmn-action-bar">
-        <WikiSearch template={snapshot.wiki_search_template} embed={snapshot.wiki_embed} />
-      </div>
+      {/* WIKI SEARCH — opened from the header */}
+      <WikiSearch template={snapshot.wiki_search_template} embed={snapshot.wiki_embed} open={showWiki} onOpenChange={setShowWiki} />
 
       {/* REMOVE PLAYER CONFIRM — while the host lets guests manage players */}
       <ConfirmModal
