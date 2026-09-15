@@ -13,13 +13,15 @@ const mapPlayers = <T extends SessionSnapshot>(snapshot: T, update: (player: Pla
   players: snapshot.players.map(update),
 });
 
-// A player the host just added. Shown as a pending card (no controls) until the real one arrives.
-export function addPlayerPatch(displayName: string, colorKey: string, position: number): SnapshotPatch {
-  const pendingId = `pending-${displayName}`;
+// A player the host just added, with the id the board chose for it, so the card is complete and
+// usable at once: changes to it queue behind the add (life taps wait out their grouping delay).
+export function addPlayerPatch(playerId: string, displayName: string, colorKey: string, position: number): SnapshotPatch {
   return (snapshot) => {
-    if (snapshot.players.some((player) => player.display_name.toLowerCase() === displayName.toLowerCase())) return snapshot;
+    if (snapshot.players.some((player) => player.id === playerId || player.display_name.toLowerCase() === displayName.toLowerCase())) {
+      return snapshot;
+    }
     const player: PlayerView = {
-      id: pendingId,
+      id: playerId,
       position,
       display_name: displayName,
       color_key: colorKey,
@@ -30,7 +32,6 @@ export function addPlayerPatch(displayName: string, colorKey: string, position: 
       elimination_reason: null,
       rejoinable: false,
       manual: true,
-      pending: true,
     };
     return { ...snapshot, players: [...snapshot.players, player].sort((a, b) => a.position - b.position) };
   };

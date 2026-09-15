@@ -166,7 +166,13 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     const colors = new Set(snapshot.players.map((player) => player.color_key));
     const color = PALETTE.find((entry) => !colors.has(entry.key))?.key ?? PALETTE[0].key;
     const displayName = `Player ${number}`;
-    hostCommand("/players", { display_name: displayName, color_key: color, position }, "POST", addPlayerPatch(displayName, color, position));
+    const playerId = generateUUID().toLowerCase();
+    hostCommand(
+      "/players",
+      { player_id: playerId, display_name: displayName, color_key: color, position },
+      "POST",
+      addPlayerPatch(playerId, displayName, color, position)
+    );
   }
 
   function saveLayout(layoutKey: string) {

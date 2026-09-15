@@ -342,7 +342,8 @@ async function addPlayerToGame(
   displayName: string,
   colorKey: string,
   tokenHash: Buffer | null,
-  preferredPosition?: number
+  preferredPosition?: number,
+  playerId?: string
 ): Promise<string> {
   const roster = await request(transaction)
     .input("sessionId", sql.UniqueIdentifier, sessionId)
@@ -377,10 +378,11 @@ async function addPlayerToGame(
     .input("tokenHash", sql.VarBinary(32), tokenHash)
     .input("isManual", sql.Bit, tokenHash === null)
     .input("life", sql.Int, startingLife)
+    .input("playerId", sql.UniqueIdentifier, playerId ?? null)
     .query<{ id: string }>(`
-      INSERT INTO damnation_players (session_id, seat, display_name, color_key, token_hash, is_manual, life_total)
+      INSERT INTO damnation_players (id, session_id, seat, display_name, color_key, token_hash, is_manual, life_total)
       OUTPUT INSERTED.id
-      VALUES (@sessionId, @seat, @displayName, @colorKey, @tokenHash, @isManual, @life)
+      VALUES (COALESCE(@playerId, NEWID()), @sessionId, @seat, @displayName, @colorKey, @tokenHash, @isManual, @life)
     `);
   return inserted.recordset[0].id.toLowerCase();
 }
@@ -416,14 +418,21 @@ export async function joinSession(
 // A player the host adds from the board, for someone playing without a phone. Allowed whether
 // or not joining is open. The card is edited from the board or from any player's phone; nobody
 // can rejoin as a manual player from a phone.
-export function addManualPlayer(sessionId: string, opId: string, displayName: string, colorKey: string, position?: number) {
+export function addManualPlayer(
+  sessionId: string,
+  opId: string,
+  displayName: string,
+  colorKey: string,
+  position?: number,
+  playerId?: string
+) {
   return runMutation({
     sessionId,
     opId,
     actor: { kind: "host" },
     apply: async (transaction) => {
-      const playerId = await addPlayerToGame(transaction, sessionId, displayName, colorKey, null, position);
-      return { eventType: "join", actorPlayerId: null, targetPlayerId: playerId, payload: { manual: true } };
+      const addedId = await addPlayerToGame(transaction, sessionId, displayName, colorKey, null, position, playerId);
+      return { eventType: "join", actorPlayerId: null, targetPlayerId: addedId, payload: { manual: true } };
     },
   });
 }
