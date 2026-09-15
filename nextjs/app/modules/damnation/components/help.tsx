@@ -29,7 +29,7 @@ export const HOST_HELP: HelpSection[] = [
     body: (
       <>
         <strong>Start game</strong> closes joining and flips the side card to the game&apos;s activity.{" "}
-        <strong>Edit game</strong> flips it back to change starting life, players or layout mid-game, or to{" "}
+        <strong>Game Setup</strong> flips it back to change starting life, players or layout mid-game, or to{" "}
         <strong>Open lobby</strong> for a late arrival while the game keeps going. The{" "}
         <strong>X</strong> in the top-right corner of a card on the board takes that player out of the game.
       </>
@@ -75,7 +75,7 @@ export const HOST_HELP: HelpSection[] = [
       <>
         Open <strong>Commander damage taken</strong> on a player&apos;s card and step the counter for the commander that
         hit them. It also takes that much life. 21 from one commander puts a player out. Turn it off for a game with the switch in the game
-        setup (Edit game, once it has started); Damnation settings sets whether new games start with it on.
+        setup (Game Setup, once it has started); Damnation settings sets whether new games start with it on.
       </>
     ),
   },

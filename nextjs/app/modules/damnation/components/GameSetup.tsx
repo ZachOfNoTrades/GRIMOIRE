@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MAX_PLAYERS, MIN_PLAYERS, STARTING_LIFE_PRESETS } from "../lib/constants";
 
 // Starting life, player count, commander damage and guest player management for a game, set on the board's game card before
-// the game and from Edit game during it. Each choice is saved as soon as it is made.
+// the game and from Game Setup during it. Each choice is saved as soon as it is made.
 
 const PLAYER_COUNT_OPTIONS = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, index) => MIN_PLAYERS + index);
 

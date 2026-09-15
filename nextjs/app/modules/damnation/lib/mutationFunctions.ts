@@ -639,7 +639,7 @@ export function editPlayer(
   });
 }
 
-// Changes starting life and/or the player count, before the game or during it (Edit game). A new
+// Changes starting life and/or the player count, before the game or during it (Game Setup). A new
 // starting life moves every player's total by the same difference, so taps made before the change
 // are kept. A player count below the players already in the game is refused, and a new count takes
 // the host's last table layout for that count (or the first layout for it).

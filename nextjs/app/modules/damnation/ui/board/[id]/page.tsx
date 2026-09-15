@@ -66,7 +66,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showWiki, setShowWiki] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  // Edit game on the side card, while the game is under way: shows the setup face instead of the activity.
+  // Game Setup on the side card, while the game is under way: shows the setup face instead of the activity.
   const [isEditingGame, setIsEditingGame] = useState(false);
   const menuButtonRef = useRef<HTMLSpanElement>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -99,7 +99,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const isFinished = snapshot?.status === "finished";
   // Board positions in order; null is an open spot. Players keep their position when someone leaves.
   const spots = snapshot ? arrangeSpots(snapshot.players, snapshot.max_players) : [];
-  // The side card shows the setup before the game starts (and from Edit game), the activity after.
+  // The side card shows the setup before the game starts (and from Game Setup), the activity after.
   const showSetup = snapshot?.status === "lobby" || (snapshot?.status === "active" && isEditingGame);
 
   // Every game has a table layout, and it applies at every width, phones included.

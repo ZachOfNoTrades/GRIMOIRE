@@ -10,7 +10,7 @@ import type { HostSnapshot } from "../types/damnation";
 // The board's side card, two faces of one card that flips between them: setup (QR code, join
 // code, starting life, players, layout, commander damage, Start game) and activity (the game's
 // history). The board decides which face shows: setup before the game starts, activity once it is
-// under way, and setup again from Edit game to change the game in flight.
+// under way, and setup again from Game Setup to change the game in flight.
 
 // Shown under the closed-joining overlay in place of the real code, which stays off the page.
 const CLOSED_JOIN_CODE = "ABCD";
@@ -53,7 +53,7 @@ export default function GameCard({
         {/* SETUP FACE */}
         <section className="card dmn-game-face dmn-game-face-setup" inert={!showSetup} aria-label="Game setup">
 
-          {/* SETUP HEADER — during the game (Edit game), joining open or not: back to the activity, mirroring Edit game */}
+          {/* SETUP HEADER — during the game (from Game Setup), joining open or not: back to the activity, mirroring Game Setup */}
           {isActive && (
             <div className="dmn-game-face-header">
               <h2 className="text-card-title">Setup</h2>
@@ -134,12 +134,12 @@ export default function GameCard({
         {/* ACTIVITY FACE */}
         <section className="card dmn-game-face dmn-game-face-activity dmn-activity" inert={showSetup} aria-label="Activity">
 
-          {/* ACTIVITY HEADER — Edit game flips to the setup, except after the game is over */}
+          {/* ACTIVITY HEADER — Game Setup flips to the setup, except after the game is over */}
           <div className="dmn-game-face-header">
             <h2 className="text-card-title">Activity</h2>
             {isActive && (
               <Button className="btn-link" disabled={isBusy} onClick={() => onShowSetup(true)} title="Change the game's setup, or let someone join">
-                <SlidersHorizontal className="w-4 h-4" aria-hidden /> Edit game
+                <SlidersHorizontal className="w-4 h-4" aria-hidden /> Game Setup
               </Button>
             )}
           </div>
