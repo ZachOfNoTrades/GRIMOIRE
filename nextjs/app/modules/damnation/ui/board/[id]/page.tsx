@@ -11,6 +11,7 @@ import {
   Play,
   Settings,
   Skull,
+  RotateCcw,
   Trash2,
   WifiOff,
 } from "lucide-react";
@@ -36,6 +37,7 @@ import {
   joiningPatch,
   placeholderPlayer,
   layoutPatch,
+  resetPatch,
   setupPatch,
 } from "../../../lib/optimisticPatches";
 import { useGameActions } from "../../../lib/useGameActions";
@@ -46,6 +48,7 @@ import type { HostSnapshot } from "../../../types/damnation";
 
 type PendingConfirm =
   | { kind: "delete" }
+  | { kind: "reset" }
   | { kind: "kick"; playerId: string; name: string };
 
 export default function DamnationBoardPage({ params }: { params: Promise<{ id: string }> }) {
@@ -158,6 +161,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     setConfirm(null);
     if (!pending) return;
     if (pending.kind === "delete") await deleteGame();
+    if (pending.kind === "reset") await hostCommand("/reset", {}, "POST", resetPatch());
     if (pending.kind === "kick") await table.removePlayer(pending.playerId);
   }
 
@@ -234,6 +238,13 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
           <button className="popover-item" onClick={() => { setIsMenuOpen(false); setShowHelp(true); }}>
             <HelpCircle className="w-4 h-4 mr-3" /> Help
           </button>
+
+          {/* RESET ITEM — same players and settings, everyone back to the starting life */}
+          {snapshot?.status !== "finished" && (
+            <button className="popover-item" disabled={isBusy} onClick={() => { setIsMenuOpen(false); setConfirm({ kind: "reset" }); }}>
+              <RotateCcw className="w-4 h-4 mr-3" /> Reset game
+            </button>
+          )}
 
           {/* DELETE ITEM */}
           <button className="popover-item" disabled={isBusy} onClick={() => { setIsMenuOpen(false); setConfirm({ kind: "delete" }); }}>
@@ -375,14 +386,16 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
           onCancel={() => setConfirm(null)}
           onConfirm={runConfirmed}
           danger
-          title={confirm?.kind === "delete" ? "Delete this game?" : "Remove player?"}
-          confirmLabel={confirm?.kind === "delete" ? "Delete" : "Remove"}
+          title={confirm?.kind === "delete" ? "Delete this game?" : confirm?.kind === "reset" ? "Reset this game?" : "Remove player?"}
+          confirmLabel={confirm?.kind === "delete" ? "Delete" : confirm?.kind === "reset" ? "Reset" : "Remove"}
           message={
             confirm?.kind === "delete"
               ? "The game, its players and its history are deleted. This can't be undone."
-              : confirm
-                ? `${confirm.name} is removed from the game.`
-                : ""
+              : confirm?.kind === "reset"
+                ? `Everyone goes back to ${snapshot?.starting_life ?? ""} life, commander damage is cleared and nobody is out. Players, their spots and the settings stay.`
+                : confirm
+                  ? `${confirm.name} is removed from the game.`
+                  : ""
           }
         />
 

@@ -482,6 +482,27 @@ export async function rejoinPlayer(
 // HOST CONTROLS
 // ---------------------------------------------------------------------------------------------
 
+// Starts the game over with the same table: every player back to the starting life, commander
+// damage cleared and nobody out. Players, their spots, the settings and whether joining is open stay.
+export function resetGame(sessionId: string, opId: string) {
+  return runMutation({
+    sessionId,
+    opId,
+    actor: { kind: "host" },
+    apply: async (transaction) => {
+      await request(transaction)
+        .input("sessionId", sql.UniqueIdentifier, sessionId)
+        .query(`
+          UPDATE p SET life_total = s.starting_life, conceded = 0, eliminated_override = NULL, ts_updated = GETDATE()
+          FROM damnation_players p JOIN damnation_sessions s ON s.id = p.session_id
+          WHERE p.session_id = @sessionId AND p.kicked = 0;
+          DELETE FROM damnation_commander_damage WHERE session_id = @sessionId;
+        `);
+      return { eventType: "reset" };
+    },
+  });
+}
+
 // Opens or closes joining. Before the game, closing joining starts it. During the game joining
 // opens and closes without leaving the game (joins_open), so a late arrival or a lost phone can
 // join while the totals keep counting.

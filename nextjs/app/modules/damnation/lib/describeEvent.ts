@@ -63,6 +63,8 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
       return by("New join code issued");
     case "end":
       return by("Game over");
+    case "reset":
+      return by("Game reset");
     case "edit_player": {
       if (payload.display_name_from !== undefined) return by(`${String(payload.display_name_from)} renamed to ${target}`);
       return by(`${target}'s color changed`);

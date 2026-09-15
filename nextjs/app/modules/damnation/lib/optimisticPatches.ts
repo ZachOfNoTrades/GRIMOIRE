@@ -117,6 +117,22 @@ export function joiningPatch(open: boolean): SnapshotPatch {
   };
 }
 
+// Same rule as the server: starting life for everyone, no commander damage, nobody out.
+export function resetPatch(): SnapshotPatch {
+  return (snapshot) => ({
+    ...snapshot,
+    commander_damage: [],
+    players: snapshot.players.map((player) => ({
+      ...player,
+      life_total: snapshot.starting_life,
+      conceded: false,
+      eliminated_override: null,
+      eliminated: false,
+      elimination_reason: null,
+    })),
+  });
+}
+
 export function statusPatch(status: SessionStatus): SnapshotPatch {
   return (snapshot) => ({ ...snapshot, status });
 }

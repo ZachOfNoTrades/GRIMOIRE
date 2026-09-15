@@ -14,7 +14,8 @@ export type EventType =
   | "end"
   | "reorder"
   | "setup"
-  | "edit_player";
+  | "edit_player"
+  | "reset";
 
 // Why a player counts as out of the game. Derived on read, never stored, so an undo can't
 // leave a stale flag behind.

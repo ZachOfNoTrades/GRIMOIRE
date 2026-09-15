@@ -58,6 +58,15 @@ export const HOST_HELP: HelpSection[] = [
     ),
   },
   {
+    heading: "Resetting a game",
+    body: (
+      <>
+        <strong>Reset game</strong> in the board&apos;s ⋯ menu starts over with the same table: everyone goes back to the
+        starting life, commander damage is cleared and nobody is out. Players, their spots and the settings stay.
+      </>
+    ),
+  },
+  {
     heading: "Players without a phone",
     body: (
       <>
