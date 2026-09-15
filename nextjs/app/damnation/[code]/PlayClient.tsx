@@ -458,6 +458,8 @@ function Controller({
 
   // STATE
   const [showLeave, setShowLeave] = useState(false);
+  // At most one card's Commander damage / Status section is open at a time.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const handledRef = useRef(false);
 
   const handleRevoked = useCallback(
@@ -543,6 +545,8 @@ function Controller({
     commanderDamage: snapshot.commander_damage_enabled,
     overlay: actions.overlay,
     editable: true,
+    expanded: playerId !== "" && expandedId === playerId,
+    onExpandedChange: (open: boolean) => setExpandedId(open ? playerId : null),
     // Until the join comes back nothing can be sent, so taps do nothing for that moment.
     onLife: (delta: number) => token && actions.changeLife(playerId, delta),
     onCommander: (sourceId: string, delta: number) => token && actions.changeCommanderDamage(playerId, sourceId, delta),

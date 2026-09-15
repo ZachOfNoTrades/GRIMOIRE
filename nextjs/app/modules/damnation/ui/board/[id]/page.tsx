@@ -73,6 +73,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
   const [showLayoutPicker, setShowLayoutPicker] = useState(false);
+  // At most one card's Commander damage / Status section is open, so opening one never stacks
+  // extra height onto the board.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showWiki, setShowWiki] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -417,6 +420,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
                       {/* PLAYER CARD */}
                       <PlayerCard
+                        expanded={expandedId === player.id}
+                        onExpandedChange={(open) => setExpandedId(open ? player.id : null)}
                         player={player}
                         players={snapshot.players}
                         cells={snapshot.commander_damage}

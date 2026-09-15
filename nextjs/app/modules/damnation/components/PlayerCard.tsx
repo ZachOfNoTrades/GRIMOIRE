@@ -33,6 +33,10 @@ interface PlayerCardProps {
   // Board only: a drag handle in the top-left corner. Arrow keys on it move the player too.
   onGripPointerDown?: (event: React.PointerEvent) => void;
   onGripKey?: (step: -1 | 1) => void;
+  // Controlled expansion of the Commander damage / Status section, so a screen can keep only one
+  // card open at a time. Without these the card manages it itself.
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   // Board only: the name and a color button become click-to-edit. Resolve true once saved.
   onRename?: (displayName: string) => Promise<boolean>;
   onRecolor?: (colorKey: string) => void;
@@ -73,12 +77,20 @@ export default function PlayerCard({
   onGripKey,
   onRename,
   onRecolor,
+  expanded,
+  onExpandedChange,
 }: PlayerCardProps) {
   // INPUT
   const [nameDraft, setNameDraft] = useState("");
 
   // STATE
-  const [showCommander, setShowCommander] = useState(false);
+  const [ownShowCommander, setOwnShowCommander] = useState(false);
+  const showCommander = expanded ?? ownShowCommander;
+  const setShowCommander = (update: (open: boolean) => boolean) => {
+    const next = update(showCommander);
+    if (onExpandedChange) onExpandedChange(next);
+    else setOwnShowCommander(next);
+  };
   const [isEditingName, setIsEditingName] = useState(false);
   const [isPickingColor, setIsPickingColor] = useState(false);
   // Which tap zone is being pressed. Set from pointer events rather than relying on :active, which
@@ -162,7 +174,7 @@ export default function PlayerCard({
 
   return (
     /* PLAYER CARD */
-    <section className={cardClass} aria-label={`${player.display_name}, ${life} life`}>
+    <section className={cardClass} data-expanded={showCommander} aria-label={`${player.display_name}, ${life} life`}>
 
       {/* CARD HEAD */}
       <div className="dmn-card-head">
@@ -331,6 +343,7 @@ export default function PlayerCard({
             className="dmn-toggle"
             onClick={() => setShowCommander((open) => !open)}
             aria-expanded={showCommander}
+            aria-label={commanderDamage ? "Commander damage taken" : "Status"}
           >
             {commanderDamage ? (
               <span>
