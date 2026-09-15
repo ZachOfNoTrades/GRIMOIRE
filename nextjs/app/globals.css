@@ -7955,11 +7955,20 @@ body:has(.quest-cal-page) > .page {
   user-select: none;
 }
 
-/* PENDING DELTA — the "−5" bubble for taps not yet confirmed by the server. */
+/* PENDING DELTA — the "−5" bubble for taps not yet confirmed by the server, centered just above
+   the number it will change (below it on tiny cards, where the number sits under the card head). */
+.dmn-life-value {
+  position: relative;
+}
+
 .dmn-pending {
   position: absolute;
-  top: -0.35rem;
-  right: 0;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.25rem;
+  line-height: 1.2;
+  white-space: nowrap;
   font-size: 0.8rem;
   font-weight: 700;
   padding: 0.05rem 0.3rem;
@@ -8386,6 +8395,12 @@ body:has(.quest-cal-page) > .page {
   .dmn-card-board .dmn-tap-zones .dmn-life {
     align-items: flex-start;
     font-size: 1.5rem;
+  }
+
+  .dmn-pending {
+    top: 100%;
+    bottom: auto;
+    margin: 0.125rem 0 0;
   }
 }
 

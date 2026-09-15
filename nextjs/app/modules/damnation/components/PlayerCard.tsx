@@ -318,8 +318,10 @@ export default function PlayerCard({
 
               {/* LIFE TOTAL */}
               <div className="dmn-life" aria-live="polite">
-                {life}
-                {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
+                <span className="dmn-life-value">
+                  {life}
+                  {pendingLife !== 0 && <span className="dmn-pending">{formatSigned(pendingLife)}</span>}
+                </span>
               </div>
             </div>
 
