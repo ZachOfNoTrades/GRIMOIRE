@@ -75,14 +75,18 @@ export default function ActivityFeed({
 
       {/* FEED */}
       <ol ref={listRef} className="dmn-feed" aria-label="Recent changes" onScroll={onScroll}>
-        {chronological.map((event) => (
-          <li key={event.id} className={`dmn-feed-item ${event.undone ? "dmn-feed-item-undone" : ""}`}>
-            <span>{describeEvent(event, playersById)}</span>
-            <time className="dmn-feed-time" dateTime={event.ts_created}>
-              {new Date(event.ts_created).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-            </time>
-          </li>
-        ))}
+        {chronological.map((event) => {
+          // The entry says what happened; its tooltip adds who did it.
+          const description = describeEvent(event, playersById);
+          return (
+            <li key={event.id} className={`dmn-feed-item ${event.undone ? "dmn-feed-item-undone" : ""}`} title={description.detail}>
+              <span>{description.text}</span>
+              <time className="dmn-feed-time" dateTime={event.ts_created}>
+                {new Date(event.ts_created).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              </time>
+            </li>
+          );
+        })}
       </ol>
 
       {/* JUMP TO LATEST — only while scrolled up */}
