@@ -317,7 +317,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
         </div>
 
         {/* MENU POPOVER */}
-        <PopoverMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} anchorRef={menuButtonRef}>
+        <PopoverMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} anchorRef={menuButtonRef} className="popover-menu--wide">
 
           {/* WIKI ITEM */}
           <button className="popover-item" onClick={() => { setIsMenuOpen(false); setShowWiki(true); }}>
@@ -331,20 +331,22 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             </button>
           )}
 
-          {/* COMMANDER DAMAGE ITEM — this game only; the setting is the default for new games */}
+          {/* COMMANDER DAMAGE ITEM — a switch for this game only (the setting is the default for new
+              games); the shared settings switch, driven by aria-checked on the row */}
           <button
             className="popover-item"
             role="menuitemcheckbox"
             aria-checked={snapshot?.commander_damage_enabled ?? false}
             onClick={() => {
-              setIsMenuOpen(false);
+              // The menu stays open so the switch can be seen to flip.
               if (!snapshot) return;
               const enabled = !snapshot.commander_damage_enabled;
               hostCommand("/commander-damage", { enabled }, "PUT", commanderDamagePatch(enabled));
             }}
           >
             <Swords className="w-4 h-4 mr-3" />
-            {snapshot?.commander_damage_enabled ? "Turn off commander damage" : "Turn on commander damage"}
+            <span className="popover-item-label">Commander damage</span>
+            <span className="settings-switch" aria-hidden />
           </button>
 
           {/* FULL SCREEN ITEM */}

@@ -7485,6 +7485,45 @@ body:has(.quest-cal-page) > .page {
   transform: translateX(18px);
 }
 
+/* The same switch in a popover menu row (role="menuitemcheckbox" aria-checked), at menu scale,
+   pushed to the row's trailing edge; the label stays on one line and the icon keeps its size. */
+.popover-item .settings-switch {
+  width: 34px;
+  height: 20px;
+  margin-left: 0.75rem;
+}
+
+.popover-item > svg {
+  flex: none;
+}
+
+.popover-item-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* A menu holding a switch row grows to fit it rather than clipping the switch. */
+.popover-menu:has(.settings-switch) {
+  width: max-content;
+  min-width: 12rem;
+}
+
+.popover-item .settings-switch::after {
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+}
+
+.popover-item[aria-checked="true"] .settings-switch {
+  background: var(--color-primary);
+}
+
+.popover-item[aria-checked="true"] .settings-switch::after {
+  transform: translateX(14px);
+}
+
 /* ============ TIME ROW (label + native time input) ============ */
 .settings-time-row {
   display: flex;
