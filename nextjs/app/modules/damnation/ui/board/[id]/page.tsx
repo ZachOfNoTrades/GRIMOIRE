@@ -79,7 +79,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const menuButtonRef = useRef<HTMLSpanElement>(null);
   const [isBusy, setIsBusy] = useState(false);
 
-  const { snapshot: serverSnapshot, presence, connection, acceptSnapshot } = useSessionStream<HostSnapshot>({
+  const { snapshot: serverSnapshot, connection, acceptSnapshot } = useSessionStream<HostSnapshot>({
     url: `${baseUrl}/stream`,
     onRevoked: (reason) => {
       if (reason === "not_found" || reason === "unauthorized") setNotFound(true);
@@ -103,7 +103,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   );
 
   const isFinished = snapshot?.status === "finished";
-  const connected = new Set(presence?.connected_player_ids ?? []);
   // Board positions in order; null is an open spot. Players keep their position when someone leaves.
   const spots = snapshot ? arrangeSpots(snapshot.players, snapshot.max_players) : [];
   const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
@@ -461,7 +460,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                         overlay={actions.overlay}
                         variant="board"
                         editable={!isFinished && !player.pending}
-                        connected={player.rejoinable || player.manual ? null : connected.has(player.id)}
+                        connected={null}
                         onLife={(delta) => actions.changeLife(player.id, delta)}
                         onCommander={(sourceId, delta) => actions.changeCommanderDamage(player.id, sourceId, delta)}
                         onStatus={(change) => actions.changeStatus(player.id, change)}
