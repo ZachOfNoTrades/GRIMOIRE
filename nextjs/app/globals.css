@@ -8302,6 +8302,21 @@ body:has(.quest-cal-page) > .page {
   }
 }
 
+/* PHONE CARDS WITH PLAYER CONTROLS — while guests may manage players, a phone card's grip, color and
+   X take the first row and the name gets its own row under them, at every card width. */
+.dmn-controller .dmn-card-head:has(.dmn-card-grip, .dmn-card-color, .dmn-card-remove) {
+  flex-wrap: wrap;
+}
+
+.dmn-controller .dmn-card-head:has(.dmn-card-grip, .dmn-card-color, .dmn-card-remove) > .dmn-card-name {
+  order: 10;
+  flex-basis: 100%;
+}
+
+.dmn-controller .dmn-card-head > .dmn-card-remove {
+  margin-left: auto;
+}
+
 /* SMALL CARDS — 3 or 2 across on a phone (card under 12rem). Everything stays inside the card:
    - the name takes its own line under the grip, color and X buttons;
    - − and + shrink to fit either side of the number;
@@ -8330,7 +8345,7 @@ body:has(.quest-cal-page) > .page {
     min-height: 2.25rem;
   }
 
-  /* Only board cards carry grip, color and X buttons; phone cards keep the name on one line. */
+  /* Cards with grip, color and X buttons put the name on its own line under them. */
   .dmn-card-head:has(.dmn-card-remove) > .dmn-card-name {
     order: 10;
     flex-basis: 100%;

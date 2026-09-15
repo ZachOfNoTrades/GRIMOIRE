@@ -22,7 +22,6 @@ interface PlayerCardProps {
   variant: "self" | "other" | "board";
   editable: boolean;
   connected: boolean | null;
-  isMe?: boolean;
   // The host's commander damage setting; off leaves only the status controls behind the toggle.
   commanderDamage?: boolean;
   // Stretch to fill a table-layout cell: name stays at the top, the tap zones take the space.
@@ -65,7 +64,6 @@ export default function PlayerCard({
   variant,
   editable,
   connected,
-  isMe = false,
   commanderDamage = true,
   fill = false,
   onLife,
@@ -264,10 +262,6 @@ export default function PlayerCard({
         ) : (
           <span className="dmn-card-name">{player.display_name}</span>
         )}
-
-        {/* TAGS */}
-        {isMe && <span className="dmn-tag">You</span>}
-
 
         {/* REMOVE */}
         {onRemove && (

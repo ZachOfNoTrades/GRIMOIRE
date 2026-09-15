@@ -622,7 +622,6 @@ function Controller({
               <PlayerCard
                 player={player}
                 variant={player.id === snapshot.me ? "self" : "other"}
-                isMe={player.id === snapshot.me}
                 connected={player.id === snapshot.me || player.rejoinable || player.manual ? null : connected.has(player.id)}
                 fill
                 {...cardProps(player.id)}
