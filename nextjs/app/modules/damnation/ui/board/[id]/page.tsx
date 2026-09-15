@@ -437,7 +437,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       position={index + 1}
                       isDropTarget={dropId === `spot:${index + 1}`}
                       style={slotStyle(index)}
-                      waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
+                      waitingText="Waiting for a player…"
                       disabled={isBusy}
                       onAdd={() => addPlaceholderPlayer(index + 1)}
                       sizer={

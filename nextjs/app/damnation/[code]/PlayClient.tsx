@@ -600,7 +600,7 @@ function Controller({
                 key={`open-${index}`}
                 position={index + 1}
                 style={{ gridArea: SLOT_NAMES[index] }}
-                waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
+                waitingText="Waiting for a player…"
                 sizer={
                   <PlayerCard
                     player={placeholderPlayer(index + 1, snapshot.starting_life)}
