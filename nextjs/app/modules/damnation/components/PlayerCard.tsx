@@ -343,16 +343,9 @@ export default function PlayerCard({
             className="dmn-toggle"
             onClick={() => setShowCommander((open) => !open)}
             aria-expanded={showCommander}
-            aria-label={commanderDamage ? "Commander damage taken" : "Status"}
+            aria-label="Status"
           >
-            {commanderDamage ? (
-              <span>
-                <span className="dmn-toggle-long">Commander damage taken</span>
-                <span className="dmn-toggle-short">Cmdr damage</span>
-              </span>
-            ) : (
-              <span>Status</span>
-            )}
+            <span>Status</span>
             <ChevronDown className="dmn-toggle-chevron w-4 h-4" aria-hidden />
           </button>
 
