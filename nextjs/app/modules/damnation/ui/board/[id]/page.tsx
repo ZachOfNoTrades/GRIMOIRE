@@ -123,7 +123,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const slotStyle = (index: number) => (layout ? { gridArea: SLOT_NAMES[index] } : undefined);
 
   useWakeLock(!!snapshot && !isFinished);
-  useEntityTitle(snapshot?.join_code ? `Board ${snapshot.join_code}` : null);
+  // The tab reads "Damnation · Life Tracker"; the join code stays off it.
+  useEntityTitle("Life Tracker");
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(document.fullscreenElement !== null);

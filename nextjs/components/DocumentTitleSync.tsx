@@ -122,8 +122,9 @@ export function deriveTitle(pathname: string, entityLabel?: string | null): stri
   if (entityLabel) {
     const idIndex = segments.findIndex(isIdSegment);
     // Same rule as the module branch: everything up to (but not including) the
-    // collection segment that owns the id, then the record's own name.
-    const lead = idIndex < 0 ? parts : segments.slice(0, idIndex).filter((s) => s !== "ui" && !isIdSegment(s)).slice(0, -1);
+    // collection segment that owns the id, then the record's own name. With no id
+    // segment the label names the whole page under its section ("/damnation/<code>").
+    const lead = idIndex < 0 ? parts.slice(0, 1) : segments.slice(0, idIndex).filter((s) => s !== "ui" && !isIdSegment(s)).slice(0, -1);
     return [...lead.map(slugToLabel), entityLabel].join(" · ");
   }
   if (parts.length === 0) return "Grimoire";

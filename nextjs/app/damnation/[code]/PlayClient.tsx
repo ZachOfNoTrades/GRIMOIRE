@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import ConfirmModal from "@/components/ConfirmModal";
+import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
@@ -107,6 +108,8 @@ function provisionalSnapshot(code: string, lobby: LobbyView, draft: JoinDraft): 
 
 export default function PlayClient({ code }: { code: string }) {
   const router = useRouter();
+  // The tab reads "Damnation · Life Tracker"; the join code stays off it.
+  useEntityTitle("Life Tracker");
 
   // STATE
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
