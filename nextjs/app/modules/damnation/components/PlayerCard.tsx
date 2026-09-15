@@ -305,7 +305,9 @@ export default function PlayerCard({
       )}
 
       {/* COMMANDER DAMAGE + STATUS EDITOR */}
-      {editable && (!commanderDamage || opponents.length > 0) && (
+      {/* Shown on every editable card, even before anyone else joins (it holds the status controls
+          too), so a card is the same height whoever else is at the table. */}
+      {editable && (
         <>
           {/* TOGGLE */}
           <button

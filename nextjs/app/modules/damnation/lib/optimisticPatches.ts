@@ -37,6 +37,23 @@ export function addPlayerPatch(playerId: string, displayName: string, colorKey: 
   };
 }
 
+// A stand-in player for sizing an open spot like a real card (never shown or sent).
+export function placeholderPlayer(position: number, startingLife: number): PlayerView {
+  return {
+    id: `spot-${position}`,
+    position,
+    display_name: "Player",
+    color_key: "artifact",
+    life_total: startingLife,
+    conceded: false,
+    eliminated_override: null,
+    eliminated: false,
+    elimination_reason: null,
+    rejoinable: false,
+    manual: true,
+  };
+}
+
 export function editPlayerPatch(playerId: string, change: { display_name?: string; color_key?: string }): SnapshotPatch {
   return (snapshot) => mapPlayers(snapshot, (player) => (player.id === playerId ? { ...player, ...change } : player));
 }

@@ -39,6 +39,7 @@ import { PALETTE } from "../../../lib/constants";
 import {
   addPlayerPatch,
   editPlayerPatch,
+  placeholderPlayer,
   layoutPatch,
   positionsPatch,
   removePlayerPatch,
@@ -469,6 +470,26 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
                       disabled={isBusy}
                       onAdd={() => addPlaceholderPlayer(index + 1)}
+                      sizer={
+                        <PlayerCard
+                          player={placeholderPlayer(index + 1, snapshot.starting_life)}
+                          players={[...snapshot.players, placeholderPlayer(index + 1, snapshot.starting_life)]}
+                          cells={[]}
+                          commanderDamage={snapshot.commander_damage_enabled}
+                          overlay={actions.overlay}
+                          variant="board"
+                          editable
+                          connected={null}
+                          onLife={() => {}}
+                          onCommander={() => {}}
+                          onStatus={() => {}}
+                          onRemove={() => {}}
+                          onRename={async () => true}
+                          onRecolor={() => {}}
+                          onGripPointerDown={() => {}}
+                          fill
+                        />
+                      }
                     />
                   )
                 )}

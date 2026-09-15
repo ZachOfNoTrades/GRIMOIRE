@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
 import { PLAYER_HELP } from "@/app/modules/damnation/components/help";
+import OpenSpotTile from "@/app/modules/damnation/components/OpenSpotTile";
 import PlayerCard from "@/app/modules/damnation/components/PlayerCard";
+import { placeholderPlayer } from "@/app/modules/damnation/lib/optimisticPatches";
 import WikiSearch from "@/app/modules/damnation/components/WikiSearch";
 import { arrangeSpots, cardsPerRow, resolveLayout, SLOT_NAMES } from "@/app/modules/damnation/lib/boardLayouts";
 import {
@@ -564,9 +566,22 @@ function Controller({
           >
             {arrangeSpots(snapshot.players, snapshot.max_players).map((player, index) => !player ? (
               /* OPEN SPOT — holds its place in the layout so the other cards keep their size */
-              <div key={`open-${index}`} className="dmn-empty-seat" style={{ gridArea: SLOT_NAMES[index] }}>
-                {snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
-              </div>
+              <OpenSpotTile
+                key={`open-${index}`}
+                position={index + 1}
+                style={{ gridArea: SLOT_NAMES[index] }}
+                waitingText={snapshot.status === "lobby" ? "Waiting for a player…" : "Open spot"}
+                sizer={
+                  <PlayerCard
+                    player={placeholderPlayer(index + 1, snapshot.starting_life)}
+                    variant="other"
+                    connected={null}
+                    fill
+                    {...cardProps("")}
+                    players={[...snapshot.players, placeholderPlayer(index + 1, snapshot.starting_life)]}
+                  />
+                }
+              />
             ) : (
               <div key={player.id} className="flex flex-col min-w-0" style={{ gridArea: SLOT_NAMES[index] }}>
                 <PlayerCard
