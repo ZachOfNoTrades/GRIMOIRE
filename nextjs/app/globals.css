@@ -8486,54 +8486,51 @@ body:has(.quest-cal-page) > .page {
   overflow: auto;
 }
 
-/* Board, join panel and activity. Narrow: join panel on top, then the board, then activity.
-   Wide: the board on the left; on the right the join panel (while shown) above Activity, which
-   fills the rest of the column. */
+/* Board and the game card. Narrow: the game card on top while it shows the setup (the QR code is
+   what people need first), below the board once it shows the activity. Wide: the board on the
+   left, the game card filling the column on the right. */
 .dmn-board-layout {
   display: grid;
   grid-template-columns: 1fr;
+  grid-template-areas: "main" "side";
   gap: 1rem;
 }
 
-.dmn-board-layout--join {
-  grid-template-areas: "join" "main" "activity";
+.dmn-board-layout--setup {
+  grid-template-areas: "side" "main";
 }
 
 .dmn-board-main {
   grid-area: main;
 }
 
-.dmn-join-card {
-  grid-area: join;
-}
-
-.dmn-activity {
-  grid-area: activity;
+.dmn-game-card {
+  grid-area: side;
 }
 
 @media (min-width: 1024px) {
-  .dmn-board-layout {
+  .dmn-board-layout,
+  .dmn-board-layout--setup {
     grid-template-columns: 1fr 20rem;
-    grid-template-rows: auto 1fr;
-    grid-template-areas: "main activity" "main activity";
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "main side";
   }
 
-  .dmn-board-layout--join {
-    grid-template-areas: "main join" "main activity";
-  }
-
-  /* With the join panel above it, Activity may be shorter; the extra class outranks the
-     .dmn-activity minimum below. */
-  .dmn-board-layout.dmn-board-layout--join .dmn-activity {
-    min-height: 12rem;
-  }
-
-  /* ACTIVITY COLUMN — fills the height of the board beside it. contain: size keeps the feed's
-     length out of the row height, so the card stretches to the board and the feed scrolls
-     inside it instead of stopping at a fixed height. */
-  .dmn-activity {
+  /* contain: size keeps the faces' content out of the row height, so the card is exactly as
+     tall as the board beside it and its faces scroll inside instead. */
+  .dmn-game-card {
     contain: size;
-    min-height: 24rem;
+    min-height: 20rem;
+  }
+
+  .dmn-game-flipper {
+    height: 100%;
+  }
+
+  .dmn-game-face.card {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
   }
 
   .dmn-activity .dmn-feed-frame {
@@ -8548,6 +8545,65 @@ body:has(.quest-cal-page) > .page {
     min-height: 0;
     max-height: none;
   }
+}
+
+/* GAME CARD FLIP — both faces share one grid cell; the flipper turns a half-turn to show the
+   activity on the back. The face turned away sits out of the flow so the card takes the height of
+   the face showing. */
+.dmn-game-card {
+  perspective: 1600px;
+  min-width: 0;
+}
+
+.dmn-game-flipper {
+  position: relative;
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.dmn-game-card[data-face="activity"] .dmn-game-flipper {
+  transform: rotateY(180deg);
+}
+
+.dmn-game-face.card {
+  grid-area: 1 / 1;
+  min-width: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* .card skips rendering while off screen and reserves 320px meanwhile; neither suits a face. */
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+}
+
+.dmn-game-face-activity.card {
+  transform: rotateY(180deg);
+}
+
+.dmn-game-card[data-face="setup"] .dmn-game-face-activity.card,
+.dmn-game-card[data-face="activity"] .dmn-game-face-setup.card {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dmn-game-flipper {
+    transition: none;
+  }
+}
+
+.dmn-game-face-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.dmn-game-actions {
+  display: flex;
+  justify-content: center;
 }
 
 .dmn-grid {
@@ -8617,6 +8673,14 @@ body:has(.quest-cal-page) > .page {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.dmn-join-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   min-width: 0;
 }
 
@@ -8657,6 +8721,9 @@ body:has(.quest-cal-page) > .page {
 .card.dmn-activity {
   padding-left: 0.75rem;
   padding-right: 0.5rem;
+  /* .card reserves 320px as its size while off screen; with contain: size that reservation would
+     become Activity's minimum height and push the side column past the board. */
+  contain-intrinsic-size: none;
 }
 
 .dmn-feed {
@@ -8689,7 +8756,16 @@ body:has(.quest-cal-page) > .page {
 }
 
 /* CONNECTION BANNER */
+/* Floats over the top of the screen instead of taking a row, so showing and hiding it never moves
+   the cards under someone's finger. It takes no clicks. */
 .dmn-connection {
+  position: fixed;
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: calc(100vw - 1.5rem);
+  pointer-events: none;
   display: flex;
   align-items: center;
   justify-content: center;

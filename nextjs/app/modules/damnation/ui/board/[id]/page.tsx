@@ -6,8 +6,6 @@ import {
   EllipsisVertical,
   HelpCircle,
   LayoutGrid,
-  DoorClosed,
-  DoorOpen,
   Expand,
   Shrink,
   Play,
@@ -27,13 +25,11 @@ import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
-import ActivityFeed from "../../../components/ActivityFeed";
-import GameSetup from "../../../components/GameSetup";
+import GameCard from "../../../components/GameCard";
 import LayoutPicker from "../../../components/LayoutPicker";
 import OpenSpotTile from "../../../components/OpenSpotTile";
 import { HOST_HELP } from "../../../components/help";
 import PlayerCard from "../../../components/PlayerCard";
-import QrCode from "../../../components/QrCode";
 import WikiSearch from "../../../components/WikiSearch";
 import { arrangeSpots, resolveLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
 import { PALETTE } from "../../../lib/constants";
@@ -55,7 +51,6 @@ import { useWakeLock } from "../../../lib/useWakeLock";
 import type { HostSnapshot } from "../../../types/damnation";
 
 type PendingConfirm =
-  | { kind: "end" }
   | { kind: "delete" }
   | { kind: "kick"; playerId: string; name: string };
 
@@ -79,6 +74,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showWiki, setShowWiki] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  // Edit game on the side card, while the game is under way: shows the setup face instead of the activity.
+  const [isEditingGame, setIsEditingGame] = useState(false);
   const menuButtonRef = useRef<HTMLSpanElement>(null);
   const [isBusy, setIsBusy] = useState(false);
 
@@ -108,7 +105,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const isFinished = snapshot?.status === "finished";
   // Board positions in order; null is an open spot. Players keep their position when someone leaves.
   const spots = snapshot ? arrangeSpots(snapshot.players, snapshot.max_players) : [];
-  const showJoinPanel = !!snapshot && !isFinished && (snapshot.status === "lobby" || snapshot.players.some((player) => player.rejoinable));
+  // The side card shows the setup before the game starts (and from Edit game), the activity after.
+  const showSetup = snapshot?.status === "lobby" || (snapshot?.status === "active" && isEditingGame);
 
   // Every game has a table layout, and it applies at every width, phones included.
   const layout = snapshot ? resolveLayout(snapshot.board_layout, snapshot.max_players) : null;
@@ -277,7 +275,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     const pending = confirm;
     setConfirm(null);
     if (!pending) return;
-    if (pending.kind === "end") await hostCommand("/end", {}, "POST", statusPatch("finished"));
     if (pending.kind === "delete") await deleteGame();
     if (pending.kind === "kick") await hostCommand(`/players/${pending.playerId}/kick`, {}, "POST", removePlayerPatch(pending.playerId));
   }
@@ -395,7 +392,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
         {!snapshot && <p className="text-secondary">Loading board…</p>}
 
         {snapshot && (
-          <div className={`dmn-board-layout ${showJoinPanel ? "dmn-board-layout--join" : ""}`}>
+          <div className={`dmn-board-layout ${showSetup ? "dmn-board-layout--setup" : ""}`}>
 
             {/* MAIN COLUMN */}
             <div className="dmn-board-main flex flex-col gap-4 min-w-0">
@@ -491,72 +488,22 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                   <div className="dmn-empty-seat">Nobody joined this game.</div>
                 )}
               </div>
-
-              {/* GAME CONTROLS */}
-              {!isFinished && (
-                <div className="flex flex-wrap gap-2">
-                  {snapshot.status === "lobby" ? (
-                    <Button className="btn-green" disabled={isBusy || snapshot.players.length === 0} onClick={() => hostCommand("/joins", { open: false }, "POST", statusPatch("active"))} title="Close joining and start playing">
-                      <DoorClosed className="w-4 h-4" /> Start game
-                    </Button>
-                  ) : (
-                    <Button className="btn-off" disabled={isBusy} onClick={() => hostCommand("/joins", { open: true }, "POST", statusPatch("lobby"))} title="Let a late arrival join">
-                      <DoorOpen className="w-4 h-4" /> Reopen joining
-                    </Button>
-                  )}
-                  <Button className="btn-red" disabled={isBusy} onClick={() => setConfirm({ kind: "end" })}>
-                    <Skull className="w-4 h-4" /> End game
-                  </Button>
-                </div>
-              )}
             </div>
 
-            {/* JOIN PANEL — in the side column above Activity (at the top on narrow screens): QR, code,
-                and while joining is open the game setup, stacked for the column's width */}
-            {showJoinPanel && snapshot.join_url && snapshot.join_code && (
-              <div className="card dmn-join-card">
-                <div className="dmn-join">
-
-                  {/* QR CODE */}
-                  <QrCode value={snapshot.join_url} label={`QR code to join game ${snapshot.join_code}`} />
-
-                  {/* JOIN BODY */}
-                  <div className="dmn-join-body">
-
-                    {/* JOIN TEXT */}
-                    <div className="flex flex-col gap-2 min-w-0">
-                      <span className="text-secondary">Scan, or go to <strong>{snapshot.join_url.replace("https://", "").replace(`/${snapshot.join_code}`, "")}</strong> and enter</span>
-                      <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
-                      <span className="text-secondary">
-                        {snapshot.status === "lobby"
-                          ? `${snapshot.players.length}/${snapshot.max_players} players`
-                          : "Joining is closed — players rejoin with the code"}
-                      </span>
-                    </div>
-
-                    {/* GAME SETUP — while joining is open */}
-                    {snapshot.status === "lobby" && (
-                      <GameSetup
-                        startingLife={snapshot.starting_life}
-                        maxPlayers={snapshot.max_players}
-                        playerCount={snapshot.players.length}
-                        disabled={isBusy}
-                        onChange={(change) => hostCommand("/setup", change, "POST", setupPatch(change))}
-                        onOpenLayout={() => setShowLayoutPicker(true)}
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ACTIVITY — fills the rest of the side column's height on wide screens (globals.css) */}
-            <div className="card dmn-activity">
-              <div className="card-header">
-                <h2 className="text-card-title">Activity</h2>
-              </div>
-              <ActivityFeed events={snapshot.events} players={snapshot.players} formerPlayers={snapshot.former_players} />
-            </div>
+            {/* GAME CARD — setup (QR, join code, game setup, Start game) or activity, flipping between them */}
+            <GameCard
+              snapshot={snapshot}
+              showSetup={showSetup}
+              isBusy={isBusy}
+              onShowSetup={setIsEditingGame}
+              onSetupChange={(change) => hostCommand("/setup", change, "POST", setupPatch(change))}
+              onOpenLayout={() => setShowLayoutPicker(true)}
+              onStart={() => {
+                setIsEditingGame(false);
+                void hostCommand("/joins", { open: false }, "POST", statusPatch("active"));
+              }}
+              onReopenJoining={() => void hostCommand("/joins", { open: true }, "POST", statusPatch("lobby"))}
+            />
           </div>
         )}
 
@@ -566,16 +513,14 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
           onCancel={() => setConfirm(null)}
           onConfirm={runConfirmed}
           danger
-          title={confirm?.kind === "end" ? "End this game?" : confirm?.kind === "delete" ? "Delete this game?" : "Remove player?"}
-          confirmLabel={confirm?.kind === "end" ? "End game" : confirm?.kind === "delete" ? "Delete" : "Remove"}
+          title={confirm?.kind === "delete" ? "Delete this game?" : "Remove player?"}
+          confirmLabel={confirm?.kind === "delete" ? "Delete" : "Remove"}
           message={
-            confirm?.kind === "end"
-              ? "Every phone is signed out and the code stops working. Final totals stay on this board."
-              : confirm?.kind === "delete"
-                ? "The game, its players and its history are deleted. This can't be undone."
-                : confirm
-                  ? `${confirm.name} is removed from the game.`
-                  : ""
+            confirm?.kind === "delete"
+              ? "The game, its players and its history are deleted. This can't be undone."
+              : confirm
+                ? `${confirm.name} is removed from the game.`
+                : ""
           }
         />
 

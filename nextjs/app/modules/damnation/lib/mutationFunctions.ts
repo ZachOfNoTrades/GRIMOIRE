@@ -614,10 +614,10 @@ export function editPlayer(
   });
 }
 
-// Changes starting life and/or the player count while joining is open. A new starting life moves
-// every player's total by the same difference, so taps made before the change are kept. A player
-// count below the players already in the game is refused, and a new count takes the host's last
-// table layout for that count (or the first layout for it).
+// Changes starting life and/or the player count, before the game or during it (Edit game). A new
+// starting life moves every player's total by the same difference, so taps made before the change
+// are kept. A player count below the players already in the game is refused, and a new count takes
+// the host's last table layout for that count (or the first layout for it).
 export function changeGameSetup(
   sessionId: string,
   opId: string,
@@ -627,8 +627,7 @@ export function changeGameSetup(
     sessionId,
     opId,
     actor: { kind: "host" },
-    apply: async (transaction, context) => {
-      if (context.status !== "lobby") throw new DamnationError(409, "Reopen joining to change the game setup");
+    apply: async (transaction) => {
       const current = await request(transaction)
         .input("sessionId", sql.UniqueIdentifier, sessionId)
         .query<{ starting_life: number; max_seats: number; board_layout: string | null; host_user_id: string; player_count: number }>(`

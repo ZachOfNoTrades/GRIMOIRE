@@ -28,7 +28,9 @@ export const HOST_HELP: HelpSection[] = [
     heading: "Keeping strangers out",
     body: (
       <>
-        <strong>Start game</strong> closes joining. <strong>Reopen joining</strong> lets a late arrival in. The{" "}
+        <strong>Start game</strong> closes joining and flips the side card to the game&apos;s activity.{" "}
+        <strong>Edit game</strong> flips it back to change starting life, players or layout mid-game, or to{" "}
+        <strong>Reopen joining</strong> for a late arrival. The{" "}
         <strong>X</strong> in the top-right corner of a card on the board takes that player out of the game.
       </>
     ),
