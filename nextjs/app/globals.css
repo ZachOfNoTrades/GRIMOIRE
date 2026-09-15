@@ -8811,6 +8811,12 @@ body:has(.quest-cal-page) > .page {
   flex-basis: 100%;
 }
 
+/* Player counts and the icon-only layout button share one line in the side column. */
+.dmn-join .dmn-player-count {
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+}
+
 /* COMMANDER DAMAGE SWITCH — a full-width row under the setup groups: label, then the shared
    settings switch (driven by aria-checked, like the settings page rows). */
 .dmn-setup-switch {

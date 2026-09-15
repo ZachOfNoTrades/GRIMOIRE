@@ -122,7 +122,7 @@ export default function GameSetup({
         <div className="text-h2">Players</div>
 
         {/* PLAYER COUNT PICKER — fewer than the players already in isn't offered */}
-        <div className="flex flex-wrap gap-2">
+        <div className="dmn-player-count flex flex-wrap gap-2">
           {PLAYER_COUNT_OPTIONS.map((count) => (
             <Button
               key={count}
@@ -136,9 +136,9 @@ export default function GameSetup({
             </Button>
           ))}
 
-          {/* TABLE LAYOUT */}
+          {/* TABLE LAYOUT — icon only, in line with the counts it depends on */}
           <Button className="btn-off" onClick={onOpenLayout} title="Table layout: arrange the board like the table" aria-label="Table layout">
-            <LayoutGrid className="w-4 h-4" aria-hidden /> Layout
+            <LayoutGrid className="w-4 h-4" aria-hidden />
           </Button>
         </div>
       </div>
