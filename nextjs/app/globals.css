@@ -8248,15 +8248,46 @@ body:has(.quest-cal-page) > .page {
   overflow: auto;
 }
 
+/* Board, join panel and activity. Narrow: join panel on top, then the board, then activity.
+   Wide: the board on the left; on the right the join panel (while shown) above Activity, which
+   fills the rest of the column. */
 .dmn-board-layout {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
 }
 
+.dmn-board-layout--join {
+  grid-template-areas: "join" "main" "activity";
+}
+
+.dmn-board-main {
+  grid-area: main;
+}
+
+.dmn-join-card {
+  grid-area: join;
+}
+
+.dmn-activity {
+  grid-area: activity;
+}
+
 @media (min-width: 1024px) {
   .dmn-board-layout {
     grid-template-columns: 1fr 20rem;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "main activity" "main activity";
+  }
+
+  .dmn-board-layout--join {
+    grid-template-areas: "main join" "main activity";
+  }
+
+  /* With the join panel above it, Activity may be shorter; the extra class outranks the
+     .dmn-activity minimum below. */
+  .dmn-board-layout.dmn-board-layout--join .dmn-activity {
+    min-height: 12rem;
   }
 
   /* ACTIVITY COLUMN — fills the height of the board beside it. contain: size keeps the feed's
@@ -8331,13 +8362,13 @@ body:has(.quest-cal-page) > .page {
   opacity: 0.6;
 }
 
-/* JOIN PANEL — QR on the left, the code and game setup beside it. Side by side from 640px, so
-   the panel stays short enough for the whole board to fit a square screen. */
+/* JOIN PANEL — stacked (QR, code, setup) for the side column. */
 .dmn-join {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   gap: 1rem;
+  text-align: center;
 }
 
 .dmn-join .dmn-qr {
@@ -8351,10 +8382,13 @@ body:has(.quest-cal-page) > .page {
   min-width: 0;
 }
 
-@media (min-width: 640px) {
-  .dmn-join {
-    flex-wrap: nowrap;
-  }
+/* Setup in the narrow panel: each label on its own line, its buttons centered under it. */
+.dmn-join .dmn-setup-group {
+  justify-content: center;
+}
+
+.dmn-join .dmn-setup-group > .text-h2 {
+  flex-basis: 100%;
 }
 
 .dmn-code {

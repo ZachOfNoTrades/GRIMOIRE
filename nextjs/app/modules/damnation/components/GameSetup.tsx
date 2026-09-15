@@ -57,7 +57,7 @@ export default function GameSetup({
     <div className="flex flex-wrap gap-x-8 gap-y-2">
 
       {/* STARTING LIFE */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="dmn-setup-group flex flex-wrap items-center gap-x-3 gap-y-2">
 
         {/* STARTING LIFE LABEL */}
         <div className="text-h2">Starting life</div>
@@ -111,7 +111,7 @@ export default function GameSetup({
       </div>
 
       {/* PLAYER COUNT */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="dmn-setup-group flex flex-wrap items-center gap-x-3 gap-y-2">
 
         {/* PLAYER COUNT LABEL */}
         <div className="text-h2">Players</div>

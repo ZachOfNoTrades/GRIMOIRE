@@ -20,7 +20,7 @@ import {
 import PopoverMenu from "@/components/PopoverMenu";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster, toast } from "@/components/Toaster";
 import { BackLink } from "@/components/BackLink";
 import ConfirmModal from "@/components/ConfirmModal";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
@@ -386,10 +386,10 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
         {!snapshot && <p className="text-secondary">Loading board…</p>}
 
         {snapshot && (
-          <div className="dmn-board-layout">
+          <div className={`dmn-board-layout ${showJoinPanel ? "dmn-board-layout--join" : ""}`}>
 
             {/* MAIN COLUMN */}
-            <div className="flex flex-col gap-4 min-w-0">
+            <div className="dmn-board-main flex flex-col gap-4 min-w-0">
 
               {/* FINISHED BANNER */}
               {isFinished && (
@@ -401,44 +401,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                   <Button className="btn-green mt-2 self-start" disabled={isBusy} onClick={async () => { setIsBusy(true); await hostCommand("/resume"); setIsBusy(false); }} title="Reopen this game with its totals and a new join code">
                     <Play className="w-4 h-4" /> Resume game
                   </Button>
-                </div>
-              )}
-
-              {/* JOIN PANEL — QR on the left; the code, and while joining is open the game setup, beside it */}
-              {showJoinPanel && snapshot.join_url && snapshot.join_code && (
-                <div className="card">
-                  <div className="dmn-join">
-
-                    {/* QR CODE */}
-                    <QrCode value={snapshot.join_url} label={`QR code to join game ${snapshot.join_code}`} />
-
-                    {/* JOIN BODY */}
-                    <div className="dmn-join-body">
-
-                      {/* JOIN TEXT */}
-                      <div className="flex flex-col gap-2 min-w-0">
-                        <span className="text-secondary">Scan, or go to <strong>{snapshot.join_url.replace("https://", "").replace(`/${snapshot.join_code}`, "")}</strong> and enter</span>
-                        <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
-                        <span className="text-secondary">
-                          {snapshot.status === "lobby"
-                            ? `${snapshot.players.length}/${snapshot.max_players} players`
-                            : "Joining is closed — players rejoin with the code"}
-                        </span>
-                      </div>
-
-                      {/* GAME SETUP — while joining is open */}
-                      {snapshot.status === "lobby" && (
-                        <GameSetup
-                          startingLife={snapshot.starting_life}
-                          maxPlayers={snapshot.max_players}
-                          playerCount={snapshot.players.length}
-                          disabled={isBusy}
-                          onChange={(change) => hostCommand("/setup", change, "POST", setupPatch(change))}
-                          onOpenLayout={() => setShowLayoutPicker(true)}
-                        />
-                      )}
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -538,7 +500,46 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               )}
             </div>
 
-            {/* ACTIVITY COLUMN — as tall as the board beside it on wide screens (globals.css) */}
+            {/* JOIN PANEL — in the side column above Activity (at the top on narrow screens): QR, code,
+                and while joining is open the game setup, stacked for the column's width */}
+            {showJoinPanel && snapshot.join_url && snapshot.join_code && (
+              <div className="card dmn-join-card">
+                <div className="dmn-join">
+
+                  {/* QR CODE */}
+                  <QrCode value={snapshot.join_url} label={`QR code to join game ${snapshot.join_code}`} />
+
+                  {/* JOIN BODY */}
+                  <div className="dmn-join-body">
+
+                    {/* JOIN TEXT */}
+                    <div className="flex flex-col gap-2 min-w-0">
+                      <span className="text-secondary">Scan, or go to <strong>{snapshot.join_url.replace("https://", "").replace(`/${snapshot.join_code}`, "")}</strong> and enter</span>
+                      <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
+                      <span className="text-secondary">
+                        {snapshot.status === "lobby"
+                          ? `${snapshot.players.length}/${snapshot.max_players} players`
+                          : "Joining is closed — players rejoin with the code"}
+                      </span>
+                    </div>
+
+                    {/* GAME SETUP — while joining is open */}
+                    {snapshot.status === "lobby" && (
+                      <GameSetup
+                        startingLife={snapshot.starting_life}
+                        maxPlayers={snapshot.max_players}
+                        playerCount={snapshot.players.length}
+                        disabled={isBusy}
+                        onChange={(change) => hostCommand("/setup", change, "POST", setupPatch(change))}
+                        onOpenLayout={() => setShowLayoutPicker(true)}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ACTIVITY — fills the rest of the side column's height on wide screens (globals.css) */}
             <div className="card dmn-activity">
               <div className="card-header">
                 <h2 className="text-card-title">Activity</h2>
