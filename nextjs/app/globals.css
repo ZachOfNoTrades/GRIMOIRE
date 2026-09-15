@@ -8787,6 +8787,22 @@ body:has(.quest-cal-page) > .page {
   opacity: 0.6;
 }
 
+/* In a narrow spot (3 or more across on a phone) the button is just its icon, so it never wraps or
+   runs past the spot's edges. */
+.dmn-empty-seat-content {
+  container: dmn-spot / inline-size;
+}
+
+@container dmn-spot (max-width: 9rem) {
+  .dmn-add-player {
+    padding: 0.4rem 0.75rem;
+  }
+
+  .dmn-add-player-label {
+    display: none;
+  }
+}
+
 /* JOIN PANEL — stacked (QR, code, setup) for the side column. */
 .dmn-join {
   display: flex;

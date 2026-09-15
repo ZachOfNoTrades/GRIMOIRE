@@ -44,6 +44,7 @@ export default function OpenSpotTile({
 
       {/* CONTENT */}
       <div
+        className={sizer ? "dmn-empty-seat-content" : undefined}
         style={
           sizer
             ? { position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.75rem", padding: "1rem" }
@@ -56,8 +57,9 @@ export default function OpenSpotTile({
 
         {/* ADD PLAYER */}
         {onAdd && (
-          <button type="button" className="dmn-add-player" disabled={disabled} onClick={onAdd} title="Add a player to the table">
-            <UserPlus className="w-4 h-4" aria-hidden /> Add player
+          <button type="button" className="dmn-add-player" disabled={disabled} onClick={onAdd} title="Add a player to the table" aria-label="Add player">
+            <UserPlus className="w-4 h-4" aria-hidden />
+            <span className="dmn-add-player-label">Add player</span>
           </button>
         )}
       </div>
