@@ -121,29 +121,37 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
-  // Host controls that aren't counter taps: sent straight away, each with its own op_id. With a
-  // patch, the change shows immediately and is dropped when the request settles — replaced by the
-  // server's snapshot on success, or rolled back with a toast on failure.
+  // Host controls that aren't counter taps, each with its own op_id. They go out one at a time in
+  // the order they were made: the board shows each change at once, so the host can remove a player
+  // and add another before the removal has reached the server, and the add must not overtake it.
+  // With a patch, the change shows immediately and is dropped when the request settles — replaced
+  // by the server's snapshot on success, or rolled back with a toast on failure.
+  const commandQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const hostCommand = useCallback(
-    async (path: string, body: Record<string, unknown> = {}, method: "POST" | "PATCH" | "PUT" = "POST", patch?: SnapshotPatch) => {
+    (path: string, body: Record<string, unknown> = {}, method: "POST" | "PATCH" | "PUT" = "POST", patch?: SnapshotPatch) => {
       const patchId = (patchIdRef.current += 1);
       if (patch) setPatches((current) => [...current, { id: patchId, apply: patch }]);
-      try {
-        const response = await fetch(`${baseUrl}${path}`, {
-          method,
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ op_id: generateUUID(), ...body }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error ?? "That didn't work");
-        if (data.snapshot) acceptSnapshot(data.snapshot);
-        return true;
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "That didn't work");
-        return false;
-      } finally {
-        if (patch) setPatches((current) => current.filter((entry) => entry.id !== patchId));
-      }
+      const send = async () => {
+        try {
+          const response = await fetch(`${baseUrl}${path}`, {
+            method,
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ op_id: generateUUID(), ...body }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error ?? "That didn't work");
+          if (data.snapshot) acceptSnapshot(data.snapshot);
+          return true;
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "That didn't work");
+          return false;
+        } finally {
+          if (patch) setPatches((current) => current.filter((entry) => entry.id !== patchId));
+        }
+      };
+      const result = commandQueueRef.current.then(send);
+      commandQueueRef.current = result;
+      return result;
     },
     [baseUrl, acceptSnapshot]
   );
