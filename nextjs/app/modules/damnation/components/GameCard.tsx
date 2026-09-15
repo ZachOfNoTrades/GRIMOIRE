@@ -37,12 +37,12 @@ export default function GameCard({
   onCommanderDamageChange: (enabled: boolean) => void;
   onGuestManagementChange: (enabled: boolean) => void;
   onStart: () => void;
-  // Opens (Allow joining) or closes joining during the game.
+  // Opens (Open lobby) or closes joining during the game.
   onAllowJoining: (open: boolean) => void;
 }) {
   const isLobby = snapshot.status === "lobby";
   const isActive = snapshot.status === "active";
-  // During the game with joining closed, the code is hidden behind Allow joining.
+  // During the game with joining closed, the code is hidden behind Open lobby.
   const isClosed = isActive && !snapshot.joining_open;
   const joinHost = snapshot.join_url && snapshot.join_code ? snapshot.join_url.replace("https://", "").replace(`/${snapshot.join_code}`, "") : null;
 
@@ -57,7 +57,7 @@ export default function GameCard({
           {isActive && (
             <div className="dmn-game-face-header">
               <h2 className="text-card-title">Setup</h2>
-              <Button className="btn-link" onClick={() => onShowSetup(false)} title="Back to the game's activity">
+              <Button className="btn-link" onClick={() => onShowSetup(false)} title="View the game's activity">
                 <History className="w-4 h-4" aria-hidden /> View activity
               </Button>
             </div>
@@ -67,7 +67,7 @@ export default function GameCard({
 
             {/* JOIN CODE — QR code, hint, code and count. Once the game has started joining is closed:
                 a stand-in code sits under a disabled overlay (the real one isn't rendered) until
-                Allow joining reopens it. */}
+                Open lobby reopens it. */}
             {snapshot.join_url && snapshot.join_code && (
               <div className="dmn-join-code" data-closed={isClosed || undefined}>
                 <div className="dmn-join-code-content" aria-hidden={isClosed || undefined} inert={isClosed}>
@@ -75,7 +75,7 @@ export default function GameCard({
                     value={isClosed ? CLOSED_JOIN_URL : snapshot.join_url}
                     label={isClosed ? "Joining is closed" : `QR code to join game ${snapshot.join_code}`}
                   />
-                  <span className="dmn-join-hint text-secondary">Scan, or enter the code at <strong>{joinHost}</strong></span>
+                  <span className="dmn-join-hint text-secondary">Scan or enter the code at <strong className="dmn-join-address">{joinHost}</strong></span>
                   {isClosed ? (
                     <span className="dmn-code">{CLOSED_JOIN_CODE}</span>
                   ) : (
@@ -85,18 +85,18 @@ export default function GameCard({
                     {isClosed ? "Joining is closed" : `${snapshot.players.length}/${snapshot.max_players} players`}
                   </span>
                   {isActive && snapshot.joining_open && (
-                    /* CLOSE JOINING — during the game, once joining has been allowed */
+                    /* CLOSE LOBBY — during the game, once joining has been allowed */
                     <Button className="btn-link dmn-join-close" disabled={isBusy} onClick={() => onAllowJoining(false)} title="Stop new players from joining">
-                      <DoorClosed className="w-4 h-4" aria-hidden /> Close joining
+                      <DoorClosed className="w-4 h-4" aria-hidden /> Close lobby
                     </Button>
                   )}
                 </div>
 
-                {/* ALLOW JOINING — over the stand-in; reopens joining, which shows the real code */}
+                {/* OPEN LOBBY — over the stand-in; reopens joining, which shows the real code */}
                 {isClosed && (
                   <div className="dmn-join-closed">
                     <Button className="btn-blue" disabled={isBusy} onClick={() => onAllowJoining(true)} title="Reopen joining so a late arrival or a lost phone can join">
-                      <DoorOpen className="w-4 h-4" aria-hidden /> Allow joining
+                      <DoorOpen className="w-4 h-4" aria-hidden /> Open lobby
                     </Button>
                   </div>
                 )}

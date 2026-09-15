@@ -8821,6 +8821,11 @@ body:has(.quest-cal-page) > .page {
   margin-bottom: 0.5rem;
 }
 
+/* The join address always starts its own line under "Scan or enter the code at". */
+.dmn-join-address {
+  display: block;
+}
+
 /* JOINING CLOSED — the stand-in QR code and code fade under an overlay holding Allow joining. */
 .dmn-join-code[data-closed] .dmn-join-code-content {
   filter: blur(2px) grayscale(1);

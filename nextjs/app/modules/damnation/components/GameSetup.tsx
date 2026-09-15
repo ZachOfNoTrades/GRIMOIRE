@@ -112,7 +112,7 @@ export default function GameSetup({
                 setIsEditingCustom(true);
               }}
               aria-pressed={!isPreset}
-              title="Type a starting life"
+              title="Enter a custom starting life value"
             >
               {isPreset ? "Custom" : `Custom: ${startingLife}`}
             </Button>
@@ -142,7 +142,7 @@ export default function GameSetup({
           ))}
 
           {/* TABLE LAYOUT — icon only, in line with the counts it depends on */}
-          <Button className="btn-off" onClick={onOpenLayout} title="Table layout: arrange the board like the table" aria-label="Table layout">
+          <Button className="btn-off" onClick={onOpenLayout} title="Change the players' table layout" aria-label="Table layout">
             <LayoutGrid className="w-4 h-4" aria-hidden />
           </Button>
         </div>
@@ -172,7 +172,7 @@ export default function GameSetup({
           aria-checked={guestsManagePlayers}
           disabled={disabled}
           onClick={() => onGuestsManagePlayersChange(!guestsManagePlayers)}
-          title="Let players add, rename, move and remove players from their phones"
+          title="Allow guests who joined from a code to add and manage players"
         >
           <span className="text-h2">Guests manage players</span>
           <span className="settings-switch" aria-hidden />

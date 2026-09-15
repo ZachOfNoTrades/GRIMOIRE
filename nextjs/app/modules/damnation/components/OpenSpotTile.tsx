@@ -56,7 +56,7 @@ export default function OpenSpotTile({
 
         {/* ADD PLAYER */}
         {onAdd && (
-          <button type="button" className="dmn-add-player" disabled={disabled} onClick={onAdd} title="Add a player who has no phone">
+          <button type="button" className="dmn-add-player" disabled={disabled} onClick={onAdd} title="Add a player to the table">
             <UserPlus className="w-4 h-4" aria-hidden /> Add player
           </button>
         )}
