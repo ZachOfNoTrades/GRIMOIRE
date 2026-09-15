@@ -8432,6 +8432,11 @@ body:has(.quest-cal-page) > .page {
   border: 1px solid var(--alert-yellow-border);
 }
 
+/* On the board the notice sits just under the navbar rather than over it. (Phones have no navbar.) */
+.dmn-connection-below-nav {
+  top: calc(var(--navbar-height, 0px) + 0.75rem);
+}
+
 /* CONTROLLER (guest phone) */
 .dmn-controller {
   display: flex;
