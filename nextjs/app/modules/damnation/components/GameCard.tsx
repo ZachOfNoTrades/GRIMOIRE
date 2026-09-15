@@ -8,9 +8,13 @@ import QrCode from "./QrCode";
 import type { HostSnapshot } from "../types/damnation";
 
 // The board's side card, two faces of one card that flips between them: setup (QR code, join
-// code, starting life, players, layout, commander damage, Start game) and activity (the game's history). The board
-// decides which face shows: setup before the game starts, activity once it is under way, and
-// setup again from Edit game to change the game in flight.
+// code, starting life, players, layout, commander damage, Start game) and activity (the game's
+// history). The board decides which face shows: setup before the game starts, activity once it is
+// under way, and setup again from Edit game to change the game in flight.
+
+// Shown under the closed-joining overlay in place of the real code, which stays off the page.
+const CLOSED_JOIN_CODE = "ABCD";
+const CLOSED_JOIN_URL = "https://grimoire.invalid/damnation/ABCD";
 
 export default function GameCard({
   snapshot,
@@ -43,64 +47,66 @@ export default function GameCard({
 
         {/* SETUP FACE */}
         <section className="card dmn-game-face dmn-game-face-setup" inert={!showSetup} aria-label="Game setup">
-
           <div className="dmn-join">
 
-            {/* QR CODE */}
+            {/* JOIN CODE — QR code, hint, code and count. Once the game has started joining is closed:
+                a stand-in code sits under a disabled overlay (the real one isn't rendered) until
+                Allow joining reopens it. */}
             {snapshot.join_url && snapshot.join_code && (
-              <QrCode value={snapshot.join_url} label={`QR code to join game ${snapshot.join_code}`} />
-            )}
-
-            {/* JOIN BODY */}
-            <div className="dmn-join-body">
-
-              {/* JOIN TEXT */}
-              {snapshot.join_code && (
-                <div className="dmn-join-text">
+              <div className="dmn-join-code" data-closed={isActive || undefined}>
+                <div className="dmn-join-code-content" aria-hidden={isActive || undefined} inert={isActive}>
+                  <QrCode
+                    value={isActive ? CLOSED_JOIN_URL : snapshot.join_url}
+                    label={isActive ? "Joining is closed" : `QR code to join game ${snapshot.join_code}`}
+                  />
                   <span className="dmn-join-hint text-secondary">Scan, or go to <strong>{joinHost}</strong> and enter</span>
-                  <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
+                  {isActive ? (
+                    <span className="dmn-code">{CLOSED_JOIN_CODE}</span>
+                  ) : (
+                    <span className="dmn-code" aria-label={`Join code ${snapshot.join_code.split("").join(" ")}`}>{snapshot.join_code}</span>
+                  )}
                   <span className="dmn-join-count text-secondary">
-                    {isLobby
-                      ? `${snapshot.players.length}/${snapshot.max_players} players`
-                      : "Joining is closed — players rejoin with the code"}
+                    {isActive ? "Joining is closed" : `${snapshot.players.length}/${snapshot.max_players} players`}
                   </span>
                 </div>
-              )}
 
-              {/* GAME SETUP */}
-              <div className="dmn-join-setup">
-                <GameSetup
-                  startingLife={snapshot.starting_life}
-                  maxPlayers={snapshot.max_players}
-                  playerCount={snapshot.players.length}
-                  disabled={isBusy}
-                  onChange={onSetupChange}
-                  onOpenLayout={onOpenLayout}
-                  commanderDamage={snapshot.commander_damage_enabled}
-                  onCommanderDamageChange={onCommanderDamageChange}
-                />
-              </div>
-
-              {/* START GAME — closes joining. Once under way (Edit game): reopen joining for a late
-                  arrival, or go back to the activity. */}
-              <div className="dmn-game-actions">
-                {isLobby ? (
-                  <Button className="btn-green" disabled={isBusy || snapshot.players.length === 0} onClick={onStart} title="Close joining and start playing">
-                    <DoorClosed className="w-4 h-4" aria-hidden /> Start game
-                  </Button>
-                ) : (
-                  <>
-                    <Button className="btn-off" disabled={isBusy} onClick={onReopenJoining} title="Let a late arrival join">
-                      <DoorOpen className="w-4 h-4" aria-hidden /> Reopen joining
+                {/* ALLOW JOINING — over the stand-in; reopens joining, which shows the real code */}
+                {isActive && (
+                  <div className="dmn-join-closed">
+                    <Button className="btn-blue" disabled={isBusy} onClick={onReopenJoining} title="Reopen joining so a late arrival or a lost phone can join">
+                      <DoorOpen className="w-4 h-4" aria-hidden /> Allow joining
                     </Button>
-                    {isActive && (
-                      <Button className="btn-blue" onClick={() => onShowSetup(false)} title="Back to the game's activity">
-                        <Check className="w-4 h-4" aria-hidden /> Done
-                      </Button>
-                    )}
-                  </>
+                  </div>
                 )}
               </div>
+            )}
+
+            {/* GAME SETUP */}
+            <div className="dmn-join-setup">
+              <GameSetup
+                startingLife={snapshot.starting_life}
+                maxPlayers={snapshot.max_players}
+                playerCount={snapshot.players.length}
+                disabled={isBusy}
+                onChange={onSetupChange}
+                onOpenLayout={onOpenLayout}
+                commanderDamage={snapshot.commander_damage_enabled}
+                onCommanderDamageChange={onCommanderDamageChange}
+              />
+            </div>
+
+            {/* START GAME — closes joining; during the game (Edit game), Done goes back to the activity */}
+            <div className="dmn-game-actions">
+              {isLobby && (
+                <Button className="btn-green" disabled={isBusy || snapshot.players.length === 0} onClick={onStart} title="Close joining and start playing">
+                  <DoorClosed className="w-4 h-4" aria-hidden /> Start game
+                </Button>
+              )}
+              {isActive && (
+                <Button className="btn-blue" onClick={() => onShowSetup(false)} title="Back to the game's activity">
+                  <Check className="w-4 h-4" aria-hidden /> Done
+                </Button>
+              )}
             </div>
           </div>
         </section>

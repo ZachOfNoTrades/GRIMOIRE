@@ -8540,32 +8540,30 @@ body:has(.quest-cal-page) > .page {
     margin-bottom: 0.5rem;
   }
 
-  /* QR code on the left, join code and count beside it, then the hint, setup and actions.
-     Prefixed with the face so these outrank the stacked join panel rules further down. */
+  /* QR code on the left, join code and count beside it, the hint under both. Prefixed with the
+     face so these outrank the stacked join panel rules further down. */
   .dmn-game-face .dmn-join {
+    gap: 0.5rem;
+  }
+
+  .dmn-game-face .dmn-join-code-content {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas:
       "qr code"
       "qr count"
-      "hint hint"
-      "setup setup"
-      "actions actions";
+      "hint hint";
     align-items: center;
     gap: 0.5rem 0.75rem;
   }
 
-  .dmn-game-face .dmn-join > .dmn-qr {
+  .dmn-game-face .dmn-join-code-content > .dmn-qr {
     grid-area: qr;
     width: 7rem;
+    margin-bottom: 0;
   }
 
-  .dmn-game-face .dmn-join-body,
-  .dmn-game-face .dmn-join-text {
-    display: contents;
-  }
-
-  .dmn-game-face .dmn-join-text > .dmn-code {
+  .dmn-game-face .dmn-join-code-content > .dmn-code {
     grid-area: code;
     align-self: end;
     font-size: 2rem;
@@ -8582,12 +8580,7 @@ body:has(.quest-cal-page) > .page {
     font-size: 0.8rem;
   }
 
-  .dmn-game-face .dmn-join-setup {
-    grid-area: setup;
-  }
-
   .dmn-game-face .dmn-game-actions {
-    grid-area: actions;
     flex-wrap: nowrap;
   }
 
@@ -8787,19 +8780,41 @@ body:has(.quest-cal-page) > .page {
   flex: none;
 }
 
-.dmn-join-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+.dmn-join-setup,
+.dmn-join-code {
   width: 100%;
   min-width: 0;
 }
 
-.dmn-join-text {
+.dmn-join-code {
+  position: relative;
+}
+
+.dmn-join-code-content {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
-  min-width: 0;
+}
+
+.dmn-join-code-content > .dmn-qr {
+  margin-bottom: 0.5rem;
+}
+
+/* JOINING CLOSED — the stand-in QR code and code fade under an overlay holding Allow joining. */
+.dmn-join-code[data-closed] .dmn-join-code-content {
+  filter: blur(2px) grayscale(1);
+  opacity: 0.35;
+  user-select: none;
+}
+
+.dmn-join-closed {
+  position: absolute;
+  inset: -0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--card-bg) 45%, transparent);
 }
 
 /* Setup in the narrow panel: each label on its own line, its buttons centered under it. */
