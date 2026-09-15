@@ -85,6 +85,9 @@ async function runMutationOnce(options: {
   actor: Actor;
   apply: Apply;
   allowFinished?: boolean;
+  // Adding, editing, moving or removing someone else: a player may only do it while the host lets
+  // guests manage players (damnation_sessions.guests_manage_players).
+  playerManagement?: boolean;
 }): Promise<MutationResult> {
   const { sessionId, opId, actor, apply } = options;
   const pool = await getMainConnection();
@@ -106,17 +109,21 @@ async function runMutationOnce(options: {
     // LOCK + VERSION
     const bump = await request(transaction)
       .input("sessionId", sql.UniqueIdentifier, sessionId)
-      .query<{ version: number; status: SessionStatus; joins_open: boolean }>(`
+      .query<{ version: number; status: SessionStatus; joins_open: boolean; guests_manage_players: boolean }>(`
         UPDATE damnation_sessions
         SET version = version + 1, ts_updated = GETDATE()
-        OUTPUT INSERTED.version, INSERTED.status, INSERTED.joins_open
+        OUTPUT INSERTED.version, INSERTED.status, INSERTED.joins_open, INSERTED.guests_manage_players
         WHERE id = @sessionId ${options.allowFinished ? "" : "AND status <> 'finished'"}
       `);
     if (bump.recordset.length === 0) {
       await rollback();
       throw new DamnationError(410, "This game has ended");
     }
-    const { version, status, joins_open: joinsOpen } = bump.recordset[0];
+    const { version, status, joins_open: joinsOpen, guests_manage_players: guestsManagePlayers } = bump.recordset[0];
+    if (options.playerManagement && actor.kind === "player" && !guestsManagePlayers) {
+      await rollback();
+      throw new DamnationError(403, "The host hasn't let players manage the table");
+    }
 
     // IDEMPOTENCY
     const seen = await request(transaction)
@@ -425,15 +432,17 @@ export function addManualPlayer(
   displayName: string,
   colorKey: string,
   position?: number,
-  playerId?: string
+  playerId?: string,
+  actor: Actor = { kind: "host" }
 ) {
   return runMutation({
     sessionId,
     opId,
-    actor: { kind: "host" },
+    actor,
+    playerManagement: true,
     apply: async (transaction) => {
       const addedId = await addPlayerToGame(transaction, sessionId, displayName, colorKey, null, position, playerId);
-      return { eventType: "join", actorPlayerId: null, targetPlayerId: addedId, payload: { manual: true } };
+      return { eventType: "join", targetPlayerId: addedId, payload: { manual: true } };
     },
   });
 }
@@ -506,6 +515,8 @@ export function removePlayer(sessionId: string, opId: string, playerId: string, 
     sessionId,
     opId,
     actor,
+    // Leaving the game (a player removing themselves) is always allowed.
+    playerManagement: actor.kind === "player" && actor.playerId !== playerId,
     apply: async (transaction) => {
       await lockPlayer(transaction, sessionId, playerId);
       await request(transaction)
@@ -527,12 +538,14 @@ export function movePlayer(
   sessionId: string,
   opId: string,
   playerId: string,
-  target: { withPlayerId: string } | { toPosition: number }
+  target: { withPlayerId: string } | { toPosition: number },
+  actor: Actor = { kind: "host" }
 ) {
   return runMutation({
     sessionId,
     opId,
-    actor: { kind: "host" },
+    actor,
+    playerManagement: true,
     apply: async (transaction) => {
       await lockPlayer(transaction, sessionId, playerId);
       const order = await request(transaction)
@@ -585,12 +598,14 @@ export function editPlayer(
   sessionId: string,
   opId: string,
   playerId: string,
-  change: { display_name?: string; color_key?: string }
+  change: { display_name?: string; color_key?: string },
+  actor: Actor = { kind: "host" }
 ) {
   return runMutation({
     sessionId,
     opId,
-    actor: { kind: "host" },
+    actor,
+    playerManagement: true,
     apply: async (transaction) => {
       await lockPlayer(transaction, sessionId, playerId);
       const current = await request(transaction)

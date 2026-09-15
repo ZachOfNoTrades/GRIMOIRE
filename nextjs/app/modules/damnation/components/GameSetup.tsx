@@ -5,7 +5,7 @@ import { KeyboardEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { MAX_PLAYERS, MIN_PLAYERS, STARTING_LIFE_PRESETS } from "../lib/constants";
 
-// Starting life, player count and commander damage for a game, set on the board's game card before
+// Starting life, player count, commander damage and guest player management for a game, set on the board's game card before
 // the game and from Edit game during it. Each choice is saved as soon as it is made.
 
 const PLAYER_COUNT_OPTIONS = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, index) => MIN_PLAYERS + index);
@@ -19,6 +19,8 @@ export default function GameSetup({
   onOpenLayout,
   commanderDamage,
   onCommanderDamageChange,
+  guestsManagePlayers,
+  onGuestsManagePlayersChange,
 }: {
   startingLife: number;
   maxPlayers: number;
@@ -30,6 +32,9 @@ export default function GameSetup({
   // This game's commander damage tracking (the Damnation setting is only the default for new games).
   commanderDamage: boolean;
   onCommanderDamageChange: (enabled: boolean) => void;
+  // Whether players on their phones may add, rename, recolor, move and remove players.
+  guestsManagePlayers: boolean;
+  onGuestsManagePlayersChange: (enabled: boolean) => void;
 }) {
   // INPUT
   const [customLife, setCustomLife] = useState("");
@@ -143,19 +148,36 @@ export default function GameSetup({
         </div>
       </div>
 
-      {/* COMMANDER DAMAGE — the shared settings switch, driven by aria-checked on the row */}
-      <button
-        type="button"
-        role="switch"
-        className="dmn-setup-switch"
-        aria-checked={commanderDamage}
-        disabled={disabled}
-        onClick={() => onCommanderDamageChange(!commanderDamage)}
-        title="Track commander damage in this game"
-      >
-        <span className="text-h2">Commander damage</span>
-        <span className="settings-switch" aria-hidden />
-      </button>
+      {/* SWITCHES — commander damage and guest player management, one group */}
+      <div className="dmn-setup-switches">
+        {/* COMMANDER DAMAGE — the shared settings switch, driven by aria-checked on the row */}
+        <button
+          type="button"
+          role="switch"
+          className="dmn-setup-switch"
+          aria-checked={commanderDamage}
+          disabled={disabled}
+          onClick={() => onCommanderDamageChange(!commanderDamage)}
+          title="Track commander damage in this game"
+        >
+          <span className="text-h2">Commander damage</span>
+          <span className="settings-switch" aria-hidden />
+        </button>
+
+        {/* GUESTS MANAGE PLAYERS — phones get the board's add, rename, recolor, move and remove */}
+        <button
+          type="button"
+          role="switch"
+          className="dmn-setup-switch"
+          aria-checked={guestsManagePlayers}
+          disabled={disabled}
+          onClick={() => onGuestsManagePlayersChange(!guestsManagePlayers)}
+          title="Let players add, rename, move and remove players from their phones"
+        >
+          <span className="text-h2">Guests manage players</span>
+          <span className="settings-switch" aria-hidden />
+        </button>
+      </div>
     </div>
   );
 }

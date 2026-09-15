@@ -344,6 +344,21 @@ export async function saveCommanderDamage(sessionId: string, enabled: boolean): 
   return snapshot;
 }
 
+// Lets players on their phones manage players (or stops them) for one game. Like commander damage,
+// not a game event: it changes what the phones offer, not anyone's totals.
+export async function saveGuestPlayerManagement(sessionId: string, enabled: boolean): Promise<HostSnapshot> {
+  const pool = await getMainConnection();
+  await pool
+    .request()
+    .input("sessionId", sql.UniqueIdentifier, sessionId)
+    .input("enabled", sql.Bit, enabled)
+    .query(`UPDATE damnation_sessions SET guests_manage_players = @enabled, version = version + 1 WHERE id = @sessionId`);
+  const snapshot = await readSnapshot(pool, sessionId);
+  if (!snapshot) throw new DamnationError(404, "Game not found");
+  broadcastSnapshot(sessionId, snapshot);
+  return snapshot;
+}
+
 // LAYOUT PREFERENCES — the last table layout the host picked for each player count, stored as
 // JSON in damnation_settings.board_layouts and applied when a game starts at, or changes to, that
 // count. Keys that no longer name a layout for the count are ignored.

@@ -64,6 +64,8 @@ export const HOST_HELP: HelpSection[] = [
         <strong>Add player</strong> in an open spot adds someone who is playing without a phone, as &ldquo;Player 3&rdquo;
         with a free color. Click the name on their card to rename them, and the palette button beside it to change the
         color. Their card works straight from the board, and anyone in the game can change it from their phone too.
+        Switch on <strong>Guests manage players</strong> in the game setup to let players do all of this from their
+        phones — add, rename, recolor, move and remove players.
       </>
     ),
   },
@@ -104,7 +106,8 @@ export const PLAYER_HELP: HelpSection[] = [
       <>
         You can change anyone&apos;s life, commander damage and status from their card. Taps on the same counter are sent
         together once you pause for 3 seconds; the small number beside a total is what hasn&apos;t
-        reached the table yet.
+        reached the table yet. If the host lets guests manage players, you can also add someone in an open spot, tap a
+        name or the palette to rename or recolor, drag the handle to move a card, and remove players with the X.
       </>
     ),
   },

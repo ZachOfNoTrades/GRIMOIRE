@@ -8552,7 +8552,7 @@ body:has(.quest-cal-page) > .page {
 
   .dmn-game-face .dmn-join-code-content > .dmn-qr {
     grid-area: qr;
-    width: 7rem;
+    width: 6.5rem;
     margin-bottom: 0;
   }
 
@@ -8579,6 +8579,10 @@ body:has(.quest-cal-page) > .page {
   .dmn-game-face .dmn-join-hint {
     grid-area: hint;
     font-size: 0.8rem;
+  }
+
+  .dmn-game-face .dmn-setup-switch {
+    padding-block: 0.125rem;
   }
 
   .dmn-game-face .dmn-game-actions {
@@ -8838,11 +8842,17 @@ body:has(.quest-cal-page) > .page {
   gap: 0.35rem;
 }
 
-/* COMMANDER DAMAGE SWITCH — a full-width row under the setup groups: label, then the shared
+/* SETUP SWITCHES — full-width rows under the setup groups, close together: label, then the shared
    settings switch (driven by aria-checked, like the settings page rows). */
-.dmn-setup-switch {
+.dmn-setup-switches {
   display: flex;
   flex-basis: 100%;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dmn-setup-switch {
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;

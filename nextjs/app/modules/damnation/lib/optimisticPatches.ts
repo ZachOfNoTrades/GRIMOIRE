@@ -94,6 +94,10 @@ export function commanderDamagePatch(enabled: boolean): SnapshotPatch {
   return (snapshot) => ({ ...snapshot, commander_damage_enabled: enabled });
 }
 
+export function guestManagementPatch(enabled: boolean): SnapshotPatch {
+  return (snapshot) => ({ ...snapshot, guests_manage_players: enabled });
+}
+
 // Also remembered as the host's layout for this count, as the server does.
 export function layoutPatch(layoutKey: string): SnapshotPatch {
   return (snapshot) => {

@@ -22,7 +22,7 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
 
   switch (event.event_type) {
     case "join":
-      return payload.manual ? `Host added ${target}` : `${actor} joined`;
+      return payload.manual ? `${actor} added ${target}` : `${actor} joined`;
     case "claim":
       return `${actor} rejoined`;
     case "life":
@@ -43,7 +43,7 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
     case "undo":
       return selfChange ? `${actor} undid a change to their own card` : `${actor} undid a change to ${target}`;
     case "kick":
-      return selfChange ? `${target} left the game` : `Host removed ${target}`;
+      return selfChange ? `${target} left the game` : `${actor} removed ${target}`;
     case "start":
       return "Joining closed — game on";
     case "reopen":
@@ -53,8 +53,8 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
     case "end":
       return "Game over";
     case "edit_player": {
-      if (payload.display_name_from !== undefined) return `Host renamed ${String(payload.display_name_from)} to ${target}`;
-      return `Host changed ${target}'s color`;
+      if (payload.display_name_from !== undefined) return `${actor} renamed ${String(payload.display_name_from)} to ${target}`;
+      return `${actor} changed ${target}'s color`;
     }
     case "setup": {
       const parts: string[] = [];
@@ -64,9 +64,9 @@ export function describeEvent(event: EventView, playersById: Map<string, Pick<Pl
     }
     case "reorder":
       // Events from before drag-to-swap recorded a direction instead of a partner.
-      if (payload.to_position) return `Host moved ${target} to an open spot on the board`;
-      if (payload.with_player_id) return `Host swapped ${target} and ${name(String(payload.with_player_id))} on the board`;
-      return `Host moved ${target} ${payload.direction === "earlier" ? "earlier" : "later"} on the board`;
+      if (payload.to_position) return `${actor} moved ${target} to an open spot on the board`;
+      if (payload.with_player_id) return `${actor} swapped ${target} and ${name(String(payload.with_player_id))} on the board`;
+      return `${actor} moved ${target} ${payload.direction === "earlier" ? "earlier" : "later"} on the board`;
     default:
       return "Something changed";
   }

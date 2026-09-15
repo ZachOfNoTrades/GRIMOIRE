@@ -23,6 +23,7 @@ import {
 } from "@/app/modules/damnation/lib/constants";
 import { useGameActions } from "@/app/modules/damnation/lib/useGameActions";
 import { useSessionStream } from "@/app/modules/damnation/lib/useSessionStream";
+import { useTableCommands } from "@/app/modules/damnation/lib/useTableCommands";
 import { useWakeLock } from "@/app/modules/damnation/lib/useWakeLock";
 import type { GuestSnapshot, LobbyView, PlayerView } from "@/app/modules/damnation/types/damnation";
 
@@ -458,6 +459,8 @@ function Controller({
 
   // STATE
   const [showLeave, setShowLeave] = useState(false);
+  // A player someone asked to remove, waiting for them to confirm.
+  const [removeTarget, setRemoveTarget] = useState<PlayerView | null>(null);
   // At most one card's Commander damage / Status section is open at a time.
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const handledRef = useRef(false);
@@ -473,7 +476,7 @@ function Controller({
     [onEnded, onRemoved]
   );
 
-  const { snapshot, presence, connection, acceptSnapshot } = useSessionStream<GuestSnapshot>({
+  const { snapshot: streamSnapshot, presence, connection, acceptSnapshot } = useSessionStream<GuestSnapshot>({
     url: token ? `/api/damnation/${code}/stream` : null,
     headers,
     initial,
@@ -490,10 +493,21 @@ function Controller({
     baseUrl: token ? `/api/damnation/${code}` : null,
     headers,
     acceptSnapshot,
-    snapshot,
+    snapshot: streamSnapshot,
     onError: (message) => toast.error(message),
     onAccessLost: (status) => handleRevoked(status === 410 ? "ended" : "unauthorized"),
   });
+
+  // TABLE COMMANDS — adding, renaming, recoloring, moving and removing players, while the host lets
+  // guests manage players; shown at once and sent in order (lib/useTableCommands.ts).
+  const table = useTableCommands<GuestSnapshot>({
+    baseUrl: token ? `/api/damnation/${code}` : null,
+    headers,
+    serverSnapshot: streamSnapshot,
+    acceptSnapshot,
+    onError: (message) => toast.error(message),
+  });
+  const snapshot = table.snapshot;
 
   useWakeLock(true);
 
@@ -524,6 +538,8 @@ function Controller({
   // The host's table layout, exactly as on the board: every player (you included) where they sit
   // and the open spots between them, whatever the screen width (narrow cards compact themselves).
   const layout = resolveLayout(snapshot.board_layout, snapshot.max_players);
+  // Whether this phone gets the board's player controls (until the join comes back nothing can be sent).
+  const canManage = !!token && snapshot.guests_manage_players;
 
   const cardProps = (playerId: string) => ({
     players: snapshot.players,
@@ -583,6 +599,8 @@ function Controller({
               position={index + 1}
               style={{ gridArea: SLOT_NAMES[index] }}
               waitingText="Waiting for a player…"
+              isDropTarget={table.dropId === `spot:${index + 1}`}
+              onAdd={canManage ? () => table.addPlaceholderPlayer(index + 1) : undefined}
               sizer={
                 <PlayerCard
                   player={placeholderPlayer(index + 1, snapshot.starting_life)}
@@ -595,7 +613,12 @@ function Controller({
               }
             />
           ) : (
-            <div key={player.id} className="flex flex-col min-w-0" style={{ gridArea: SLOT_NAMES[index] }}>
+            <div
+              key={player.id}
+              data-player-id={player.id}
+              className={`flex flex-col min-w-0 ${table.dragId === player.id ? "dmn-dragging" : ""} ${table.dropId === player.id ? "dmn-drop-target" : ""}`}
+              style={{ gridArea: SLOT_NAMES[index] }}
+            >
               <PlayerCard
                 player={player}
                 variant={player.id === snapshot.me ? "self" : "other"}
@@ -603,6 +626,16 @@ function Controller({
                 connected={player.id === snapshot.me || player.rejoinable || player.manual ? null : connected.has(player.id)}
                 fill
                 {...cardProps(player.id)}
+                {...(canManage && !player.pending
+                  ? {
+                      onRename: (displayName: string) => table.renamePlayer(player.id, displayName),
+                      onRecolor: (colorKey: string) => table.recolorPlayer(player.id, colorKey),
+                      // Your own card has Leave instead.
+                      onRemove: player.id === snapshot.me ? undefined : () => setRemoveTarget(player),
+                      onGripPointerDown: (event: React.PointerEvent) => table.startDrag(event, player.id),
+                      onGripKey: (step: -1 | 1) => table.stepPlayer(player.id, step),
+                    }
+                  : {})}
               />
             </div>
           ))}
@@ -613,6 +646,20 @@ function Controller({
       <div className="dmn-action-bar">
         <WikiSearch template={snapshot.wiki_search_template} embed={snapshot.wiki_embed} />
       </div>
+
+      {/* REMOVE PLAYER CONFIRM — while the host lets guests manage players */}
+      <ConfirmModal
+        isOpen={removeTarget !== null}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => {
+          if (removeTarget) void table.removePlayer(removeTarget.id);
+          setRemoveTarget(null);
+        }}
+        danger
+        title="Remove player?"
+        confirmLabel="Remove"
+        message={removeTarget ? `${removeTarget.display_name} is removed from the game.` : ""}
+      />
 
       {/* LEAVE CONFIRM */}
       <ConfirmModal

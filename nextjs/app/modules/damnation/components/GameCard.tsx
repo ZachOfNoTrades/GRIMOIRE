@@ -24,6 +24,7 @@ export default function GameCard({
   onSetupChange,
   onOpenLayout,
   onCommanderDamageChange,
+  onGuestManagementChange,
   onStart,
   onAllowJoining,
 }: {
@@ -34,6 +35,7 @@ export default function GameCard({
   onSetupChange: (change: { starting_life?: number; max_players?: number }) => Promise<boolean>;
   onOpenLayout: () => void;
   onCommanderDamageChange: (enabled: boolean) => void;
+  onGuestManagementChange: (enabled: boolean) => void;
   onStart: () => void;
   // Opens (Allow joining) or closes joining during the game.
   onAllowJoining: (open: boolean) => void;
@@ -73,7 +75,7 @@ export default function GameCard({
                     value={isClosed ? CLOSED_JOIN_URL : snapshot.join_url}
                     label={isClosed ? "Joining is closed" : `QR code to join game ${snapshot.join_code}`}
                   />
-                  <span className="dmn-join-hint text-secondary">Scan, or go to <strong>{joinHost}</strong> and enter</span>
+                  <span className="dmn-join-hint text-secondary">Scan, or enter the code at <strong>{joinHost}</strong></span>
                   {isClosed ? (
                     <span className="dmn-code">{CLOSED_JOIN_CODE}</span>
                   ) : (
@@ -112,6 +114,8 @@ export default function GameCard({
                 onOpenLayout={onOpenLayout}
                 commanderDamage={snapshot.commander_damage_enabled}
                 onCommanderDamageChange={onCommanderDamageChange}
+                guestsManagePlayers={snapshot.guests_manage_players}
+                onGuestsManagePlayersChange={onGuestManagementChange}
               />
             </div>
 

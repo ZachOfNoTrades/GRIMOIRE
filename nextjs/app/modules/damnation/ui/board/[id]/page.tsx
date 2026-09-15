@@ -16,14 +16,13 @@ import {
 } from "lucide-react";
 import PopoverMenu from "@/components/PopoverMenu";
 import { useRouter } from "next/navigation";
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { BackLink } from "@/components/BackLink";
 import ConfirmModal from "@/components/ConfirmModal";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
-import { generateUUID } from "@/lib/uuid";
 import GameCard from "../../../components/GameCard";
 import LayoutPicker from "../../../components/LayoutPicker";
 import OpenSpotTile from "../../../components/OpenSpotTile";
@@ -31,21 +30,17 @@ import { HOST_HELP } from "../../../components/help";
 import PlayerCard from "../../../components/PlayerCard";
 import WikiSearch from "../../../components/WikiSearch";
 import { arrangeSpots, resolveLayout, SLOT_NAMES } from "../../../lib/boardLayouts";
-import { PALETTE } from "../../../lib/constants";
 import {
-  addPlayerPatch,
   commanderDamagePatch,
-  editPlayerPatch,
+  guestManagementPatch,
   joiningPatch,
   placeholderPlayer,
   layoutPatch,
-  positionsPatch,
-  removePlayerPatch,
   setupPatch,
-  type SnapshotPatch,
 } from "../../../lib/optimisticPatches";
 import { useGameActions } from "../../../lib/useGameActions";
 import { useSessionStream } from "../../../lib/useSessionStream";
+import { useTableCommands } from "../../../lib/useTableCommands";
 import { useWakeLock } from "../../../lib/useWakeLock";
 import type { HostSnapshot } from "../../../types/damnation";
 
@@ -62,8 +57,6 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   const [notFound, setNotFound] = useState(false);
   // DRAG — the player being dragged, and where they'd land if released now: another player's id
   // (swap) or "spot:<n>" for an open spot.
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dropId, setDropId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
   const [showLayoutPicker, setShowLayoutPicker] = useState(false);
@@ -92,14 +85,16 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     onError: (message) => toast.error(message),
   });
 
-  // OPTIMISTIC CHANGES — host commands show on the board at once; each patch sits on top of the
-  // latest snapshot until its request settles (lib/optimisticPatches.ts).
-  const [patches, setPatches] = useState<{ id: number; apply: SnapshotPatch }[]>([]);
-  const patchIdRef = useRef(0);
-  const snapshot = useMemo(
-    () => (serverSnapshot ? patches.reduce((view, patch) => patch.apply(view), serverSnapshot) : null),
-    [serverSnapshot, patches]
-  );
+  // TABLE COMMANDS — host controls that aren't counter taps, shown on the board at once and sent in
+  // order (lib/useTableCommands.ts).
+  const table = useTableCommands<HostSnapshot>({
+    baseUrl,
+    serverSnapshot,
+    acceptSnapshot,
+    onError: (message) => toast.error(message),
+    disabled: isBusy,
+  });
+  const { snapshot, command: hostCommand, dragId, dropId } = table;
 
   const isFinished = snapshot?.status === "finished";
   // Board positions in order; null is an open spot. Players keep their position when someone leaves.
@@ -129,121 +124,9 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
-  // Host controls that aren't counter taps, each with its own op_id. They go out one at a time in
-  // the order they were made: the board shows each change at once, so the host can remove a player
-  // and add another before the removal has reached the server, and the add must not overtake it.
-  // With a patch, the change shows immediately and is dropped when the request settles — replaced
-  // by the server's snapshot on success, or rolled back with a toast on failure.
-  const commandQueueRef = useRef<Promise<unknown>>(Promise.resolve());
-  const hostCommand = useCallback(
-    (path: string, body: Record<string, unknown> = {}, method: "POST" | "PATCH" | "PUT" = "POST", patch?: SnapshotPatch) => {
-      const patchId = (patchIdRef.current += 1);
-      if (patch) setPatches((current) => [...current, { id: patchId, apply: patch }]);
-      const send = async () => {
-        try {
-          const response = await fetch(`${baseUrl}${path}`, {
-            method,
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ op_id: generateUUID(), ...body }),
-          });
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(data.error ?? "That didn't work");
-          if (data.snapshot) acceptSnapshot(data.snapshot);
-          return true;
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : "That didn't work");
-          return false;
-        } finally {
-          if (patch) setPatches((current) => current.filter((entry) => entry.id !== patchId));
-        }
-      };
-      const result = commandQueueRef.current.then(send);
-      commandQueueRef.current = result;
-      return result;
-    },
-    [baseUrl, acceptSnapshot]
-  );
-
-  // Adds a player without a phone as "Player N" with a color nobody has; the host renames and
-  // recolors them by clicking the name or color on their card.
-  function addPlaceholderPlayer(position: number) {
-    if (!snapshot) return;
-    const names = new Set(snapshot.players.map((player) => player.display_name.toLowerCase()));
-    let number = snapshot.players.length + 1;
-    while (names.has(`player ${number}`)) number += 1;
-    const colors = new Set(snapshot.players.map((player) => player.color_key));
-    const color = PALETTE.find((entry) => !colors.has(entry.key))?.key ?? PALETTE[0].key;
-    const displayName = `Player ${number}`;
-    const playerId = generateUUID().toLowerCase();
-    hostCommand(
-      "/players",
-      { player_id: playerId, display_name: displayName, color_key: color, position },
-      "POST",
-      addPlayerPatch(playerId, displayName, color, position)
-    );
-  }
-
   function saveLayout(layoutKey: string) {
     setShowLayoutPicker(false);
     hostCommand("/layout", { board_layout: layoutKey }, "PUT", layoutPatch(layoutKey));
-  }
-
-  // Moves a player: onto another player's spot (the two swap) or into an open spot.
-  function movePlayer(playerId: string, target: { withPlayerId: string } | { toPosition: number }) {
-    const mover = snapshot?.players.find((player) => player.id === playerId);
-    if (!snapshot || !mover) return;
-    if ("toPosition" in target) {
-      hostCommand(`/players/${playerId}/move`, { to_position: target.toPosition }, "POST", positionsPatch({ [playerId]: target.toPosition }));
-      return;
-    }
-    const other = snapshot.players.find((player) => player.id === target.withPlayerId);
-    if (!other) return;
-    hostCommand(
-      `/players/${playerId}/move`,
-      { with_player_id: other.id },
-      "POST",
-      positionsPatch({ [playerId]: other.position, [other.id]: mover.position })
-    );
-  }
-
-  // Drag a card by its grip and drop it on another card to swap the two players' places, or on an
-  // open spot to move into it. What's under the pointer is found with elementFromPoint, so it works
-  // across a 2-D layout.
-  function startDrag(event: React.PointerEvent, playerId: string) {
-    if (event.button !== 0 || isBusy) return;
-    event.preventDefault();
-    setDragId(playerId);
-    let target: string | null = null;
-
-    const onMove = (move: PointerEvent) => {
-      const under = document.elementFromPoint(move.clientX, move.clientY)?.closest<HTMLElement>("[data-player-id], [data-open-spot]");
-      const next = !under
-        ? null
-        : under.dataset.openSpot
-          ? `spot:${under.dataset.openSpot}`
-          : under.dataset.playerId !== playerId ? under.dataset.playerId ?? null : null;
-      if (next !== target) {
-        target = next;
-        setDropId(next);
-      }
-    };
-    const cleanup = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", cleanup);
-      setDragId(null);
-      setDropId(null);
-    };
-    const onUp = () => {
-      const dropped = target;
-      cleanup();
-      if (!dropped) return;
-      if (dropped.startsWith("spot:")) movePlayer(playerId, { toPosition: Number(dropped.slice(5)) });
-      else movePlayer(playerId, { withPlayerId: dropped });
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", cleanup);
   }
 
   async function deleteGame() {
@@ -275,7 +158,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
     setConfirm(null);
     if (!pending) return;
     if (pending.kind === "delete") await deleteGame();
-    if (pending.kind === "kick") await hostCommand(`/players/${pending.playerId}/kick`, {}, "POST", removePlayerPatch(pending.playerId));
+    if (pending.kind === "kick") await table.removePlayer(pending.playerId);
   }
 
   if (notFound) {
@@ -419,14 +302,10 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                         onStatus={(change) => actions.changeStatus(player.id, change)}
                         onRemove={isFinished || player.pending ? undefined : () => setConfirm({ kind: "kick", playerId: player.id, name: player.display_name })}
                         removeDisabled={isBusy}
-                        onRename={isFinished || player.pending ? undefined : (displayName) => hostCommand(`/players/${player.id}`, { display_name: displayName }, "PATCH", editPlayerPatch(player.id, { display_name: displayName }))}
-                        onRecolor={isFinished || player.pending ? undefined : (colorKey) => void hostCommand(`/players/${player.id}`, { color_key: colorKey }, "PATCH", editPlayerPatch(player.id, { color_key: colorKey }))}
-                        onGripPointerDown={isFinished || player.pending ? undefined : (event) => startDrag(event, player.id)}
-                        onGripKey={(step) => {
-                          const order = snapshot.players.findIndex((other) => other.id === player.id);
-                          const other = snapshot.players[order + step];
-                          if (other && !other.pending) movePlayer(player.id, { withPlayerId: other.id });
-                        }}
+                        onRename={isFinished || player.pending ? undefined : (displayName) => table.renamePlayer(player.id, displayName)}
+                        onRecolor={isFinished || player.pending ? undefined : (colorKey) => table.recolorPlayer(player.id, colorKey)}
+                        onGripPointerDown={isFinished || player.pending ? undefined : (event) => table.startDrag(event, player.id)}
+                        onGripKey={(step) => table.stepPlayer(player.id, step)}
                         fill
                       />
                     </div>
@@ -439,7 +318,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
                       style={slotStyle(index)}
                       waitingText="Waiting for a player…"
                       disabled={isBusy}
-                      onAdd={() => addPlaceholderPlayer(index + 1)}
+                      onAdd={() => table.addPlaceholderPlayer(index + 1)}
                       sizer={
                         <PlayerCard
                           player={placeholderPlayer(index + 1, snapshot.starting_life)}
@@ -480,6 +359,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               onSetupChange={(change) => hostCommand("/setup", change, "POST", setupPatch(change))}
               onOpenLayout={() => setShowLayoutPicker(true)}
               onCommanderDamageChange={(enabled) => void hostCommand("/commander-damage", { enabled }, "PUT", commanderDamagePatch(enabled))}
+              onGuestManagementChange={(enabled) => void hostCommand("/guest-management", { enabled }, "PUT", guestManagementPatch(enabled))}
               onStart={() => {
                 setIsEditingGame(false);
                 void hostCommand("/joins", { open: false }, "POST", joiningPatch(false));

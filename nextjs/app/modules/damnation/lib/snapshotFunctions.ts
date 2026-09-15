@@ -40,6 +40,7 @@ interface SessionRow {
   board_layout: string | null;
   commander_damage_enabled: boolean;
   joins_open: boolean;
+  guests_manage_players: boolean;
   board_layouts: string | null;
 }
 
@@ -88,7 +89,7 @@ export async function readSnapshot(
     .input("eventLimit", sql.Int, RECENT_EVENT_LIMIT)
     .query(`
       SELECT s.id, s.host_user_id, s.status, s.join_code, s.starting_life, s.max_seats AS max_players, s.version, s.ts_created, s.board_layout,
-             s.commander_damage_enabled, s.joins_open,
+             s.commander_damage_enabled, s.joins_open, s.guests_manage_players,
              (SELECT st.board_layouts FROM damnation_settings st WHERE st.user_id = s.host_user_id) AS board_layouts
       FROM damnation_sessions s
       WHERE s.id = @sessionId;
@@ -174,6 +175,7 @@ export async function readSnapshot(
     ...wikiConfig(),
     commander_damage_enabled: session.commander_damage_enabled,
     joining_open: session.status === "lobby" || (session.status === "active" && session.joins_open),
+    guests_manage_players: session.guests_manage_players,
     layout_preferences: parseLayoutPreferences(session.board_layouts),
     ts_created: session.ts_created.toISOString(),
     players,

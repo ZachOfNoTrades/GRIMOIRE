@@ -75,6 +75,8 @@ export interface SessionSnapshot {
   board_layout: string;
   // Whether new players can join: always before the game, and during it once the host allows joining.
   joining_open: boolean;
+  // Whether players on their phones may add, rename, recolor, move and remove players.
+  guests_manage_players: boolean;
   players: PlayerView[];
   // Players no longer in the game, so the activity feed can still name them.
   former_players: { id: string; display_name: string }[];

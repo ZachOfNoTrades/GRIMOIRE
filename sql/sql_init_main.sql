@@ -181,6 +181,7 @@ BEGIN TRY
             board_layout VARCHAR(20) NULL, -- board arrangement key (lib/boardLayouts.ts); NULL = the first layout for the count
             commander_damage_enabled BIT NOT NULL CONSTRAINT DF_damnation_sessions_commander_damage DEFAULT 1, -- set from the host's setting at creation, switchable on the board
             joins_open BIT NOT NULL CONSTRAINT DF_damnation_sessions_joins_open DEFAULT 0, -- joining opened during a game (status active); lobby is always open
+            guests_manage_players BIT NOT NULL CONSTRAINT DF_damnation_sessions_guests_manage_players DEFAULT 0, -- players on phones may add, edit, move and remove players
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
             ts_finished DATETIME NULL,
