@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, GripVertical, Palette, Skull, Swords, X } from "lucide-react";
+import { ChevronDown, GripVertical, Palette, Skull, Swords, X } from "lucide-react";
 import { KeyboardEvent, useRef, useState } from "react";
 import { COMMANDER_DAMAGE_LETHAL, isColorKey, NAME_MAX_LENGTH, PALETTE } from "../lib/constants";
 import { eliminationReason } from "../lib/elimination";
@@ -324,7 +324,7 @@ export default function PlayerCard({
       {/* Shown on every editable card, even before anyone else joins (it holds the status controls
           too), so a card is the same height whoever else is at the table. */}
       {editable && (
-        <>
+        <div className="dmn-editor">
           {/* TOGGLE */}
           <button
             type="button"
@@ -333,11 +333,12 @@ export default function PlayerCard({
             aria-expanded={showCommander}
           >
             <span>{commanderDamage ? "Commander damage taken" : "Status"}</span>
-            {showCommander ? <ChevronUp className="w-4 h-4" aria-hidden /> : <ChevronDown className="w-4 h-4" aria-hidden />}
+            <ChevronDown className="dmn-toggle-chevron w-4 h-4" aria-hidden />
           </button>
 
-          {/* ROWS — one per opposing commander */}
-          {showCommander && (
+          {/* ROWS — one per opposing commander, then status. Always rendered so opening and closing
+              can animate; inert while closed so nothing hidden can be tapped or focused. */}
+          <div className="dmn-collapse" data-open={showCommander} inert={!showCommander}>
             <div className="dmn-cmdr-rows">
               {commanderDamage && opponents.map((source) => (
                 <div key={source.id} className="dmn-cmdr-row">
@@ -368,8 +369,8 @@ export default function PlayerCard({
                 )}
               </div>
             </div>
-          )}
-        </>
+          </div>
+        </div>
       )}
 
       {/* COMMANDER DAMAGE SUMMARY — under the toggle and only while it's closed (the open rows show the
