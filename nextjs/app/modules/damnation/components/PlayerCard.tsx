@@ -133,6 +133,11 @@ export default function PlayerCard({
     [...damageSources].map((sourceId) => damageFrom(sourceId))
   );
   const isOut = outReason !== null;
+  // Whether life or commander damage alone would have this player out, ignoring a manual Out.
+  const outByTotals = eliminationReason(
+    { eliminated_override: null, conceded: false, life_total: life },
+    [...damageSources].map((sourceId) => damageFrom(sourceId))
+  ) !== null;
 
   async function commitName() {
     const trimmed = nameDraft.trim();
@@ -350,18 +355,15 @@ export default function PlayerCard({
               {/* STATUS CONTROLS */}
               <div className="dmn-status-row">
                 {isOut ? (
-                  <button type="button" className="dmn-step" onClick={() => onStatus({ conceded: false, eliminated_override: false })} title="Put this player back in the game">
+                  /* JUMP BACK IN — clears a manual Out so life and commander damage decide again; if those
+                     would still have the player out, keeps them in regardless */
+                  <button type="button" className="dmn-step" onClick={() => onStatus({ conceded: false, eliminated_override: outByTotals ? false : null })} title="Put this player back in the game">
                     Jump back in
                   </button>
                 ) : (
                   /* OUT — one button for conceding or being knocked out */
                   <button type="button" className="dmn-step" onClick={() => onStatus({ eliminated_override: true })} title="Mark this player as out (conceded or knocked out)">
                     Out
-                  </button>
-                )}
-                {override !== null && !isOut && (
-                  <button type="button" className="dmn-step" onClick={() => onStatus({ eliminated_override: null })} title="Go back to deciding from life and commander damage">
-                    Auto
                   </button>
                 )}
               </div>
