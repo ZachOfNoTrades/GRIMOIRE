@@ -53,7 +53,6 @@ interface PlayerRow {
   conceded: boolean;
   eliminated_override: boolean | null;
   is_manual: boolean;
-  rejoinable: number;
 }
 
 interface EventRow {
@@ -95,7 +94,7 @@ export async function readSnapshot(
       WHERE s.id = @sessionId;
 
       SELECT id, seat AS position, display_name, color_key, life_total, conceded, eliminated_override,
-             is_manual, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS rejoinable
+             is_manual
       FROM damnation_players
       WHERE session_id = @sessionId AND kicked = 0
       ORDER BY seat;
@@ -146,7 +145,6 @@ export async function readSnapshot(
       eliminated_override: player.eliminated_override,
       eliminated: reason !== null,
       elimination_reason: reason,
-      rejoinable: player.rejoinable === 1,
       manual: player.is_manual,
     };
   });

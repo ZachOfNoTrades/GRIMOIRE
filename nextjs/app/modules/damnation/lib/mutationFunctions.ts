@@ -84,7 +84,6 @@ async function runMutationOnce(options: {
   opId: string;
   actor: Actor;
   apply: Apply;
-  allowFinished?: boolean;
   // Adding, editing, moving or removing someone else: a player may only do it while the host lets
   // guests manage players (damnation_sessions.guests_manage_players).
   playerManagement?: boolean;
@@ -113,7 +112,7 @@ async function runMutationOnce(options: {
         UPDATE damnation_sessions
         SET version = version + 1, ts_updated = GETDATE()
         OUTPUT INSERTED.version, INSERTED.status, INSERTED.joins_open, INSERTED.guests_manage_players
-        WHERE id = @sessionId ${options.allowFinished ? "" : "AND status <> 'finished'"}
+        WHERE id = @sessionId AND status <> 'finished'
       `);
     if (bump.recordset.length === 0) {
       await rollback();
@@ -424,8 +423,7 @@ export async function joinSession(
 }
 
 // A player the host adds from the board, for someone playing without a phone. Allowed whether
-// or not joining is open. The card is edited from the board or from any player's phone; nobody
-// can rejoin as a manual player from a phone.
+// or not joining is open. The card is edited from the board or from any player's phone.
 export function addManualPlayer(
   sessionId: string,
   opId: string,
@@ -446,41 +444,6 @@ export function addManualPlayer(
     },
   });
 }
-
-// Reconnects a phone to its player after the host resumes a finished game (phones drop their
-// token when a game ends). Keeps the player's life and commander damage; joining can be closed.
-export async function rejoinPlayer(
-  sessionId: string,
-  opId: string,
-  rejoinPlayerId: string
-): Promise<{ token: string; playerId: string; result: MutationResult }> {
-  const token = generatePlayerToken();
-
-  const result = await runMutation({
-    sessionId,
-    opId,
-    actor: { kind: "host" },
-    apply: async (transaction) => {
-      const updated = await request(transaction)
-        .input("sessionId", sql.UniqueIdentifier, sessionId)
-        .input("playerId", sql.UniqueIdentifier, rejoinPlayerId)
-        .input("tokenHash", sql.VarBinary(32), token.hash)
-        .query(`
-          UPDATE damnation_players SET token_hash = @tokenHash, ts_updated = GETDATE()
-          WHERE id = @playerId AND session_id = @sessionId AND kicked = 0 AND token_hash IS NULL AND is_manual = 0
-        `);
-      if (updated.rowsAffected[0] === 0) throw new DamnationError(409, "That player isn't waiting to rejoin");
-      return { eventType: "claim", actorPlayerId: rejoinPlayerId, targetPlayerId: rejoinPlayerId };
-    },
-  });
-
-  if (result.duplicate) throw new DamnationError(409, "That rejoin was already processed — ask the host to remove and re-add the player");
-  return { token: token.plaintext, playerId: rejoinPlayerId, result };
-}
-
-// ---------------------------------------------------------------------------------------------
-// HOST CONTROLS
-// ---------------------------------------------------------------------------------------------
 
 // Starts the game over with the same table: every player back to the starting life, commander
 // damage cleared and nobody out. Players, their spots, the settings and whether joining is open stay.
@@ -736,49 +699,6 @@ export function changeGameSetup(
       }
 
       return Object.keys(payload).length > 0 ? { eventType: "setup", payload } : null;
-    },
-  });
-}
-
-// Gives a session a fresh join code inside the current mutation.
-async function assignNewJoinCode(transaction: sql.Transaction, sessionId: string, generateCode: () => string): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const code = generateCode();
-    const clash = await request(transaction)
-      .input("code", sql.VarChar(8), code)
-      .query(`SELECT 1 AS clash FROM damnation_sessions WHERE join_code = @code`);
-    if (clash.recordset.length > 0) continue;
-    await request(transaction)
-      .input("sessionId", sql.UniqueIdentifier, sessionId)
-      .input("code", sql.VarChar(8), code)
-      .query(`UPDATE damnation_sessions SET join_code = @code WHERE id = @sessionId`);
-    return;
-  }
-  throw new DamnationError(503, "Couldn't generate a new code — try again");
-}
-
-// Reopens a finished game (ended by the host or expired while idle) with its totals intact.
-// Phones drop their tokens when a game ends, so every phone player waits to rejoin with the new
-// code ("Rejoin as"); players without a phone stay as they were. Joining stays closed.
-export function resumeSession(sessionId: string, opId: string, hostUserId: string, generateCode: () => string) {
-  return runMutation({
-    sessionId,
-    opId,
-    actor: { kind: "host" },
-    allowFinished: true,
-    apply: async (transaction, context) => {
-      if (context.status !== "finished") throw new DamnationError(409, "This game is still running");
-      // A host has at most one open game.
-      await requireNoOpenGame(transaction, hostUserId, sessionId);
-      await assignNewJoinCode(transaction, sessionId, generateCode);
-      await request(transaction)
-        .input("sessionId", sql.UniqueIdentifier, sessionId)
-        .query(`
-          UPDATE damnation_sessions SET status = 'active', joins_open = 0, ts_finished = NULL WHERE id = @sessionId;
-          UPDATE damnation_players SET token_hash = NULL, ts_updated = GETDATE()
-          WHERE session_id = @sessionId AND kicked = 0 AND is_manual = 0;
-        `);
-      return { eventType: "reopen", payload: { resumed: true } };
     },
   });
 }

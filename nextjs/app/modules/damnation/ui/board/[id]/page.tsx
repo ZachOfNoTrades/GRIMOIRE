@@ -8,7 +8,6 @@ import {
   LayoutGrid,
   Expand,
   Shrink,
-  Play,
   Settings,
   Skull,
   RotateCcw,
@@ -276,12 +275,7 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
               {isFinished && (
                 <div className="alert-blue">
                   <p className="alert-title"><Skull className="w-4 h-4" /> Game over</p>
-                  <p className="alert-text">Final totals are shown below. Resume to keep playing from here with a new code.</p>
-
-                  {/* RESUME */}
-                  <Button className="btn-green mt-2 self-start" disabled={isBusy} onClick={async () => { setIsBusy(true); await hostCommand("/resume"); setIsBusy(false); }} title="Reopen this game with its totals and a new join code">
-                    <Play className="w-4 h-4" /> Resume game
-                  </Button>
+                  <p className="alert-text">Final totals are shown below.</p>
                 </div>
               )}
 

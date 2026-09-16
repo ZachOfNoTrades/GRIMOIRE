@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Monitor, Settings, Skull } from "lucide-react";
+import { ArrowLeft, History, Monitor, Settings, Skull } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -8,7 +8,6 @@ import { Toaster, toast } from "@/components/Toaster";
 import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
-import { generateUUID } from "@/lib/uuid";
 import { HOST_HELP } from "../../components/help";
 import type { SessionSummary } from "../../types/damnation";
 
@@ -21,10 +20,8 @@ export default function DamnationHomePage() {
   // STATE
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [resumingId, setResumingId] = useState<string | null>(null);
-  const liveSessions = sessions.filter((session) => session.status !== "finished");
-  const pastSessions = sessions.filter((session) => session.status === "finished");
-  const openGame = liveSessions[0] ?? null;
+  // At most one game is open at a time.
+  const openGame = sessions.find((session) => session.status !== "finished") ?? null;
 
   useEffect(() => {
     async function load() {
@@ -57,23 +54,6 @@ export default function DamnationHomePage() {
     }
   }
 
-  async function resumeGame(sessionId: string) {
-    setResumingId(sessionId);
-    try {
-      const response = await fetch(`/modules/damnation/api/sessions/${sessionId}/resume`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ op_id: generateUUID() }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Couldn't resume that game");
-      router.push(`/modules/damnation/ui/board/${sessionId}`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't resume that game");
-      setResumingId(null);
-    }
-  }
-
   return (
     <div className="page">
       <div className="page-container">
@@ -89,6 +69,11 @@ export default function DamnationHomePage() {
 
           {/* HEADER ACTIONS */}
           <div className="flex items-center gap-1">
+
+            {/* HISTORY LINK */}
+            <Link className="btn btn-link" href="/modules/damnation/ui/history" aria-label="Game history" title="Game history">
+              <History className="w-5 h-5" />
+            </Link>
 
             {/* SETTINGS LINK */}
             <Link className="btn btn-link" href="/modules/damnation/ui/settings" aria-label="Damnation settings" title="Settings">
@@ -109,7 +94,7 @@ export default function DamnationHomePage() {
         <p className="text-page-subtitle mb-6">MTG life tracker — show the board on a screen, everyone plays from their phone.</p>
 
         {/* NEW GAME CARD */}
-        <div className="card mb-6">
+        <div className="card">
 
           {/* CARD HEADER */}
           <div className="card-header">
@@ -142,70 +127,6 @@ export default function DamnationHomePage() {
           </div>
         </div>
 
-        {/* GAMES CARD */}
-        <div className="card">
-
-          {/* CARD HEADER */}
-          <div className="card-header">
-            <h2 className="text-card-title">Your games</h2>
-          </div>
-
-          {/* CARD CONTENT */}
-          <div className="card-content">
-            {isLoading ? (
-              /* LOADING PLACEHOLDER */
-              <p className="text-secondary">Loading games…</p>
-            ) : sessions.length === 0 ? (
-              /* EMPTY PLACEHOLDER */
-              <p className="text-secondary">No games yet.</p>
-            ) : (
-              <>
-                {/* LIVE GAMES */}
-                {liveSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between gap-3 border-b pb-2">
-                    <div className="min-w-0">
-                      <div className="text-primary font-bold">
-                        {session.join_code} · {session.player_count}/{session.max_players} players
-                      </div>
-                      <div className="text-secondary">
-                        {session.status === "lobby" ? "Joining open" : "In progress"} · started{" "}
-                        {new Date(session.ts_created).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
-                      </div>
-                    </div>
-                    <Button className="btn-blue" onClick={() => router.push(`/modules/damnation/ui/board/${session.id}`)}>
-                      Open board
-                    </Button>
-                  </div>
-                ))}
-
-                {/* PAST GAMES */}
-                {pastSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between gap-3 border-b pb-2">
-                    <div className="min-w-0">
-                      <div className="text-primary">{session.player_count} players · {session.starting_life} life</div>
-                      <div className="text-secondary">
-                        {new Date(session.ts_created).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button className="btn-off" onClick={() => router.push(`/modules/damnation/ui/board/${session.id}`)}>
-                        View
-                      </Button>
-                      <Button
-                        className="btn-green"
-                        disabled={resumingId !== null || openGame !== null}
-                        onClick={() => resumeGame(session.id)}
-                        title={openGame ? "End your open game to resume this one" : "Reopen this game with its totals and a new join code"}
-                      >
-                        {resumingId === session.id ? "Resuming…" : "Resume"}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

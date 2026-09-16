@@ -31,7 +31,6 @@ export function addPlayerPatch(playerId: string, displayName: string, colorKey: 
       eliminated_override: null,
       eliminated: false,
       elimination_reason: null,
-      rejoinable: false,
       manual: true,
     };
     return { ...snapshot, players: [...snapshot.players, player].sort((a, b) => a.position - b.position) };
@@ -50,7 +49,6 @@ export function placeholderPlayer(position: number, startingLife: number): Playe
     eliminated_override: null,
     eliminated: false,
     elimination_reason: null,
-    rejoinable: false,
     manual: true,
   };
 }

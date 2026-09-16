@@ -48,12 +48,11 @@ export const HOST_HELP: HelpSection[] = [
     ),
   },
   {
-    heading: "Resuming a game",
+    heading: "Game history",
     body: (
       <>
-        An ended game — or one left idle for 12 hours — can be picked back up with <strong>Resume</strong> from its board
-        or from Your games, for 30 days. Life and commander damage are kept and the game gets a new code; each player
-        scans it and taps <strong>Rejoin as</strong> their name.
+        Finished games are listed under <strong>Game history</strong>, reachable from the Damnation home page. Each board
+        still shows its final totals and activity. A game that is over stays that way — start a new one to play again.
       </>
     ),
   },

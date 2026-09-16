@@ -46,10 +46,7 @@ const displayName = z
 
 const colorKey = z.string().refine((value) => COLOR_KEYS.includes(value), "Unknown color");
 
-export const joinSchema = z.union([
-  z.object({ op_id: uuid, display_name: displayName, color_key: colorKey }),
-  z.object({ op_id: uuid, rejoin_player_id: uuid }),
-]);
+export const joinSchema = z.object({ op_id: uuid, display_name: displayName, color_key: colorKey });
 
 // `position` is the open spot the host clicked; without it the player takes the first free spot.
 // `player_id` lets the board pick the new player's id, so the card it shows at once is the real one.

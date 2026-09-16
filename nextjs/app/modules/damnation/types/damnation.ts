@@ -31,8 +31,6 @@ export interface PlayerView {
   eliminated_override: boolean | null;
   eliminated: boolean;
   elimination_reason: EliminationReason;
-  // After a resume, a phone player waiting to rejoin from their phone.
-  rejoinable: boolean;
   // Added by the host from the board; no phone is attached to it.
   manual: boolean;
   // Client only: a player just added (by the host, or this phone joining), shown before the server
@@ -108,7 +106,6 @@ export interface LobbyView {
   player_count: number;
   // Colors already in use — only used to preselect an unused one; any color can be picked.
   taken_colors: string[];
-  rejoinable_players: { player_id: string; display_name: string; color_key: string }[];
   // The table as it is now, so a phone that presses Join can draw the game it is joining straight
   // away (with its own card added) instead of waiting for the join to come back. Anyone holding
   // the code could join and see the same.

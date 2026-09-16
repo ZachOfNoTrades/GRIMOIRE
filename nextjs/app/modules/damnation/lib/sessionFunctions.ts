@@ -203,12 +203,12 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
     .input("sessionId", sql.UniqueIdentifier, sessionId)
     .query(`
       SELECT status, joins_open, starting_life, max_seats AS max_players FROM damnation_sessions WHERE id = @sessionId;
-      SELECT id, display_name, color_key, CASE WHEN token_hash IS NULL AND is_manual = 0 THEN 1 ELSE 0 END AS rejoinable
+      SELECT id, display_name, color_key
       FROM damnation_players WHERE session_id = @sessionId AND kicked = 0 ORDER BY seat;
     `);
   const recordsets = result.recordsets as unknown as [
     { status: SessionStatus; joins_open: boolean; starting_life: number; max_players: number }[],
-    { id: string; display_name: string; color_key: string; rejoinable: number }[],
+    { id: string; display_name: string; color_key: string }[],
   ];
   const session = recordsets[0][0];
   if (!session) throw new DamnationError(404, "No game with that code");
@@ -224,13 +224,6 @@ export async function getLobbyView(sessionId: string): Promise<LobbyView> {
     max_players: session.max_players,
     player_count: players.length,
     taken_colors: players.map((player) => player.color_key),
-    rejoinable_players: players
-      .filter((player) => player.rejoinable === 1)
-      .map((player) => ({
-        player_id: normalizeId(player.id)!,
-        display_name: player.display_name,
-        color_key: player.color_key,
-      })),
     table,
   };
 }

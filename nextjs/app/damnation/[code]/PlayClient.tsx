@@ -89,7 +89,6 @@ function provisionalSnapshot(code: string, lobby: LobbyView, draft: JoinDraft): 
     eliminated_override: null,
     eliminated: false,
     elimination_reason: null,
-    rejoinable: false,
     manual: false,
     pending: true,
   };
@@ -290,12 +289,11 @@ function JoinScreen({
   const [isJoining, setIsJoining] = useState(false);
   const canJoin = lobby.joinable && !!color && name.trim().length > 0 && !isJoining;
 
-  // A new player switches to the game at once (onJoining) and the request finishes in the
-  // background; rejoining as an existing player waits here, since that card's totals are already
-  // on the table.
-  async function send(body: Record<string, unknown>, joiningDraft: JoinDraft | null = null) {
+  // The new player switches to the game at once (onJoining) and the request finishes in the
+  // background.
+  async function send(body: Record<string, unknown>, joiningDraft: JoinDraft) {
     setIsJoining(true);
-    if (joiningDraft) onJoining(joiningDraft);
+    onJoining(joiningDraft);
     try {
       const response = await fetch(`/api/damnation/${code}/join`, {
         method: "POST",
@@ -396,33 +394,10 @@ function JoinScreen({
           /* CLOSED STATE */
           <div className="alert-blue">
             <p className="alert-title">{lobby.player_count >= lobby.max_players ? "The game is full" : "Joining is closed"}</p>
-            <p className="alert-text">Ask the host to reopen joining{lobby.rejoinable_players.length > 0 ? ", or rejoin as your player below" : ""}.</p>
+            <p className="alert-text">Ask the host to reopen the lobby.</p>
           </div>
         )}
 
-        {/* REJOIN — after the host resumes a game, each phone picks its player again */}
-        {lobby.rejoinable_players.length > 0 && (
-          <div className="card">
-            <div className="card-header">
-              <h2 className="text-card-title">Rejoin as</h2>
-            </div>
-            <div className="card-content">
-              {lobby.rejoinable_players.map((player) => (
-                <button
-                  key={player.player_id}
-                  type="button"
-                  className={`dmn-card dmn-seat-${player.color_key}`}
-                  disabled={isJoining}
-                  onClick={() => send({ rejoin_player_id: player.player_id })}
-                  title={`Rejoin as ${player.display_name}`}
-                >
-                  <span className="dmn-card-name">{player.display_name}</span>
-                  <span className="dmn-tag">This is me</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* REFRESH */}
         {!lobby.joinable && (
@@ -635,7 +610,7 @@ function Controller({
               <PlayerCard
                 player={player}
                 variant={player.id === snapshot.me ? "self" : "other"}
-                connected={player.id === snapshot.me || player.rejoinable || player.manual ? null : connected.has(player.id)}
+                connected={player.id === snapshot.me || player.manual ? null : connected.has(player.id)}
                 fill
                 {...cardProps(player.id)}
                 {...(canManage && !player.pending
