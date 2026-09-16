@@ -103,7 +103,11 @@ export default function DamnationHomePage() {
 
           {/* CARD CONTENT */}
           <div className="card-content">
-            {openGame ? (
+            {isLoading ? (
+
+              /* LOADING PLACEHOLDER — nothing is offered until it is known whether a game is open */
+              <p className="text-secondary">Loading games…</p>
+            ) : openGame ? (
               <>
                 {/* OPEN GAME HINT — one open game at a time */}
                 <p className="text-secondary">You have a game open ({openGame.join_code}). End it to start a new one.</p>
@@ -119,7 +123,7 @@ export default function DamnationHomePage() {
                 <p className="text-secondary">Starting life and the number of players are set on the board.</p>
 
                 {/* START BUTTON */}
-                <Button className="btn-green" onClick={createGame} disabled={isCreating || isLoading}>
+                <Button className="btn-green" onClick={createGame} disabled={isCreating}>
                   <Monitor className="w-4 h-4" /> {isCreating ? "Starting…" : "Start game & open board"}
                 </Button>
               </>
