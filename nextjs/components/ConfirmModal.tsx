@@ -8,7 +8,8 @@ interface ConfirmModalProps {
     isOpen: boolean;
     onConfirm: () => void;
     onCancel: () => void;
-    message: ReactNode;
+    // A dialog whose title says it all leaves this out.
+    message?: ReactNode;
     title?: ReactNode;
     confirmLabel?: string;
     cancelLabel?: string;
@@ -58,7 +59,7 @@ export default function ConfirmModal({
             }
         >
             {/* CONFIRM MESSAGE */}
-            <p className="text-primary">{message}</p>
+            {message ? <p className="text-primary">{message}</p> : null}
         </Modal>
     );
 }

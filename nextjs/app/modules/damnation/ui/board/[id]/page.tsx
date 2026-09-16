@@ -386,7 +386,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
             confirm?.kind === "delete"
               ? "The game, its players and its history are deleted. This can't be undone."
               : confirm?.kind === "reset"
-                ? `Everyone goes back to ${snapshot?.starting_life ?? ""} life, commander damage is cleared and nobody is out. Players, their spots and the settings stay.`
+                ? // The title says what Reset does; nothing else needs saying.
+                  undefined
                 : confirm
                   ? `${confirm.name} is removed from the game.`
                   : ""
