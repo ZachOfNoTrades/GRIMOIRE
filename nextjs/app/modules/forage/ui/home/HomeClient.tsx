@@ -122,6 +122,11 @@ export default function ForageHomeClient({
   // Active goal (lose / maintain / gain). Drives the Insights grid's fourth
   // card, which used to be a goal-agnostic placeholder — see ./goalCard.
   const [goal, setGoal] = useState<Goal | null>(null);
+  // Weigh-ins from 30 days before the active goal began. The goal card measures
+  // drift/progress from the trend weight AT the goal's start, and weightHistory
+  // only reaches back 30 days — for an older goal the card was reading its
+  // baseline off whatever day that window happened to open on.
+  const [goalWeightHistory, setGoalWeightHistory] = useState<WeightEntry[]>([]);
   // Nutrient reference + resolved bands power the customizable Nutrition cards
   // (micronutrient cards need a label/unit/color and a target). Day-independent.
   const [nutrients, setNutrients] = useState<Nutrient[]>(initialNutrients ?? []);
@@ -243,7 +248,14 @@ export default function ForageHomeClient({
     fetch("/modules/forage/api/goal")
       .then((r) => (r.ok ? r.json() : null))
       .then((g) => {
-        if (alive && g && g.goal_kind) setGoal(g as Goal);
+        if (!alive || !g || !g.goal_kind) return;
+        setGoal(g as Goal);
+        const since = shiftDate((g as Goal).created_at.slice(0, 10), -30);
+        return fetch(`/modules/forage/api/weight?since=${since}`)
+          .then((r) => (r.ok ? r.json() : []))
+          .then((w) => {
+            if (alive && Array.isArray(w)) setGoalWeightHistory(w);
+          });
       })
       .catch(() => {
         // non-critical
@@ -350,7 +362,7 @@ export default function ForageHomeClient({
             <>
               {/* INSIGHTS & ANALYTICS */}
               <div className="fg-reveal" style={{ animationDelay: "60ms" }}>
-                <InsightsSection weekData={weekData} target={target} weightHistory={weightHistory} totals={totals} expenditure={expenditure} goal={goal} />
+                <InsightsSection weekData={weekData} target={target} weightHistory={weightHistory} goalWeightHistory={goalWeightHistory} totals={totals} expenditure={expenditure} goal={goal} />
               </div>
 
               {/* HABITS */}
@@ -1177,6 +1189,7 @@ function InsightsSection({
   weekData,
   target,
   weightHistory,
+  goalWeightHistory,
   totals,
   expenditure,
   goal,
@@ -1184,10 +1197,13 @@ function InsightsSection({
   weekData: Record<string, DailyTotals>;
   target: MacroTarget | null;
   weightHistory: WeightEntry[];
+  goalWeightHistory: WeightEntry[];
   totals: DailyTotals;
   expenditure: ExpenditureSummary | null;
   goal: Goal | null;
 }) {
+  const router = useRouter();
+  const openInsight = (slug: string) => router.push(`/modules/forage/ui/insights/${slug}`);
   const weekDays = Object.keys(weekData).sort();
   const weekVals = weekDays.map((d) => weekData[d]?.kcal ?? 0);
 
@@ -1270,7 +1286,10 @@ function InsightsSection({
   // lose/gain → progress toward the target weight, or pace against the goal
   // rate). Replaces a placeholder that reported today's kcal-vs-target as
   // "Goal Progress · Last 3 Days" no matter what the goal actually was.
-  const goalCard = goalCardSummary(goal, weightHistory);
+  // weightHistory stays in the merge so a weigh-in logged since the goal fetch
+  // (onWeighIn refreshes only weightHistory) still moves the card.
+  const goalWeighIns = [...new Map([...goalWeightHistory, ...weightHistory].map((w) => [w.id, w])).values()];
+  const goalCard = goalCardSummary(goal, goalWeighIns);
   const goalColor = goalCard.tone === "onTrack" ? C.green : goalCard.tone === "offTrack" ? C.orange : C.textDim;
 
   return (
@@ -1291,7 +1310,7 @@ function InsightsSection({
            DAILY estimates and the dashed reference is average intake, so the card
            reads as "what I burn (day by day) vs what I ate". Without a series the
            old reading is kept: this week's intake against the flat estimate. */}
-        <InsightCard title="Expenditure" subtitle={expenditureLabel} value={expenditureKcal != null ? expenditureKcal.toLocaleString() : "—"} valueUnit={expenditureKcal != null ? "kcal" : ""}>
+        <InsightCard onClick={() => openInsight("expenditure")} title="Expenditure" subtitle={expenditureLabel} value={expenditureKcal != null ? expenditureKcal.toLocaleString() : "—"} valueUnit={expenditureKcal != null ? "kcal" : ""}>
           {hasDailyExpenditure ? (
             <SquareLine values={expenditureSeriesVals} color={C.orange} reference={expenditure?.avg_intake_kcal ?? null} />
           ) : (
@@ -1300,17 +1319,17 @@ function InsightsSection({
         </InsightCard>
 
         {/* WEIGHT TREND */}
-        <InsightCard title="Weight Trend" subtitle={weightTrendLabel} value={weightTrend.current != null ? weightTrend.current.toFixed(1) : "—"} valueUnit={weightTrend.current != null ? "lbs" : ""}>
+        <InsightCard onClick={() => openInsight("weight-trend")} title="Weight Trend" subtitle={weightTrendLabel} value={weightTrend.current != null ? weightTrend.current.toFixed(1) : "—"} valueUnit={weightTrend.current != null ? "lbs" : ""}>
           <DotLine values={weightTrend.series} color={C.purple} minSpan={WEIGHT_CHART_MIN_SPAN_LB} />
         </InsightCard>
 
         {/* ENERGY BALANCE */}
-        <InsightCard title="Energy Balance" subtitle={loggedLabel} value={energyDiff != null ? Math.abs(Math.round(energyDiff)).toLocaleString() : "—"} valueUnit={energyDiff != null ? (energyDiff < 0 ? "kcal deficit" : "kcal surplus") : ""}>
+        <InsightCard onClick={() => openInsight("energy-balance")} title="Energy Balance" subtitle={loggedLabel} value={energyDiff != null ? Math.abs(Math.round(energyDiff)).toLocaleString() : "—"} valueUnit={energyDiff != null ? (energyDiff < 0 ? "kcal deficit" : "kcal surplus") : ""}>
           <DashedTrend values={weekVals} />
         </InsightCard>
 
         {/* GOAL — title/reading depend on the active goal (see ./goalCard) */}
-        <InsightCard title={goalCard.title} subtitle={goalCard.subtitle} value={goalCard.value} valueUnit={goalCard.valueUnit}>
+        <InsightCard onClick={() => openInsight("goal")} title={goalCard.title} subtitle={goalCard.subtitle} value={goalCard.value} valueUnit={goalCard.valueUnit}>
           <ProgressBar pct={goalCard.pct} color={goalColor} />
         </InsightCard>
       </div>
@@ -1323,8 +1342,10 @@ function InsightCard({
   subtitle,
   value,
   valueUnit,
+  onClick,
   children,
 }: {
+  onClick: () => void;
   title: string;
   subtitle: string;
   value: string;
@@ -1335,7 +1356,14 @@ function InsightCard({
     /* INSIGHT CARD — MF-measured 183.5×163.7 CSS, so this card targets
        163.7 CSS tall; with the chart growing to fill, the values below sit
        at a consistent baseline. */
-    <div className="fg-tile" style={{ borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 4, minHeight: 164 }}>
+    <div
+      className="fg-tile"
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      style={{ borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 4, minHeight: 164, cursor: "pointer" }}
+    >
 
       {/* TITLE */}
       <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{title}</div>

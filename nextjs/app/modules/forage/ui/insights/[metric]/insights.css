@@ -1,0 +1,65 @@
+/* ============================================================
+   Forage / Insight detail pages (expenditure, weight trend,
+   energy balance, goal). Layout and rows come from the nutrient
+   detail styles (../../nutrition/[code]/detail.css); this adds
+   only what those pages don't have.
+   ============================================================ */
+
+.insight-range {
+  margin-bottom: 16px;
+}
+
+.insight-section {
+  margin-top: 22px;
+}
+
+.insight-section > .nutr-detail-foods-head {
+  margin-bottom: 10px;
+}
+
+/* Calculation explanation — body copy, a step up from the grey note. */
+.insight-prose {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-secondary);
+  margin-bottom: 12px;
+}
+.insight-prose b {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* Chart legend under the SVG. */
+.insight-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-secondary);
+}
+.insight-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.insight-legend-line {
+  width: 12px;
+  height: 2px;
+}
+.insight-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+}
+
+/* Multi-series hover readout: keep each series' figure together when it wraps. */
+.insight-readout-item {
+  white-space: nowrap;
+}
+
+/* List rows sit tighter than the summary fields. */
+.insight-row {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}

@@ -173,3 +173,56 @@ export async function setTargetFromProgram(
     if (pool) await closeFoodConnection(pool);
   }
 }
+
+// The all-days calorie target in force on each date of [startDate, endDate],
+// oldest first — null for a date before any target existed. Resolved the same
+// way getActiveTarget(forDate) resolves one date (latest effective_date on or
+// before it, tie-broken by latest updated_at), but from one query over the
+// history rather than one per day, for views that compare a whole range of
+// logged intake against the target that applied at the time.
+export async function listKcalTargetsByDate(
+  userId: string,
+  startDate: string,
+  endDate: string,
+): Promise<{ date: string; kcal: number | null }[]> {
+  let pool;
+  try {
+    pool = await getFoodConnection();
+    const result = await pool
+      .request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .input('end', sql.Date, endDate)
+      .query<{ effective_date: string; kcal: number }>(
+        `SELECT CONVERT(varchar(10), v.effective_date, 23) AS effective_date, v.target AS kcal
+         FROM nutrient_targets_v2 v
+         JOIN nutrients n ON n.id = v.nutrient_id AND n.code = 'kcal'
+         WHERE v.scope='macro' AND v.user_id=@userId AND v.day_of_week IS NULL
+           AND v.effective_date <= @end
+         ORDER BY v.effective_date ASC, v.updated_at ASC`
+      );
+    const history = result.recordset;
+    if (history.length === 0) console.warn(`No calorie targets for user_id: '${userId}'`);
+
+    // Walk the dates and the history together; the last row at or before a date
+    // wins, which is the latest updated_at on the latest effective_date.
+    const out: { date: string; kcal: number | null }[] = [];
+    let i = 0;
+    let current: number | null = null;
+    for (let date = startDate; date <= endDate; date = nextIsoDate(date)) {
+      while (i < history.length && history[i].effective_date <= date) {
+        current = Number(history[i].kcal);
+        i++;
+      }
+      out.push({ date, kcal: current });
+    }
+    return out;
+  } finally {
+    if (pool) await closeFoodConnection(pool);
+  }
+}
+
+function nextIsoDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
