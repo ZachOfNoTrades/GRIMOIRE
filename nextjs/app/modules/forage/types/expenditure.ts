@@ -29,6 +29,11 @@ export interface ExpenditureHorizon {
   weigh_ins: number;
   // Complete logged days as a fraction of the balance window's calendar days.
   coverage: number;
+  // Logged stretches the balance was taken over, and the calendar days they
+  // cover. Days outside them (longer unlogged gaps) count toward neither intake
+  // nor weight change.
+  stretches: number;
+  balanced_days: number;
   balance_start_date: string;
   balance_end_date: string;
   // Share of the blend, 0..1.

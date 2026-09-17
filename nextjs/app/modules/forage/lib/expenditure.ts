@@ -18,8 +18,9 @@ import { getNutrientDailySeries } from './entryFunctions';
 //   over a trailing window,  Σintake − TDEE·days = Δbody-energy
 //   ⇒  TDEE = avgDailyIntake − (weight-trend slope in kg/day) × 7,700 kcal/kg
 //
-// A least-squares slope over the window's weigh-ins (not raw endpoints) absorbs
-// day-to-day water/scale noise. When there isn't enough clean data to trust the
+// The weight side is read off a smoothed daily curve (not raw weigh-ins), which
+// absorbs day-to-day water/scale noise, and only across stretches where intake
+// was actually logged (see MAX_UNLOGGED_GAP_DAYS). When there isn't enough clean data to trust the
 // balance we fall back to the coarse bodyweight formula so brand-new users still
 // get a number.
 //
@@ -126,8 +127,29 @@ const AMPLE_WEIGH_SPAN_DAYS = 21;
 const MAX_TREND_LB_PER_WEEK = 1.5;
 
 // Half-width of the centered moving average applied to the daily weight series
-// before the slope is fitted (±3 days ⇒ a 7-day window).
+// before it is read (±3 days ⇒ a 7-day window).
 const TREND_SMOOTH_HALF_WINDOW_DAYS = 3;
+
+// The balance is taken over LOGGED STRETCHES only, not across the whole window.
+// A run of complete days separated by at most this many unlogged/partial days is
+// one stretch; a longer gap splits it, and the weight that moved during the gap
+// is left out of the balance along with the intake that caused it.
+//
+// Without this the window-wide slope charges every pound gained while nothing was
+// logged against the mean of the days that were. On 2026-09-17 that was the whole
+// story of a low estimate: 13 unlogged days (Aug 19–31) covered a 201 → 206 lb
+// move, the model read it as a 0.81 lb/wk gain on 2,823 kcal/day and put
+// expenditure at 2,420; the stretches on either side read 2,671 and 2,939 on
+// their own. Gap-aware, the same history reads 2,701, with the same day-to-day
+// stability (mean step 9 kcal, max 24, backtested over 60 days).
+//
+// 3 keeps a weekend off inside the stretch (its intake is taken to be the
+// stretch's mean, as before) while a week off is excluded.
+const MAX_UNLOGGED_GAP_DAYS = 3;
+// A stretch shorter than this carries no usable weight change — the smoothed
+// curve barely moves across it — so it would only pull the estimate toward
+// intake. Dropped.
+const MIN_STRETCH_DAYS = 3;
 // Physiological sanity band on the final number, guarding against a bad slope
 // (e.g. a single freak weigh-in the regression can't fully smooth).
 const TDEE_MIN_KCAL = 1200;
@@ -229,40 +251,25 @@ function formulaEstimate(
   };
 }
 
-// Least-squares slope of ys against xs (null when every x is identical).
-function leastSquaresSlope(xs: number[], ys: number[]): number | null {
-  const n = xs.length;
-  const meanX = xs.reduce((s, x) => s + x, 0) / n;
-  const meanY = ys.reduce((s, y) => s + y, 0) / n;
-  let num = 0;
-  let den = 0;
-  for (let i = 0; i < n; i++) {
-    num += (xs[i] - meanX) * (ys[i] - meanY);
-    den += (xs[i] - meanX) ** 2;
-  }
-  return den === 0 ? null : num / den;
-}
-
-// Weight trend in lb/day, fitted to a SMOOTHED daily series rather than to the
-// raw weigh-ins. Fitting the raw points lets one noisy scale reading at the far
-// end of the window dominate the fit (highest leverage sits at the extremes of
-// the x-range), which is how a single high morning can flip the trend sign and
-// swing the derived TDEE by hundreds of kcal. Two steps fix that:
+// The weight curve the balance reads, as one SMOOTHED value per calendar day
+// from the first weigh-in to the last. Reading raw weigh-ins lets one noisy scale
+// reading at a stretch boundary stand in for the whole stretch, which is how a
+// single high morning can swing the derived TDEE by hundreds of kcal. Two steps
+// fix that:
 //
 //   1. Linearly interpolate between weigh-ins to one value per day, so an
 //      irregular logging cadence (three days in a row, then a nine-day gap)
 //      stops silently weighting the clustered days more heavily.
 //   2. Take a CENTERED moving average of that daily series. Centered, not
-//      exponential, on purpose: an EMA lags its input, and fitting a lagged
-//      series flattens the slope — a systematic bias that would drag every
-//      estimate toward avgIntake. A centered mean of a straight line sits
-//      exactly on that line, so a real trend survives the smoothing intact.
+//      exponential, on purpose: an EMA lags its input, and reading a lagged
+//      curve understates every stretch's weight change — a systematic bias that
+//      would drag every estimate toward avgIntake. A centered mean of a straight
+//      line sits exactly on that line, so a real trend survives the smoothing.
 //
-// Edge windows are necessarily lop-sided (there's no data past the ends), so
-// each smoothed point is fitted at the MEAN x of the days actually averaged
-// instead of at the window's center — which keeps the "straight line in ⇒ same
-// slope out" property true at the edges too.
-function smoothedTrendLbPerDay(weighIns: { log_date: string; weight_lb: number }[]): number | null {
+// Returns a lookup by date, clamped to the curve's ends.
+function smoothedWeightCurve(
+  weighIns: { log_date: string; weight_lb: number }[],
+): (iso: string) => number {
   const startIso = weighIns[0].log_date;
   const xs = weighIns.map((w) => dayDiff(startIso, w.log_date));
   const ys = weighIns.map((w) => w.weight_lb);
@@ -271,6 +278,10 @@ function smoothedTrendLbPerDay(weighIns: { log_date: string; weight_lb: number }
   // One interpolated weight per day across the span.
   const daily: number[] = [];
   for (let day = 0; day <= lastDay; day++) {
+    if (xs.length === 1) {
+      daily.push(ys[0]);
+      continue;
+    }
     let i = 0;
     while (i < xs.length - 2 && xs[i + 1] <= day) i++;
     const fraction = (day - xs[i]) / (xs[i + 1] - xs[i]);
@@ -278,23 +289,31 @@ function smoothedTrendLbPerDay(weighIns: { log_date: string; weight_lb: number }
   }
 
   const half = TREND_SMOOTH_HALF_WINDOW_DAYS;
-  const smoothedX: number[] = [];
-  const smoothedY: number[] = [];
-  for (let day = 0; day < daily.length; day++) {
+  const smoothed = daily.map((_, day) => {
     const lo = Math.max(0, day - half);
     const hi = Math.min(daily.length - 1, day + half);
-    let sumX = 0;
-    let sumY = 0;
-    for (let k = lo; k <= hi; k++) {
-      sumX += k;
-      sumY += daily[k];
-    }
-    const count = hi - lo + 1;
-    smoothedX.push(sumX / count);
-    smoothedY.push(sumY / count);
-  }
+    let sum = 0;
+    for (let k = lo; k <= hi; k++) sum += daily[k];
+    return sum / (hi - lo + 1);
+  });
 
-  return leastSquaresSlope(smoothedX, smoothedY);
+  return (iso: string) => smoothed[clamp(dayDiff(startIso, iso), 0, smoothed.length - 1)];
+}
+
+// Split complete days into logged stretches: a gap of more than
+// MAX_UNLOGGED_GAP_DAYS between consecutive complete days starts a new stretch.
+// Input ascending by date.
+function loggedStretches(completeDays: { date: string; value: number }[]): { date: string; value: number }[][] {
+  const stretches: { date: string; value: number }[][] = [];
+  for (const day of completeDays) {
+    const current = stretches[stretches.length - 1];
+    if (current && dayDiff(current[current.length - 1].date, day.date) - 1 <= MAX_UNLOGGED_GAP_DAYS) {
+      current.push(day);
+    } else {
+      stretches.push([day]);
+    }
+  }
+  return stretches;
 }
 
 // The balance model for ONE horizon ending on `endIso`, plus the weight that
@@ -350,23 +369,46 @@ function observeHorizon(
     return null;
   }
 
-  // Weight trend across that same window. Require a wide-enough span for the
-  // slope to be meaningful — a week of scale jitter isn't a trend.
+  // Require a wide-enough weigh-in span for a trend to mean anything — a week of
+  // scale jitter isn't one.
   const weighSpanDays = dayDiff(
     balanceWeights[0].log_date,
     balanceWeights[balanceWeights.length - 1].log_date,
   );
   if (weighSpanDays < MIN_WEIGH_SPAN_DAYS) return null;
-  const rawSlopeLbPerDay = smoothedTrendLbPerDay(balanceWeights);
-  if (rawSlopeLbPerDay === null) return null;
+  const weightOn = smoothedWeightCurve(balanceWeights);
+  const lastWeighIn = balanceWeights[balanceWeights.length - 1].log_date;
+
+  // Per logged stretch: intake over its calendar days (short gaps inside it take
+  // the stretch's own mean) and the smoothed weight change from its first
+  // morning to the morning after its last day. Gaps between stretches contribute
+  // neither side. See MAX_UNLOGGED_GAP_DAYS.
+  let intakeKcal = 0;
+  let stretchDays = 0;
+  let weightChangeLb = 0;
+  let stretchLoggedDays = 0;
+  let stretchCount = 0;
+  for (const stretch of loggedStretches(completeDays)) {
+    const first = stretch[0].date;
+    const last = stretch[stretch.length - 1].date;
+    const days = dayDiff(first, last) + 1;
+    if (days < MIN_STRETCH_DAYS) continue;
+    const mean = stretch.reduce((s, p) => s + p.value, 0) / stretch.length;
+    intakeKcal += mean * days;
+    stretchDays += days;
+    stretchLoggedDays += stretch.length;
+    stretchCount++;
+    weightChangeLb += weightOn(minIso(shiftDateIso(last, 1), lastWeighIn)) - weightOn(first);
+  }
+  if (stretchLoggedDays < MIN_COMPLETE_DAYS) return null;
+
   const slopeLbPerDay = clamp(
-    rawSlopeLbPerDay,
+    weightChangeLb / stretchDays,
     -MAX_TREND_LB_PER_WEEK / 7,
     MAX_TREND_LB_PER_WEEK / 7,
   );
   const slopeKgPerDay = slopeLbPerDay / LB_PER_KG;
-
-  const avgIntake = completeDays.reduce((s, p) => s + p.value, 0) / completeDays.length;
+  const avgIntake = intakeKcal / stretchDays;
 
   // Energy balance: eating avgIntake while the trend moves slopeKgPerDay ⇒ the
   // difference must be expenditure. A downward trend (negative slope) means TDEE
@@ -380,7 +422,7 @@ function observeHorizon(
   // coverage but three weigh-ins two weeks apart is still a guess.
   const weight =
     Math.min(1, coverage / FULL_COVERAGE) *
-    Math.min(1, completeDays.length / AMPLE_COMPLETE_DAYS) *
+    Math.min(1, stretchLoggedDays / AMPLE_COMPLETE_DAYS) *
     Math.min(1, balanceWeights.length / AMPLE_WEIGH_INS) *
     Math.min(1, weighSpanDays / AMPLE_WEIGH_SPAN_DAYS);
   if (weight <= 0) return null;
@@ -390,9 +432,11 @@ function observeHorizon(
     expenditure_kcal: tdee,
     avg_intake_kcal: avgIntake,
     weight_trend_lb_per_week: slopeLbPerDay * 7,
-    logged_days: completeDays.length,
+    logged_days: stretchLoggedDays,
     weigh_ins: balanceWeights.length,
     coverage,
+    stretches: stretchCount,
+    balanced_days: stretchDays,
     balance_start_date: balanceStart,
     balance_end_date: balanceEnd,
     weight,
