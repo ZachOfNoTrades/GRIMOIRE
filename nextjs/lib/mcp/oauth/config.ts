@@ -8,8 +8,8 @@ const REFRESH_TOKEN_TTL_SECONDS = 30 * 86400;   // 30 days
 const AUTH_CODE_TTL_SECONDS = 600;              // 10 minutes
 
 export interface OAuthConfig {
-  issuer: string;            // https://grimoire-dev.zachsmith.app
-  resource: string;          // https://grimoire-dev.zachsmith.app/api/mcp
+  issuer: string;            // https://grimoire.zsmith.io
+  resource: string;          // https://grimoire.zsmith.io/api/mcp
   clientId: string;
   clientSecret: string;
   allowedRedirectUris: string[];
