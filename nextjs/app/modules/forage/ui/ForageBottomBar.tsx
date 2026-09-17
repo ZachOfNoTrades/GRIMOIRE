@@ -36,7 +36,7 @@ export default function ForageBottomBar({
   date,
   onLogged,
   onWeighIn,
-  initialStrategyAlert = false,
+  initialStrategyAlert,
   checkinRefreshKey = 0,
 }: {
   active: ForageTab;
@@ -47,8 +47,8 @@ export default function ForageBottomBar({
   onLogged?: (created?: FoodEntry[]) => void;
   onWeighIn?: () => void;
   /* Seed for the Strategy tab's check-in due-dot, so a host that already knows
-     the state (dashboard SSR) paints it without a first-render flash. The bar
-     also fetches it read-only on mount, so pages that don't pass it still get it. */
+     the state (dashboard SSR) paints it without a first-render flash and skips
+     the mount fetch. Pages that don't pass it get it from that read-only fetch. */
   initialStrategyAlert?: boolean;
   /* Bump to force the due-dot to re-fetch without changing tabs — the strategy
      page bumps this after a check-in completes so the dot clears in place
@@ -62,7 +62,10 @@ export default function ForageBottomBar({
   // dot on the Strategy tab. Read-only fetch (never runs the lazy recompute, so
   // painting the dot can't mark the check-in done). Seeded from props when the
   // host already knows, then refreshed on mount.
-  const [strategyDue, setStrategyDue] = useState<boolean>(initialStrategyAlert);
+  const [strategyDue, setStrategyDue] = useState<boolean>(initialStrategyAlert ?? false);
+  // A seeded value is already current for the first render, so the mount fetch
+  // would only repeat it. Later tab changes / refresh-key bumps still fetch.
+  const skipInitialStatusFetch = useRef(initialStrategyAlert !== undefined);
 
   // STATE — the quick-add surfaces, owned here so every page shares them.
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -87,6 +90,10 @@ export default function ForageBottomBar({
   // in place, without a tab change). Read-only endpoint, so this never marks the
   // check-in as done.
   useEffect(() => {
+    if (skipInitialStatusFetch.current) {
+      skipInitialStatusFetch.current = false;
+      return;
+    }
     let alive = true;
     fetch("/modules/forage/api/checkin-status")
       .then((r) => (r.ok ? r.json() : null))

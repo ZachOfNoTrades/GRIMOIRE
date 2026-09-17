@@ -1,7 +1,8 @@
-// Forage dashboard route — a SERVER component that preloads the current day's
-// macros (target + this week's totals) and hands them to the client dashboard,
-// so the first paint shows real numbers instead of flashing empty placeholders
-// / a spinner. The interactive UI lives in HomeClient.tsx ("use client").
+// Forage dashboard route — a SERVER component that preloads EVERYTHING the
+// dashboard's first paint reads (day + week macros, nutrition config, weigh-ins,
+// body fat, logged dates, expenditure, goal) and hands it to the client, so the
+// page never paints and then fills in. While this resolves, app/modules/loading.tsx
+// shows the route loading state. The interactive UI lives in HomeClient.tsx.
 
 import { headers } from "next/headers";
 import { getAuthorizedUser } from "@/lib/permissions";
@@ -11,6 +12,14 @@ import { listNutrients } from "../../lib/nutrientFunctions";
 import { getResolvedNutrientTargets } from "../../lib/nutrientTargetFunctions";
 import { getDashboardCards } from "../../lib/dashboardFunctions";
 import { getActiveProgram } from "../../lib/programFunctions";
+import { getActiveGoal } from "../../lib/goalFunctions";
+import { listActiveDates } from "../../lib/entryFunctions";
+import { listBodyFatEntries, listWeights } from "../../lib/weightFunctions";
+import { getExpenditureSummary } from "../../lib/expenditureSummary";
+import { ExpenditureSummary } from "../../types/expenditure";
+import { Goal } from "../../types/goal";
+import { WeightEntry } from "../../types/weight";
+import { BODY_FAT_CARD_POINTS, HISTORY_DAYS, GOAL_WEIGHT_LEAD_DAYS } from "./dashboardData";
 import { isCheckInDue } from "../../lib/program";
 import { DailyTotals } from "../../types/entry";
 import { MacroTarget } from "../../types/target";
@@ -65,6 +74,16 @@ export default async function ForageHomePage() {
   // would mark the check-in done before the user ever saw the reminder.
   let initialCheckInDue = false;
   let initialCheckInWeekday: number | undefined;
+  // History-derived cards (Insights, Body Metrics, Habits) — the rest of what
+  // the first paint needs. `preloaded` is set only once ALL of the above landed,
+  // and tells the client there is nothing left to fetch on mount.
+  let initialWeightHistory: WeightEntry[] = [];
+  let initialBodyFatHistory: WeightEntry[] = [];
+  let initialActiveDates: string[] = [];
+  let initialExpenditure: ExpenditureSummary | null = null;
+  let initialGoal: Goal | null = null;
+  let initialGoalWeightHistory: WeightEntry[] = [];
+  let preloaded = false;
 
   try {
     const hdrs = await headers();
@@ -79,7 +98,8 @@ export default async function ForageHomePage() {
     if (userId && process.env.SQL_SERVER_URL) {
       const weekStart = serverWeekStartFor(today);
       const days = Array.from({ length: 7 }, (_, i) => serverShiftDate(weekStart, i));
-      const [target, nutrients, nutrientBands, nutritionCardKeys, program, ...weekEntries] =
+      const historySince = serverShiftDate(today, -(HISTORY_DAYS - 1));
+      const [target, nutrients, nutrientBands, nutritionCardKeys, program, weights, bodyFat, activeDates, expenditure, goal, ...weekEntries] =
         await Promise.all([
           getActiveTarget(userId, today),
           listNutrients(),
@@ -89,6 +109,11 @@ export default async function ForageHomePage() {
           getDashboardCards(userId, "nutrition"),
           // Read-only — does NOT run the lazy recompute (see the let above).
           getActiveProgram(userId),
+          listWeights(userId, historySince),
+          listBodyFatEntries(userId, BODY_FAT_CARD_POINTS),
+          listActiveDates(userId, historySince),
+          getExpenditureSummary(userId),
+          getActiveGoal(userId),
           ...days.map((d) => listEntries(userId, d)),
         ]);
       initialTarget = target;
@@ -107,6 +132,17 @@ export default async function ForageHomePage() {
       });
       initialWeekData = week;
       initialTotals = week[today] ?? { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, micros: {} };
+      initialWeightHistory = weights;
+      initialBodyFatHistory = bodyFat;
+      initialActiveDates = activeDates;
+      initialExpenditure = expenditure;
+      initialGoal = goal;
+      // The goal card measures from the trend weight at the goal's start, which
+      // can predate the 30-day history — so it gets its own reach-back.
+      initialGoalWeightHistory = goal
+        ? await listWeights(userId, serverShiftDate(goal.created_at.slice(0, 10), -GOAL_WEIGHT_LEAD_DAYS))
+        : [];
+      preloaded = true;
     }
   } catch (error) {
     // Preload is best-effort — on any failure the client fetches as before.
@@ -124,6 +160,18 @@ export default async function ForageHomePage() {
       initialNutritionCardKeys={initialNutritionCardKeys}
       initialCheckInDue={initialCheckInDue}
       initialCheckInWeekday={initialCheckInWeekday}
+      preload={
+        preloaded
+          ? {
+              weightHistory: initialWeightHistory,
+              bodyFatHistory: initialBodyFatHistory,
+              activeDates: initialActiveDates,
+              expenditure: initialExpenditure,
+              goal: initialGoal,
+              goalWeightHistory: initialGoalWeightHistory,
+            }
+          : undefined
+      }
     />
   );
 }

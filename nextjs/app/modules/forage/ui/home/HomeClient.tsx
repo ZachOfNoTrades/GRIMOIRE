@@ -32,6 +32,7 @@ import {
 import { useAppHeight } from "@/lib/useAppHeight";
 import ForageBottomBar from "../ForageBottomBar";
 import SegmentedToggle, { SegmentedOption } from "@/components/ui/SegmentedToggle";
+import { BODY_FAT_CARD_POINTS, DashboardPreload, GOAL_WEIGHT_LEAD_DAYS, HISTORY_DAYS } from "./dashboardData";
 import "./home.css";
 
 /* ─── COLOR TOKENS ───
@@ -73,9 +74,6 @@ const C = {
   yellowBrown: "var(--fg-fat)",
 };
 
-// How many body-fat readings the Visual Body Fat card plots. Matches the Scale
-// Weight card's 7-point sparkline, but counted in readings rather than days.
-const BODY_FAT_CARD_POINTS = 7;
 
 // Initial data is fetched server-side by the route's page.tsx and passed in so
 // the first paint shows real macros instead of empty placeholders / a spinner.
@@ -91,6 +89,7 @@ export default function ForageHomeClient({
   initialNutritionCardKeys,
   initialCheckInDue,
   initialCheckInWeekday,
+  preload,
 }: {
   initialDate?: string;
   initialTotals?: DailyTotals | null;
@@ -101,6 +100,10 @@ export default function ForageHomeClient({
   initialNutritionCardKeys?: string[];
   initialCheckInDue?: boolean;
   initialCheckInWeekday?: number;
+  // Present when the server loaded ALL first-paint data (see page.tsx). Absent
+  // means the preload was skipped or failed, and the client loads everything
+  // itself behind the page loading state before rendering anything.
+  preload?: DashboardPreload;
 } = {}) {
   const router = useRouter();
 
@@ -108,25 +111,25 @@ export default function ForageHomeClient({
   const [totals, setTotals] = useState<DailyTotals>(initialTotals ?? { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, micros: {} });
   const [target, setTarget] = useState<MacroTarget | null>(initialTarget ?? null);
   const [weekData, setWeekData] = useState<Record<string, DailyTotals>>(initialWeekData ?? {});
-  const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
+  const [weightHistory, setWeightHistory] = useState<WeightEntry[]>(preload?.weightHistory ?? []);
   // Body-fat readings are fetched separately from `weightHistory` because they
   // are logged occasionally, not daily — filtering them out of the 30-day
   // weigh-in window leaves the Visual Body Fat card blank for a user who has
   // readings, just older ones (see the API's ?bodyFat=1 mode).
-  const [bodyFatHistory, setBodyFatHistory] = useState<WeightEntry[]>([]);
-  const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
+  const [bodyFatHistory, setBodyFatHistory] = useState<WeightEntry[]>(preload?.bodyFatHistory ?? []);
+  const [activeDates, setActiveDates] = useState<Set<string>>(new Set(preload?.activeDates ?? []));
   // Adaptive expenditure (TDEE) from the server's energy-balance model. The
   // dashboard used to label average INTAKE as "Expenditure", which is a
   // different number entirely — this is the real one.
-  const [expenditure, setExpenditure] = useState<ExpenditureSummary | null>(null);
+  const [expenditure, setExpenditure] = useState<ExpenditureSummary | null>(preload?.expenditure ?? null);
   // Active goal (lose / maintain / gain). Drives the Insights grid's fourth
   // card, which used to be a goal-agnostic placeholder — see ./goalCard.
-  const [goal, setGoal] = useState<Goal | null>(null);
+  const [goal, setGoal] = useState<Goal | null>(preload?.goal ?? null);
   // Weigh-ins from 30 days before the active goal began. The goal card measures
   // drift/progress from the trend weight AT the goal's start, and weightHistory
   // only reaches back 30 days — for an older goal the card was reading its
   // baseline off whatever day that window happened to open on.
-  const [goalWeightHistory, setGoalWeightHistory] = useState<WeightEntry[]>([]);
+  const [goalWeightHistory, setGoalWeightHistory] = useState<WeightEntry[]>(preload?.goalWeightHistory ?? []);
   // Nutrient reference + resolved bands power the customizable Nutrition cards
   // (micronutrient cards need a label/unit/color and a target). Day-independent.
   const [nutrients, setNutrients] = useState<Nutrient[]>(initialNutrients ?? []);
@@ -140,19 +143,16 @@ export default function ForageHomeClient({
   const [date, setDate] = useState<string>(initialDate ?? todayIso());
 
   // STATE
-  // Preloaded → not loading, so the dashboard renders seeded data on first paint.
-  const [isLoading, setIsLoading] = useState(!initialTarget);
+  // True until every piece of first-paint data has loaded. The dashboard renders
+  // NOTHING but the loading state until then — sections must never paint empty
+  // and fill in afterwards. Already false when the server preloaded it all.
+  const [isBootstrapping, setIsBootstrapping] = useState(!preload);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // True for the first [date] effect run when SSR already seeded this date's
-  // data; skip the redundant refetch (and the placeholder flash it causes).
-  const skipInitialFetch = useRef<boolean>(!!initialTarget);
-  // True when SSR already seeded the day-independent Nutrition config (cards +
-  // nutrients + resolved bands); skip the mount fetch so the section paints the
-  // user's real layout without flashing the default.
-  const skipInitialConfigFetch = useRef<boolean>(!!initialNutritionCardKeys);
+  // The [date] effect's first run is the initial load, which is either the
+  // server preload or the bootstrap below — never a second, separate fetch.
+  const skipInitialFetch = useRef(true);
 
   async function refresh() {
-    setIsLoading(true);
     try {
       const [eRes, tRes] = await Promise.all([
         fetch(`/modules/forage/api/entries?date=${date}`),
@@ -164,8 +164,6 @@ export default function ForageHomeClient({
       setTarget(tData ?? null);
     } catch (e) {
       console.error(e);
-    } finally {
-      setIsLoading(false);
     }
   }
 
@@ -189,7 +187,7 @@ export default function ForageHomeClient({
   }
 
   async function fetchHistory() {
-    const since = shiftDate(todayIso(), -29);
+    const since = shiftDate(todayIso(), -(HISTORY_DAYS - 1));
     try {
       const [wRes, bfRes, aRes, xRes] = await Promise.all([
         fetch(`/modules/forage/api/weight?since=${since}`),
@@ -222,10 +220,59 @@ export default function ForageHomeClient({
     }
   }
 
+  // Active goal, plus weigh-ins reaching back before it began — the goal card
+  // measures from the trend weight at the goal's start, which can predate the
+  // 30-day history. Day-independent and unchanged by logging or a weigh-in (only
+  // the strategy page edits the goal, and coming back here remounts).
+  async function fetchGoal() {
+    try {
+      const r = await fetch("/modules/forage/api/goal");
+      const g = r.ok ? await r.json() : null;
+      if (!g || !g.goal_kind) return;
+      setGoal(g as Goal);
+      const since = shiftDate((g as Goal).created_at.slice(0, 10), -GOAL_WEIGHT_LEAD_DAYS);
+      const w = await fetch(`/modules/forage/api/weight?since=${since}`).then((res) => (res.ok ? res.json() : []));
+      if (Array.isArray(w)) setGoalWeightHistory(w);
+    } catch {
+      // non-critical — the goal card renders its "No active goal" state
+    }
+  }
+
+  // Nutrient reference, resolved target bands, and the saved Nutrition card
+  // layout — day-independent. Failures fall back to the defaults already seeded
+  // in state (macros + sugars + sat fat).
+  async function fetchNutritionConfig() {
+    try {
+      const [nData, bData, cData] = await Promise.all([
+        fetch("/modules/forage/api/nutrients").then((r) => r.json()),
+        fetch("/modules/forage/api/nutrient-targets").then((r) => r.json()),
+        fetch("/modules/forage/api/dashboard-cards?section=nutrition").then((r) => r.json()),
+      ]);
+      if (Array.isArray(nData)) setNutrients(nData);
+      if (Array.isArray(bData)) setNutrientBands(bData);
+      if (Array.isArray(cData?.cards)) setNutritionCardKeys(cData.cards);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // BOOTSTRAP — only when the server preload didn't happen. Loads everything the
+  // first paint reads, in parallel, and lifts the loading state once ALL of it
+  // has settled (each loader swallows its own failure, so one bad request can't
+  // hold the page hostage).
   useEffect(() => {
-    // On the very first run after an SSR preload, the seeded state already holds
-    // this date's totals/target/week, so skip the refetch. Later date changes
-    // (skipInitialFetch already cleared) fetch normally.
+    if (preload) return;
+    let alive = true;
+    Promise.all([refresh(), fetchWeek(date), fetchHistory(), fetchGoal(), fetchNutritionConfig()]).then(() => {
+      if (alive) setIsBootstrapping(false);
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Day changes after the initial load refresh the day + week in place; the
+  // sections stay mounted so nothing flashes.
+  useEffect(() => {
     if (skipInitialFetch.current) {
       skipInitialFetch.current = false;
       return;
@@ -234,61 +281,6 @@ export default function ForageHomeClient({
     fetchWeek(date);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
-
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  // Active goal — day-independent and unchanged by logging or a weigh-in (only
-  // the strategy page edits it, and coming back here remounts), so it's a
-  // mount-only fetch rather than part of fetchHistory. A failure leaves it null
-  // and the goal card renders its "No active goal" state.
-  useEffect(() => {
-    let alive = true;
-    fetch("/modules/forage/api/goal")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((g) => {
-        if (!alive || !g || !g.goal_kind) return;
-        setGoal(g as Goal);
-        const since = shiftDate((g as Goal).created_at.slice(0, 10), -30);
-        return fetch(`/modules/forage/api/weight?since=${since}`)
-          .then((r) => (r.ok ? r.json() : []))
-          .then((w) => {
-            if (alive && Array.isArray(w)) setGoalWeightHistory(w);
-          });
-      })
-      .catch(() => {
-        // non-critical
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  // Nutrient reference, resolved target bands, and the saved Nutrition card
-  // layout are all day-independent — fetch once on mount. Failures fall back to
-  // the defaults already seeded in state (macros + sugars + sat fat).
-  useEffect(() => {
-    // SSR already seeded this config — don't refetch (and don't flash defaults).
-    if (skipInitialConfigFetch.current) {
-      skipInitialConfigFetch.current = false;
-      return;
-    }
-    let alive = true;
-    Promise.all([
-      fetch("/modules/forage/api/nutrients").then((r) => r.json()),
-      fetch("/modules/forage/api/nutrient-targets").then((r) => r.json()),
-      fetch("/modules/forage/api/dashboard-cards?section=nutrition").then((r) => r.json()),
-    ])
-      .then(([nData, bData, cData]) => {
-        if (!alive) return;
-        if (Array.isArray(nData)) setNutrients(nData);
-        if (Array.isArray(bData)) setNutrientBands(bData);
-        if (Array.isArray(cData?.cards)) setNutritionCardKeys(cData.cards);
-      })
-      .catch((e) => console.error(e));
-    return () => { alive = false; };
-  }, []);
 
   // Pin the locked shell to the real visible viewport height (Firefox Android
   // paints a larger area than it reports, leaving a dead band below the tab bar
@@ -337,29 +329,29 @@ export default function ForageHomeClient({
            the pager + sections into a two-column masonry to use the width. */}
         <div className="fg-sections" style={{ padding: "0 16px" }}>
 
-          {/* WEEKLY NUTRITION PAGER */}
-          <div className="fg-reveal" style={{ animationDelay: "0ms" }}>
-            <WeeklyNutritionPager
-              activeIso={date}
-              weekData={weekData}
-              target={target}
-              totals={totals}
-              expenditure={expenditure}
-              onPick={setDate}
-            />
-          </div>
-
-          {isLoading && !target ? (
-            /* LOADING — only on the initial fetch (no target yet). Once loaded,
-               sections stay mounted across day changes so the reveal plays once
-               and a day-tap refresh updates data in place instead of flashing the
-               spinner. */
+          {isBootstrapping ? (
+            /* LOADING — the page's only loading state: nothing data-driven renders
+               until ALL first-paint data has loaded (normally the server preloads
+               it and this never shows). Sections then stay mounted across day
+               changes, so a day-tap refresh updates in place. */
             <div style={{ display: "flex", justifyContent: "center", padding: "2rem 0" }}>
               <div style={{ width: 24, height: 24, border: `2px solid ${C.divider}`, borderTopColor: C.text, borderRadius: 999, animation: "spin 0.8s linear infinite" }} />
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           ) : (
             <>
+              {/* WEEKLY NUTRITION PAGER */}
+              <div className="fg-reveal" style={{ animationDelay: "0ms" }}>
+                <WeeklyNutritionPager
+                  activeIso={date}
+                  weekData={weekData}
+                  target={target}
+                  totals={totals}
+                  expenditure={expenditure}
+                  onPick={setDate}
+                />
+              </div>
+
               {/* INSIGHTS & ANALYTICS */}
               <div className="fg-reveal" style={{ animationDelay: "60ms" }}>
                 <InsightsSection weekData={weekData} target={target} weightHistory={weightHistory} goalWeightHistory={goalWeightHistory} totals={totals} expenditure={expenditure} goal={goal} />
