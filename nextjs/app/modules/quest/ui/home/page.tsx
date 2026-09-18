@@ -390,6 +390,7 @@ function blankTaskForm(kind: TaskKind): TaskFormState {
     days_of_week: [],
     start_date: "",
     window_days: "1",
+    reward_override_enabled: false,
     reward_override: "",
     subtasksDraft: [],
     originalSubtasks: [],
@@ -557,6 +558,8 @@ export default function QuestHomePage() {
   const [habitAllowNegative, setHabitAllowNegative] = useState(true);
   // Manual reward override as a string for the input. Empty string = no override (use difficulty).
   const [habitRewardOverride, setHabitRewardOverride] = useState("");
+  // Override toggle, kept apart from the value so backspacing the input to "" doesn't untick it.
+  const [habitRewardOverrideEnabled, setHabitRewardOverrideEnabled] = useState(false);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
 
   // STATE
@@ -1360,7 +1363,7 @@ export default function QuestHomePage() {
     // Grace window: at least 1 day (1 = must complete on the scheduled day).
     const windowDays = Math.max(1, Number(taskForm.window_days) || 1);
     // Manual reward override: empty input = null (use difficulty); a finite >=0 number sets it.
-    const overrideTrimmed = taskForm.reward_override.trim();
+    const overrideTrimmed = taskForm.reward_override_enabled ? taskForm.reward_override.trim() : "";
     const overrideNum = overrideTrimmed === "" ? null : Number(overrideTrimmed);
     const manualReward = overrideNum != null && Number.isFinite(overrideNum) && overrideNum >= 0 ? overrideNum : null;
     // Description: trim; empty string sends null (no description).
@@ -2207,6 +2210,7 @@ export default function QuestHomePage() {
     setHabitAllowPositive(true);
     setHabitAllowNegative(true);
     setHabitRewardOverride("");
+    setHabitRewardOverrideEnabled(false);
     setHabitModalOpen(true);
   }
 
@@ -2217,6 +2221,7 @@ export default function QuestHomePage() {
     setHabitAllowPositive(h.allow_positive);
     setHabitAllowNegative(h.allow_negative);
     setHabitRewardOverride(h.manual_reward_override != null ? h.manual_reward_override.toFixed(2) : "");
+    setHabitRewardOverrideEnabled(h.manual_reward_override != null);
     setHabitModalOpen(true);
   }
 
@@ -2230,7 +2235,7 @@ export default function QuestHomePage() {
     setSubmitting(true);
     try {
       // Manual reward override: empty input = null (use difficulty); a finite >=0 number sets it.
-      const overrideTrimmed = habitRewardOverride.trim();
+      const overrideTrimmed = habitRewardOverrideEnabled ? habitRewardOverride.trim() : "";
       const overrideNum = overrideTrimmed === "" ? null : Number(overrideTrimmed);
       const manualReward =
         overrideNum != null && Number.isFinite(overrideNum) && overrideNum >= 0 ? overrideNum : null;
@@ -2434,7 +2439,7 @@ export default function QuestHomePage() {
               title="Quest"
               className="btn-link shrink-0"
               sections={[
-                { heading: "The loop", body: "Complete tasks and tap habits to earn coins. Spend coins on rewards. Overdue or neglected work chips away at your health." },
+                { heading: "The loop", body: "Complete tasks and tap habits to earn coins — the coin chip on each row shows what it pays. Spend coins on rewards. Overdue or neglected work chips away at your health." },
                 { heading: "Health & coins", body: "The header tracks your HP and coin balance. A short rest gambles coins on a die roll to recover health when you're low. Each rest costs more than the last, and the price resets at the start of your quest week (set the day in Quest settings)." },
                 { heading: "Organize", body: "Add tasks with difficulties, due dates, and subtasks; recurring habits surface each day they're scheduled. Calendar and Settings live in the header icons." },
                 { heading: "Spending shortcuts", body: "In the Rewards tab you can add a reward, debt, or ad-hoc spend without leaving the keyboard: Enter moves from the name to the amount, and Enter on the last field submits the row." },
@@ -3153,7 +3158,20 @@ export default function QuestHomePage() {
                       {streak}
                     </span>
                   )}
-                  <span className="text-xs text-secondary shrink-0">{DIFF_LABELS[h.difficulty]}</span>
+                  {/* REWARD CHIP — coins a positive tap pays, same element as the task row's reward.
+                      Mirrors lib/habitFunctions tapHabit: the manual override, else the raw
+                      per-difficulty factor (no formula/streak — habits have neither). */}
+                  <span
+                    data-habit-reward
+                    className="text-xs tabular-nums flex items-center gap-1 shrink-0 text-yellow-500"
+                    title={`Reward · ${DIFF_LABELS[h.difficulty]}${h.manual_reward_override != null ? " (custom)" : ""}`}
+                  >
+                    <Coins className="w-3 h-3" />
+                    {(h.manual_reward_override != null
+                      ? Math.max(0, h.manual_reward_override)
+                      : Math.max(0, factors[h.difficulty] ?? 0)
+                    ).toFixed(2)}
+                  </span>
                   {/* REWARD TAP — trailing (right) side */}
                   <button
                     onClick={() => tapHabit(h.id, "positive")}
@@ -3567,19 +3585,20 @@ export default function QuestHomePage() {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    checked={habitRewardOverride.trim() !== ""}
-                    onChange={(e) =>
+                    checked={habitRewardOverrideEnabled}
+                    onChange={(e) => {
+                      setHabitRewardOverrideEnabled(e.target.checked);
                       setHabitRewardOverride(
                         e.target.checked ? computedReward(habitDifficulty, "habit").toFixed(2) : ""
-                      )
-                    }
+                      );
+                    }}
                     className="w-4 h-4 accent-blue-500 cursor-pointer"
                   />
                   <span className="text-sm text-secondary">Custom reward override</span>
                 </label>
 
                 {/* OVERRIDE INPUT — only when enabled */}
-                {habitRewardOverride.trim() !== "" && (
+                {habitRewardOverrideEnabled && (
                   <div className="mt-2">
                     {/* COINS INPUT */}
                     <div className="relative">

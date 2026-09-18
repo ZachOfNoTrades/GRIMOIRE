@@ -276,7 +276,10 @@ export default function QuestCalendarPage() {
           days_of_week: taskForm.days_of_week.length > 0 ? taskForm.days_of_week.join(",") : null,
           start_date: taskForm.start_date || null,
           window_days: Math.max(1, Number(taskForm.window_days) || 1),
-          manual_reward_override: taskForm.reward_override.trim() === "" ? null : Number(taskForm.reward_override),
+          manual_reward_override:
+            !taskForm.reward_override_enabled || taskForm.reward_override.trim() === ""
+              ? null
+              : Number(taskForm.reward_override),
           reminders: taskForm.reminders,
         }),
       });

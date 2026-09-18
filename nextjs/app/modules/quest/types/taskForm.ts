@@ -57,7 +57,10 @@ export interface TaskFormState {
   start_date: string;
   // Completion grace window in days, as a string for the input ("1" = scheduled day only).
   window_days: string;
-  // Manual reward override as a string for the input. Empty string = no override (use difficulty).
+  // Whether the override toggle is on. Tracked separately from the value so clearing the input
+  // (backspacing to "") doesn't untick the toggle and unmount the field mid-edit.
+  reward_override_enabled: boolean;
+  // Manual reward override as a string for the input. Ignored unless enabled; empty = no override.
   reward_override: string;
   subtasksDraft: DraftSubtask[];
   originalSubtasks: { id: string; done: boolean }[];
@@ -106,6 +109,7 @@ export function taskToForm(t: EditableTask): TaskFormState {
     days_of_week: t.days_of_week ? t.days_of_week.split(",").filter(Boolean) : [],
     start_date: t.start_date ?? "",
     window_days: String(t.window_days ?? 1),
+    reward_override_enabled: t.manual_reward_override != null,
     reward_override: t.manual_reward_override != null ? t.manual_reward_override.toFixed(2) : "",
     subtasksDraft: subtasks.map((s) => ({ id: s.id, title: s.title, done: s.done })),
     originalSubtasks: subtasks.map((s) => ({ id: s.id, done: s.done })),

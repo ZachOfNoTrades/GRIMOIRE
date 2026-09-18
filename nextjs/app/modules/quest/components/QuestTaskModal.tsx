@@ -343,10 +343,11 @@ export default function QuestTaskModal({
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={form.reward_override.trim() !== ""}
+                  checked={form.reward_override_enabled}
                   onChange={(e) =>
                     setForm({
                       ...form,
+                      reward_override_enabled: e.target.checked,
                       reward_override: e.target.checked
                         ? computedReward(form.difficulty, form.kind).toFixed(2)
                         : "",
@@ -358,7 +359,7 @@ export default function QuestTaskModal({
               </label>
 
               {/* OVERRIDE INPUT — only when enabled */}
-              {form.reward_override.trim() !== "" && (
+              {form.reward_override_enabled && (
                 <div className="mt-2">
                   {/* COINS INPUT */}
                   <div className="relative">
