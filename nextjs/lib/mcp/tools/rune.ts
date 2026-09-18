@@ -100,7 +100,10 @@ export function registerRuneTools(server: McpServer, ctx: McpContext) {
       description: 'Add a new card to a deck.',
       inputSchema: {
         deckId: z.string(),
-        front: z.string().min(1),
+        // `.trim()` before `.min(1)` — a whitespace-only front would otherwise pass
+        // validation and land as an empty front after insertCard's own `.trim()`, the same
+        // blank-row bug the REST route (POST .../decks/[id]/cards) already guards against.
+        front: z.string().trim().min(1),
         back: z.string().nullable().optional().describe('The answer. Omit, or pass null / an empty string, to create the card without an answer — an answerless card still studies normally (the user self-rates); use is_draft to hold a card out of study.'),
         notes: z.string().nullable().optional(),
         category: z.string().max(CARD_CATEGORY_MAX).nullable().optional().describe('Optional category label for grouping/filtering cards; omit or null for uncategorized.'),
@@ -118,7 +121,7 @@ export function registerRuneTools(server: McpServer, ctx: McpContext) {
       description: 'Update a card\'s front, back, notes, category, source reference, and/or draft status. Does not affect SM-2 progress.',
       inputSchema: {
         cardId: z.string(),
-        front: z.string().min(1),
+        front: z.string().trim().min(1),
         back: z.string().nullable().optional().describe('The answer: pass a string to set it, null or an empty string to clear it (the card still studies, self-rated), or omit to leave the existing answer unchanged.'),
         notes: z.string().nullable().optional(),
         category: z.string().max(CARD_CATEGORY_MAX).nullable().optional().describe('Category label: pass a string to set it, null to clear it, or omit to leave the existing category unchanged.'),
@@ -149,7 +152,7 @@ export function registerRuneTools(server: McpServer, ctx: McpContext) {
         deckId: z.string(),
         cards: z.array(z.object({
           cardId: z.string().nullable().optional().describe('Existing card ID to update; omit or null to create a new card.'),
-          front: z.string().min(1),
+          front: z.string().trim().min(1),
           back: z.string().nullable().optional().describe('The answer: a string to set it, null or an empty string to clear it (the card still studies, self-rated), or omit to leave an updated card\'s existing answer unchanged (new cards default to no answer).'),
           notes: z.string().nullable().optional(),
           category: z.string().max(CARD_CATEGORY_MAX).nullable().optional().describe('Category label: string to set, null to clear, or omit to leave an updated card\'s existing category unchanged (new cards default to uncategorized).'),
