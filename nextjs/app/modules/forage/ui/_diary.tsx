@@ -946,7 +946,9 @@ export function DiaryTimeline({
         <BulkRelocateModal
           variant={bulkMode}
           count={selectedIds.size}
-          seedDate={date}
+          spansMultipleHours={
+            new Set(entries.filter((e) => selectedIds.has(e.id)).map((e) => e.entry_time.slice(0, 2))).size > 1
+          }
           onClose={() => setBulkMode(null)}
           onSave={async (target) => {
             await handleBulkRelocate(bulkMode, target);
@@ -988,12 +990,10 @@ export function DiaryTimeline({
 
 // Relocate a single logged entry to a chosen date + time. Backend (PUT
 // /api/entries/[id]) already accepts entry_date + entry_time; this is just the
-// picker UI. Move seeds from the entry's current values so the user nudges rather
-// than re-enters. Copy seeds BOTH fields from the clock instead: copying is "I'm
-// eating this again", which happens now, so neither the source entry's time nor
-// its date is ever the answer — and the source day is usually a past one the user
-// was browsing precisely to copy forward, so re-typing today's date every time
-// was the whole friction.
+// picker UI. Move and copy BOTH seed from the clock (today + now): relocating a
+// log is almost always "I actually ate this now" — a food logged ahead of time or
+// on the wrong day — and the source day is usually a past one the user was
+// browsing, so re-typing today's date and time every time was the whole friction.
 function MoveEntryModal({
   entry,
   variant = "move",
@@ -1007,16 +1007,10 @@ function MoveEntryModal({
   onClose: () => void;
   onSave: (target: { entry_date: string; entry_time: string }) => Promise<void> | void;
 }) {
-  // INPUT — copy defaults to right now (today's date + the current clock time);
-  // move keeps the entry's own date and time. A copy therefore lands on today by
-  // default, which is what "I'm eating this again" means; sending it to some other
-  // day stays one date-picker tap away.
-  const [draftDate, setDraftDate] = useState<string>(
-    variant === "copy" ? todayIso() : entry.entry_date
-  );
-  const [draftTime, setDraftTime] = useState<string>(
-    variant === "copy" ? nowHHMM() : entry.entry_time.slice(0, 5)
-  );
+  // INPUT — both variants default to right now (today's date + the current clock
+  // time); sending the entry to some other slot stays one picker tap away.
+  const [draftDate, setDraftDate] = useState<string>(() => todayIso());
+  const [draftTime, setDraftTime] = useState<string>(() => nowHHMM());
 
   // STATE
   const [isSaving, setIsSaving] = useState(false);
@@ -1073,11 +1067,11 @@ function MoveEntryModal({
           confirm — doubly so now that copy arrives pre-filled with the right time. */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
 
-        {/* DATE FIELD — the copy variant says where its default came from, so a
-            pre-filled today doesn't read as the source entry's own date. */}
+        {/* DATE FIELD — says where its default came from, so a pre-filled today
+            doesn't read as the source entry's own date. */}
         <label style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
           <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>
-            {isCopy ? "Date · defaults to today" : "Date"}
+            Date · defaults to today
           </span>
           <input
             type="date"
@@ -1088,11 +1082,11 @@ function MoveEntryModal({
           />
         </label>
 
-        {/* TIME FIELD — the copy variant says where its default came from, so a
-            pre-filled clock time doesn't read as the entry's own time. */}
+        {/* TIME FIELD — says where its default came from, so a pre-filled clock
+            time doesn't read as the entry's own time. */}
         <label style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
           <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>
-            {isCopy ? "Time · defaults to now" : "Time"}
+            Time · defaults to now
           </span>
           <input
             type="time"
@@ -1112,35 +1106,33 @@ function MoveEntryModal({
    ============================================================ */
 
 // Move or copy every selected entry to a chosen day (and, optionally, a single
-// shared time). The day seeds the same way the single-entry modal does: move
-// starts on the day being viewed (nudge, don't re-enter), copy starts on TODAY —
-// copying a past day's meals is "I'm eating this again", so the source day is
-// never the target. The time field is always shown and always editable — it used to
-// sit behind a "Keep original times" checkbox, which cost a click and hid the
-// control. Blank is the default, and blank means "keep each entry's own time of
-// day" so the common case — shifting a mis-dated meal to another day — never
-// collapses a meal's individual timestamps. Typing a time stamps that one time
-// across the whole selection.
+// shared time). Seeds the same way the single-entry modal does — today + now —
+// except when the selection spans more than one hour of the timeline: then the
+// time starts blank, and blank means "keep each entry's own time of day", so a
+// breakfast-to-dinner selection never silently collapses onto one timestamp. A
+// selection inside one hour is effectively one meal, so it defaults to now like a
+// single entry. The time field is always shown and always editable (it used to sit
+// behind a "Keep original times" checkbox); typing a time stamps that one time
+// across the whole selection, and Clear restores blank.
 function BulkRelocateModal({
   variant,
   count,
-  seedDate,
+  spansMultipleHours,
   onClose,
   onSave,
 }: {
   variant: "move" | "copy";
   count: number;
-  // The day being viewed. Seeds a move; a copy seeds from today instead.
-  seedDate: string;
+  // True when the selected entries sit in more than one hour — the time then
+  // defaults to blank (keep each entry's own time) instead of now.
+  spansMultipleHours: boolean;
   onClose: () => void;
   onSave: (target: { entry_date: string; entry_time: string | null }) => Promise<void> | void;
 }) {
   // INPUT
-  const [draftDate, setDraftDate] = useState<string>(
-    variant === "copy" ? todayIso() : seedDate
-  );
+  const [draftDate, setDraftDate] = useState<string>(() => todayIso());
   // Empty = leave every entry on its own time of day.
-  const [draftTime, setDraftTime] = useState<string>("");
+  const [draftTime, setDraftTime] = useState<string>(() => (spansMultipleHours ? "" : nowHHMM()));
 
   // STATE
   const [isSaving, setIsSaving] = useState(false);
@@ -1192,11 +1184,11 @@ function BulkRelocateModal({
           have opened only to change the other field. */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
 
-        {/* DATE FIELD — copy names its default so a pre-filled today doesn't read
-            as the day the selection was made on. */}
+        {/* DATE FIELD — names its default so a pre-filled today doesn't read as
+            the day the selection was made on. */}
         <label style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
           <span className="text-subtle" style={{ fontSize: "0.8125rem" }}>
-            {isCopy ? "Date · defaults to today" : "Date"}
+            Date · defaults to today
           </span>
           <input
             type="date"
