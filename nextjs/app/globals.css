@@ -6221,6 +6221,17 @@ body:has(.quest-cal-page) > .page {
   position: relative;
   z-index: 1;
 }
+/* clip-path makes each of those cells its own stacking layer, painted in document order — so a cell to
+   the RIGHT that starts a bar of its own painted its background straight over the bar arriving from
+   its left, cutting it off at that cell's edge. Bars only ever run rightward, so stack the lead cells
+   right-to-left: an earlier column always sits above the later columns its bar covers. */
+.quest-cal-cell:has(.qcal-chip--span-lead):nth-child(1) { z-index: 7; }
+.quest-cal-cell:has(.qcal-chip--span-lead):nth-child(2) { z-index: 6; }
+.quest-cal-cell:has(.qcal-chip--span-lead):nth-child(3) { z-index: 5; }
+.quest-cal-cell:has(.qcal-chip--span-lead):nth-child(4) { z-index: 4; }
+.quest-cal-cell:has(.qcal-chip--span-lead):nth-child(5) { z-index: 3; }
+.quest-cal-cell:has(.qcal-chip--span-lead):nth-child(6) { z-index: 2; }
+.quest-cal-cell:has(.qcal-chip--span-lead):nth-child(7) { z-index: 1; }
 /* The chip list can't clip it horizontally either — same trick. */
 .quest-cal-cell:has(.qcal-chip--span-lead) .qcal-chips,
 .qcal-day:has(.qcal-chip--span-lead) .qcal-chips {
@@ -6485,11 +6496,18 @@ body:has(.quest-cal-page) > .page {
 }
 
 /* FREQUENCY VARIANTS */
-.qcal-chip--daily { background: var(--qcal-daily-bg); color: var(--qcal-daily-text); }
-.qcal-chip--weekly { background: var(--qcal-weekly-bg); color: var(--qcal-weekly-text); }
-.qcal-chip--monthly { background: var(--qcal-monthly-bg); color: var(--qcal-monthly-text); }
-.qcal-chip--yearly { background: var(--qcal-yearly-bg); color: var(--qcal-yearly-text); }
-.qcal-chip--todo { background: var(--qcal-todo-bg); color: var(--qcal-todo-text); }
+/* The pair is also published as --qcal-chip-bg / --qcal-chip-fg, so a rule that has to derive a
+   faded color (the opaque spanning bar below) can do it without knowing the variant. */
+.qcal-chip--daily { --qcal-chip-bg: var(--qcal-daily-bg); --qcal-chip-fg: var(--qcal-daily-text); }
+.qcal-chip--weekly { --qcal-chip-bg: var(--qcal-weekly-bg); --qcal-chip-fg: var(--qcal-weekly-text); }
+.qcal-chip--monthly { --qcal-chip-bg: var(--qcal-monthly-bg); --qcal-chip-fg: var(--qcal-monthly-text); }
+.qcal-chip--yearly { --qcal-chip-bg: var(--qcal-yearly-bg); --qcal-chip-fg: var(--qcal-yearly-text); }
+.qcal-chip--todo { --qcal-chip-bg: var(--qcal-todo-bg); --qcal-chip-fg: var(--qcal-todo-text); }
+.qcal-chip--daily,
+.qcal-chip--weekly,
+.qcal-chip--monthly,
+.qcal-chip--yearly,
+.qcal-chip--todo { background: var(--qcal-chip-bg); color: var(--qcal-chip-fg); }
 
 /* STATE MODIFIERS — settled work (done / excused / carried away) reads as struck
    and faded; a missed occurrence keeps its colour but gains a dotted underline so
@@ -6501,6 +6519,27 @@ body:has(.quest-cal-page) > .page {
 .qcal-chip--missed {
   text-decoration: underline dotted;
   text-underline-offset: 2px;
+}
+
+/* SPANNING BARS ON THE PAGE GRID STAY OPAQUE — the bar runs over the 1px gridlines between the days
+   it covers, so the `opacity` fades above (settled, out-of-month) let every divider it crosses show
+   through as a line cut into the bar. Fade it by mixing its colors toward the card instead: the same
+   look as the faded single-day chips, with nothing behind it bleeding through. The two factors
+   multiply, just as the stacked opacities would. */
+.quest-cal-cell .qcal-chip--span-lead {
+  --qcal-fade-settled: 1;
+  --qcal-fade-out: 1;
+  --qcal-fade: calc(var(--qcal-fade-settled) * var(--qcal-fade-out) * 100%);
+  opacity: 1;
+  background: color-mix(in srgb, var(--qcal-chip-bg) var(--qcal-fade), var(--card-bg));
+  color: color-mix(in srgb, var(--qcal-chip-fg) var(--qcal-fade), var(--card-bg));
+  border-color: color-mix(in srgb, currentColor 22%, var(--card-bg));
+}
+.quest-cal-cell .qcal-chip--span-lead.qcal-chip--settled {
+  --qcal-fade-settled: 0.55;
+}
+.quest-cal-cell--out .qcal-chip--span-lead {
+  --qcal-fade-out: 0.5;
 }
 
 /* LEGEND ITEM — swatch + label, the same on every screen that shows the calendar. */
