@@ -8148,8 +8148,8 @@ body:has(.quest-cal-page) > .page {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6em;
-  height: 1.6em;
+  width: max(1.6em, 2.75rem);
+  height: max(1.6em, 2.75rem);
   transition: background-color 120ms;
 }
 
@@ -8765,6 +8765,7 @@ body:has(.quest-cal-page) > .page {
     grid-template-areas:
       "qr code"
       "qr count"
+      "qr close"
       "hint hint";
     align-items: center;
     gap: 0.5rem 0.75rem;
