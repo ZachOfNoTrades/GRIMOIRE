@@ -34,6 +34,26 @@ import { useConfirm } from "@/lib/useConfirm";
 // page flags it as possibly out of date and worth regenerating.
 const STALE_GENERATION_DAYS = 7;
 
+// Sessions whose Warmup section the user collapsed, so the choice survives a refresh. Stored as a
+// most-recent-last id list in localStorage, capped so it can't grow without bound.
+const WARMUP_COLLAPSED_STORAGE_KEY = "golem_warmup_collapsed_sessions";
+const WARMUP_COLLAPSED_MAX_SESSIONS = 50;
+
+function readWarmupCollapsedSessionIds(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WARMUP_COLLAPSED_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return []; // unreadable/corrupt value — treat as nothing collapsed
+  }
+}
+
+function writeWarmupCollapsed(sessionId: string, isCollapsed: boolean) {
+  const others = readWarmupCollapsedSessionIds().filter((storedId) => storedId !== sessionId);
+  const next = isCollapsed ? [...others, sessionId].slice(-WARMUP_COLLAPSED_MAX_SESSIONS) : others;
+  try { localStorage.setItem(WARMUP_COLLAPSED_STORAGE_KEY, JSON.stringify(next)); } catch { /* private mode / quota — non-fatal */ }
+}
+
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { confirm, confirmModal } = useConfirm();
@@ -72,7 +92,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isWarmupExpanded, setIsWarmupExpanded] = useState(true);
+  const [isWarmupExpanded, setIsWarmupExpanded] = useState(true); // hydrated per-session from localStorage
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<SuggestedExercise[]>([]);
   const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState(false);
@@ -94,6 +114,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     const stored = Number(localStorage.getItem("golem_rest_timer_seconds"));
     if (Number.isFinite(stored) && stored >= 15) setRestTimerSeconds(stored);
   }, []);
+
+  // WARMUP COLLAPSE — remembered per session so a refresh keeps the section closed.
+  useEffect(() => {
+    setIsWarmupExpanded(!readWarmupCollapsedSessionIds().includes(id));
+  }, [id]);
+
+  const handleToggleWarmupExpanded = () => {
+    const nextExpanded = !isWarmupExpanded;
+    setIsWarmupExpanded(nextExpanded);
+    writeWarmupCollapsed(id, !nextExpanded);
+  };
 
   // Start (or restart) the rest countdown — fired when a working set is marked complete.
   // Skipped entirely when the user has turned the rest timer off in their Golem profile.
@@ -1448,7 +1479,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                           {/* WARMUP SLOT GROUP TOGGLE */}
                           <div
                             className="expandable-card-toggle"
-                            onClick={() => setIsWarmupExpanded(!isWarmupExpanded)}
+                            onClick={handleToggleWarmupExpanded}
                           >
                             <h3 className="text-h3">Warmup</h3>
                             {isWarmupExpanded ? (
@@ -1563,7 +1594,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   {/* WARMUP SECTION TOGGLE */}
                   <div
                     className="expandable-card-toggle"
-                    onClick={() => setIsWarmupExpanded(!isWarmupExpanded)}
+                    onClick={handleToggleWarmupExpanded}
                   >
                     <h3 className="text-h3">Warmup</h3>
                     {isWarmupExpanded ? (
