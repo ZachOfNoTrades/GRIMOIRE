@@ -29,6 +29,10 @@ interface CardHistoryPanelProps {
   // Likewise for the recovery step after a failed load — closing a modal is not the
   // same advice as reloading a page.
   failureBody?: string;
+  // The study session hides the next-review tile: in a session the card is in hand
+  // and about to be rated, so when it comes back is about to change anyway. The deck
+  // page, where the card is being reviewed as a record, keeps it.
+  showNextReview?: boolean;
 }
 
 // Exact timestamp for a review — the relative label ("3d ago") carries the row,
@@ -54,6 +58,7 @@ export default function CardHistoryPanel({
   collapsedRows,
   emptyBody = "This card hasn't come up in a study session.",
   failureBody = "Reload the page to try again.",
+  showNextReview = true,
 }: CardHistoryPanelProps) {
 
   // INPUT
@@ -107,10 +112,12 @@ export default function CardHistoryPanel({
         </div>
 
         {/* NEXT REVIEW */}
-        <div className="stat-card">
-          <p className="stat-label">Next Review</p>
-          <p className="stat-value text-base">{formatRelativeFuture(card?.next_review_at ?? null)}</p>
-        </div>
+        {showNextReview && (
+          <div className="stat-card">
+            <p className="stat-label">Next Review</p>
+            <p className="stat-value text-base">{formatRelativeFuture(card?.next_review_at ?? null)}</p>
+          </div>
+        )}
       </div>
 
       {/* LOADING PLACEHOLDER */}

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { X, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, Pencil, Layers, History } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, Pencil, Layers, History } from "lucide-react";
 import { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/BackLink";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
 import { CardWithProgress, CardReview } from "../types/card";
@@ -64,6 +65,32 @@ const FLIP_EDGE_DEGREES = 88;
 // the transition ends.
 const CARD_RESIZE_MS = 340;
 const CARD_RESIZE_EASING = "cubic-bezier(0.33, 1, 0.68, 1)";
+
+// The card's hard floor, used only when its chrome can't be measured. The real
+// floor is measured: the card's own frame (badges, speak button, the reveal hint,
+// padding) plus one line of text, so the question can never be squeezed out of
+// sight. Its resting minimum is 16rem, but that is written as
+// `min(16rem, var(--rune-card-max))` so it follows the budget down when the blocks
+// under it need the room — the measured floor is where that stops. It is also what
+// bounds the answer field: the field may grow until the card is down to this.
+const CARD_FLOOR_PX = 96;
+// Stacked on a phone the page simply grows and scrolls (the card isn't capped
+// there either), so the answer field just gets a sane ceiling rather than a
+// measured one.
+const ANSWER_MOBILE_MAX_LINES = 12;
+// Rows the field starts at, and the floor it can always be returned to.
+const ANSWER_BASE_ROWS = 3;
+
+// How long the answer block takes to fold away once the card is turned with nothing
+// typed in it (and to unfold on the way back). Matches the card's own resize so the
+// two read as one movement.
+const ANSWER_COLLAPSE_MS = 240;
+
+// The card history's entrance. It only exists on the answer face, so without this
+// it snaps in on the frame the face swaps; a short fade and rise, started a beat
+// after the card lands, makes it read as part of the same reveal.
+const HISTORY_REVEAL_MS = 260;
+const HISTORY_REVEAL_DELAY_MS = 60;
 
 // Ratings the in-session history table shows before its "Show all" toggle. Five
 // is enough to see the recent run without the section pushing the rating buttons
@@ -199,6 +226,18 @@ export default function StudySession({
   // Elements the card-height cap is measured from (see the layout effect below).
   const studyColumnRef = useRef<HTMLElement | null>(null);
   const flashcardRef = useRef<HTMLDivElement | null>(null);
+  // The answer block (label row + field) and the field itself: the field grows with
+  // what has been typed, up to a ceiling measured the same way as the card's.
+  const answerBlockRef = useRef<HTMLDivElement | null>(null);
+  const answerFieldRef = useRef<HTMLTextAreaElement | null>(null);
+  // The rating row only exists on the answer face, but its height has to be held
+  // back on the question face too — otherwise the field grows into the space the
+  // flip is about to need and the buttons land off screen. Measured whenever the
+  // row is mounted; before the first flip the navigation row stands in for it.
+  const ratingRowRef = useRef<HTMLDivElement | null>(null);
+  const ratingRowHeightRef = useRef<number>(0);
+  // The in-session card history, animated in with the answer (see the effect below).
+  const historyPanelRef = useRef<HTMLDivElement | null>(null);
   const handsFreeRef = useRef(handsFree); // Ref to track hands-free in async callbacks
 
   // Refs for duration tracking
@@ -356,6 +395,114 @@ export default function StudySession({
     }
   }, [sessionCards, isActive, currentIndex, preloadCardHistory]);
 
+  // COLLAPSE THE EMPTY ANSWER BLOCK — on the answer face a blank answer box is just
+  // a hole between the card and the rating buttons, and it is taking room the card
+  // could use (in the side-by-side layout, the whole column). Fold it away, and
+  // unfold it on the way back to the question. Anything actually typed stays put:
+  // it is the evidence you are grading yourself against.
+  const answerCollapsed = isFlipped && !userAnswer.trim();
+  useLayoutEffect(() => {
+    const block = answerBlockRef.current;
+    if (!block) return;
+
+    const hidden = block.style.display === "none";
+    const from = hidden ? 0 : block.offsetHeight;
+    const fromMargin = hidden ? 0 : parseFloat(getComputedStyle(block).marginTop);
+
+    // Lay it out as it will end up, then measure that.
+    block.style.display = "";
+    block.style.height = "";
+    block.style.marginTop = "";
+    const to = answerCollapsed ? 0 : block.offsetHeight;
+    const toMargin = answerCollapsed ? 0 : parseFloat(getComputedStyle(block).marginTop);
+
+    const settle = () => {
+      block.style.height = "";
+      block.style.marginTop = "";
+      block.style.overflow = "";
+      block.style.opacity = "";
+      block.style.display = answerCollapsed ? "none" : "";
+    };
+
+    if (from === to || !animatesMotion() || typeof block.animate !== "function") {
+      settle();
+      return;
+    }
+
+    block.style.overflow = "hidden";
+    const animation = block.animate(
+      [
+        { height: `${from}px`, marginTop: `${fromMargin}px`, opacity: from === 0 ? 0 : 1 },
+        { height: `${to}px`, marginTop: `${toMargin}px`, opacity: to === 0 ? 0 : 1 },
+      ],
+      { duration: ANSWER_COLLAPSE_MS, easing: CARD_RESIZE_EASING, fill: "backwards" },
+    );
+    animation.onfinish = settle;
+    return () => { animation.cancel(); settle(); };
+  }, [answerCollapsed]);
+
+  // HISTORY REVEAL — the section mounts on the frame the face swaps, which is the
+  // one moment everything else on screen is already moving. Hold it out of that and
+  // fade it up a beat later, so the answer lands first and its record follows.
+  useLayoutEffect(() => {
+    const panel = historyPanelRef.current;
+    if (!panel || !isFlipped || !animatesMotion() || typeof panel.animate !== "function") return;
+
+    const animation = panel.animate(
+      [{ opacity: 0, transform: "translateY(-0.5rem)" }, { opacity: 1, transform: "none" }],
+      {
+        duration: HISTORY_REVEAL_MS,
+        delay: HISTORY_REVEAL_DELAY_MS,
+        easing: CARD_RESIZE_EASING,
+        // Held at the first keyframe through the delay, so it doesn't flash in at
+        // full opacity before the animation starts.
+        fill: "backwards",
+      },
+    );
+    return () => animation.cancel();
+  }, [isFlipped, currentCard?.id]);
+
+  // ANSWER FIELD AUTO-GROW — the field follows what has been typed instead of
+  // sitting at a fixed three rows, up to the ceiling the effect below measures
+  // (`--rune-answer-max`); past that it scrolls internally. The ceiling is the one
+  // interesting part: see the effect for what it is measured against.
+  const resizeAnswerField = useCallback(() => {
+    const field = answerFieldRef.current;
+    // Nothing to size while the block is folded away — the measurements all read 0,
+    // and the unfold re-runs this anyway.
+    if (!field || !field.offsetParent) return;
+
+    const style = getComputedStyle(field);
+    // Short-and-wide lays the field out beside the card and lets flex stretch it to
+    // the row (see globals.css). Sizing it here as well would just make the two
+    // chase each other, so hand the height back to CSS.
+    if (style.getPropertyValue("--answer-fill").trim() === "1") {
+      field.style.height = "";
+      field.style.overflowY = "";
+      return;
+    }
+    const lineHeight = parseFloat(style.lineHeight) || 20;
+    // scrollHeight is the content box; the element is border-box, so the borders
+    // have to be added back or the field lands a couple of pixels short and
+    // scrolls when it didn't need to.
+    const borders = field.offsetHeight - field.clientHeight;
+    const published = parseFloat(
+      studyColumnRef.current?.style.getPropertyValue("--rune-answer-max") ?? "",
+    );
+    const max = Number.isFinite(published) ? published : lineHeight * ANSWER_MOBILE_MAX_LINES;
+
+    field.style.height = "auto";
+    const natural = field.scrollHeight + borders;
+    field.style.height = `${Math.min(natural, max)}px`;
+    field.style.overflowY = natural > max ? "auto" : "hidden";
+  }, []);
+
+  // Grow (or collapse) whenever the answer changes from anywhere — typing, a
+  // transcription landing, or the reset between cards.
+  useLayoutEffect(() => {
+    resizeAnswerField();
+  }, [userAnswer, isFlipped, resizeAnswerField]);
+
   // CARD HEIGHT CAP — the card may grow only as far as still leaves the rating
   // buttons on screen. A static CSS cap can't know that: the chrome above it
   // wraps at narrow widths, the evaluation alert comes and goes, and the answer
@@ -394,22 +541,96 @@ export default function StudySession({
       // bottom padding. The rail is a different parent, so the card history — which
       // is meant to sit past the fold / beside the card — is excluded by construction.
       const siblings = card.parentElement ? Array.from(card.parentElement.children) as HTMLElement[] : [];
-      const cardStyle = getComputedStyle(card);
-      let used = parseFloat(cardStyle.marginTop) + parseFloat(cardStyle.marginBottom);
-      for (const sibling of siblings) {
-        if (sibling !== card) used += outerHeight(sibling);
-      }
-      const columnStyle = getComputedStyle(column);
-      used += parseFloat(columnStyle.paddingBottom);
 
-      // Floor it: a window short enough to compute less than this has bigger
-      // problems than a cramped card, and a zero-height card is not a card.
-      const cap = Math.max(96, Math.round(available - used));
+      // A sibling only spends the card's vertical budget if it is stacked under it.
+      // On a short, wide window the answer sits beside the card instead (see the
+      // media block in globals.css), and a block in that row costs the card nothing.
+      // Compared horizontally rather than vertically on purpose: the card's height is
+      // the thing being computed, and is mid-transition right after a flip.
+      const stackedUnder = (element: HTMLElement) => {
+        const rect = element.getBoundingClientRect();
+        return rect.right > cardRect.left + 1 && rect.left < cardRect.right - 1;
+      };
+
+      const cardStyle = getComputedStyle(card);
+      const cardMargins = parseFloat(cardStyle.marginTop) + parseFloat(cardStyle.marginBottom);
+      const columnStyle = getComputedStyle(column);
+      let used = cardMargins + parseFloat(columnStyle.paddingBottom);
+      // The same sum without the answer block (whose ceiling is being measured) and
+      // without the rating row, which is reserved at a constant height below so that
+      // the ceiling doesn't change between the two faces.
+      const answerBlock = answerBlockRef.current;
+      let usedBesidesAnswer = used;
+      for (const sibling of siblings) {
+        if (sibling === card || !stackedUnder(sibling)) continue;
+        used += outerHeight(sibling);
+        if (sibling !== answerBlock && sibling !== ratingRowRef.current) usedBesidesAnswer += outerHeight(sibling);
+      }
+
+      // Keep the rating row's height on hand: it is only in the DOM on the answer
+      // face, but the question face has to reserve it anyway (see the ref).
+      if (ratingRowRef.current) ratingRowHeightRef.current = outerHeight(ratingRowRef.current);
+
+      // Floor it at the card's frame plus one line of its text — below that the
+      // question itself starts disappearing, which is worse than anything the extra
+      // room buys the blocks under it.
+      const face = card.querySelector<HTMLElement>(".flashcard-face-scroll");
+      const cardFloor = face && face.offsetHeight > 0
+        ? Math.round(card.offsetHeight - face.offsetHeight + (parseFloat(getComputedStyle(face).lineHeight) || 24))
+        : CARD_FLOOR_PX;
+      const cap = Math.max(cardFloor, Math.round(available - used));
       // Write only on a real change: this runs from a ResizeObserver, and setting
       // the property re-lays-out the card, which would otherwise notify it again.
       const previous = parseFloat(column.style.getPropertyValue("--rune-card-max"));
       if (!Number.isFinite(previous) || Math.abs(previous - cap) > 1) {
         column.style.setProperty("--rune-card-max", `${cap}px`);
+      }
+
+      // ANSWER FIELD CEILING — the field may grow into whatever the card is willing
+      // to give up, and no further: the navigation, and the rating buttons the flip
+      // is about to add, have to stay on screen. So budget the card at its floor and
+      // hand the field the rest. Below 640px the page grows and scrolls instead (the
+      // card isn't capped there either), so the field just gets a line count.
+      const field = answerFieldRef.current;
+      if (!field || !answerBlock || answerBlock.offsetHeight === 0) return;
+      const fieldStyle = getComputedStyle(field);
+      const lineHeight = parseFloat(fieldStyle.lineHeight) || 20;
+      const fieldChrome = field.offsetHeight - field.clientHeight
+        + parseFloat(fieldStyle.paddingTop) + parseFloat(fieldStyle.paddingBottom);
+      const baseField = lineHeight * ANSWER_BASE_ROWS + fieldChrome;
+
+      // The block's chrome (its label row and margins) rides along whatever the field
+      // does, so it comes off the budget once.
+      const blockChrome = outerHeight(answerBlock) - field.offsetHeight;
+
+      // Beside the card, CSS stretches the field to the row and there is no ceiling
+      // to publish (see resizeAnswerField).
+      if (fieldStyle.getPropertyValue("--answer-fill").trim() === "1") return;
+
+      let fieldMax: number;
+      if (!window.matchMedia("(min-width: 640px)").matches) {
+        fieldMax = lineHeight * ANSWER_MOBILE_MAX_LINES + fieldChrome;
+      } else {
+        // The rating row is reserved on both faces: on the question face it isn't in
+        // the DOM yet, and on the answer face it was left out of the sum above — so
+        // the ceiling is the same either side of the flip and the field doesn't jump
+        // when the answer is revealed. Before the first flip of the session there is
+        // nothing measured yet, so the navigation row — last in the column on the
+        // question face, and the same shape — stands in for it.
+        const navRow = siblings[siblings.length - 1];
+        const reserved = ratingRowHeightRef.current
+          || (navRow && navRow !== card && navRow !== answerBlock ? outerHeight(navRow) : 0);
+        // The card is what yields the room, down to its hard floor. Its 16rem resting
+        // minimum doesn't bind here: the CSS writes it as min(16rem, --rune-card-max),
+        // so it follows the shrinking budget down on its own.
+        fieldMax = available - usedBesidesAnswer - reserved - cardFloor - blockChrome;
+      }
+      fieldMax = Math.max(baseField, Math.round(fieldMax));
+
+      const previousField = parseFloat(column.style.getPropertyValue("--rune-answer-max"));
+      if (!Number.isFinite(previousField) || Math.abs(previousField - fieldMax) > 1) {
+        column.style.setProperty("--rune-answer-max", `${fieldMax}px`);
+        resizeAnswerField();
       }
     };
 
@@ -426,7 +647,7 @@ export default function StudySession({
     };
     // Re-measured whenever the column's children change: the rating row and the
     // history section mount with the flip, and the evaluation alert with a verdict.
-  }, [isActive, isFlipped, !!evaluationResult, currentCard?.id]);
+  }, [isActive, isFlipped, answerCollapsed, !!evaluationResult, currentCard?.id, userAnswer, resizeAnswerField]);
 
   // Stop recording and clear state when card changes. Keyed on currentCard?.id (not just
   // currentIndex) because handleSkip reorders the queue without moving currentIndex — the
@@ -715,10 +936,14 @@ export default function StudySession({
 
   // Animation is desktop-only (mobile keeps the instant swap — a turning card under
   // a thumb is motion for its own sake) and never overrides a reduced-motion request.
-  const animatesFlip = () =>
+  const animatesMotion = () =>
     typeof window !== "undefined" &&
-    window.matchMedia("(min-width: 640px)").matches &&
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // The flip itself is desktop-only: on a phone the card is tapped, not turned, and
+  // the face swap needs to be instant under a thumb.
+  const animatesFlip = () =>
+    animatesMotion() && window.matchMedia("(min-width: 640px)").matches;
 
   const clearFlipTimers = useCallback(() => {
     for (const timer of flipTimersRef.current) clearTimeout(timer);
@@ -1127,6 +1352,23 @@ export default function StudySession({
 
       <main ref={studyColumnRef} className="page-container rune-study-container">
 
+        {/* BACK BUTTON — leaving the session is a navigation, so it reads as one:
+            same Back control as every other page instead of an X tucked into the
+            session panel. Quitting is in-page state (the host page swaps back to
+            its landing screen), so the click is intercepted — but it is still a
+            real link to the source page, so middle/cmd-click opens it in a new tab
+            like Back everywhere else. */}
+        <div className="rune-study-back">
+          <BackLink
+            fallback={cardUrlBase}
+            onNavigate={handleQuit}
+            className="btn btn-link !pl-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
+          </BackLink>
+        </div>
+
         {/* HIDDEN AUDIO ELEMENT FOR TTS */}
         <audio ref={audioRef} preload="none" />
 
@@ -1229,7 +1471,7 @@ export default function StudySession({
                     itself clips overflow on desktop, so anything outside the
                     scroll region (e.g. notes with embedded images) would
                     otherwise just get cut off with no way to reach it. */}
-                <div className="text-primary mt-4 flex-1 flashcard-face-scroll" onClick={(e) => e.stopPropagation()}>
+                <div className="text-primary mt-4 flex-1 flashcard-face-scroll flashcard-face-answer" onClick={(e) => e.stopPropagation()}>
                   {/* ANSWER — a blank back is a valid card (self-graded recall): the face just
                       carries whatever notes/source the card has, and the rating buttons below
                       are the whole interaction. */}
@@ -1259,7 +1501,7 @@ export default function StudySession({
           </div>
 
           {/* YOUR ANSWER */}
-          <div className="mt-3">
+          <div ref={answerBlockRef} className="rune-study-answer mt-3">
             <div className="flex items-center justify-between mb-1">
               <p className="text-subtle">YOUR ANSWER</p>
 
@@ -1282,8 +1524,9 @@ export default function StudySession({
                 drops on mobile; left focused it stays up and covers the evaluation result
                 and the rating buttons the submit just revealed. */}
             <textarea
-              className="input-field w-full"
-              rows={3}
+              ref={answerFieldRef}
+              className="input-field w-full rune-study-answer-field"
+              rows={ANSWER_BASE_ROWS}
               value={userAnswer}
               onChange={(e) => { setUserAnswer(e.target.value); setAnswerModified(true); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); handleEvaluate(); } }}
@@ -1358,7 +1601,7 @@ export default function StudySession({
               answer face, so with the nav underneath them the flip moved PREV/NEXT out from
               under the thumb mid-session. */}
           {isFlipped && (
-            <div className="flex gap-2 mt-3">
+            <div ref={ratingRowRef} className="flex gap-2 mt-3">
               {[
                 { rating: 1, label: "AGAIN", className: "alert-red" },
                 { rating: 2, label: "HARD", className: "alert-yellow" },
@@ -1392,10 +1635,8 @@ export default function StudySession({
           {/* SESSION PANEL */}
           <div className="rune-study-session-panel">
 
-            {/* SESSION HEADER */}
+            {/* SESSION HEADER — source name + hands-free toggle */}
             <div className="flex items-center justify-between mb-2">
-
-              {/* SOURCE NAME + HANDS-FREE TOGGLE */}
               <div className="flex items-center gap-3 rune-study-header-main">
                 <p className="text-subtle rune-study-deck-name">{sourceName}</p>
                 <label className="flex items-center gap-1 cursor-pointer text-subtle text-xs rune-study-handsfree">
@@ -1414,15 +1655,6 @@ export default function StudySession({
                   Hands-free
                 </label>
               </div>
-
-              {/* QUIT BUTTON */}
-              <Button
-                onClick={handleQuit}
-                className="btn-link"
-                title="Quit session"
-              >
-                <X className="w-4 h-4" />
-              </Button>
             </div>
 
             {/* PROGRESS INFO */}
@@ -1472,7 +1704,7 @@ export default function StudySession({
               already warmed by the preload buffer above, so the flip shows it immediately
               rather than a spinner. */}
           {isFlipped && currentCard && (
-            <div className="card rune-study-history">
+            <div ref={historyPanelRef} className="card rune-study-history">
 
               {/* CARD HEADER */}
               <div className="card-header">
@@ -1505,6 +1737,7 @@ export default function StudySession({
                   collapsedRows={HISTORY_COLLAPSED_ROWS}
                   emptyBody="This is the first time this card has come up in a study session."
                   failureBody="Rate the card as usual — only this history is missing."
+                  showNextReview={false}
                 />
               </div>
             </div>

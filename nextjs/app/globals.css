@@ -3412,6 +3412,23 @@ input[type="search"]::-webkit-search-results-decoration {
   max-width: 36rem;
 }
 
+/* ANSWER FIELD — height is managed in JS (it follows what has been typed, up to
+   `--rune-answer-max`, which StudySession measures), so the drag handle would only
+   fight the next keystroke. */
+.rune-study-answer-field {
+  resize: none;
+}
+
+/* BACK — a full-width row above both columns. It is a wrapper rather than the link
+   itself so that taking the whole line on a wide screen (the container is a flex
+   row there, so Back has to opt out of being a third column) doesn't stretch the
+   link's hit area across it. `order` puts the row above the session panel's
+   `order: -1` in the stacked layout. */
+.rune-study-back {
+  order: -2;
+  margin-bottom: 0.5rem;
+}
+
 @media (max-width: 1023px) {
   .rune-study-main,
   .rune-study-rail {
@@ -3433,14 +3450,29 @@ input[type="search"]::-webkit-search-results-decoration {
 @media (min-width: 1024px) {
   .rune-study-container {
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: flex-start;
-    gap: 1.5rem;
+    /* Column gap only: the sole wrap is the Back row above, whose own margin
+       already spaces it, so a row gap would just double that. */
+    column-gap: 1.5rem;
+    row-gap: 0;
+    /* The container is min-height: 100%, and wrapped lines stretch to fill by
+       default — which would push the columns down by the leftover height. */
+    align-content: flex-start;
     /* The card column keeps its old 36rem; the rest is the rail plus the gap. */
     max-width: 58rem;
   }
 
+  .rune-study-back {
+    flex: 0 0 100%;
+  }
+
   .rune-study-main {
-    flex: 1 1 auto;
+    /* Basis 0, not auto: the container wraps (for the Back row above), and wrapping
+       is decided on each item's basis — an `auto` basis here is the card column's
+       natural content width, which is wide enough to push the rail onto a line of
+       its own before flex-shrink ever gets a say. */
+    flex: 1 1 0;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -3509,10 +3541,72 @@ input[type="search"]::-webkit-search-results-decoration {
     min-height: min(16rem, var(--rune-card-max, 16rem));
   }
 
+  /* The face may shrink to scroll its own content, but never past one line — a
+     card with no visible text isn't a card. StudySession floors the measured cap at
+     the same place; this is the backstop for the frames where it hasn't caught up. */
   .rune-study-container .flashcard-face-scroll {
+    min-height: 1.5rem;
+    overflow-y: auto;
+  }
+
+  /* Only the answer face opts out of the card's pointer: its text is there to be
+     read and selected, and it swallows the click anyway (which is why flipping back
+     is done from the card's margins, not its text). The question face is one
+     big "tap to reveal", so the pointer has to carry across its text too — scoping
+     this to the whole scroll region left a dead patch over the question. */
+  .rune-study-container .flashcard-face-answer {
+    cursor: auto;
+  }
+}
+
+/* SHORT AND WIDE — a window like 1440x506 (a half-height browser on a wide
+   monitor) has room across and almost none down.
+   Stacked, the answer field and the controls eat the whole budget and the card is
+   squeezed to its floor while a third of the width sits empty. So put the answer
+   beside the card, and let the container take the extra width it has been given;
+   the controls still span the row underneath, where the thumb expects them. The
+   measured caps follow on their own — StudySession only charges the card for the
+   blocks actually stacked under it. */
+@media (min-width: 1024px) and (max-height: 640px) {
+  .rune-study-container {
+    max-width: 76rem;
+  }
+
+  .rune-study-main {
+    flex-direction: row;
+    flex-wrap: wrap;
+    column-gap: 1rem;
+  }
+
+  /* Everything but those two spans the row: evaluate, the verdict, PREV/NEXT and
+     the rating buttons all stay full width, where the eye already expects them. */
+  .rune-study-main > * {
+    flex: 0 0 100%;
+    min-width: 0;
+  }
+
+  .rune-study-main > .flashcard-container,
+  .rune-study-main > .rune-study-answer {
+    flex: 1 1 0;
+  }
+
+  /* Its stacked top margin is the row's column gap here. */
+  .rune-study-main > .rune-study-answer {
+    margin-top: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The field fills the row rather than being sized in JS: the row's height is the
+     card's (the field has no intrinsic height to speak of), so stretching is what
+     squares the two halves off against each other. `--answer-fill` tells
+     StudySession to keep its hands off the height — measuring one against the other
+     in JS just makes the two chase each other. */
+  .rune-study-answer-field {
+    --answer-fill: 1;
+    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-    cursor: auto;
   }
 }
 
