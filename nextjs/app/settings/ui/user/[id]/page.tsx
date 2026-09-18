@@ -5,7 +5,7 @@ import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Edit2, Plus, Save, Trash2 } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
-import { User } from "@/types/user";
+import { User, UserDetail } from "@/types/user";
 import { Module } from "@/types/module";
 import { UserApiKeySummary } from "@/types/apiKey";
 import { formatDate } from "@/lib/format";
@@ -21,7 +21,7 @@ export default function UserDetailPage() {
   const userId = params.id as string;
 
   // DATA
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserDetail | null>(null);
   const [apiKeys, setApiKeys] = useState<UserApiKeySummary[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [grantedModuleIds, setGrantedModuleIds] = useState<string[]>([]);
@@ -410,7 +410,7 @@ export default function UserDetailPage() {
                 {/* GENERATION LIMIT */}
                 <div>
                   <label className="text-secondary">Generation Limit</label>
-                  <p className="text-primary">{user.generation_limit === 0 ? "Unlimited" : `${user.generation_limit} per ${process.env.GENERATION_WINDOW_HOURS} hours`}</p>
+                  <p className="text-primary">{user.generation_limit === 0 ? "Unlimited" : `${user.generation_limit} per ${user.generation_window_hours} hours`}</p>
                 </div>
 
                 {/* STATUS */}

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedUser, isAdmin } from "@/lib/permissions";
 import { getUserById, updateUser, deleteUser, getGlobalAdminCount } from "@/lib/users";
+import { GENERATION_WINDOW_HOURS } from "@/lib/generationLimit";
+import { UserDetail } from "@/types/user";
 
 export async function GET(
   request: NextRequest,
@@ -20,7 +22,8 @@ export async function GET(
 
     const { id } = await params;
     const user = await getUserById(id);
-    return NextResponse.json(user);
+    const userDetail: UserDetail = { ...user, generation_window_hours: GENERATION_WINDOW_HOURS }; // window is server-only env
+    return NextResponse.json(userDetail);
   } catch (error) {
     if (error instanceof Error && error.message.includes("No user found")) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });

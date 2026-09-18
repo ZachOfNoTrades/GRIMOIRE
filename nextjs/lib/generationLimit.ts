@@ -1,6 +1,8 @@
 import { getMainConnection } from "@/lib/db";
 
-const WINDOW_HOURS = parseInt(process.env.GENERATION_WINDOW_HOURS || "24", 10);
+// Rolling window (hours) the per-user generation limit counts over. Server-only env — client
+// surfaces must receive it from an API response, never read process.env themselves.
+export const GENERATION_WINDOW_HOURS = parseInt(process.env.GENERATION_WINDOW_HOURS || "24", 10) || 24;
 
 export async function checkGenerationLimit(userId: string, userLimit: number): Promise<{ allowed: boolean; count: number; limit: number }> {
   // 0 = unlimited
@@ -12,7 +14,7 @@ export async function checkGenerationLimit(userId: string, userLimit: number): P
   const result = await pool
     .request()
     .input("userId", userId)
-    .input("windowHours", WINDOW_HOURS)
+    .input("windowHours", GENERATION_WINDOW_HOURS)
     .query<{ count: number }>(
       `SELECT COUNT(*) AS count
        FROM generation_log
@@ -39,5 +41,5 @@ export async function logGeneration(userId: string, endpoint: string): Promise<v
        VALUES (@userId, @endpoint)`
     );
 
-  console.log(`[Generation] user: '${userId}' endpoint: '${endpoint}' (${WINDOW_HOURS}h window)`);
+  console.log(`[Generation] user: '${userId}' endpoint: '${endpoint}' (${GENERATION_WINDOW_HOURS}h window)`);
 }
