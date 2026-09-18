@@ -36,8 +36,8 @@ export default function ImageLightbox({ src, alt, onClose }: ImageLightboxProps)
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Pin --visible-vh to the real visible viewport so the overlay fills the screen
-  // on mobile (Firefox Android reports a viewport it doesn't paint — see useAppHeight).
+  // Pin --app-height to the real visible viewport so the overlay fills the screen
+  // on mobile and never runs under the soft keyboard (see useAppHeight).
   useAppHeight();
 
   if (!mounted) return null;

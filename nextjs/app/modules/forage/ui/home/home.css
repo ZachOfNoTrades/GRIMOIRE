@@ -19,11 +19,10 @@
    dead band below the tab bar (worst on Firefox Android). */
 html:has(.forage-home),
 body:has(.forage-home) {
-  /* --app-height is set by lib/useAppHeight to the real painted viewport height:
-     visualViewport.height on Chromium/WebKit, 100lvh on Firefox Android (which
-     paints the large viewport but reports the small one under a locked window,
-     leaving a dead band below the tab bar otherwise — Bugzilla 1586144/1217212).
-     100dvh is only the pre-hydration fallback. */
+  /* --app-height is set by lib/useAppHeight (mounted once for the module by
+     ForageViewportSync) to visualViewport.height — the real on-screen height,
+     which unlike dvh also shrinks for the soft keyboard. 100dvh is only the
+     pre-hydration fallback. */
   height: var(--app-height, 100dvh);
   overflow: hidden;
 }
@@ -41,9 +40,8 @@ body:has(.forage-home) {
   min-height: 0;
   overflow: hidden;
   /* Solid page tone on mobile (matches the tab bar's --solid-background) so any
-     sub-pixel dvh gap below the in-flow tab bar — e.g. Firefox Android's
-     dynamic-toolbar handling — is invisible instead of showing a gradient
-     sliver. The vignette is reinstated only at the desktop breakpoint below,
+     sub-pixel rounding gap below the in-flow tab bar is invisible instead of
+     showing a gradient sliver. The vignette is reinstated only at the desktop breakpoint below,
      where the shell is centered and the surround is meant to be seen. */
   background: var(--solid-background);
   color: var(--color-primary);

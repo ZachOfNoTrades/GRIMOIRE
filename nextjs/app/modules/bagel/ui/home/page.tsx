@@ -23,11 +23,11 @@ export default function BagelHomePage() {
   const router = useRouter();
 
   // Keyboard-aware shell height: the guess input lives near the bottom of the
-  // locked `.page` shell, whose height is pinned to 100lvh on Firefox Android and
-  // never shrinks when the soft keyboard opens — leaving the input (and what you
-  // type) hidden behind the keyboard with no scroll room to lift it. Mounting
-  // this makes --visible-vh track the keyboard so `.page-keyboard-aware` shrinks
-  // the shell, giving the scroller room to bring the input into view.
+  // locked `.page` shell, and the dvh fallback the shell uses when nothing pins
+  // --app-height ignores the soft keyboard — leaving the input (and what you
+  // type) hidden behind it with no scroll room to lift it. Mounting this tracks
+  // visualViewport.height, so the shell shrinks the moment the keyboard opens
+  // and the inner scroller has room to bring the input into view.
   useAppHeight();
 
   // DATA — server-owned game + aggregate stats.
@@ -75,8 +75,8 @@ export default function BagelHomePage() {
   // Scrolls the guess input clear of the soft keyboard. Runs on every focus — the
   // manual tap that opens the keyboard, the initial autofocus, and the
   // programmatic re-focus after each guess. `block: "end"` pins the input's bottom
-  // to the visible-area bottom (the keyboard top on Firefox Android, once the
-  // keyboard-aware shell has shrunk — see useAppHeight), keeping the input and
+  // to the visible-area bottom (the keyboard top, once the shell has shrunk to
+  // --app-height — see useAppHeight), keeping the input and
   // Guess button in view even as new guess rows push them down the list. Scrolled
   // immediately and again after a short delay to catch the keyboard's open
   // animation, which is what actually shrinks the shell and frees the scroll room.
@@ -212,7 +212,7 @@ export default function BagelHomePage() {
   // LOADING PLACEHOLDER
   if (isLoading) {
     return (
-      <div className="page page-keyboard-aware">
+      <div className="page">
         <div className="page-container">
           <div className="loading-container">
             <div className="loading-spinner" />
@@ -223,7 +223,7 @@ export default function BagelHomePage() {
   }
 
   return (
-    <div className="page page-keyboard-aware">
+    <div className="page">
       <div className="page-container">
         <Toaster position="top-center" />
 

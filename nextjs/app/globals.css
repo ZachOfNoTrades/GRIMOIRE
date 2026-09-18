@@ -481,15 +481,6 @@ body:has(.page) {
 body:has(.page) {
   display: flex;
   flex-direction: column;
-  /* Lift the in-flow navbar out from behind the Firefox-Android URL bar. A locked
-     overflow:hidden 100lvh body is anchored to the LARGE layout viewport, whose
-     top sits (lvh - dvh) px above the visible area while the URL bar is shown — so
-     the navbar (top flex child) renders off-screen with no scroll to recover it,
-     and only navigating to a normal-flow page brings it back. Pad the shell down
-     by that exact clip. --nav-safe-top is calc(100lvh - 100dvh) on Firefox and 0px
-     elsewhere (set by layout.tsx pre-paint + lib/useAppHeight); box-sizing is
-     border-box, so this eats into the shell height rather than overflowing it. */
-  padding-top: var(--nav-safe-top, 0px);
 }
 body:has(.page) > .page {
   flex: 1 1 auto;
@@ -517,33 +508,15 @@ body:has(.page) > .page {
   background: var(--solid-background);
 }
 
-/* An extension class of .page for pages carrying a text input the soft keyboard
-   must not cover (the bagel guess field). The base .page shell is locked to
-   --app-height, which on Firefox Android is pinned to 100lvh (the large,
-   keyboard-hidden viewport) and never shrinks when the keyboard opens — so a
-   short page has no scroll room to lift the focused input above the keyboard,
-   leaving it (and what you type) hidden behind it. Sizing the locked shell to
-   --visible-vh instead (keyboard-aware: 100lvh closed, visualViewport.height
-   open — set by lib/useAppHeight) shrinks it the moment the keyboard appears,
-   giving the inner .page scroller room to bring the input into view. Placed
-   AFTER the .page height rules so this wins for pages carrying both classes;
-   closed-keyboard --visible-vh equals the 100lvh painted height, so there's no
-   dead-band regression. */
-html:has(.page-keyboard-aware),
-body:has(.page-keyboard-aware) {
-  height: var(--visible-vh, var(--app-height, 100dvh));
-}
-
 /* An extension class of .page. When a page-with-bottom-bar is on the document,
    we lock html+body so the window never scrolls — the only scrollable region is
    the inner `.page-container`. This stops mobile browsers from shrinking/growing
    the URL bar mid-scroll, which is what makes the bottom bar jitter when it's
    `position: fixed`.
 
-   Because the window is locked, the URL bar never collapses, which trips a
-   Firefox Android paint bug that leaves a dead band below the bottom bar. Pages
-   that mount lib/useAppHeight set --app-height to the real painted height
-   (100lvh on Firefox); 100dvh is the pre-hydration / opt-out fallback. */
+   Pages that mount lib/useAppHeight set --app-height to visualViewport.height, so
+   the shell also shrinks for the soft keyboard (which the dvh units ignore);
+   100dvh is the pre-hydration / opt-out fallback. */
 html:has(.page-with-bottom-bar),
 body:has(.page-with-bottom-bar) {
   height: var(--app-height, 100dvh);
@@ -552,10 +525,6 @@ body:has(.page-with-bottom-bar) {
 body:has(.page-with-bottom-bar) {
   display: flex;
   flex-direction: column;
-  /* Same Firefox-Android locked-shell navbar clip as body:has(.page) above — pad
-     the shell down by --nav-safe-top (calc(100lvh - 100dvh) on Firefox, else 0)
-     so the navbar isn't stranded behind the URL bar. */
-  padding-top: var(--nav-safe-top, 0px);
 }
 /* Page wrapper takes the remaining height after sibling chrome (navbar,
    module subnav) has been laid out. */
@@ -916,14 +885,13 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   position: fixed;
   inset: 0;
   /* Constrain the centering box to the REAL visible viewport. inset:0 alone
-     resolves to the layout viewport on Firefox Android (taller than what's on
-     screen when the toolbar shows), which shifts the centered card down and
-     hides its footer behind the toolbar. --visible-vh (set from
-     visualViewport.height by lib/useAppHeight) is the on-screen height; height
-     wins over the over-constrained inset bottom. Unlike the page shells' 100lvh
-     token, it never overshoots, so the modal footer stays on screen — including
-     riding above the soft keyboard. 100dvh is only the fallback. */
-  height: var(--visible-vh, var(--app-height, 100dvh));
+     resolves to the layout viewport, which is taller than what's on screen while
+     the soft keyboard is open — that shifts the centered card down and hides its
+     footer behind the keyboard. --app-height (visualViewport.height, set by
+     lib/useAppHeight, which Modal mounts) is the on-screen height; height wins
+     over the over-constrained inset bottom, so the modal footer stays on screen
+     and rides above the keyboard. 100dvh is only the fallback. */
+  height: var(--app-height, 100dvh);
   background-color: var(--modal-backdrop);
   display: flex;
   align-items: center;
@@ -946,9 +914,9 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   border: 1px solid var(--card-border);
   padding: 1rem;
   max-width: 600px;
-  /* 85% of the real visible viewport — vh resolves to the layout viewport on
-     Firefox Android, overshooting the screen. Falls back to dvh. */
-  max-height: calc(var(--visible-vh, var(--app-height, 100dvh)) * 0.85);
+  /* 85% of the real visible viewport — plain vh resolves to the layout viewport,
+     which overshoots once the soft keyboard is open. Falls back to dvh. */
+  max-height: calc(var(--app-height, 100dvh) * 0.85);
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -958,11 +926,11 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
 /* Taller cap for long forms (the quest task editor) — same visible-viewport basis as .modal-card,
    just 95% instead of 85%. */
 .modal-card-tall {
-  max-height: calc(var(--visible-vh, var(--app-height, 100dvh)) * 0.95);
+  max-height: calc(var(--app-height, 100dvh) * 0.95);
 }
 
 .modal-card-full {
-  height: calc(var(--visible-vh, var(--app-height, 100dvh)) * 0.85);
+  height: calc(var(--app-height, 100dvh) * 0.85);
   max-height: none;
 }
 
@@ -984,7 +952,7 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
   align-items: stretch;
 }
 .modal-card-screen {
-  height: var(--visible-vh, var(--app-height, 100dvh));
+  height: var(--app-height, 100dvh);
   max-height: none;
   max-width: none;
   width: 100%;
@@ -1057,7 +1025,7 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
     align-items: stretch;
   }
   .modal-card-screen-mobile {
-    height: var(--visible-vh, var(--app-height, 100dvh));
+    height: var(--app-height, 100dvh);
     max-height: none;
     max-width: none;
     width: 100%;
@@ -6619,14 +6587,14 @@ body:has(.quest-cal-page) > .page {
 /* FULL-SCREEN IMAGE PREVIEW — opened by clicking an image in a rendered card
    (see ImageLightbox.tsx). Sits above the modal layer (z-index 50) because a
    card's content is also rendered inside modals (refine/edit card).
-   --visible-vh is the REAL on-screen height (see lib/useAppHeight); Firefox
-   Android reports a viewport it doesn't paint, so plain 100dvh is only a
+   --app-height is the REAL on-screen height (see lib/useAppHeight); plain 100dvh
+   ignores the soft keyboard, so it's only a
    fallback. overscroll-behavior stops wheel/touch from chaining to the page
    behind, which the app shells' inner .page-scroll container would otherwise do. */
 .card-image-lightbox {
   position: fixed;
   inset: 0;
-  height: var(--visible-vh, var(--app-height, 100dvh));
+  height: var(--app-height, 100dvh);
   background-color: var(--modal-backdrop);
   display: flex;
   align-items: center;

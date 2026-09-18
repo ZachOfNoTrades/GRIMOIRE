@@ -8,7 +8,6 @@ import { Nutrient, ResolvedNutrientTarget, FoodNutrientRanking, NutrientDailyPoi
 import { NutritionRange, NUTRITION_RANGE_OPTIONS, getNutritionRangeParams, windowKeyFor, parseWindowKey, presetWindowKeys } from "../../../utils/dateRange";
 import DateRangeSelector from "@/components/DateRangeSelector";
 import NutrientTrendChart from "./NutrientTrendChart";
-import { useAppHeight } from "@/lib/useAppHeight";
 import { useWindowCache } from "@/lib/useWindowCache";
 import SegmentedToggle, { SegmentedOption } from "@/components/ui/SegmentedToggle";
 import "./detail.css";
@@ -47,10 +46,6 @@ const BASIS_LABEL: Record<FoodNutrientRanking["basis"], string> = {
 };
 
 export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient }) {
-
-  // Lock the shell to the real visible viewport (Firefox Android handling lives
-  // in lib/useAppHeight), matching the other forage screens.
-  useAppHeight();
 
   // Macros (calories/protein/carbs/fat) are nutrient rows now, but their goal is
   // the user's daily macro target (a single reach-a-goal value), not a

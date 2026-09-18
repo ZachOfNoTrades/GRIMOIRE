@@ -73,9 +73,8 @@ export default function Modal({
     }, [isOpen]);
 
     // Pin --app-height to the real visible viewport so the fixed overlay fills
-    // the screen and the centered card's footer never hides behind a dynamic
-    // toolbar (the modal CSS sizes the backdrop + card from this var). Firefox
-    // Android needs special handling — see lib/useAppHeight for the rationale.
+    // the screen and the centered card's footer never hides behind the soft
+    // keyboard (the modal CSS sizes the backdrop + card from this var).
     useAppHeight();
 
     if (!isOpen || !mounted) return null;

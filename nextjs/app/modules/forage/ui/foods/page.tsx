@@ -15,7 +15,6 @@ import {
 import ForageBottomBar from "../ForageBottomBar";
 import ForageDiaryDashboard from "./DiaryDashboard";
 import { DailyTotals, FoodEntry } from "../../types/entry";
-import { useAppHeight } from "@/lib/useAppHeight";
 import "./foodlog.css";
 
 export default function ForageFoodLogPage() {
@@ -32,10 +31,6 @@ export default function ForageFoodLogPage() {
 function ForageFoodLogInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  // Lock the .page-with-bottom-bar shell to the real visible viewport so the
-  // bottom action bar sits flush on Firefox Android (see lib/useAppHeight).
-  useAppHeight();
 
   // INPUT
   // Honor a ?date=YYYY-MM-DD deep-link (e.g. navigated here right after logging

@@ -8,14 +8,10 @@ import { ChevronLeft, ChevronUp, ChevronDown, X, Check, Plus } from "lucide-reac
 import { Nutrient } from "../../types/food";
 import { DEFAULT_NUTRITION_CARDS } from "../../types/dashboard";
 import { buildCardCatalog, CardCatalogEntry } from "../home/nutritionCards";
-import { useAppHeight } from "@/lib/useAppHeight";
 import "./customize.css";
 
 export default function CustomizeDashboardPage() {
   const router = useRouter();
-
-  // Pin the locked shell to the real visible viewport (Firefox Android fix).
-  useAppHeight();
 
   // DATA — reference nutrients (labels/colors/grouping) + the persisted layout.
   const [nutrients, setNutrients] = useState<Nutrient[]>([]);

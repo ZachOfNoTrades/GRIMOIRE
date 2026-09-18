@@ -4,7 +4,6 @@ import Providers from "@/components/Providers";
 import Navbar from "@/components/Navbar";
 import DocumentTitleSync from "@/components/DocumentTitleSync";
 import NavHistoryTracker from "@/components/NavHistoryTracker";
-import NavSafeAreaSync from "@/components/NavSafeAreaSync";
 import ThemeSync from "@/components/ThemeSync";
 import "./globals.css";
 // Side-effect import: starts the in-process digest schedulers on first render.
@@ -31,10 +30,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    /* suppressHydrationWarning — the blocking pre-paint script below sets
-       --app-height / --visible-vh on <html> during HTML parse (before React
-       hydrates), so the element's inline style legitimately differs from the
-       server markup. Scoped to this element; children still hydrate normally. */
+    /* suppressHydrationWarning — the blocking pre-paint theme script below stamps
+       data-theme on <html> during HTML parse (before React hydrates), so the
+       element's attributes legitimately differ from the server markup. Scoped to
+       this element; children still hydrate normally. */
     <html lang="en" className={jetbrainsMono.variable} suppressHydrationWarning>
       <body>
         {/* PRE-PAINT THEME — stamps data-theme="light|dark" on <html> during HTML
@@ -56,29 +55,6 @@ export default function RootLayout({
           }}
         />
 
-        {/* PRE-PAINT --app-height — kills the first-second bottom-bar jump on
-            Firefox Android. Locked shells size to `var(--app-height, 100dvh)`, but
-            lib/useAppHeight only sets that property from a useEffect, i.e. AFTER
-            hydration (~1s on dev). Until then every shell uses the 100dvh fallback,
-            which on Firefox Android is the small/reported viewport while the painted
-            area is the large one (Bugzilla 1586144/1217212) — so the first paint sizes
-            the shell ~63px short and then snaps when the effect flips it to 100lvh.
-            This blocking inline script runs during HTML parse, before first paint, and
-            writes the same value useAppHeight's keyboard-closed branch would, so there
-            is no fallback window and no snap. useAppHeight then owns live resizes. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "(function(){try{var d=document.documentElement;" +
-              "if(/firefox/i.test(navigator.userAgent)){" +
-              "d.style.setProperty('--app-height','100lvh');" +
-              "d.style.setProperty('--visible-vh','100lvh');" +
-              "}else{var vv=window.visualViewport;" +
-              "var h=Math.round((vv&&vv.height)||window.innerHeight||0);" +
-              "d.style.setProperty('--app-height',h+'px');" +
-              "d.style.setProperty('--visible-vh',h+'px');}}catch(e){}})();",
-          }}
-        />
         <Providers>
           {/* DOCUMENT TITLE SYNC — keeps the browser tab title as "Module · Page"
               for every route (client pages can't export server metadata). */}
@@ -87,10 +63,6 @@ export default function RootLayout({
           {/* NAV HISTORY TRACKER — records the visited-route stack so back buttons
               can pop history only within a module (see lib/useGoBack). */}
           <NavHistoryTracker />
-
-          {/* NAV SAFE-AREA SYNC — keeps --nav-safe-top equal to the Firefox-Android
-              locked-shell clip so the navbar is never stranded behind the URL bar. */}
-          <NavSafeAreaSync />
 
           {/* THEME SYNC — reconciles the painted theme with the preference saved
               for this user (another device may have changed it). */}

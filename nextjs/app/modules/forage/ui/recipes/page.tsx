@@ -132,13 +132,11 @@ export default function ForageRecipesPage() {
         </div>
 
         {/* SEARCH — pinned under the header rather than at the shell's bottom edge.
-            The locked full-height shell is sized to --app-height, which on Firefox
-            Android is 100lvh (the LARGE viewport); when that shell is anchored flush
-            to the layout-viewport top, its bottom ~(lvh - dvh) px hang below the
-            visible area, and nothing scrolls them back into view (the container is
-            height:100% and the list owns the only scroll). A 42px input parked there
-            was left all but invisible — reported as "too far down". Anchoring to the
-            top instead sidesteps the whole lvh/dvh question, and matches the sibling
+            A 42px input parked at the bottom of the locked full-height shell was
+            reported as "too far down" and all but invisible: nothing scrolls that
+            edge back into view (the container is height:100% and the list owns the
+            only scroll), so any viewport-height error strands it. Anchoring to the
+            top removes that dependency entirely, and matches the sibling
             food-library page's filter placement. */}
         <div className="flex flex-col gap-1" style={{ marginBottom: "0.75rem" }}>
           <SearchField

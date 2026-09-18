@@ -5,17 +5,12 @@ import { useRouter } from "next/navigation";
 import { Ruler, Apple, Keyboard, Upload, Settings, Bell, BellRing, Clock } from "lucide-react";
 import ImportMacroFactorModal from "./ImportMacroFactorModal";
 import ForageBottomBar from "../ForageBottomBar";
-import { useAppHeight } from "@/lib/useAppHeight";
 import { SettingsGroup, type SettingsRowItem } from "@/components/settings/SettingsList";
 
 type SettingsRow = SettingsRowItem;
 
 export default function ForageSettingsPage() {
   const router = useRouter();
-
-  // Lock the shell to the real visible viewport so the bottom tab bar sits flush
-  // (Firefox Android handling lives in lib/useAppHeight).
-  useAppHeight();
 
   // STATE
   const [isImportOpen, setIsImportOpen] = useState(false);

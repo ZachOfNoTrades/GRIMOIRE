@@ -21,7 +21,6 @@ import MacroRibbon from "./MacroRibbon";
 import { lbInUnit, unitLabel } from "../../utils/units";
 import { useWeightUnit } from "../../utils/useWeightUnit";
 import ForageBottomBar from "../ForageBottomBar";
-import { useAppHeight } from "@/lib/useAppHeight";
 import "./strategy.css";
 
 function fmtDate(iso: string): string {
@@ -89,10 +88,6 @@ function ForageStrategyPageInner() {
   const searchParams = useSearchParams();
   const weightUnit = useWeightUnit();
   const uLabel = unitLabel(weightUnit);
-
-  // Lock the shell to the real visible viewport so the bottom tab bar sits flush
-  // (Firefox Android handling lives in lib/useAppHeight).
-  useAppHeight();
 
   // DATA
   const [goal, setGoal] = useState<Goal | null>(null);

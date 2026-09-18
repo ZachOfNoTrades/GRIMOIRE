@@ -12,7 +12,6 @@ import { sectionColor, byNutrientOrder } from "../../utils/nutrientLedger";
 import { NutritionRange, NUTRITION_RANGE_OPTIONS, getNutritionRangeParams, windowKeyFor, parseWindowKey, presetWindowKeys } from "../../utils/dateRange";
 import { NutrientMeter, bandDisplay, fmtNutrient, ProgramTargetMark } from "./nutrientMeter";
 import DateRangeSelector from "@/components/DateRangeSelector";
-import { useAppHeight } from "@/lib/useAppHeight";
 import { useWindowCache } from "@/lib/useWindowCache";
 import ForageBottomBar from "../ForageBottomBar";
 import "../home/home.css";
@@ -64,9 +63,6 @@ const EMPTY_TOTALS: DailyTotals = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0,
 
 export default function NutritionClient({ initialDate }: { initialDate: string }) {
   const router = useRouter();
-
-  // Firefox-Android viewport-height fix (shared across forage screens).
-  useAppHeight();
 
   // DATA — nutrient metadata + resolved target bands (day-independent).
   const [nutrients, setNutrients] = useState<Nutrient[]>([]);

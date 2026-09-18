@@ -29,7 +29,6 @@ import {
   isoToDate,
   weekStartFor,
 } from "../_diary";
-import { useAppHeight } from "@/lib/useAppHeight";
 import ForageBottomBar from "../ForageBottomBar";
 import SegmentedToggle, { SegmentedOption } from "@/components/ui/SegmentedToggle";
 import { BODY_FAT_CARD_POINTS, DashboardPreload, GOAL_WEIGHT_LEAD_DAYS, HISTORY_DAYS } from "./dashboardData";
@@ -281,11 +280,6 @@ export default function ForageHomeClient({
     fetchWeek(date);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
-
-  // Pin the locked shell to the real visible viewport height (Firefox Android
-  // paints a larger area than it reports, leaving a dead band below the tab bar
-  // otherwise). See lib/useAppHeight for the full rationale.
-  useAppHeight();
 
   return (
     /* PAGE — flex column with bottom bars in flow (not position:fixed) so they

@@ -1342,12 +1342,12 @@ function HourGroup({
     return () => window.removeEventListener("click", close);
   }, [menuFor]);
 
-  // Keep the open editor above the soft keyboard. The page shell can't shrink on
-  // Firefox Android (it stays pinned to 100lvh — see lib/useAppHeight), so the
-  // keyboard overlays the bottom of the content. When it opens (visualViewport.height
-  // shrinks on both engines) we center the editing chip in the scroll surface, which
-  // sits above the keyboard on both engines (keyboard ≈ the bottom third). Retried a
-  // few times because the soft keyboard animates in slowly on some devices.
+  // Keep the open editor above the soft keyboard. Shrinking the shell alone isn't
+  // enough — the chip can still sit under the keyboard's footprint — so when the
+  // keyboard opens (visualViewport.height drops on every engine) we center the
+  // editing chip in the scroll surface, which sits above the keyboard (keyboard ≈
+  // the bottom third). Retried a few times because the soft keyboard animates in
+  // slowly on some devices.
   useEffect(() => {
     if (!expandedId || typeof window === "undefined") return;
     const vv = window.visualViewport;
