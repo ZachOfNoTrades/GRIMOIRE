@@ -604,14 +604,13 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
 }
 
 /* PHONE-WIDTH GUTTER — TOUCH DEVICES ONLY.
-   On a real phone every horizontal pixel counts, so the page runs edge to edge
-   (this is the zero side padding the narrow-width layout rules elsewhere in this
-   file are written against). A NARROW DESKTOP WINDOW is not a phone, though:
-   dragging a browser window to 400px used to snap the content flush to the
-   window frame, which just looks broken. `hover: none` separates the two: it
-   describes the PRIMARY input, so a mouse-driven desktop (Chromium and Firefox
-   both measured `hover: hover` at every width) keeps its gutter, while Firefox
-   Android reports `hover: none` and gets the full width. No UA sniffing and no
+   On a real phone every horizontal pixel counts, so the gutter narrows to
+   0.75rem (the narrow-width layout rules elsewhere in this file are written
+   against it). A NARROW DESKTOP WINDOW is not a phone, though: it keeps the
+   1.5rem gutter. `hover: none` separates the two: it describes the PRIMARY
+   input, so a mouse-driven desktop (Chromium and Firefox both measured
+   `hover: hover` at every width) keeps its gutter, while Firefox Android
+   reports `hover: none` and gets the narrow one. No UA sniffing and no
    JS, so it also can't flash the wrong padding on first paint.
    `pointer: coarse` is deliberately NOT in this test: the android-emu emulator
    is driven by the host's mouse and reports `pointer: fine` (measured
@@ -620,8 +619,8 @@ body:has(.page-with-bottom-bar) > .page-with-bottom-bar {
    phone. The trade: a touchscreen-only Windows tablet also reads as touch. */
 @media (max-width: 639px) and (hover: none) {
   .page-container {
-    padding-left: 0;
-    padding-right: 0;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 }
 
@@ -2286,8 +2285,8 @@ input[type="search"]::-webkit-search-results-decoration {
 
 /* DASHBOARD MODULE-CARD BADGES — "what's due in this module" pills on the homepage cards.
    Composed with .badge-<tone> for color; these rules only resize and constrain them.
-   The homepage grid is 2-up on mobile with no page-container side padding, so a card is
-   ~125px wide at 320px: the pills must wrap to their own lines and any long label (a workout
+   The homepage grid is 2-up on mobile with only a 0.75rem page-container gutter, so a card is
+   ~113px wide at 320px: the pills must wrap to their own lines and any long label (a workout
    name) must ellipsis rather than run off the card. Overriding the .badge-* inline-flex to
    block is what makes text-overflow apply. */
 .module-card-badges {
@@ -2456,10 +2455,9 @@ input[type="search"]::-webkit-search-results-decoration {
 }
 
 @media (max-width: 640px) and (hover: none) {
-  /* Touch phones already run `.page-container` with zero side padding —
-     reclaiming nothing there, so leave it flush rather than adding padding
-     back. A narrow desktop window keeps the 0.75rem gutter above, matching
-     `.page-container`'s own device test. */
+  /* Touch phones drop even the 0.75rem gutter here so the two full-text
+     columns get the whole screen width. A narrow desktop window keeps the
+     0.75rem gutter above, matching `.page-container`'s own device test. */
   .page-container.rune-deck-container--wide {
     padding-left: 0;
     padding-right: 0;
@@ -3099,7 +3097,7 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 }
 
-/* RUNE STUDY (in-session) MOBILE RUNOFF — `.page-container` carries no
+/* RUNE STUDY (in-session) MOBILE RUNOFF — `.page-container` once carried no
    horizontal padding on phones, so every row of the study chrome rendered
    edge-to-edge with zero slack. On real Firefox-Android that clipped text off
    the right edge: the four-way rating tally lost the end of "again", and a deck

@@ -10,7 +10,7 @@ function SignInContent() {
 
   return (
     // BACKGROUND
-    <div className="page flex items-center justify-center">
+    <div className="page flex items-center justify-center px-3">
 
       {/* CARD */}
       <div className="card max-w-md w-full p-8">
