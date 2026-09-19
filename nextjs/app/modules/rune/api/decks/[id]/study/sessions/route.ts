@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { getDeckStudySessions } from '../../../../../lib/studyFunctions';
-import { getDeckById } from '../../../../../lib/deckFunctions';
+import { requireDeckAccess, deckAccessErrorResponse } from '../../../../../lib/shareFunctions';
 
 export async function GET(
   request: Request,
@@ -16,13 +16,15 @@ export async function GET(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'view');
 
     const sessions = await getDeckStudySessions(userId!, id);
     return NextResponse.json(sessions);
 
   } catch (error) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in GET /api/decks/[id]/study/sessions:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {

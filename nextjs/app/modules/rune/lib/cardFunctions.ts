@@ -29,18 +29,22 @@ function normBack(value: string | null | undefined): string {
 // 'web' rather than being required so an internal caller that genuinely has no request
 // context still writes a sane value instead of a null the UI can't explain.
 
-export async function getCardsByDeckId(userId: string, deckId: string): Promise<CardWithProgress[]> {
+// `userId` is the cards' OWNER (the deck owner — cards keep that user_id whoever wrote them);
+// `progressUserId` is whose schedule and last rating come back with each card. They differ
+// when a sharee reads a shared deck: same cards, their own progress.
+export async function getCardsByDeckId(userId: string, deckId: string, progressUserId: string = userId): Promise<CardWithProgress[]> {
   let pool;
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
       .input('userId', userId)
+      .input('progressUserId', progressUserId)
       .input('deckId', deckId)
       .query(`
         SELECT c.*, cp.ease_factor, cp.interval_days, cp.repetitions, cp.next_review_at, cp.last_reviewed_at,
-          (SELECT TOP 1 cr.rating FROM card_reviews cr WHERE cr.card_id = c.id ORDER BY cr.created_at DESC) AS last_rating
+          (SELECT TOP 1 cr.rating FROM card_reviews cr WHERE cr.card_id = c.id AND cr.user_id = @progressUserId ORDER BY cr.created_at DESC) AS last_rating
         FROM cards c
-        LEFT JOIN card_progress cp ON cp.card_id = c.id
+        LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @progressUserId
         WHERE c.deck_id = @deckId AND c.user_id = @userId
         ORDER BY c.order_index
       `);
@@ -60,18 +64,20 @@ export async function getCardsByDeckId(userId: string, deckId: string): Promise<
   }
 }
 
-export async function getCardById(userId: string, id: string): Promise<CardWithProgress> {
+// Same owner / progress split as getCardsByDeckId.
+export async function getCardById(userId: string, id: string, progressUserId: string = userId): Promise<CardWithProgress> {
   let pool;
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
       .input('userId', userId)
+      .input('progressUserId', progressUserId)
       .input('id', id)
       .query(`
         SELECT c.*, cp.ease_factor, cp.interval_days, cp.repetitions, cp.next_review_at, cp.last_reviewed_at,
-          (SELECT TOP 1 cr.rating FROM card_reviews cr WHERE cr.card_id = c.id ORDER BY cr.created_at DESC) AS last_rating
+          (SELECT TOP 1 cr.rating FROM card_reviews cr WHERE cr.card_id = c.id AND cr.user_id = @progressUserId ORDER BY cr.created_at DESC) AS last_rating
         FROM cards c
-        LEFT JOIN card_progress cp ON cp.card_id = c.id
+        LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @progressUserId
         WHERE c.id = @id AND c.user_id = @userId
       `);
 

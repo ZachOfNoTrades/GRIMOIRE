@@ -70,6 +70,10 @@ interface CardTableProps {
   canReorder: boolean;
   reorderHint: string;
   onReorder: (sourceId: string, afterId: string | null, beforeId: string | null) => void;
+
+  // READ-ONLY — a deck shared with the viewer as view-only. No add rows, no reorder, and the
+  // per-row actions shrink to rating history (the viewer's own).
+  readOnly?: boolean;
 }
 
 // Rendered markdown is the expensive thing on this page — a deck of a few hundred cards is
@@ -91,6 +95,7 @@ export default function CardTable({
   pendingRows, onInsertBelow, onPendingChange, onDiscardPending,
   onHistory, onRefine, onDelete,
   canReorder, reorderHint, onReorder,
+  readOnly = false,
 }: CardTableProps) {
   const isSheet = sheetDrafts !== null;
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
@@ -140,7 +145,7 @@ export default function CardTable({
 
   // Only real cards reorder, and only when nothing else owns the row: a pending row has no
   // stored position yet, and selection/sheet mode both put their own control in the gutter.
-  const draggable = canReorder && !isSheet && !selection.isSelecting;
+  const draggable = canReorder && !readOnly && !isSheet && !selection.isSelecting;
 
   const startDrag = useCallback((event: React.PointerEvent, id: string) => {
     if (event.button !== undefined && event.button !== 0) return;
@@ -459,6 +464,15 @@ export default function CardTable({
                             <Undo2 className="w-4 h-4" />
                           </Button>
                         )
+                      ) : card && readOnly ? (
+                        <Button
+                          className="btn-link"
+                          aria-label={`Rating history for ${label}`}
+                          title="Rating history"
+                          onClick={() => onHistory(card)}
+                        >
+                          <History className="w-4 h-4" />
+                        </Button>
                       ) : card && (
                         <>
                           <Button
@@ -496,6 +510,7 @@ export default function CardTable({
             {/* ADD ROW — the table's own last line rather than a button above it. In a view
                 built to read a whole deck at once, the place to write the next card is at
                 the bottom of the deck. */}
+            {!readOnly && (
             <tr className="table-row rune-card-row--add">
               <td colSpan={columnCount}>
                 <button type="button" className="rune-card-add" onClick={() => onInsertBelow(null)}>
@@ -504,6 +519,7 @@ export default function CardTable({
                 </button>
               </td>
             </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -534,7 +550,7 @@ export default function CardTable({
       </PopoverMenu>
 
       {/* REORDER HINT — says why the grips aren't there, at the one moment it matters. */}
-      {!canReorder && !isSheet && cards.length > 1 && (
+      {!canReorder && !readOnly && !isSheet && cards.length > 1 && (
         <p className="rune-card-reorder-hint">{reorderHint}</p>
       )}
 

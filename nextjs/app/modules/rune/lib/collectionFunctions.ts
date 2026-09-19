@@ -159,11 +159,11 @@ export async function getCollectionCards(userId: string, id: string): Promise<Ca
       .query(`
         SELECT c.*, cp.ease_factor, cp.interval_days, cp.repetitions, cp.next_review_at, cp.last_reviewed_at,
           d.name AS deck_name,
-          (SELECT TOP 1 cr.rating FROM card_reviews cr WHERE cr.card_id = c.id ORDER BY cr.created_at DESC) AS last_rating
+          (SELECT TOP 1 cr.rating FROM card_reviews cr WHERE cr.card_id = c.id AND cr.user_id = @userId ORDER BY cr.created_at DESC) AS last_rating
         FROM collection_decks cd
         INNER JOIN decks d ON d.id = cd.deck_id AND d.is_archived = 0 AND d.is_disabled = 0 AND d.user_id = @userId
         INNER JOIN cards c ON c.deck_id = d.id AND c.user_id = @userId
-        LEFT JOIN card_progress cp ON cp.card_id = c.id
+        LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId -- per user: sharees keep their own rows on these cards
         WHERE cd.collection_id = @id
         ORDER BY cd.order_index, c.order_index
       `);

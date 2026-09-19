@@ -3,6 +3,7 @@ import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { UPLOAD_ROOT, isSafePathSegment } from '../../../../lib/uploadFunctions';
+import { canViewUpload } from '../../../../lib/shareFunctions';
 
 const CONTENT_TYPES: Record<string, string> = {
   png: 'image/png',
@@ -30,7 +31,9 @@ async function readSlice(filePath: string, start: number, end: number): Promise<
 }
 
 // Streams back a pasted card image or video. Gated behind auth (not served from
-// `public/`) and scoped to the requesting user's own uploads folder. Video
+// `public/`). A user always reaches their own uploads folder; someone else's file is served
+// only when it's embedded in a card of a deck the requester can open — which is how a shared
+// deck's images reach its sharees, and an editor's pasted images reach the owner. Video
 // playback (and seeking) needs HTTP Range support — browsers, iOS Safari in
 // particular, issue `Range` requests and expect `206 Partial Content` back.
 export async function GET(
@@ -47,7 +50,8 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
   }
 
-  if (session.user.id !== userId) {
+  if (session.user.id?.toLowerCase() !== userId.toLowerCase()
+    && !(await canViewUpload({ id: session.user.id!, email: session.user.email }, userId, filename))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 

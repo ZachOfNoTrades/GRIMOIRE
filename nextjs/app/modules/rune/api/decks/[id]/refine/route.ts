@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser, getRequestChannel } from '@/lib/permissions';
 import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { createJob, completeJob, failJob } from '@/lib/generationJobStore';
-import { getDeckById } from '../../../../lib/deckFunctions';
+import { requireDeckAccess, deckAccessErrorResponse } from '../../../../lib/shareFunctions';
 import { applyRefinedCards } from '../../../../lib/cardFunctions';
 import { proposeDeckRefinement } from '../../../../lib/refineFunctions';
 import { ProposedChange, RefinedCard } from '../../../../types/generation';
@@ -21,8 +21,7 @@ export async function POST(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'edit');
 
     // Rate limit check
     const { allowed, count, limit } = await checkGenerationLimit(userId!, session.user.generationLimit);
@@ -48,7 +47,7 @@ export async function POST(
     // Fire-and-forget — returns proposed changes (not applied)
     (async () => {
       try {
-        const proposal = await proposeDeckRefinement(userId!, id, feedback.trim());
+        const proposal = await proposeDeckRefinement(access.ownerId, id, feedback.trim());
         await logGeneration(userId!, `/modules/rune/api/decks/${id}/refine`);
         completeJob(job.id, proposal);
         console.log(`[Refine] Job ${job.id} completed with ${proposal.changes.length} proposed changes`);
@@ -61,6 +60,9 @@ export async function POST(
     return NextResponse.json({ jobId: job.id }, { status: 202 });
 
   } catch (error: any) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in POST /api/decks/[id]/refine:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {
@@ -91,8 +93,7 @@ export async function PUT(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'edit');
 
     const body = await request.json();
     const { approvedChanges } = body as { approvedChanges: ProposedChange[] };
@@ -107,7 +108,7 @@ export async function PUT(
     // Convert approved changes into the RefinedCard format expected by applyRefinedCards.
     // Start with all existing cards that are NOT being deleted, then layer in modifications and additions.
     const { getCardsByDeckId } = await import('../../../../lib/cardFunctions');
-    const existingCards = await getCardsByDeckId(userId!, id);
+    const existingCards = await getCardsByDeckId(access.ownerId, id, userId!);
     const existingMap = new Map(existingCards.map((c) => [c.id, c]));
 
     // Track which existing cards are affected by approved changes
@@ -155,10 +156,13 @@ export async function PUT(
       }
     }
 
-    const result = await applyRefinedCards(userId!, id, refinedCards, getRequestChannel(request));
+    const result = await applyRefinedCards(access.ownerId, id, refinedCards, getRequestChannel(request));
     return NextResponse.json(result);
 
   } catch (error: any) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in PUT /api/decks/[id]/refine:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {

@@ -4,6 +4,8 @@
 export const DECK_NAME_MAX_LENGTH = 255;
 export const DECK_SOURCE_URL_MAX_LENGTH = 2000;
 
+import type { DeckRole, DeckShareRole } from './share';
+
 export interface Deck {
   id: string;
   name: string;
@@ -15,6 +17,11 @@ export interface Deck {
   created_at: Date;
   modified_at: Date;
   last_reviewed_at: Date | null;
+  // Set by GET /api/decks/[id] only. What the requester may do with this deck, and — when
+  // it was shared with them — whose deck it is. share_count is sent to the owner only.
+  access_role?: DeckRole;
+  owner_name?: string | null;
+  share_count?: number;
 }
 
 export interface DeckSummary {
@@ -28,4 +35,7 @@ export interface DeckSummary {
   card_count: number;
   due_count: number;
   last_reviewed_at: Date | null;
+  // Present only on decks shared WITH the user (GET /api/decks `shared`); absent on their own.
+  access_role?: DeckShareRole;
+  owner_name?: string | null;
 }

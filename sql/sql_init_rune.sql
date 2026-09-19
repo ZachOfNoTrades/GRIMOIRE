@@ -153,7 +153,7 @@ BEGIN TRY
         CREATE TABLE card_progress (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             user_id UNIQUEIDENTIFIER NOT NULL,
-            card_id UNIQUEIDENTIFIER UNIQUE NOT NULL,
+            card_id UNIQUEIDENTIFIER NOT NULL,
             ease_factor DECIMAL(4,2) DEFAULT 2.50,
             interval_days INT DEFAULT 0,
             repetitions INT DEFAULT 0,
@@ -162,8 +162,31 @@ BEGIN TRY
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
-            CONSTRAINT FK_card_progress_card FOREIGN KEY (card_id) REFERENCES cards(id)
+            CONSTRAINT FK_card_progress_card FOREIGN KEY (card_id) REFERENCES cards(id),
+            -- One schedule per card PER USER: a shared deck is studied by its sharees too.
+            CONSTRAINT UX_card_progress_card_user UNIQUE (card_id, user_id)
         );
+    END
+
+    -- =============================
+    -- Deck Shares (a deck shared with an email address, view or edit)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='deck_shares' AND xtype='U')
+    BEGIN
+        CREATE TABLE deck_shares (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            deck_id UNIQUEIDENTIFIER NOT NULL,
+            email NVARCHAR(320) NOT NULL, -- lowercased; keyed on email so a share to a not-yet-registered user activates on signup
+            role VARCHAR(10) NOT NULL CONSTRAINT CK_deck_shares_role CHECK (role IN ('view', 'edit')),
+            is_favorite BIT NOT NULL DEFAULT 0, -- the sharee's own star, separate from the owner's
+            is_disabled BIT NOT NULL DEFAULT 0, -- the sharee's own pause, separate from the owner's
+            created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+            modified_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+
+            CONSTRAINT FK_deck_shares_deck FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE,
+            CONSTRAINT UX_deck_shares_deck_email UNIQUE (deck_id, email)
+        );
+        CREATE INDEX IX_deck_shares_email ON deck_shares (email);
     END
 
     -- =============================

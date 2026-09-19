@@ -27,7 +27,8 @@ const SORT_OPTIONS: { value: DeckSortKey; label: string }[] = [
 
 export default function DecksPage() {
 
-  // DATA
+  // DATA — the user's own decks and the decks shared with them, in one list. A shared deck
+  // carries access_role/owner_name; its star and pause are the user's own, not the owner's.
   const [decks, setDecks] = useState<DeckSummary[]>([]);
 
   // INPUT
@@ -52,7 +53,7 @@ export default function DecksPage() {
     // must appear somewhere in the name or description but need not be adjacent.
     const matchesQuery = makeSearchMatcher(query);
     const searched = query
-      ? decks.filter((deck) => matchesQuery(`${deck.name} ${deck.description ?? ""}`))
+      ? decks.filter((deck) => matchesQuery(`${deck.name} ${deck.description ?? ""} ${deck.owner_name ?? ""}`))
       : decks;
 
     const filtered = showDisabled ? searched : searched.filter((deck) => !deck.is_disabled);
@@ -98,7 +99,7 @@ export default function DecksPage() {
       const response = await fetch("/modules/rune/api/decks");
       if (response.ok) {
         const data = await response.json();
-        setDecks(data.decks || []);
+        setDecks([...(data.decks || []), ...(data.shared || [])]);
       }
     } catch (error) {
       console.error("Error fetching decks:", error);
@@ -292,7 +293,15 @@ export default function DecksPage() {
                           {deck.is_disabled && (
                             <span className="badge badge-gray" title="Paused — not counted as due and not included in the daily review email">Disabled</span>
                           )}
+
+                          {/* SHARED BADGE — a deck someone shared with you, and what you can do with it */}
+                          {deck.access_role && (
+                            <span className="badge badge-blue">{deck.access_role === "edit" ? "Shared · Can edit" : "Shared · View only"}</span>
+                          )}
                         </p>
+                        {deck.access_role && deck.owner_name && (
+                          <p className="rune-deck-shared-by">Shared by {deck.owner_name}</p>
+                        )}
                         {deck.description && (
                           <p className="text-secondary">{deck.description}</p>
                         )}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { submitCardReview, completeStudySession } from '../../../../../lib/studyFunctions';
-import { getDeckById } from '../../../../../lib/deckFunctions';
+import { requireDeckAccess, deckAccessErrorResponse, assertCardInDeck } from '../../../../../lib/shareFunctions';
 
 export async function POST(
   request: NextRequest,
@@ -16,8 +16,7 @@ export async function POST(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'view');
 
     const body = await request.json();
     const { cardId, studySessionId, rating, responseTimeMs } = body;
@@ -36,10 +35,19 @@ export async function POST(
       );
     }
 
+    // Only a card in this deck — access was checked for the deck, not the card.
+    await assertCardInDeck(id, cardId);
     await submitCardReview(userId!, cardId, studySessionId, rating, responseTimeMs || null);
     return NextResponse.json({ success: true });
 
   } catch (error) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
+    if (error instanceof Error && error.message.includes('No card found')) {
+      return NextResponse.json({ error: 'Card not found' }, { status: 404 });
+    }
+
     console.error('Error in POST /api/decks/[id]/study/review:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {
@@ -69,8 +77,7 @@ export async function PUT(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'view');
 
     const body = await request.json();
     const { studySessionId, durationSeconds } = body;
@@ -86,6 +93,13 @@ export async function PUT(
     return NextResponse.json({ success: true });
 
   } catch (error) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
+    if (error instanceof Error && error.message.includes('No card found')) {
+      return NextResponse.json({ error: 'Card not found' }, { status: 404 });
+    }
+
     console.error('Error in PUT /api/decks/[id]/study/review:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {

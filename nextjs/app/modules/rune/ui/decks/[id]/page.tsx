@@ -5,7 +5,7 @@ import { BackLink } from "@/components/BackLink";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload, Share2, LogOut } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import ExpandableRowList from "@/components/ExpandableRowList";
@@ -28,6 +28,7 @@ import RefineDeckModal from "./RefineDeckModal";
 import EditDeckModal from "./EditDeckModal";
 import DeleteDeckModal from "./DeleteDeckModal";
 import DeckHistorySection from "./DeckHistorySection";
+import ShareDeckModal from "./ShareDeckModal";
 
 // Sort options for a deck's card list. "category" is the historical default —
 // category runs in manual order_index — and is the only mode that can be grouped
@@ -91,13 +92,23 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const router = useRouter();
   // Only used to name the author on the card origin line ("by Zach"). An API-key page
-  // load has no NextAuth session, so this is null there and the line drops the name —
-  // every card in a deck belongs to the viewer, so there is no other author to confuse it with.
+  // load has no NextAuth session, so this is null there and the line drops the name.
   const { data: session } = useSession();
-  const authorName = session?.user?.name?.split(" ")[0] || null;
 
   // DATA
   const [deck, setDeck] = useState<Deck | null>(null);
+
+  // ACCESS — what the viewer may do here. A deck shared with them arrives with its role;
+  // their own deck is "owner". view: read + study. edit: also change cards and the deck's
+  // details. owner: also share and delete. The server enforces all of it — this only keeps
+  // the page from offering controls that would 403.
+  const accessRole = deck?.access_role ?? "owner";
+  const isOwner = accessRole === "owner";
+  const canEdit = isOwner || accessRole === "edit";
+
+  // Cards don't record who wrote them, so "by <name>" is only true while the deck has only
+  // ever had one writer: the viewer's own, unshared deck.
+  const authorName = isOwner && !deck?.share_count ? session?.user?.name?.split(" ")[0] || null : null;
   const [allCards, setAllCards] = useState<CardWithProgress[]>([]);
   const [dueCards, setDueCards] = useState<CardWithProgress[]>([]);
 
@@ -133,6 +144,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [showEditDeck, setShowEditDeck] = useState(false);
   const [showDeleteDeck, setShowDeleteDeck] = useState(false);
+  const [showShareDeck, setShowShareDeck] = useState(false);
   const [refiningCard, setRefiningCard] = useState<CardWithProgress | null>(null);
   const [historyCard, setHistoryCard] = useState<CardWithProgress | null>(null); // card whose rating history is open
   const [showRefineDeck, setShowRefineDeck] = useState(false);
@@ -814,6 +826,19 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  // Leave a deck shared with you — removes it from your list (the owner's deck is untouched).
+  // Not optimistic: it navigates away, so there is no row to paint first.
+  const handleLeaveDeck = async () => {
+    try {
+      const response = await fetch(`/modules/rune/api/decks/${id}/shares/me`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Request failed");
+      router.push("/modules/rune/ui/decks");
+    } catch (error) {
+      console.error("Error leaving shared deck:", error);
+      toast.error("Couldn't remove the deck");
+    }
+  };
+
   // LOADING
   if (isLoading) {
     return (
@@ -879,7 +904,15 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   {deck.is_disabled && (
                     <span className="badge badge-gray">Disabled</span>
                   )}
+
+                  {/* ACCESS BADGE — only on a deck shared with you */}
+                  {!isOwner && (
+                    <span className="badge badge-blue">{canEdit ? "Can edit" : "View only"}</span>
+                  )}
                 </h1>
+                {!isOwner && deck.owner_name && (
+                  <p className="rune-deck-shared-by">Shared by {deck.owner_name}</p>
+                )}
                 {deck.description && (
                   <p className="text-secondary">{deck.description}</p>
                 )}
@@ -904,24 +937,39 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               {/* DECK ACTIONS MENU */}
               <PopoverMenu open={isDeckMenuOpen} onClose={() => setIsDeckMenuOpen(false)} anchorRef={deckMenuAnchorRef} className="popover-menu--wide">
 
+                {/* SHARE ITEM — owner only */}
+                {isOwner && (
+                  <button
+                    onClick={() => { setIsDeckMenuOpen(false); setShowShareDeck(true); }}
+                    className="popover-item"
+                  >
+                    <Share2 className="w-4 h-4 mr-3" />
+                    Share deck
+                  </button>
+                )}
+
                 {/* REFINE ITEM */}
-                <button
-                  onClick={() => { setIsDeckMenuOpen(false); setShowRefineDeck(true); }}
-                  className="popover-item"
-                  disabled={allCards.length === 0}
-                >
-                  <Sparkles className="w-4 h-4 mr-3" />
-                  Refine with AI
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => { setIsDeckMenuOpen(false); setShowRefineDeck(true); }}
+                    className="popover-item"
+                    disabled={allCards.length === 0}
+                  >
+                    <Sparkles className="w-4 h-4 mr-3" />
+                    Refine with AI
+                  </button>
+                )}
 
                 {/* EDIT ITEM */}
-                <button
-                  onClick={() => { setIsDeckMenuOpen(false); setShowEditDeck(true); }}
-                  className="popover-item"
-                >
-                  <Pencil className="w-4 h-4 mr-3" />
-                  Edit deck
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => { setIsDeckMenuOpen(false); setShowEditDeck(true); }}
+                    className="popover-item"
+                  >
+                    <Pencil className="w-4 h-4 mr-3" />
+                    Edit deck
+                  </button>
+                )}
 
                 {/* DISABLE / ENABLE ITEM — pauses the deck's scheduling without touching its cards */}
                 <button
@@ -936,25 +984,38 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 {/* IMPORT ITEM — bulk-adds cards from a spreadsheet export, appended to the
                     end of the deck. Sits with the deck-level actions because it writes many
                     cards at once; the table's own "Add card" row is the one-at-a-time path. */}
-                <button
-                  onClick={() => { setIsDeckMenuOpen(false); setShowImportCards(true); }}
-                  className="popover-item"
-                  title="Add cards in bulk from a CSV file"
-                >
-                  <Upload className="w-4 h-4 mr-3" />
-                  Import cards from CSV
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => { setIsDeckMenuOpen(false); setShowImportCards(true); }}
+                    className="popover-item"
+                    title="Add cards in bulk from a CSV file"
+                  >
+                    <Upload className="w-4 h-4 mr-3" />
+                    Import cards from CSV
+                  </button>
+                )}
 
                 <div className="popover-separator" />
 
-                {/* DELETE ITEM */}
-                <button
-                  onClick={() => { setIsDeckMenuOpen(false); setShowDeleteDeck(true); }}
-                  className="popover-item popover-item-danger"
-                >
-                  <Trash2 className="w-4 h-4 mr-3" />
-                  Delete deck
-                </button>
+                {/* DELETE ITEM — owner only. A sharee removes the deck from their own list instead. */}
+                {isOwner ? (
+                  <button
+                    onClick={() => { setIsDeckMenuOpen(false); setShowDeleteDeck(true); }}
+                    className="popover-item popover-item-danger"
+                  >
+                    <Trash2 className="w-4 h-4 mr-3" />
+                    Delete deck
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setIsDeckMenuOpen(false); handleLeaveDeck(); }}
+                    className="popover-item popover-item-danger"
+                    title="Remove this shared deck from your list — the owner keeps it"
+                  >
+                    <LogOut className="w-4 h-4 mr-3" />
+                    Remove from my decks
+                  </button>
+                )}
               </PopoverMenu>
             </div>
 
@@ -1053,6 +1114,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 <div className="flex items-center gap-2">
 
                   {/* BULK DELETE BUTTON */}
+                  {canEdit && (
                   <Button
                     onClick={() => setShowBulkDeleteCards(true)}
                     disabled={selectedCardIds.size === 0 || isBulkDeleting}
@@ -1066,6 +1128,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                       </span>
                     )}
                   </Button>
+                  )}
                 </div>
               </div>
 
@@ -1075,7 +1138,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     this, and a per-row insert besides; a full-width button above the search
                     field would be a third way to do the same thing, pushing the cards
                     themselves further down a view whose whole point is showing them. */}
-                {cardView === "list" && (
+                {cardView === "list" && canEdit && (
                   <div className="pb-3">
                     <Button
                       onClick={() => setIsAddingCard(true)}
@@ -1091,7 +1154,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 {allCards.length === 0 && (
                   <div className="empty-state">
                     <p className="empty-state-title">No cards in this deck</p>
-                    <p className="empty-state-body">Add one to get started.</p>
+                    {canEdit && <p className="empty-state-body">Add one to get started.</p>}
                   </div>
                 )}
 
@@ -1114,7 +1177,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     // the same gutter the row's position uses, and selecting cards to delete
                     // in the middle of editing them all is two intentions at once. Hiding it
                     // also gives the toolbar its line back on a phone.
-                    selectable={!sheetDrafts}
+                    selectable={canEdit && !sheetDrafts}
                     selectedIds={selectedCardIds}
                     onSelectedIdsChange={setSelectedCardIds}
                     searchable
@@ -1158,6 +1221,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                         canReorder={sortKey === "category"}
                         reorderHint="Switch the sort to Category to drag cards into a new order."
                         onReorder={handleReorderCard}
+                        readOnly={!canEdit}
                       />
                     )}
                     // SHEET CONTROLS — one Edit button for the whole table, on the same line
@@ -1166,7 +1230,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     // a modal for one card) was the wrong shape for it: this makes every row's
                     // cells editable at once and saves them together. The list view still
                     // opens the full card editor, which is also where notes and source live.
-                    toolbarExtra={cardView === "table" ? (
+                    toolbarExtra={cardView === "table" && canEdit ? (
                       sheetDrafts ? (
                         <>
                           <span className="text-subtle mr-auto">{sheetStatusLabel}</span>
@@ -1216,15 +1280,19 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                           <Button className="btn-link" aria-label="Rating history" title="Rating history" onClick={() => setHistoryCard(card)}>
                             <History className="w-4 h-4" />
                           </Button>
-                          <Button className="btn-link" aria-label="Edit card" onClick={() => setEditingCard(card)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button className="btn-link" aria-label="Refine card" onClick={() => setRefiningCard(card)}>
-                            <Sparkles className="w-4 h-4" />
-                          </Button>
-                          <Button className="btn-link-red" aria-label="Delete card" onClick={() => setDeletingCard(card)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {canEdit && (
+                            <>
+                              <Button className="btn-link" aria-label="Edit card" onClick={() => setEditingCard(card)}>
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button className="btn-link" aria-label="Refine card" onClick={() => setRefiningCard(card)}>
+                                <Sparkles className="w-4 h-4" />
+                              </Button>
+                              <Button className="btn-link-red" aria-label="Delete card" onClick={() => setDeletingCard(card)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </>
                     )}
@@ -1378,6 +1446,16 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               onSave={handleEditDeck}
             />
 
+            {/* SHARE DECK MODAL — owner only */}
+            {isOwner && (
+              <ShareDeckModal
+                isOpen={showShareDeck}
+                deckId={id}
+                onClose={() => setShowShareDeck(false)}
+                onSharesChange={(count) => setDeck((prev) => (prev ? { ...prev, share_count: count } : prev))}
+              />
+            )}
+
             {/* DELETE DECK MODAL */}
             <DeleteDeckModal
               isOpen={showDeleteDeck}
@@ -1401,6 +1479,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
         onHandsFreeChange={setHandsFree}
         preferences={studyPreferences}
         existingCategories={existingCategories}
+        canEdit={canEdit}
         onRefetchCards={refetchCards}
         onQuit={handleQuitStudy}
         onExit={() => router.push("/modules/rune/ui/decks")}

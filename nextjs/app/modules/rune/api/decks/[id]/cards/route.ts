@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthorizedUser, getRequestChannel } from '@/lib/permissions';
 import { getCardsByDeckId, insertCard, updateCard, updateCardsBulk, deleteCard, CardSheetEdit, CardSheetInsert } from '../../../../lib/cardFunctions';
 import { CARD_SOURCE_REF_MAX, CARD_CATEGORY_MAX } from '../../../../types/card';
-import { getDeckById } from '../../../../lib/deckFunctions';
+import { requireDeckAccess, deckAccessErrorResponse, assertCardInDeck } from '../../../../lib/shareFunctions';
 
 // Validates one of the card's OPTIONAL free-text fields straight off the request body.
 // Returns null when it's fine, or the 400 response to send back.
@@ -34,10 +34,15 @@ export async function GET(
     const userId = session.user.id;
 
     const { id } = await context.params;
-    const cards = await getCardsByDeckId(userId!, id);
+    // Any role may read the cards; each comes back with the CALLER's own progress.
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'view');
+    const cards = await getCardsByDeckId(access.ownerId, id, userId!);
     return NextResponse.json(cards);
 
   } catch (error) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in GET /api/decks/[id]/cards:', error);
     return NextResponse.json(
       { error: 'Failed to fetch cards' },
@@ -59,8 +64,7 @@ export async function POST(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'edit');
 
     // A body that isn't JSON at all is a client mistake, not a server fault — parse it
     // behind a guard so it answers 400 with the standard { error } envelope instead of
@@ -106,10 +110,13 @@ export async function POST(
       return NextResponse.json({ error: 'after_card_id must be a string' }, { status: 400 });
     }
 
-    const card = await insertCard(userId!, id, front, back ?? '', notes || null, category || null, !!is_draft, source_ref || null, getRequestChannel(request), (after_card_id as string) || null);
+    const card = await insertCard(access.ownerId, id, front, back ?? '', notes || null, category || null, !!is_draft, source_ref || null, getRequestChannel(request), (after_card_id as string) || null);
     return NextResponse.json(card);
 
   } catch (error) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in POST /api/decks/[id]/cards:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {
@@ -146,8 +153,7 @@ export async function PUT(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'edit');
 
     // A body that isn't JSON at all is a client mistake, not a server fault — parse it
     // behind a guard so it answers 400 with the standard { error } envelope instead of
@@ -188,8 +194,10 @@ export async function PUT(
     // back, category, is_draft and source_ref are omitted (undefined) when the caller
     // didn't send them — updateCard treats that as "leave unchanged" rather than clearing
     // the value. An explicit null/'' back DOES clear it, leaving the card with no answer.
+    // The card lib scopes by owner only — pin the card to THIS deck first.
+    await assertCardInDeck(id, cardId);
     await updateCard(
-      userId!,
+      access.ownerId,
       cardId,
       front,
       'back' in body ? (back ?? '') : undefined,
@@ -202,6 +210,9 @@ export async function PUT(
     return NextResponse.json({ success: true });
 
   } catch (error) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in PUT /api/decks/[id]/cards:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {
@@ -244,8 +255,7 @@ export async function PATCH(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'edit');
 
     let body;
     try {
@@ -340,10 +350,13 @@ export async function PATCH(
       });
     }
 
-    const { updated, created } = await updateCardsBulk(userId!, id, edits, getRequestChannel(request), inserts);
+    const { updated, created } = await updateCardsBulk(access.ownerId, id, edits, getRequestChannel(request), inserts);
     return NextResponse.json({ success: true, updated, created });
 
   } catch (error) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in PATCH /api/decks/[id]/cards:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {
@@ -382,8 +395,7 @@ export async function DELETE(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'edit');
 
     // A body that isn't JSON at all is a client mistake, not a server fault — parse it
     // behind a guard so it answers 400 with the standard { error } envelope instead of
@@ -403,10 +415,17 @@ export async function DELETE(
       );
     }
 
-    await deleteCard(userId!, cardId);
+    if (typeof cardId !== 'string') {
+      return NextResponse.json({ error: 'cardId must be a string' }, { status: 400 });
+    }
+    await assertCardInDeck(id, cardId);
+    await deleteCard(access.ownerId, cardId);
     return NextResponse.json({ success: true });
 
   } catch (error) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in DELETE /api/decks/[id]/cards:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {

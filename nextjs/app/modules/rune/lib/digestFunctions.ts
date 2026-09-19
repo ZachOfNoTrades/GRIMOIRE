@@ -67,7 +67,7 @@ async function buildSummary(userId: string): Promise<DigestSummary> {
       `SELECT COUNT(*) AS new_count
        FROM cards c
        JOIN decks d ON d.id = c.deck_id AND d.is_archived = 0 AND d.is_disabled = 0
-       LEFT JOIN card_progress cp ON cp.card_id = c.id
+       LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId -- a sharee's review must not mark the owner's card as seen
        WHERE c.user_id = @userId AND c.is_disabled = 0 AND cp.id IS NULL`
     );
 

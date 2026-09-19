@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser, getRequestChannel } from '@/lib/permissions';
-import { getDeckById } from '../../../../../lib/deckFunctions';
+import { requireDeckAccess, deckAccessErrorResponse, assertCardInDeck } from '../../../../../lib/shareFunctions';
 import { getCardById } from '../../../../../lib/cardFunctions';
 import { refineCard } from '../../../../../lib/refineFunctions';
 
@@ -17,8 +17,7 @@ export async function POST(
 
     const { id } = await context.params;
 
-    // Verify deck ownership
-    await getDeckById(userId!, id);
+    const access = await requireDeckAccess({ id: userId!, email: session.user.email }, id, 'edit');
 
     const body = await request.json();
     const { cardId, feedback } = body;
@@ -37,14 +36,18 @@ export async function POST(
       );
     }
 
-    // Verify card ownership
-    await getCardById(userId!, cardId);
+    // Verify the card is in THIS deck (and so reachable through the caller's access).
+    await assertCardInDeck(id, cardId);
+    await getCardById(access.ownerId, cardId);
 
-    const result = await refineCard(userId!, cardId, feedback.trim(), getRequestChannel(request));
+    const result = await refineCard(access.ownerId, cardId, feedback.trim(), getRequestChannel(request));
 
     return NextResponse.json(result);
 
   } catch (error: any) {
+    const accessResponse = deckAccessErrorResponse(error);
+    if (accessResponse) return accessResponse;
+
     console.error('Error in POST /api/decks/[id]/cards/refine:', error);
 
     if (error instanceof Error && error.message.includes('No deck found')) {

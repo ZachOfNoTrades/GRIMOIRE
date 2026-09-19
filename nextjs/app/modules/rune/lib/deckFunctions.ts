@@ -55,18 +55,21 @@ export async function getAllDecks(userId: string): Promise<{ decks: DeckSummary[
   }
 }
 
-export async function getDeckById(userId: string, id: string): Promise<Deck> {
+// `userId` is the deck's OWNER (the ownership scope); `progressUserId` is whose study
+// progress last_reviewed_at is read from — the caller, which differs on a shared deck.
+export async function getDeckById(userId: string, id: string, progressUserId: string = userId): Promise<Deck> {
   let pool;
   try {
     pool = await getRuneConnection();
     const result = await pool.request()
       .input('userId', userId)
+      .input('progressUserId', progressUserId)
       .input('id', id)
       .query(`
         SELECT d.*, MAX(cp.last_reviewed_at) AS last_reviewed_at
         FROM decks d
         LEFT JOIN cards c ON c.deck_id = d.id AND c.is_disabled = 0
-        LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @userId
+        LEFT JOIN card_progress cp ON cp.card_id = c.id AND cp.user_id = @progressUserId
         WHERE d.id = @id AND d.user_id = @userId
         GROUP BY d.id, d.name, d.description, d.source_url, d.is_archived, d.is_disabled, d.is_favorite, d.user_id, d.created_at, d.modified_at
       `);
@@ -95,7 +98,18 @@ export async function deleteDeck(userId: string, deckId: string): Promise<void> 
     await transaction.begin();
 
     try {
-      // Delete card reviews for cards in this deck
+      // Ownership first, inside the transaction. The deletes below reach OTHER users' rows —
+      // sharees' reviews, progress and study sessions on this deck's cards — so nothing may
+      // run for a deck the caller doesn't own (the MCP tool calls this without a route check).
+      const owned = await transaction.request()
+        .input('userId', userId)
+        .input('deckId', deckId)
+        .query(`SELECT 1 AS ok FROM decks WHERE id = @deckId AND user_id = @userId`);
+      if (owned.recordset.length === 0) {
+        throw new Error(`No deck found for id: '${deckId}'`);
+      }
+
+      // Delete card reviews for cards in this deck (every user's — the deck may be shared)
       await transaction.request()
         .input('userId', userId)
         .input('deckId', deckId)
@@ -115,11 +129,12 @@ export async function deleteDeck(userId: string, deckId: string): Promise<void> 
           WHERE c.deck_id = @deckId AND c.user_id = @userId
         `);
 
-      // Delete study sessions for this deck
+      // Delete study sessions for this deck — sharees' too, or FK_study_sessions_deck blocks
+      // the deck delete. Their reviews in those sessions were all on this deck's cards and
+      // are already gone above.
       await transaction.request()
-        .input('userId', userId)
         .input('deckId', deckId)
-        .query(`DELETE FROM study_sessions WHERE deck_id = @deckId AND user_id = @userId`);
+        .query(`DELETE FROM study_sessions WHERE deck_id = @deckId`);
 
       // Delete cards in this deck
       await transaction.request()

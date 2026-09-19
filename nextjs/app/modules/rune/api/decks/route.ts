@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { getAllDecks, createDeck } from '../../lib/deckFunctions';
+import { getSharedDecks } from '../../lib/shareFunctions';
 import { DECK_NAME_MAX_LENGTH, DECK_SOURCE_URL_MAX_LENGTH } from '../../types/deck';
 
 export async function GET(request: Request) {
@@ -11,8 +12,13 @@ export async function GET(request: Request) {
     }
     const userId = session.user.id;
 
-    const result = await getAllDecks(userId!);
-    return NextResponse.json(result);
+    // `decks` stays the user's OWN decks — the home totals, the collection picker and the
+    // MCP tools all read it that way. Decks shared with them come back beside it in `shared`.
+    const [result, shared] = await Promise.all([
+      getAllDecks(userId!),
+      getSharedDecks({ id: userId!, email: session.user.email }),
+    ]);
+    return NextResponse.json({ ...result, shared });
 
   } catch (error) {
     console.error('Error in GET /api/decks:', error);

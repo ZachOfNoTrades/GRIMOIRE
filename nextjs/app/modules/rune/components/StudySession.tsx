@@ -129,6 +129,9 @@ interface StudySessionProps {
   onHandsFreeChange: (handsFree: boolean) => void;
   preferences: StudyPreferences;
   existingCategories: string[];
+  // False on a deck shared view-only — the in-session edit pencil is hidden. Defaults to true
+  // (collections are always the user's own decks).
+  canEdit?: boolean;
   // Re-fetches the host page's cards and returns the fresh list, so the running
   // session can reconcile without owning the fetch.
   onRefetchCards: () => Promise<CardWithProgress[]>;
@@ -185,6 +188,7 @@ export default function StudySession({
   onHandsFreeChange,
   preferences,
   existingCategories,
+  canEdit = true,
   onRefetchCards,
   onQuit,
   onExit,
@@ -1440,13 +1444,16 @@ export default function StudySession({
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {/* EDIT CARD BUTTON */}
-                    <Button
-                      onClick={(e) => { e.stopPropagation(); setEditingCard(currentCard); }}
-                      className="btn-link !p-0"
-                      title="Edit card"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        onClick={(e) => { e.stopPropagation(); setEditingCard(currentCard); }}
+                        className="btn-link !p-0"
+                        title="Edit card"
+                        aria-label="Edit card"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                    )}
 
                     {/* SPEAK ANSWER BUTTON */}
                     <Button
