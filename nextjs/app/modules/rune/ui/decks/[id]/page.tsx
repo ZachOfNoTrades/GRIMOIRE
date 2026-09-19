@@ -5,7 +5,7 @@ import { BackLink } from "@/components/BackLink";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload, Share2, LogOut } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload, Download, Share2, LogOut } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import ExpandableRowList from "@/components/ExpandableRowList";
@@ -29,6 +29,7 @@ import EditDeckModal from "./EditDeckModal";
 import DeleteDeckModal from "./DeleteDeckModal";
 import DeckHistorySection from "./DeckHistorySection";
 import ShareDeckModal from "./ShareDeckModal";
+import { buildCardsCsv, csvFileName, downloadCsv } from "../../../utils/exportUtils";
 
 // Sort options for a deck's card list. "category" is the historical default —
 // category runs in manual order_index — and is the only mode that can be grouped
@@ -826,6 +827,26 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  // Export every card in the deck to CSV, in the deck's own order. Read fresh from the server
+  // rather than from page state, which can hold optimistic rows that aren't saved yet.
+  // Available to every role — anyone who can open the deck can already read all of it.
+  const handleExportCsv = async () => {
+    try {
+      const response = await fetch(`/modules/rune/api/decks/${id}/cards`);
+      if (!response.ok) throw new Error("Request failed");
+      const cards: CardWithProgress[] = await response.json();
+      if (!Array.isArray(cards) || cards.length === 0) {
+        toast.error("This deck has no cards to export");
+        return;
+      }
+      const ordered = [...cards].sort((a, b) => a.order_index - b.order_index);
+      downloadCsv(csvFileName(deck?.name ?? "deck"), buildCardsCsv(ordered));
+    } catch (error) {
+      console.error("Error exporting deck:", error);
+      toast.error("Couldn't export the deck");
+    }
+  };
+
   // Leave a deck shared with you — removes it from your list (the owner's deck is untouched).
   // Not optimistic: it navigates away, so there is no row to paint first.
   const handleLeaveDeck = async () => {
@@ -994,6 +1015,17 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     Import cards from CSV
                   </button>
                 )}
+
+                {/* EXPORT ITEM — every card to a CSV the importer reads back as-is */}
+                <button
+                  onClick={() => { setIsDeckMenuOpen(false); handleExportCsv(); }}
+                  className="popover-item"
+                  disabled={allCards.length === 0}
+                  title="Download every card as a CSV file"
+                >
+                  <Download className="w-4 h-4 mr-3" />
+                  Export cards to CSV
+                </button>
 
                 <div className="popover-separator" />
 
