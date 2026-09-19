@@ -5,13 +5,29 @@ import { CardWithProgress } from "../types/card";
 // any other) with every column already matched, and the quoting is the RFC 4180 form that
 // importUtils.parseCSV reads: a card's markdown keeps its newlines, commas and quotes.
 //
+// Card text is exported without its embedded images/videos (see stripMedia).
+//
 // Source (the card's citation) is exported too even though the importer has no field for
 // it — it's the user's data, and the importer simply offers that column as "Skip".
 
+// Embedded images and videos (both markdown `![alt](url)` — see CardContent) are dropped:
+// their URLs point at auth-gated per-user uploads, so in a spreadsheet they are dead links,
+// and re-imported they would only work for someone who can already open the source deck.
+const MEDIA_EMBED = /!\[[^\]]*\]\([^)]*\)/g;
+
+function stripMedia(text: string): string {
+  return text
+    .replace(MEDIA_EMBED, "")
+    // An embed usually sat on its own line — don't leave the empty line (or a run of them).
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const COLUMNS: { header: string; value: (card: CardWithProgress) => string }[] = [
-  { header: "Front", value: (card) => card.front },
-  { header: "Back", value: (card) => card.back ?? "" },
-  { header: "Notes", value: (card) => card.notes ?? "" },
+  { header: "Front", value: (card) => stripMedia(card.front) },
+  { header: "Back", value: (card) => stripMedia(card.back ?? "") },
+  { header: "Notes", value: (card) => stripMedia(card.notes ?? "") },
   { header: "Category", value: (card) => card.category ?? "" },
   // "yes"/blank rather than true/false: reads naturally in a spreadsheet and is one of the
   // importer's accepted truthy values.
