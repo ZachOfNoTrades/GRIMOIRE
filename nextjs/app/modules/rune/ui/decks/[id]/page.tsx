@@ -1169,8 +1169,10 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 {/* ADD CARD BUTTON — list view only. The table has its own last line for
                     this, and a per-row insert besides; a full-width button above the search
                     field would be a third way to do the same thing, pushing the cards
-                    themselves further down a view whose whole point is showing them. */}
-                {cardView === "list" && canEdit && (
+                    themselves further down a view whose whole point is showing them.
+                    An empty deck renders no table at all (so no last line either), so the
+                    button shows in both views until the first card exists. */}
+                {(cardView === "list" || allCards.length === 0) && canEdit && (
                   <div className="pb-3">
                     <Button
                       onClick={() => setIsAddingCard(true)}
