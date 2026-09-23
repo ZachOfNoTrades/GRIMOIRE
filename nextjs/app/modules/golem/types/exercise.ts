@@ -20,7 +20,8 @@ export interface ExerciseSummary {
   primary_muscles: string[];
   secondary_muscles: string[];
   estimated_one_rep_max: number | null;
-  last_used_at: Date | null;
+  last_used_at: Date | null;             // latest COMPLETED session that included the exercise
+  missing_equipment?: string[];          // required equipment the listed location hasn't registered (blocks generation even when enabled)
 }
 
 // A per-user temporary hold on an exercise (injury / contraindication). Excludes the exercise from

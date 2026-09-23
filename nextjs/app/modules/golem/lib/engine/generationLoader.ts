@@ -2,7 +2,7 @@
 // candidate pools. Singleton-pool convention. Pairs with loader.ts (per-exercise history).
 import { getGolemConnection, closeGolemConnection } from '../db';
 import type { ProgressionModel } from './types';
-import type { ScoringCandidate, SlotSpec } from './selection';
+import type { ScoringCandidate, SlotSpec, PinnedMuscles } from './selection';
 import type { SlotDefinition } from './orchestrator';
 
 // Resolve the day archetype a session instantiates (the progression-lineage identity).
@@ -146,6 +146,41 @@ const MISSING_EQUIPMENT_SQL = `
     ) m
   ), '')
 `;
+
+// Name + muscles of each pinned exercise, read straight from the catalog (NOT the candidate pool, which
+// drops a pin that is disabled or held at the location). Constrains the substitute a blocked pin gets.
+export async function getPinnedMuscles(exerciseIds: string[]): Promise<Map<string, PinnedMuscles>> {
+  const byId = new Map<string, PinnedMuscles>();
+  if (exerciseIds.length === 0) return byId;
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const request = pool.request();
+    const params = exerciseIds.map((id, i) => {
+      request.input(`id${i}`, id);
+      return `@id${i}`;
+    });
+    const result = await request.query(`
+      SELECT CAST(e.id AS NVARCHAR(36)) AS id, e.name, mg.name AS muscle, emg.is_primary
+      FROM exercises e
+      LEFT JOIN exercise_muscle_groups emg ON emg.exercise_id = e.id
+      LEFT JOIN muscle_groups mg ON mg.id = emg.muscle_group_id
+      WHERE e.id IN (${params.join(', ')})
+    `);
+    for (const r of result.recordset) {
+      const key = String(r.id).toUpperCase();
+      const entry = byId.get(key) ?? { name: r.name, primaryMuscles: [], secondaryMuscles: [] };
+      if (r.muscle) (r.is_primary ? entry.primaryMuscles : entry.secondaryMuscles).push(r.muscle);
+      byId.set(key, entry);
+    }
+    return byId;
+  } catch (error) {
+    console.error('Error fetching pinned exercise muscles:', error);
+    throw error;
+  } finally {
+    if (pool) await closeGolemConnection(pool);
+  }
+}
 
 // Split the comma-joined STRING_AGG output back into a name array (empty string → []).
 function splitNames(value: string | null | undefined): string[] {

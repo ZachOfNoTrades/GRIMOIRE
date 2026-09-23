@@ -43,6 +43,7 @@ import {
   getExerciseById,
   getExerciseEquipment,
   setExerciseEquipment,
+  getMissingEquipmentAtLocation,
 } from '@/app/modules/golem/lib/exerciseFunctions';
 import {
   getAllMuscleGroups,
@@ -310,7 +311,7 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
     'golem_list_exercises',
     {
       description:
-        'All exercises available to the user, with primary/secondary muscle group mappings and the user\'s best logged set per exercise. Use when reasoning about exercise selection or substitutions.',
+        'All exercises available to the user, with primary/secondary muscle group mappings and the user\'s best logged set per exercise. is_disabled is the active location\'s enable list; missing_equipment lists required equipment that location has not registered (the generator treats such an exercise as unavailable even when enabled). last_used_at = latest completed session that included it. Use when reasoning about exercise selection or substitutions.',
       inputSchema: {},
     },
     async () => json(await getAllExercisesWithMuscleGroups(userId)),
@@ -1270,7 +1271,13 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
       } else {
         await disableExercise(userId, exerciseId, resolvedLocationId);
       }
-      return json({ success: true, exerciseId, enabled, locationId: resolvedLocationId });
+      // Enabling doesn't register equipment: the generator still blocks an exercise whose required
+      // equipment is missing at the location. Say so at enable time instead of at generation.
+      const missingEquipment = enabled ? await getMissingEquipmentAtLocation(exerciseId, resolvedLocationId) : [];
+      const warning = missingEquipment.length > 0
+        ? `Enabled, but this location has not registered required equipment: ${missingEquipment.join(', ')}. The generator will still treat it as unavailable until that equipment is added to the location.`
+        : undefined;
+      return json({ success: true, exerciseId, enabled, locationId: resolvedLocationId, missingEquipment, warning });
     },
   );
 

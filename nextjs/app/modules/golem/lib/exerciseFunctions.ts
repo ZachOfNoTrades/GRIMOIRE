@@ -460,6 +460,38 @@ export async function getExerciseHolds(userId: string, activeOnly = false): Prom
   }
 }
 
+// Names of the equipment an exercise requires that the location has not registered. Enabling an exercise
+// at a location does not make it generatable if this is non-empty — callers warn with it.
+export async function getMissingEquipmentAtLocation(exerciseId: string, locationId: string | null): Promise<string[]> {
+  if (!locationId) return [];
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const result = await pool.request()
+      .input('exerciseId', exerciseId)
+      .input('locationId', locationId)
+      .query(`
+        SELECT DISTINCT eq.name
+        FROM exercise_equipment ee
+        JOIN equipment eq ON eq.id = ee.equipment_id
+        WHERE ee.exercise_id = @exerciseId AND ee.is_required = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM location_equipment le
+            WHERE le.location_id = @locationId AND le.equipment_id = ee.equipment_id
+          )
+        ORDER BY eq.name
+      `);
+    return result.recordset.map((r) => r.name as string);
+  } catch (error) {
+    console.error('Error fetching missing equipment for exercise:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeGolemConnection(pool);
+    }
+  }
+}
+
 export async function getAllExercisesWithMuscleGroups(userId: string, locationId?: string | null): Promise<ExerciseSummary[]> {
   let pool;
   try {
@@ -474,8 +506,26 @@ export async function getAllExercisesWithMuscleGroups(userId: string, locationId
         SELECT e.id, COALESCE(o.custom_name, e.name) AS name, e.category, e.is_timed, e.distance_type,
                COALESCE(leo.is_disabled, 0) AS is_disabled,
                mg.name AS muscle_group_name, emg.is_primary,
-               best.best_set_weight, best.best_set_reps, last_use.last_used_at
+               best.best_set_weight, best.best_set_reps, last_use.last_used_at,
+               missing.names AS missing_equipment
         FROM exercises e
+        -- Required equipment the location doesn't have. is_disabled is only the location's enable list;
+        -- the generator ALSO needs the equipment registered, so an exercise can read as enabled here and
+        -- still be blocked at generation. Expose both so the two lists can't silently disagree.
+        OUTER APPLY (
+          SELECT STRING_AGG(m.name, ', ') AS names
+          FROM (
+            SELECT DISTINCT eq.name
+            FROM exercise_equipment ee
+            JOIN equipment eq ON eq.id = ee.equipment_id
+            WHERE ee.exercise_id = e.id AND ee.is_required = 1
+              AND @locationId IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM location_equipment le
+                WHERE le.location_id = @locationId AND le.equipment_id = ee.equipment_id
+              )
+          ) m
+        ) missing
         LEFT JOIN user_exercise_overrides o ON o.exercise_id = e.id AND o.user_id = @userId
         LEFT JOIN location_exercise_overrides leo ON leo.exercise_id = e.id AND leo.location_id = @locationId
         LEFT JOIN exercise_muscle_groups emg ON e.id = emg.exercise_id
@@ -494,10 +544,12 @@ export async function getAllExercisesWithMuscleGroups(userId: string, locationId
           WHERE rn = 1
         ) best ON e.id = best.exercise_id
         LEFT JOIN (
+          -- Completed sessions only: an abandoned or planned session is not a use, and the generation
+          -- engine measures its days-since-last-performed from completed sessions too.
           SELECT se.exercise_id, MAX(ws.started_at) AS last_used_at
           FROM session_segments se
           JOIN workout_sessions ws ON se.session_id = ws.id
-          WHERE ws.started_at IS NOT NULL AND ws.user_id = @userId
+          WHERE ws.started_at IS NOT NULL AND ws.user_id = @userId AND ws.is_completed = 1
           GROUP BY se.exercise_id
         ) last_use ON e.id = last_use.exercise_id
         WHERE (e.user_id IS NULL OR e.user_id = @userId)
@@ -527,6 +579,7 @@ export async function getAllExercisesWithMuscleGroups(userId: string, locationId
             ? calculateEstimatedOneRepMax(row.best_set_weight, row.best_set_reps)
             : null,
           last_used_at: row.last_used_at ?? null,
+          missing_equipment: (row.missing_equipment ?? '').split(',').map((n: string) => n.trim()).filter(Boolean),
         });
       }
 

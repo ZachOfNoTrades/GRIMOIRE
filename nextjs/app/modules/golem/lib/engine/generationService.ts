@@ -1,7 +1,7 @@
 // Server-side orchestration for engine-driven session generation: resolve the day archetype, load its
 // slots, assemble candidate pools + per-exercise history, run the selection+loading engine, and return
 // both the persistence segments and the human-readable plan. Composed by the generate-engine API route.
-import { getDayArchetypeIdForSession, getSlotDefinitions, getCandidatesForMuscle, getCandidatesByCategory } from './generationLoader';
+import { getDayArchetypeIdForSession, getSlotDefinitions, getCandidatesForMuscle, getCandidatesByCategory, getPinnedMuscles } from './generationLoader';
 import { getRecentTopSet, getE1rmSeries } from './loader';
 import { getActiveLocation, getActiveWarmupLocation } from '../locationFunctions';
 import { generateDay } from './orchestrator';
@@ -32,6 +32,14 @@ export async function generateSessionTargetsWithEngine(
   }
 
   const slotDefinitions = await getSlotDefinitions(userId, dayArchetypeId);
+
+  // Pinned exercises' own muscles, so a pin that can't be used is replaced by something that trains the
+  // same thing rather than whatever scores best in the whole category.
+  const pinnedIds = Array.from(new Set(slotDefinitions.map((d) => d.slot.pinnedExerciseId).filter((id): id is string => !!id)));
+  const pinnedMuscles = await getPinnedMuscles(pinnedIds);
+  for (const d of slotDefinitions) {
+    if (d.slot.pinnedExerciseId) d.slot.pinnedMuscles = pinnedMuscles.get(d.slot.pinnedExerciseId.toUpperCase()) ?? null;
+  }
 
   // The governing (working) location — its equipment + enabled-exercise list constrain every
   // non-warmup slot's candidate pool. No active location set → no location-based filtering (permissive).

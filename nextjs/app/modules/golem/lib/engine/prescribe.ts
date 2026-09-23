@@ -54,6 +54,9 @@ export function buildPrescription(
   const warmups = (isTimeBased || rpeBased) ? [] : warmupRamp(decision.load);
 
   const workingWeight = rpeBased ? 0 : decision.load;                          // 0 = unset, go by RPE
+  // A cold start is a baseline, not a progression step: the decision above was made off a synthetic top
+  // set at the range floor, and "climb one rep" turned a 12-20 slot into an odd 13. Start at the floor.
+  const workingReps = rpeBased ? state.repRange[0] : decision.reps;
   const workingRpe = (rpeBased || weightNeedsRpeGuide) ? (state.targetRpe ?? DEFAULT_FEEL_RPE) : state.targetRpe;
   const rationale = rpeBased
     ? 'no history → prescribe by RPE (log your working weight)'
@@ -67,11 +70,11 @@ export function buildPrescription(
       setNumber: i + 1,            // working sets number independently of warmups (schema rule)
       isWarmup: false,
       weight: workingWeight,
-      reps: decision.reps,         // null for time_effort
+      reps: workingReps,           // null for time_effort
       rpe: workingRpe,
       timeSeconds: decision.timeSeconds, // populated for time_effort, null otherwise
     });
   }
 
-  return { warmups, working, load: workingWeight, reps: decision.reps, timeSeconds: decision.timeSeconds, rationale };
+  return { warmups, working, load: workingWeight, reps: workingReps, timeSeconds: decision.timeSeconds, rationale };
 }

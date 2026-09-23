@@ -60,10 +60,13 @@ function pinWarningText(outcome: PinOutcome, pickedName: string | null, location
     return `pinned ${pinned} kept despite missing equipment ${where}${detail} — check this location's equipment list`;
   }
 
-  const replacement = pickedName ? `substituted ${pickedName}` : 'slot dropped (no eligible alternative)';
+  const basis = outcome.substituteBasis ?? null;
+  const replacement = pickedName
+    ? `substituted ${pickedName}${basis ? ` (trains ${basis})` : ''}`
+    : `slot left empty (no eligible alternative${basis ? ` training ${basis}` : ''})`;
   switch (outcome.reason) {
     case 'not_in_pool':
-      return `pinned exercise unavailable ${where} (on hold, disabled here, or not a mover for this slot's target) — ${replacement}`;
+      return `${outcome.pinnedExerciseName ? `pinned ${pinned}` : 'pinned exercise'} unavailable ${where} (on hold, disabled here, or not a mover for this slot's target) — ${replacement}`;
     case 'contraindicated':
       return `pinned ${pinned} is contraindicated for this slot${detail} — ${replacement}`;
     case 'requires_muscle':
@@ -82,10 +85,15 @@ function pinWarningText(outcome: PinOutcome, pickedName: string | null, location
 }
 
 // A warmup slot's fixed dose: setTarget sets at the range floor, no load, no RPE. Timed when the picked
-// exercise logs by duration (or the slot carries a time range) → seconds from the range floor (null = self-report);
+// exercise logs by duration (or the slot carries a time range) → seconds from the range floor (no range → default hold);
 // otherwise rep-based at rep_low. All sets are flagged is_warmup so they're excluded from working volume/e1RM.
+// A rep-dosed warmup slot (e.g. "Glutes, 2x15") can resolve to a hold like Pigeon Stretch. With no time
+// range on the slot that used to emit sets with neither reps nor time — nothing to do. Give it a hold.
+export const DEFAULT_WARMUP_HOLD_SECONDS = 30;
+
 function warmupDose(progression: ProgressionState, candidateIsTimed: boolean): PrescribedSet[] {
   const timed = candidateIsTimed || progression.timeRange !== null;
+  const holdSeconds = progression.timeRange ? progression.timeRange[0] : DEFAULT_WARMUP_HOLD_SECONDS;
   const sets: PrescribedSet[] = [];
   for (let i = 0; i < progression.setTarget; i++) {
     sets.push({
@@ -94,7 +102,7 @@ function warmupDose(progression: ProgressionState, candidateIsTimed: boolean): P
       weight: 0,
       reps: timed ? null : progression.repRange[0],
       rpe: null,
-      timeSeconds: timed ? (progression.timeRange ? progression.timeRange[0] : null) : null,
+      timeSeconds: timed ? holdSeconds : null,
     });
   }
   return sets;
@@ -193,6 +201,18 @@ export function generateDay(
 
     const prescription = buildPrescription(definition.progression, topSet, history.e1rmSeries, { hasHistory: !isBaseline });
 
+    // Load decisions read WORKING sets only, but the exercise may have been done more recently as warmup
+    // or unloaded work (daysSinceUsed counts any completed segment). Say so, otherwise "175 days" next to
+    // a "last used 76 days ago" elsewhere reads like two contradicting histories.
+    const lastPerformed = picked.candidate.daysSinceUsed;
+    const workingDays = history.topSet?.daysSince ?? null;
+    let exposureNote = '';
+    if (lastPerformed !== null && (workingDays === null || lastPerformed < workingDays)) {
+      exposureNote = workingDays === null
+        ? ` · no working-set history; last performed ${lastPerformed} days ago as warmup/unloaded work`
+        : ` · last performed ${lastPerformed} days ago as warmup/unloaded work`;
+    }
+
     generated.push({
       slotRole: definition.slot.role,
       progressionModel: definition.progression.model,
@@ -200,7 +220,7 @@ export function generateDay(
       exerciseName: picked.candidate.name,
       warmups: prescription.warmups,
       working: prescription.working,
-      rationale: pinWarning ? `${pinWarning} · ${prescription.rationale}` : prescription.rationale,
+      rationale: `${pinWarning ? `${pinWarning} · ` : ''}${prescription.rationale}${exposureNote}`,
       selectionScore: picked.score,
       isBaseline,
       isWarmup: false,

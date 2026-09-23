@@ -61,7 +61,7 @@ function regressForLayoff(state: ProgressionState, topSet: TopSet, retention: nu
     load,
     reps,
     timeSeconds: null,
-    rationale: `${topSet.daysSince} days since last performed → regress load ${pctOff}% off a stale top set, hold reps`,
+    rationale: `${topSet.daysSince} days since last working set → regress load ${pctOff}% off a stale top set, hold reps`,
   };
 }
 
@@ -180,7 +180,7 @@ export function nextTimeEffort(state: ProgressionState, topSet: TopSet): LoadDec
       load: topSet.weight,
       reps: null,
       timeSeconds: next,
-      rationale: `${topSet.daysSince} days since last performed → regress duration off a stale effort`,
+      rationale: `${topSet.daysSince} days since last working set → regress duration off a stale effort`,
     };
   }
 

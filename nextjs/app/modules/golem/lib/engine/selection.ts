@@ -25,6 +25,14 @@ export interface ScoringCandidate {
   typicalTimeSeconds?: number | null; // mean logged duration for THIS user (null = never logged timed work)
 }
 
+// A pinned exercise's name + muscles, loaded independently of the candidate pool (the pin is often
+// missing from the pool precisely because it is disabled or held at this location).
+export interface PinnedMuscles {
+  name: string;
+  primaryMuscles: string[];
+  secondaryMuscles: string[];
+}
+
 // The slot being filled (subset of day_slots relevant to selection).
 export interface SlotSpec {
   role: string;
@@ -32,6 +40,7 @@ export interface SlotSpec {
   categoryFilter: string;               // hard filter
   rotationCadence: 'never' | 'per_block' | 'per_session';
   pinnedExerciseId: string | null;      // specificity slots (never / per_block)
+  pinnedMuscles?: PinnedMuscles | null; // the pin's own muscles — constrains a substitute when the pin can't be used
   excludeExerciseIds: string[];         // dedup: exercises already chosen this day/week
   contraindicatedMuscles?: string[];    // hard-exclude any candidate recruiting one of these (injury, or day_slots.excluded_muscles → movement-pattern constraint, e.g. exclude 'Lower Back' to demand a leg-curl over a hinge)
   requiredMuscles?: string[];           // hard-require: candidate must ALSO recruit ALL of these (day_slots.required_muscles → e.g. a Shoulders slot requiring 'Triceps' demands an overhead press, not a face pull/lateral raise)
@@ -181,6 +190,37 @@ export interface PinOutcome {
   reason: string;                    // hard-filter code ('equipment' | 'contraindicated' | …) or 'not_in_pool'
   detail: string[];                  // what specifically blocked it (missing equipment / offending muscles)
   honored: boolean;
+  substituteBasis?: string | null;   // what the substitute had to share with the pin (null = pin's muscles unknown)
+}
+
+// Narrow the pool for a pin's substitute, most specific tier first:
+//   1. shares a PRIMARY mover with the pin
+//   2. recruits one of the pin's primary movers at all (as a secondary)
+//   3. is a primary mover for one of the pin's secondary muscles
+// The first tier with an eligible candidate wins. An empty result means the slot stays unfilled.
+// When the pin's muscles are unknown (exercise deleted), fall back to the slot's target muscle; with no
+// target either there is nothing to constrain on, so nothing is substituted.
+function substituteTier(
+  candidates: ScoringCandidate[],
+  slot: SlotSpec,
+  pinned: PinnedMuscles | null,
+): { tier: ScoringCandidate[]; basis: string | null } {
+  const eligible = candidates.filter((c) => hardFilterReason(c, slot) === null);
+  const anyOf = (list: string[], wanted: string[]) => wanted.some((m) => list.includes(m));
+
+  if (!pinned || pinned.primaryMuscles.length === 0) {
+    if (!slot.targetMuscle) return { tier: [], basis: null };
+    const target = [slot.targetMuscle];
+    return { tier: eligible.filter((c) => anyOf(c.primaryMuscles, target)), basis: slot.targetMuscle };
+  }
+
+  const tiers: Array<[ScoringCandidate[], string]> = [
+    [eligible.filter((c) => anyOf(c.primaryMuscles, pinned.primaryMuscles)), pinned.primaryMuscles.join('/')],
+    [eligible.filter((c) => anyOf(c.allMuscles, pinned.primaryMuscles)), pinned.primaryMuscles.join('/')],
+    [eligible.filter((c) => anyOf(c.primaryMuscles, pinned.secondaryMuscles)), pinned.secondaryMuscles.join('/')],
+  ];
+  for (const [tier, basis] of tiers) if (tier.length > 0) return { tier, basis };
+  return { tier: [], basis: pinned.primaryMuscles.join('/') };
 }
 
 // Hard-filter codes that a pin is allowed to OVERRIDE. Equipment availability is a fact about the
@@ -332,7 +372,7 @@ export function selectForSlot(
     // PIN NOT IN THE POOL — held (injury), disabled at this location, wrong category, or simply not a
     // primary mover for the slot's target muscle. Nothing to emit, so the scorer substitutes — loudly.
     if (!pinned) {
-      pinOutcome = { pinnedExerciseId: slot.pinnedExerciseId, pinnedExerciseName: null, reason: 'not_in_pool', detail: [], honored: false };
+      pinOutcome = { pinnedExerciseId: slot.pinnedExerciseId, pinnedExerciseName: slot.pinnedMuscles?.name ?? null, reason: 'not_in_pool', detail: [], honored: false };
     } else {
       // Dedup never blocks a pin (the pin IS the answer for this slot), so it's cleared before filtering.
       const reason = hardFilterReason(pinned, { ...slot, excludeExerciseIds: [] });
@@ -351,9 +391,20 @@ export function selectForSlot(
     }
   }
 
+  // A substitute for a pin must train what the pin trained. Without this, a muscle-less slot (isolation
+  // with no target muscle) scored the whole category pool and replaced a disabled Hip Abduction Machine
+  // with a Hammer Curl. Never fall back to an unconstrained pick: no match → the slot stays empty.
+  let pool = candidates;
+  if (pinOutcome && !pinOutcome.honored) {
+    const pinnedMuscles = slot.pinnedMuscles ?? null;
+    const { tier, basis } = substituteTier(candidates, slot, pinnedMuscles);
+    pool = tier;
+    pinOutcome.substituteBasis = basis;
+  }
+
   let best: ScoredCandidate | null = null;
   let bestTie = 0;
-  for (const c of candidates) {
+  for (const c of pool) {
     const scored = scoreCandidate(c, slot, ctx);
     if (scored.score === -Infinity) continue;
     const tie = tieBreakKey(c.exerciseId, slot);
