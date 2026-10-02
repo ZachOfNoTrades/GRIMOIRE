@@ -6,6 +6,7 @@ import {
   Target,
   Apple,
   Skull,
+  Dices,
 } from "lucide-react";
 import ForageTreeIcon from "@/components/ui/ForageTreeIcon";
 
@@ -19,6 +20,7 @@ export const iconMap: Record<string, ModuleIcon> = {
   Target,
   Apple,
   Skull,
+  Dices,
   ForageTree: ForageTreeIcon,
 };
 

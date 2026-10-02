@@ -159,7 +159,9 @@ export default function Navbar({ children }: NavbarProps) {
   const isAuthPage = pathname.startsWith("/auth");
   // Damnation's guest pages are served to people with no account; the app chrome would only
   // offer them menus that bounce to sign-in.
-  const isGuestPage = pathname === "/damnation" || pathname.startsWith("/damnation/");
+  // Oracle's player display is a full-screen shared view with no account either.
+  const isGuestPage =
+    pathname === "/damnation" || pathname.startsWith("/damnation/") || pathname === "/oracle" || pathname.startsWith("/oracle/");
 
   // Don't render on auth / similar unauthenticated pages.
   if (isAuthPage || isGuestPage) {

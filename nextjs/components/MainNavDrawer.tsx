@@ -64,6 +64,10 @@ const MODULE_PAGES: Record<string, ModulePage[]> = {
     { label: "Home", sub: "home", icon: Skull },
     { label: "Settings", sub: "settings", icon: Settings },
   ],
+  oracle: [
+    { label: "Home", sub: "home", icon: Home },
+    { label: "Settings", sub: "settings", icon: Settings },
+  ],
   forage: [
     { label: "Home", sub: "home", icon: Home },
     { label: "Food log", sub: "foods", icon: Apple },

@@ -1,0 +1,338 @@
+import { getMainConnection } from "@/lib/db";
+import type { AuthUser } from "@/lib/permissions";
+import { checkGenerationLimit, logGeneration } from "@/lib/generationLimit";
+import type { ChipContent, EntityKind, ImageChipContent, OracleChip, OracleEntity, OracleImage } from "../types/oracle";
+import { CHIP_BAR_SIZE, CHIP_BATCH_SIZE, CHIP_LABEL_MAX, CHIP_QUEUE_LOW, ENTITY_KINDS } from "./constants";
+import { getCampaign, setDisplay } from "./campaignFunctions";
+import { createEntity, updateEntity } from "./entityFunctions";
+import { OracleError } from "./errors";
+import { addEvent } from "./eventFunctions";
+import { buildContext, coerceTextContent, generateChipBatch, outlineEntity, type EntityOutline } from "./generationFunctions";
+import { findInspirationImage, importPicture } from "./imageProviders";
+import { parseJson } from "./mapData";
+import { getMap } from "./mapFunctions";
+import { findChallengeRow, statBlockFromChallenge } from "./reference";
+import { getSettings } from "./settingsFunctions";
+
+// THE SUGGESTION BANNER
+//
+// The banner is a ticker: items scroll past, and one that has gone off the left edge is dropped.
+// It holds up to CHIP_BAR_SIZE items (is_queued = 0); behind it sits a queue prepared ahead of
+// time (is_queued = 1). Dropping an item brings the next queued one on at the right, and when
+// the queue runs low a new batch is prepared in the background. Because an item is prepared
+// together with whatever a tap needs, neither the scroll nor a tap ever waits on a generation.
+//
+// Two kinds of item:
+//   text   a question the DM is likely to have, with up to three ready answers
+//   image  a reference picture found on the web, which a tap turns into a creature, person or place
+
+const SOURCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// One picture for about every three text items, when pictures are switched on.
+const IMAGES_PER_BATCH = 2;
+
+type ChipRow = { id: string; label: string; content: string; is_pinned: boolean; ts_shown: Date | null };
+
+function coerceContent(raw: unknown, label: string): ChipContent | null {
+  const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  if (item.type === "image") {
+    if (typeof item.source_id !== "string" || !SOURCE_ID.test(item.source_id) || typeof item.thumbnail !== "string" || typeof item.image_url !== "string") return null;
+    return {
+      type: "image",
+      source_id: item.source_id,
+      thumbnail: item.thumbnail,
+      image_url: item.image_url,
+      credit: typeof item.credit === "string" ? item.credit : "",
+      suggested_kind: ENTITY_KINDS.includes(item.suggested_kind as EntityKind) ? (item.suggested_kind as EntityKind) : "creature",
+      suggested_name: typeof item.suggested_name === "string" && item.suggested_name ? item.suggested_name : label,
+    };
+  }
+  return coerceTextContent(raw, label);
+}
+
+function toChip(row: ChipRow): OracleChip | null {
+  const content = coerceContent(parseJson<unknown>(row.content, null), row.label);
+  if (!content) return null;
+  return {
+    id: row.id.toLowerCase(),
+    label: row.label,
+    content,
+    is_pinned: !!row.is_pinned,
+    ts_shown: row.ts_shown ? new Date(row.ts_shown).toISOString() : null,
+  };
+}
+
+// The banner, oldest first.
+export async function listChips(campaignId: string): Promise<OracleChip[]> {
+  const pool = await getMainConnection();
+  const result = await pool.request().input("campaignId", campaignId).query(`
+    SELECT id, label, content, is_pinned, ts_shown
+    FROM oracle_chips
+    WHERE campaign_id = @campaignId AND is_queued = 0
+    ORDER BY ts_shown, ts_created, id
+  `);
+  return (result.recordset as ChipRow[]).map(toChip).filter((chip): chip is OracleChip => chip !== null);
+}
+
+// Background runs in flight, one per campaign at most. Kept on globalThis so a module reload
+// cannot start a second one for the same campaign.
+const globalStore = globalThis as unknown as {
+  __oracleChipRuns?: Map<string, Promise<void>>;
+  __oracleChipErrors?: Map<string, string>;
+  __oracleChipHold?: Map<string, number>;
+};
+const runs: Map<string, Promise<void>> = globalStore.__oracleChipRuns ?? (globalStore.__oracleChipRuns = new Map());
+const lastErrors: Map<string, string> = globalStore.__oracleChipErrors ?? (globalStore.__oracleChipErrors = new Map());
+// After a batch fails, no new batch starts for that campaign until this time. Without it, a DM
+// who has reached the generation limit would trigger (and be told about) a failed batch every
+// time an item scrolled off.
+const holdUntil: Map<string, number> = globalStore.__oracleChipHold ?? (globalStore.__oracleChipHold = new Map());
+const LIMIT_HOLD_MS = 10 * 60 * 1000;
+const FAILURE_HOLD_MS = 30 * 1000;
+
+async function countChips(campaignId: string): Promise<{ bar: number; queued: number }> {
+  const pool = await getMainConnection();
+  const result = await pool.request().input("campaignId", campaignId).query(`
+    SELECT SUM(CASE WHEN is_queued = 0 THEN 1 ELSE 0 END) AS bar, SUM(CASE WHEN is_queued = 1 THEN 1 ELSE 0 END) AS queued
+    FROM oracle_chips WHERE campaign_id = @campaignId
+  `);
+  return { bar: result.recordset[0].bar ?? 0, queued: result.recordset[0].queued ?? 0 };
+}
+
+async function insertQueued(campaignId: string, label: string, content: ChipContent): Promise<void> {
+  const pool = await getMainConnection();
+  await pool
+    .request()
+    .input("campaignId", campaignId)
+    .input("label", label.slice(0, CHIP_LABEL_MAX))
+    .input("content", JSON.stringify(content))
+    .query(`
+      INSERT INTO oracle_chips (campaign_id, label, content, is_queued)
+      SELECT @campaignId, @label, @content, 1
+      WHERE EXISTS (SELECT 1 FROM oracle_campaigns WHERE id = @campaignId)
+    `);
+}
+
+// Start a background batch unless one is already running for this campaign. Counts against the
+// app-wide generation limit like any other generation.
+function startGeneration(campaignId: string, user: AuthUser, wanted: number): void {
+  if (runs.has(campaignId) || (holdUntil.get(campaignId) ?? 0) > Date.now()) return;
+  const run = (async () => {
+    try {
+      const limit = await checkGenerationLimit(user.id, user.generationLimit);
+      if (!limit.allowed) {
+        throw new OracleError(429, `Generation limit reached (${limit.count}/${limit.limit}). Suggestions resume later.`);
+      }
+      await logGeneration(user.id, "oracle/chips");
+
+      const pool = await getMainConnection();
+      const existing = await pool.request().input("campaignId", campaignId).query(`
+        SELECT label, content FROM oracle_chips WHERE campaign_id = @campaignId
+      `);
+      const usedSources = new Set<string>();
+      for (const row of existing.recordset) {
+        const content = parseJson<{ source_id?: string } | null>(row.content, null);
+        if (content?.source_id) usedSources.add(content.source_id);
+      }
+
+      const [context, settings] = await Promise.all([buildContext(campaignId), getSettings(user.id)]);
+      const batch = await generateChipBatch(
+        context,
+        wanted,
+        existing.recordset.map((row) => row.label),
+        settings.banner_images ? IMAGES_PER_BATCH : 0
+      );
+
+      // Pictures are spread through the batch rather than bunched at its end.
+      const items: { label: string; content: ChipContent }[] = batch.chips.map((chip) => ({ label: chip.label, content: chip.content }));
+      let slot = 1;
+      for (const idea of batch.imageIdeas) {
+        const found = await findInspirationImage(idea.query, usedSources);
+        if (!found) continue;
+        usedSources.add(found.id);
+        const content: ImageChipContent = {
+          type: "image",
+          source_id: found.id,
+          thumbnail: found.thumbnail,
+          image_url: found.full,
+          credit: found.credit,
+          suggested_kind: idea.kind,
+          suggested_name: idea.name,
+        };
+        items.splice(Math.min(slot, items.length), 0, { label: idea.name, content });
+        slot += 3;
+      }
+      for (const item of items) await insertQueued(campaignId, item.label, item.content);
+      lastErrors.delete(campaignId);
+    } catch (error) {
+      const message = error instanceof OracleError ? error.message : "Suggestions couldn't be prepared. They will retry.";
+      lastErrors.set(campaignId, message);
+      holdUntil.set(campaignId, Date.now() + (error instanceof OracleError && error.status === 429 ? LIMIT_HOLD_MS : FAILURE_HOLD_MS));
+      if (!(error instanceof OracleError)) console.error(`Oracle banner generation failed for campaign id: '${campaignId}'`, error);
+    } finally {
+      runs.delete(campaignId);
+    }
+  })();
+  runs.set(campaignId, run);
+}
+
+// Move queued items onto the banner until it is full. Returns how many were moved.
+async function promoteQueued(campaignId: string, free: number): Promise<number> {
+  if (free <= 0) return 0;
+  const pool = await getMainConnection();
+  const result = await pool.request().input("campaignId", campaignId).input("free", free).query(`
+    WITH next_chips AS (
+      SELECT TOP (@free) id, is_queued, ts_shown
+      FROM oracle_chips WITH (UPDLOCK, READPAST)
+      WHERE campaign_id = @campaignId AND is_queued = 1
+      ORDER BY ts_created, id
+    )
+    UPDATE next_chips SET is_queued = 0, ts_shown = GETDATE()
+  `);
+  return result.rowsAffected[0] ?? 0;
+}
+
+export interface ChipBarState {
+  chips: OracleChip[];
+  generating: boolean;
+  error: string | null;
+}
+
+async function barState(campaignId: string): Promise<ChipBarState> {
+  const error = lastErrors.get(campaignId) ?? null;
+  // An error is reported once, then cleared, so one failed batch does not nag on every poll.
+  if (error && !runs.has(campaignId)) lastErrors.delete(campaignId);
+  return { chips: await listChips(campaignId), generating: runs.has(campaignId), error };
+}
+
+// Top the banner up from the queue and make sure more are on the way when the queue is low.
+export async function fillChips(campaignId: string, user: AuthUser): Promise<ChipBarState> {
+  const counts = await countChips(campaignId);
+  const moved = await promoteQueued(campaignId, CHIP_BAR_SIZE - counts.bar);
+  const bar = counts.bar + moved;
+  const queued = counts.queued - moved;
+  if (queued < CHIP_QUEUE_LOW) {
+    // One modest batch at a time: a batch of six is ready in about fifteen seconds, where a batch big
+    // enough to fill an empty banner in one go would keep the DM waiting twice as long for the first item.
+    startGeneration(campaignId, user, CHIP_BATCH_SIZE);
+  }
+  return barState(campaignId);
+}
+
+// An item scrolled off the banner: drop it and bring the next queued one on. A pinned item is
+// never dropped this way, and dropping one that is already gone is not an error.
+export async function dropChip(campaignId: string, chipId: string, user: AuthUser): Promise<ChipBarState> {
+  const pool = await getMainConnection();
+  await pool.request().input("chipId", chipId).input("campaignId", campaignId).query(`
+    DELETE FROM oracle_chips WHERE id = @chipId AND campaign_id = @campaignId AND is_pinned = 0
+  `);
+  return fillChips(campaignId, user);
+}
+
+export async function setChipPinned(campaignId: string, chipId: string, isPinned: boolean): Promise<void> {
+  const pool = await getMainConnection();
+  const result = await pool.request().input("chipId", chipId).input("campaignId", campaignId).input("isPinned", isPinned ? 1 : 0).query(`
+    UPDATE oracle_chips SET is_pinned = @isPinned WHERE id = @chipId AND campaign_id = @campaignId
+  `);
+  if (result.rowsAffected[0] === 0) {
+    throw new OracleError(404, "Suggestion not found");
+  }
+}
+
+// A used item leaves the banner. Deleting one that is already gone is not an error: a second
+// tap on an item that was just used must not show a failure.
+export async function removeChip(campaignId: string, chipId: string): Promise<void> {
+  const pool = await getMainConnection();
+  await pool.request().input("chipId", chipId).input("campaignId", campaignId).query(`
+    DELETE FROM oracle_chips WHERE id = @chipId AND campaign_id = @campaignId
+  `);
+}
+
+// Throw away everything prepared for an older situation (scene changed, cast rebuilt).
+export async function clearChips(campaignId: string): Promise<void> {
+  const pool = await getMainConnection();
+  await pool.request().input("campaignId", campaignId).query(`
+    DELETE FROM oracle_chips WHERE campaign_id = @campaignId AND is_pinned = 0
+  `);
+}
+
+// ---------------------------------------------------------------------------------------------
+// ADOPT — turn a banner picture into part of the campaign
+// ---------------------------------------------------------------------------------------------
+
+export interface AdoptResult {
+  entity: OracleEntity;
+  image: OracleImage;
+}
+
+// The whole "this picture is now a creature / person / place" flow, started by one tap:
+//   1. the picture is saved into the campaign's library
+//   2. a short write-up is generated so it fits the current scene (skipped, not fatal, on failure)
+//   3. the entry is created with that picture, and placed on the active map beside the party —
+//      a creature or person a short step away, a place right where the party stands
+//   4. the item leaves the banner and the session log notes what appeared
+// Claiming the chip row first (DELETE … OUTPUT) is what makes a double-tap create only one entry.
+export async function adoptImageChip(
+  campaignId: string,
+  chipId: string,
+  kind: EntityKind,
+  name: string,
+  showOnDisplay: boolean,
+  user: AuthUser
+): Promise<AdoptResult> {
+  const pool = await getMainConnection();
+  const claimed = await pool.request().input("chipId", chipId).input("campaignId", campaignId).query(`
+    DELETE FROM oracle_chips OUTPUT DELETED.label, DELETED.content WHERE id = @chipId AND campaign_id = @campaignId
+  `);
+  if (claimed.recordset.length === 0) {
+    throw new OracleError(409, "That picture was already used");
+  }
+  const content = coerceContent(parseJson<unknown>(claimed.recordset[0].content, null), claimed.recordset[0].label);
+  if (!content || content.type !== "image") {
+    throw new OracleError(400, "That suggestion is not a picture");
+  }
+
+  const image = await importPicture(campaignId, content.image_url, name);
+
+  let outline: EntityOutline = { details: "", dm_notes: "", attitude: "neutral", cr: null };
+  try {
+    const limit = await checkGenerationLimit(user.id, user.generationLimit);
+    if (limit.allowed) {
+      await logGeneration(user.id, "oracle/outline");
+      outline = await outlineEntity(await buildContext(campaignId), kind, name);
+    }
+  } catch (error) {
+    console.warn(`Oracle outline failed for '${name}', adding it without a write-up:`, error instanceof Error ? error.message : error);
+  }
+
+  const campaign = await getCampaign(campaignId);
+  let placement: { map_id: string; map_x: number; map_y: number } | null = null;
+  if (campaign.active_map_id) {
+    const map = await getMap(campaignId, campaign.active_map_id).catch(() => null);
+    if (map) {
+      const step = kind === "place" ? 0 : Math.min(map.vision_radius * 0.5, 70);
+      const angle = Math.random() * Math.PI * 2;
+      placement = {
+        map_id: map.id,
+        map_x: Math.round(Math.min(Math.max(map.party_x + Math.cos(angle) * step, 0), map.data.width)),
+        map_y: Math.round(Math.min(Math.max(map.party_y + Math.sin(angle) * step, 0), map.data.height)),
+      };
+    }
+  }
+
+  const row = kind === "creature" ? findChallengeRow(outline.cr ?? "1/4") : null;
+  const created = await createEntity(campaignId, {
+    kind,
+    name,
+    details: outline.details,
+    attitude: outline.attitude,
+    dm_notes: outline.dm_notes,
+    stats: row ? statBlockFromChallenge(row) : null,
+    map_id: placement?.map_id ?? null,
+    map_x: placement?.map_x ?? null,
+    map_y: placement?.map_y ?? null,
+  });
+  const entity = await updateEntity(campaignId, created.id, { image_id: image.id });
+  await addEvent(campaignId, `${name} entered the session (added from a banner picture).`, entity.id);
+  if (showOnDisplay) await setDisplay(campaignId, { panel_kind: "entity", panel_id: entity.id });
+  return { entity, image };
+}

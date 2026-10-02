@@ -81,6 +81,8 @@ export const config = {
     // Public module surfaces live under the module's own top-level name, so each one is excluded
     // explicitly; the entries are anchored (`damnation$`, `damnation/`) so other paths stay gated
     // (the host UI and API under /modules/damnation are unaffected).
-    "/((?!api/auth|api/mcp|api/email/unsubscribe|unsubscribe|damnation$|damnation/|api/damnation/|\\.well-known|_next/static|_next/image|favicon.ico|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.ico$).*)",
+    // Oracle's player display (`/oracle`, `/oracle/<code>`, `/api/oracle/<code>/…`) is public the same way:
+    // the shared screen has no account, and that surface is read-only and built for players.
+    "/((?!api/auth|api/mcp|api/email/unsubscribe|unsubscribe|damnation$|damnation/|api/damnation/|oracle$|oracle/|api/oracle/|\\.well-known|_next/static|_next/image|favicon.ico|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.ico$).*)",
   ],
 };

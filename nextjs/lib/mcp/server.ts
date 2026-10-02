@@ -5,6 +5,7 @@ import { registerGolemTools } from './tools/golem';
 import { registerQuestTools } from './tools/quest';
 import { registerRuneTools } from './tools/rune';
 import { registerForageTools } from './tools/forage';
+import { registerOracleTools } from './tools/oracle';
 
 // Registers every grimoire MCP tool on the given server, scoped to the resolved user.
 // Called once per request from the route handler so each tool handler captures a fresh
@@ -15,4 +16,5 @@ export function registerGrimoireTools(server: McpServer, ctx: McpContext) {
   registerQuestTools(server, ctx);
   registerRuneTools(server, ctx);
   registerForageTools(server, ctx);
+  registerOracleTools(server, ctx);
 }
