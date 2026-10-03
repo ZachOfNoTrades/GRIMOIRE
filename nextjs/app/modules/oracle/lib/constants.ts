@@ -75,10 +75,10 @@ export const CHIP_SECONDS_MAX = 120;
 // Each task is set on its own: a quick banner idea and a whole session build need not use the
 // same model.
 export type TextModel = "haiku" | "sonnet" | "opus";
-export const TEXT_MODELS: { key: TextModel; label: string; hint: string }[] = [
-  { key: "haiku", label: "Haiku", hint: "fastest" },
-  { key: "sonnet", label: "Sonnet", hint: "richer, slower" },
-  { key: "opus", label: "Opus", hint: "best, slowest" },
+export const TEXT_MODELS: { key: TextModel; label: string }[] = [
+  { key: "haiku", label: "Haiku" },
+  { key: "sonnet", label: "Sonnet" },
+  { key: "opus", label: "Opus" },
 ];
 export const TEXT_MODEL_KEYS: readonly TextModel[] = ["haiku", "sonnet", "opus"];
 export type GenerationTask = "world" | "build" | "map" | "chips" | "ask" | "fact" | "outline";

@@ -125,7 +125,7 @@ export default function SettingsClient({ settings: initialSettings }: { settings
                 onChange={(event) => save({ models: { [task.key]: event.target.value as TextModel } })}
               >
                 {TEXT_MODELS.map((model) => (
-                  <option key={model.key} value={model.key}>{model.label} ({model.hint})</option>
+                  <option key={model.key} value={model.key}>{model.label}</option>
                 ))}
               </select>
             </SettingsControlRow>
@@ -133,11 +133,7 @@ export default function SettingsClient({ settings: initialSettings }: { settings
         </div>
 
         {/* MODELS NOTE */}
-        <p className="settings-group-note">
-          Which Claude model writes each kind of thing. Haiku answers in a few seconds and is the default everywhere; Sonnet and Opus write
-          richer material, take several times longer, and use more of your Claude allowance per call. A session build or a map is a good place
-          for a bigger model; the ideas banner and the ask bar are where speed matters most.
-        </p>
+        <p className="settings-group-note">Which Claude model writes each kind of thing. Saved as soon as you change it.</p>
       </div>
     </div>
   );
