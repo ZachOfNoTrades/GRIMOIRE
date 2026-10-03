@@ -1,3 +1,4 @@
+import type { TaskModels } from "../lib/constants";
 // Shared by server and client code — keep this file free of Node-only imports.
 
 export type EntityKind = "creature" | "person" | "place";
@@ -137,6 +138,7 @@ export interface OracleChip {
 export interface OracleSettings {
   chip_seconds: number;
   banner_images: boolean;
+  models: TaskModels; // which Claude model each kind of generation runs on
 }
 
 export interface OracleScene {

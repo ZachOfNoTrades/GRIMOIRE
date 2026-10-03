@@ -71,6 +71,30 @@ export const CHIP_SECONDS_DEFAULT = 15;
 export const CHIP_SECONDS_MIN = 5;
 export const CHIP_SECONDS_MAX = 120;
 
+// MODELS — which Claude model each kind of generation runs on, chosen per DM in Settings.
+// Each task is set on its own: a quick banner idea and a whole session build need not use the
+// same model.
+export type TextModel = "haiku" | "sonnet" | "opus";
+export const TEXT_MODELS: { key: TextModel; label: string; hint: string }[] = [
+  { key: "haiku", label: "Haiku", hint: "fastest" },
+  { key: "sonnet", label: "Sonnet", hint: "richer, slower" },
+  { key: "opus", label: "Opus", hint: "best, slowest" },
+];
+export const TEXT_MODEL_KEYS: readonly TextModel[] = ["haiku", "sonnet", "opus"];
+export type GenerationTask = "world" | "build" | "map" | "chips" | "ask" | "fact" | "outline";
+export const GENERATION_TASKS: { key: GenerationTask; label: string; hint: string }[] = [
+  { key: "world", label: "World notes", hint: "Generate on the Prep tab" },
+  { key: "build", label: "Session build", hint: "Notes into scenes and a cast" },
+  { key: "map", label: "Maps", hint: "Drawing and editing in words" },
+  { key: "chips", label: "Ideas banner", hint: "Batches for the banner" },
+  { key: "ask", label: "Ask bar", hint: "Free-form questions at the table" },
+  { key: "fact", label: "Knowledge checks", hint: "The fact a roll earns" },
+  { key: "outline", label: "Picture write-ups", hint: "A new entry from a banner picture" },
+];
+export const TASK_KEYS: readonly GenerationTask[] = GENERATION_TASKS.map((task) => task.key);
+export const DEFAULT_MODEL: TextModel = "haiku";
+export type TaskModels = Record<GenerationTask, TextModel>;
+
 export const EVENT_PAGE_SIZE = 200;
 
 export const MAX_IMAGE_BYTES = 12 * 1024 * 1024; // 12MB, same cap as rune card images

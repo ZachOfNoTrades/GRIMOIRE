@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610021200 (Oracle module)
+-- Version: 202610021500 (Oracle models per task)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -489,6 +489,7 @@ BEGIN TRY
             user_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
             chip_seconds INT NOT NULL DEFAULT 15, -- the banner brings on one new suggestion every this many seconds
             banner_images BIT NOT NULL DEFAULT 1, -- 1 = the banner mixes in reference pictures
+            models NVARCHAR(400) NOT NULL DEFAULT '{}', -- JSON: generation task -> Claude model (haiku/sonnet/opus); missing entries mean haiku
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 

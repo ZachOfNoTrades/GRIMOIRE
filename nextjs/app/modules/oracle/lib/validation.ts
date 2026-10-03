@@ -19,6 +19,8 @@ import {
   SCENE_TITLE_MAX,
   VISION_MAX,
   VISION_MIN,
+  TASK_KEYS,
+  TEXT_MODEL_KEYS,
   WORLD_MAX,
 } from "./constants";
 import { OracleError } from "./errors";
@@ -201,6 +203,8 @@ export const settingsSchema = z
   .object({
     chip_seconds: z.number().int().min(CHIP_SECONDS_MIN, `At least ${CHIP_SECONDS_MIN} seconds`).max(CHIP_SECONDS_MAX, `At most ${CHIP_SECONDS_MAX} seconds`).optional(),
     banner_images: z.boolean().optional(),
+    // Any subset of tasks; each must name a known model.
+    models: z.object(Object.fromEntries(TASK_KEYS.map((task) => [task, z.enum(TEXT_MODEL_KEYS as [string, ...string[]]).optional()]))).strict().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "Nothing to change");
 
@@ -251,3 +255,5 @@ export const imageGenerateSchema = z.object({
   prompt: line(PROMPT_MAX, "a description"),
   caption: line(CAPTION_MAX, "a caption"),
 });
+
+export const generateWorldSchema = z.object({ seed: z.string().max(WORLD_MAX).default("") });

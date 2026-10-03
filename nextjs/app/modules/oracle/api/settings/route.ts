@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   return withOwner(request, null, "GET /oracle/api/settings", async (owner) => ok(await getSettings(owner.userId)));
 }
 
-// PUT /modules/oracle/api/settings — save any subset of them. Body: { chip_seconds?, banner_images? }.
+// PUT /modules/oracle/api/settings — save any subset of them. Body: { chip_seconds?, banner_images?, models? }.
 export async function PUT(request: Request) {
   return withOwner(request, null, "PUT /oracle/api/settings", async (owner) => {
     const body = await parseBody(request, settingsSchema);

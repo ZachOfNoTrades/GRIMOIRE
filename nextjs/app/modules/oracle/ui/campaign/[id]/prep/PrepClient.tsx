@@ -45,6 +45,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
   // STATE
   const [isBuilding, setIsBuilding] = useState(false);
+  const [isWritingWorld, setIsWritingWorld] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -81,6 +82,23 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
       toast.error(errorMessage(error, "Couldn't build the session"));
     } finally {
       setIsBuilding(false);
+    }
+  }
+
+  // Generate world notes from the name, whatever is in the box (a few words or a draft to
+  // improve) and the session notes. The result lands in the box and saves like typed text.
+  async function writeWorld() {
+    if (isWritingWorld) return;
+    setIsWritingWorld(true);
+    try {
+      if (!(await saveText("draft", draft))) return;
+      const result = await api<{ world: string }>(`${base}/world/generate`, "POST", { seed: world });
+      setWorld(result.world);
+      await saveText("world", result.world);
+    } catch (error) {
+      toast.error(errorMessage(error, "Couldn't write the world notes"));
+    } finally {
+      setIsWritingWorld(false);
     }
   }
 
@@ -220,8 +238,13 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                     onBlur={(event) => saveText("world", event.target.value)}
                   />
 
-                  {/* WORLD NOTE */}
-                  <p className="orc-small text-secondary">Every idea, fact and map is written to fit this.</p>
+                  {/* WORLD ROW */}
+                  <div className="orc-card-actions">
+                    <span className="orc-small text-secondary">Every idea, fact and map is written to fit this.</span>
+                    <Button className="btn-blue" disabled={isWritingWorld} onClick={writeWorld} title="Write world notes from the name, what is in the box and the session notes">
+                      <Sparkles className="w-4 h-4" /> {isWritingWorld ? "Writing…" : world.trim() ? "Rewrite" : "Generate"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

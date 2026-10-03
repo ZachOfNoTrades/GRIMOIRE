@@ -58,7 +58,7 @@ export const PREP_HELP: HelpSection[] = [
   },
   {
     heading: "World",
-    body: "A few sentences on tone and setting. Every generated idea, fact and map is written to fit it.",
+    body: "A few sentences on tone and setting. Every generated idea, fact and map is written to fit it. Generate writes them from the campaign name, anything already in the box and your session notes; Rewrite improves what is there.",
   },
   {
     heading: "Maps",

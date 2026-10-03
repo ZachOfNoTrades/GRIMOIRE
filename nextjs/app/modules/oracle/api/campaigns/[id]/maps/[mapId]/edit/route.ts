@@ -3,6 +3,7 @@ import { editMapData } from "@/app/modules/oracle/lib/generationFunctions";
 import { getMap, replaceMapData } from "@/app/modules/oracle/lib/mapFunctions";
 import { ok, spendGeneration, withOwner } from "@/app/modules/oracle/lib/routeHandlers";
 import { editMapSchema, parseBody, requireUuid } from "@/app/modules/oracle/lib/validation";
+import { modelFor } from "@/app/modules/oracle/lib/settingsFunctions";
 
 // POST /modules/oracle/api/campaigns/[id]/maps/[mapId]/edit — change the map in words
 // ("the village was sacked"). Body: { instruction }. The previous version stays undoable.
@@ -13,7 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const map = await getMap(owner.campaignId, requireUuid(mapId, "Map"));
     await spendGeneration(owner.user, "oracle/map-edit");
     const campaign = await getCampaign(owner.campaignId);
-    const data = await editMapData(campaign.world, map.data, body.instruction);
+    const data = await editMapData(campaign.world, map.data, body.instruction, await modelFor(owner.user.id, "map"));
     return ok(await replaceMapData(owner.campaignId, map.id, data));
   });
 }

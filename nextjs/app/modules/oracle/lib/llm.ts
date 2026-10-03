@@ -2,15 +2,21 @@ import { spawn } from "child_process";
 import { existsSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { DEFAULT_MODEL, type TextModel } from "./constants";
 import { OracleError } from "./errors";
 
-// Every text generation in Oracle goes through the Claude CLI in print mode, on the Haiku model:
-// the answers are short, they are wanted fast, and nothing here needs a larger model. Override
-// with ORACLE_MODEL to try another one.
-export const ORACLE_MODEL = process.env.ORACLE_MODEL || "haiku";
+// Every text generation in Oracle goes through the Claude CLI in print mode. The model is the
+// DM's choice per kind of generation (Settings); Haiku is the default because the answers are
+// short and wanted fast.
+export interface LlmOptions {
+  model?: TextModel;
+  timeoutMs?: number;
+}
 
-// A stuck CLI call must not hang a request; a normal call is 3-10 seconds.
+// A stuck CLI call must not hang a request; a normal Haiku call is 3-10 seconds. The larger
+// models are given proportionally longer.
 const DEFAULT_TIMEOUT_MS = 60_000;
+const TIMEOUT_SCALE: Record<TextModel, number> = { haiku: 1, sonnet: 2, opus: 3 };
 
 // Each call is its own `claude` process (roughly 200-300 MB while it runs), so the number running
 // at once is capped; callers past the cap wait their turn.
@@ -49,7 +55,9 @@ const SYSTEM_PROMPT =
 // The DM's own notes, names and questions are part of every prompt, so the call is made with ALL
 // tools disabled (`--tools ""`): whatever the text says, the model can only produce text — it
 // cannot read files, run commands or reach the network.
-export async function runClaude(prompt: string, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<string> {
+export async function runClaude(prompt: string, options: LlmOptions = {}): Promise<string> {
+  const model = options.model ?? DEFAULT_MODEL;
+  const timeoutMs = (options.timeoutMs ?? DEFAULT_TIMEOUT_MS) * TIMEOUT_SCALE[model];
   await acquireSlot();
   try {
     return await new Promise<string>((resolve, reject) => {
@@ -61,7 +69,7 @@ export async function runClaude(prompt: string, timeoutMs: number = DEFAULT_TIME
           "--no-session-persistence",
           "--strict-mcp-config",
           "--mcp-config", emptyMcpConfigPath(),
-          "--model", ORACLE_MODEL,
+          "--model", model,
           "--tools", "",
           "--system-prompt", SYSTEM_PROMPT,
         ],
@@ -103,14 +111,14 @@ export function extractJson(reply: string): unknown {
 
 // Run a prompt and parse its JSON reply. One retry: an unparseable reply is rare and almost
 // always fine on a second attempt. A failure after that reaches the DM as a plain message.
-export async function generateJson(prompt: string, label: string, timeoutMs?: number): Promise<unknown> {
+export async function generateJson(prompt: string, label: string, options: LlmOptions = {}): Promise<unknown> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
       const started = Date.now();
-      const reply = await runClaude(prompt, timeoutMs);
+      const reply = await runClaude(prompt, options);
       const parsed = extractJson(reply);
-      console.log(`[Oracle-LLM] ${label}: ${Date.now() - started}ms (attempt ${attempt})`);
+      console.log(`[Oracle-LLM] ${label} on ${options.model ?? DEFAULT_MODEL}: ${Date.now() - started}ms (attempt ${attempt})`);
       return parsed;
     } catch (error) {
       lastError = error;

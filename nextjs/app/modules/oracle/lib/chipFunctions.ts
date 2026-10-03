@@ -12,7 +12,7 @@ import { findInspirationImage, importPicture } from "./imageProviders";
 import { parseJson } from "./mapData";
 import { getMap } from "./mapFunctions";
 import { findChallengeRow, statBlockFromChallenge } from "./reference";
-import { getSettings } from "./settingsFunctions";
+import { getSettings, modelFor } from "./settingsFunctions";
 
 // THE SUGGESTION BANNER
 //
@@ -144,7 +144,8 @@ function startGeneration(campaignId: string, user: AuthUser, wanted: number): vo
         context,
         wanted,
         existing.recordset.map((row) => row.label),
-        settings.banner_images ? IMAGES_PER_BATCH : 0
+        settings.banner_images ? IMAGES_PER_BATCH : 0,
+        settings.models.chips
       );
 
       // Pictures are spread through the batch rather than bunched at its end.
@@ -285,7 +286,7 @@ export async function adoptImageChip(
     const limit = await checkGenerationLimit(user.id, user.generationLimit);
     if (limit.allowed) {
       await logGeneration(user.id, "oracle/outline");
-      outline = await outlineEntity(await buildContext(campaignId), kind, name);
+      outline = await outlineEntity(await buildContext(campaignId), kind, name, await modelFor(user.id, "outline"));
     }
   } catch (error) {
     console.warn(`Oracle outline failed for '${name}', adding it without a write-up:`, error instanceof Error ? error.message : error);

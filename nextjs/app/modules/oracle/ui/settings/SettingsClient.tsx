@@ -7,7 +7,7 @@ import { SettingsControlRow, SettingsToggleRow } from "@/components/settings/Set
 import { Toaster, toast } from "@/components/Toaster";
 import { blurOnEnter, selectOnFocus } from "@/lib/inputBehavior";
 import { api, errorMessage } from "../../lib/client";
-import { CHIP_POOL_MAX, CHIP_SECONDS_MAX, CHIP_SECONDS_MIN } from "../../lib/constants";
+import { CHIP_POOL_MAX, CHIP_SECONDS_MAX, CHIP_SECONDS_MIN, GENERATION_TASKS, TEXT_MODELS, type TextModel } from "../../lib/constants";
 import type { OracleSettings } from "../../types/oracle";
 
 export default function SettingsClient({ settings: initialSettings }: { settings: OracleSettings }) {
@@ -21,8 +21,8 @@ export default function SettingsClient({ settings: initialSettings }: { settings
   const savedRef = useRef<OracleSettings>(initialSettings);
 
   // Saves on change: each control is a single value with nothing to review before saving.
-  async function save(patch: Partial<OracleSettings>) {
-    const next = { ...settings, ...patch };
+  async function save(patch: Partial<Omit<OracleSettings, "models">> & { models?: Partial<OracleSettings["models"]> }) {
+    const next: OracleSettings = { ...settings, ...patch, models: { ...settings.models, ...(patch.models ?? {}) } };
     setSettings(next);
     try {
       const saved = await api<OracleSettings>("/modules/oracle/api/settings", "PUT", patch);
@@ -105,12 +105,38 @@ export default function SettingsClient({ settings: initialSettings }: { settings
           />
         </div>
 
-        {/* GROUP NOTE */}
+        {/* BANNER NOTE */}
         <p className="settings-group-note">
           The banner on the Table tab brings on one idea every {settings.chip_seconds} seconds ({CHIP_SECONDS_MIN} to {CHIP_SECONDS_MAX}) and cycles
           through a pool of up to {CHIP_POOL_MAX}, prepared in batches by Claude. Ideas come round again until you use them, so the speed does not
           change how much of your Claude allowance the banner spends: it only prepares more once an idea has been used. Pointing at the banner pauses
           it, and it stops while the tab is in the background. Saved as soon as you change it; the Table tab picks it up the next time it is opened.
+        </p>
+
+        {/* MODELS SECTION — one model per kind of generation */}
+        <h2 className="settings-section-title">Models</h2>
+        <div className="settings-group">
+          {GENERATION_TASKS.map((task) => (
+            <SettingsControlRow key={task.key} label={task.label}>
+              <select
+                className="input-field orc-model-select"
+                aria-label={`Model for ${task.label.toLowerCase()}`}
+                value={settings.models[task.key]}
+                onChange={(event) => save({ models: { [task.key]: event.target.value as TextModel } })}
+              >
+                {TEXT_MODELS.map((model) => (
+                  <option key={model.key} value={model.key}>{model.label} ({model.hint})</option>
+                ))}
+              </select>
+            </SettingsControlRow>
+          ))}
+        </div>
+
+        {/* MODELS NOTE */}
+        <p className="settings-group-note">
+          Which Claude model writes each kind of thing. Haiku answers in a few seconds and is the default everywhere; Sonnet and Opus write
+          richer material, take several times longer, and use more of your Claude allowance per call. A session build or a map is a good place
+          for a bigger model; the ideas banner and the ask bar are where speed matters most.
         </p>
       </div>
     </div>
