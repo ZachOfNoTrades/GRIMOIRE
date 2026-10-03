@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowLeft, Check, FileText, Play, Plus, ScrollText, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, Check, FileText, Play, Plus, Save, ScrollText, Sparkles, Users } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
@@ -12,6 +12,7 @@ import SessionBar from "../../../../../components/SessionBar";
 import { SESSION_HELP } from "../../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../../lib/client";
 import { DRAFT_MAX, RECAP_MAX, SESSION_TITLE_MAX } from "../../../../../lib/constants";
+import { saveOnShortcut, useUnsavedWarning } from "../../../../../lib/useUnsavedWarning";
 import type { BuiltCast, OracleCampaign, OracleEntity, OracleSession } from "../../../../../types/oracle";
 
 interface SessionClientProps {
@@ -45,37 +46,54 @@ export default function SessionClient({ campaign: initialCampaign, session: init
   // STATE
   const [isBuilding, setIsBuilding] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // What the server last confirmed, so a blur with no change saves nothing.
-  const savedRef = useRef<OracleSession>(initialSession);
+  // `session` is what the server last confirmed; a field is dirty while it differs from it.
+  const isNotesDirty = notes.trim() !== session.notes;
+  const isRecapDirty = recap.trim() !== session.recap;
+  const isDirty = isNotesDirty || isRecapDirty || (title.trim() !== "" && title.trim() !== session.title) || (date || null) !== session.session_date;
+  useUnsavedWarning(isDirty);
 
   const isLive = campaign.current_session_id === session.id;
   useEntityTitle(`${session.title} · ${campaign.name}`);
 
-  // Fields save when focus leaves them: there is nothing to review, and a Save button would be
-  // one more thing to forget before the night starts.
+  // Fields save on the Save buttons, Ctrl+S, and when focus leaves them. Only changed keys go up.
   async function save(patch: { title?: string; session_date?: string | null; notes?: string; recap?: string; is_done?: boolean }): Promise<boolean> {
-    const changed = Object.entries(patch).filter(([key, value]) => savedRef.current[key as keyof OracleSession] !== value);
+    const changed = Object.entries(patch).filter(([key, value]) => session[key as keyof OracleSession] !== value);
     if (changed.length === 0) return true;
+    setIsSaving(true);
     try {
       const saved = await api<OracleSession>(sessionBase, "PUT", Object.fromEntries(changed));
-      savedRef.current = saved;
       setSession(saved);
       return true;
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't save the session"));
       return false;
+    } finally {
+      setIsSaving(false);
     }
+  }
+
+  // Save everything on the page that differs from the server.
+  function saveAll() {
+    return save({ title: title.trim() || session.title, session_date: date || null, notes: notes.trim(), recap: recap.trim() });
   }
 
   function commitTitle(raw: string) {
     const trimmed = raw.trim();
     if (!trimmed) {
-      setTitle(savedRef.current.title);
+      setTitle(session.title);
       return;
     }
     save({ title: trimmed });
   }
+
+  // SAVE BUTTON — one per text card; each saves the whole page.
+  const saveButton = (
+    <Button className={isDirty ? "btn-green" : "btn-off"} disabled={!isDirty || isSaving} onClick={saveAll} title="Save the session (Ctrl+S)">
+      <Save className="w-4 h-4" /> {isSaving ? "Saving…" : isDirty ? "Save" : "Saved"}
+    </Button>
+  );
 
   async function goLive() {
     const previous = campaign;
@@ -192,14 +210,18 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                     aria-label="Rough session notes"
                     onChange={(event) => setNotes(event.target.value)}
                     onBlur={(event) => save({ notes: event.target.value.trim() })}
+                    onKeyDown={saveOnShortcut(saveAll)}
                   />
 
                   {/* BUILD ROW */}
                   <div className="orc-card-actions">
-                    <span className="orc-small text-secondary">Saved when you leave the box.</span>
-                    <Button className="btn-blue" disabled={isBuilding || notes.trim().length < 20} onClick={build}>
-                      <Sparkles className="w-4 h-4" /> {isBuilding ? "Building…" : "Build cast"}
-                    </Button>
+                    <span className="orc-small text-secondary">{isNotesDirty ? "Unsaved changes." : "The Table writes every idea against these."}</span>
+                    <div className="orc-row-actions">
+                      <Button className="btn-blue" disabled={isBuilding || isSaving || notes.trim().length < 20} onClick={build}>
+                        <Sparkles className="w-4 h-4" /> {isBuilding ? "Building…" : "Build cast"}
+                      </Button>
+                      {saveButton}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -277,8 +299,14 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                     aria-label="Session recap"
                     onChange={(event) => setRecap(event.target.value)}
                     onBlur={(event) => save({ recap: event.target.value.trim() })}
+                    onKeyDown={saveOnShortcut(saveAll)}
                   />
-                  <span className="orc-small text-secondary">Saved when you leave the box.</span>
+
+                  {/* RECAP ROW */}
+                  <div className="orc-card-actions">
+                    <span className="orc-small text-secondary">{isRecapDirty ? "Unsaved changes." : "The next session's ideas draw on this."}</span>
+                    {saveButton}
+                  </div>
                 </div>
               </div>
             </div>

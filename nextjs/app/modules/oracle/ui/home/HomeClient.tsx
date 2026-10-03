@@ -45,6 +45,8 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
     try {
       const created = await api<OracleCampaign>("/modules/oracle/api/campaigns", "POST", { name: trimmed });
       setCampaigns((list) => list.map((campaign) => (campaign.id === tempId ? { id: created.id, name: created.name, display_code: created.display_code, session_count: 0, ts_updated: new Date().toISOString() } : campaign)));
+      // A new campaign starts on Prep: the world, the first session and a map are made there.
+      router.push(`/modules/oracle/ui/campaign/${created.id}/prep`);
     } catch (createError) {
       setCampaigns((list) => list.filter((campaign) => campaign.id !== tempId));
       toast.error(errorMessage(createError, "Couldn't create the campaign"));
@@ -171,7 +173,7 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
 
                 {/* CAMPAIGN ACTIONS */}
                 <div className="orc-campaign-actions">
-                  <Button className="btn-blue" disabled={isPending} onClick={() => router.push(`/modules/oracle/ui/campaign/${campaign.id}/table`)}>
+                  <Button className="btn-blue" disabled={isPending} onClick={() => router.push(`/modules/oracle/ui/campaign/${campaign.id}/prep`)}>
                     <Monitor className="w-4 h-4" /> Open
                   </Button>
                   <Button className="btn-link-red" disabled={isPending} onClick={() => deleteCampaign(campaign)} title="Delete campaign" aria-label={`Delete ${campaign.name}`}>

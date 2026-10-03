@@ -47,7 +47,8 @@ export function addExploredPath(
   return next;
 }
 
-// Hide again: drop every seen circle the brush touches.
+// Hide again: drop every seen circle whose center the brush covers. A small brush therefore lifts
+// only the small circles it is over; a wide reveal needs a brush at least as wide to clear it.
 export function eraseExplored(explored: ExploredCircle[], x: number, y: number, brush: number): ExploredCircle[] {
-  return explored.filter((circle) => distance(circle.x, circle.y, x, y) > circle.r * 0.6 + brush);
+  return explored.filter((circle) => distance(circle.x, circle.y, x, y) > brush);
 }

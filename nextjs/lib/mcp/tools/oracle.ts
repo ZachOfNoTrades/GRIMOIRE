@@ -62,7 +62,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
   server.registerTool(
     'oracle_create_campaign',
     {
-      description: 'Create a new campaign. It starts with one blank map.',
+      description: 'Create a new campaign. It starts empty; add maps with oracle_create_map or on the Prep tab.',
       inputSchema: { name: z.string().min(1).max(120) },
     },
     async ({ name }) => {

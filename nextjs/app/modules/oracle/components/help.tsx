@@ -24,7 +24,8 @@ export const TABLE_HELP: HelpSection[] = [
       <ul>
         <li><strong>Move party</strong>: drag the party token. Players see everything inside the circle around it.</li>
         <li>Where the party has been stays on their map, dimmed, showing buildings but never creatures. Where they have not been is black.</li>
-        <li><strong>Reveal</strong> and <strong>Hide</strong> paint the explored area by hand. <strong>Pin</strong> adds a new entry where you tap.</li>
+        <li><strong>Reveal</strong> and <strong>Hide</strong> paint the explored area by hand; the Brush slider (or <kbd>[</kbd> and <kbd>]</kbd>) sets how wide a stroke is. <strong>Pin</strong> adds a new entry where you tap.</li>
+        <li>Scroll or pinch to zoom the map; drag the ground to look around while zoomed. Shift+click the zoom buttons for small steps.</li>
         <li><strong>Edit with AI</strong> changes the map in words; <strong>Undo</strong> puts back the version before the last change.</li>
       </ul>
     ),

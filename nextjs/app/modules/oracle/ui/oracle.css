@@ -191,6 +191,16 @@
   border-color: var(--color-primary);
 }
 .orc-vision input { width: 6.5rem; accent-color: var(--color-primary); }
+.orc-range-value { min-width: 2.2rem; font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--color-secondary); }
+.orc-brush-ring { fill: none; stroke: var(--color-primary); stroke-width: 1.5; stroke-dasharray: 6 4; pointer-events: none; vector-effect: non-scaling-stroke; }
+.orc-brush-ring[data-tool="hide"] { stroke: #e0a060; }
+.orc-zoom { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2; display: flex; align-items: center; gap: 0.15rem; padding: 0.15rem; border: 1px solid var(--card-border); background: var(--card-bg); }
+.orc-zoom-btn { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; color: var(--color-primary); background: transparent; border: 0; cursor: pointer; }
+.orc-zoom-btn:hover:not(:disabled) { background: var(--hover-bg); }
+.orc-zoom-btn:disabled { opacity: 0.4; cursor: default; }
+.orc-zoom-value { min-width: 3rem; text-align: center; font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--color-secondary); }
+.orc-map[data-zoomed][data-tool="move"] .orc-map-svg { cursor: grab; }
+.orc-map[data-zoomed][data-tool="move"] .orc-map-svg:active { cursor: grabbing; }
 
 /* ---------- map ---------- */
 
@@ -657,8 +667,9 @@
   .orc-tool-label { display: none; }
   .orc-tool { min-width: 2.5rem; min-height: 2.5rem; justify-content: center; }
   .orc-map-name { max-width: 8rem; }
-  .orc-vision .orc-label { display: none; }
-  .orc-vision input { width: 5rem; }
+  .orc-vision .orc-label { font-size: 0.6rem; }
+  .orc-vision input { width: 4.5rem; }
+  .orc-range-value { min-width: 1.8rem; font-size: 0.65rem; }
   .orc-legend { display: none; }
   .orc-tray-head .orc-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .orc-tile { width: 5.5rem; }
@@ -711,6 +722,7 @@
 }
 .orc-stack { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
 .orc-card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.orc-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-left: auto; }
 .orc-table-wrap { overflow-x: auto; }
 .orc-chip-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .orc-gen-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.5rem 0.65rem; border: 1px solid var(--card-border); }

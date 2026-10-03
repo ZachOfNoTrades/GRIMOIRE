@@ -58,6 +58,12 @@ export const MAP_DEFAULT_HEIGHT = 620;
 export const VISION_DEFAULT = 150;
 export const VISION_MIN = 40;
 export const VISION_MAX = 600;
+export const VISION_STEP = 5;
+// Fog brush (reveal/hide) radius in map units; independent of how far the party sees.
+export const BRUSH_MIN = 8;
+export const BRUSH_MAX = 300;
+export const BRUSH_STEP = 2;
+export const BRUSH_DEFAULT = 40;
 
 // SUGGESTION BANNER — a ticker that cycles through a pool of prepared ideas. One item comes on
 // every `chip_seconds` (a per-DM setting); an item that has scrolled off the left edge goes to the

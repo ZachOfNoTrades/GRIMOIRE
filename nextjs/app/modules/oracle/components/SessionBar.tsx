@@ -21,9 +21,9 @@ interface SessionBarProps {
 }
 
 const TABS: { key: CampaignTab; label: string; icon: typeof MapIcon }[] = [
+  { key: "prep", label: "Prep", icon: FileText },
   { key: "table", label: "Table", icon: MapIcon },
   { key: "reference", label: "Reference", icon: BookOpen },
-  { key: "prep", label: "Prep", icon: FileText },
   { key: "log", label: "Log", icon: ScrollText },
 ];
 

@@ -77,7 +77,12 @@ export async function createMap(campaignId: string, name: string, data: MapData 
   if (result.recordset.length === 0) {
     throw new OracleError(409, `A campaign can have at most ${MAX_MAPS} maps`);
   }
-  return toMap(result.recordset[0]);
+  const map = toMap(result.recordset[0]);
+  // The campaign's first map goes straight on the table.
+  await pool.request().input("campaignId", campaignId).input("mapId", map.id).query(`
+    UPDATE oracle_campaigns SET active_map_id = @mapId, version = version + 1 WHERE id = @campaignId AND active_map_id IS NULL
+  `);
+  return map;
 }
 
 export interface MapPatch {
@@ -204,19 +209,13 @@ export async function undoMapData(campaignId: string, mapId: string): Promise<Or
   }
 }
 
-// A campaign always keeps at least one map. Entities placed on the deleted map are unplaced, and
-// if it was the active map the oldest remaining one takes over.
+// Entities placed on the deleted map are unplaced, and if it was the active map the oldest
+// remaining one takes over (or none, when it was the last).
 export async function deleteMap(campaignId: string, mapId: string): Promise<void> {
   const pool = await getMainConnection();
   const transaction = pool.transaction();
   await transaction.begin();
   try {
-    const count = await transaction.request().input("campaignId", campaignId).query(`
-      SELECT COUNT(*) AS total FROM oracle_maps WITH (UPDLOCK) WHERE campaign_id = @campaignId
-    `);
-    if (count.recordset[0].total <= 1) {
-      throw new OracleError(409, "A campaign needs at least one map");
-    }
     const result = await transaction.request().input("mapId", mapId).input("campaignId", campaignId).query(`
       DELETE FROM oracle_maps WHERE id = @mapId AND campaign_id = @campaignId
     `);

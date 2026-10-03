@@ -1,6 +1,7 @@
 "use client";
 
 import { Brush, CornerDownLeft, Eraser, MapPin, Move, PanelLeft, Search, Undo2, WandSparkles, X } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/components/Modal";
 import { Toaster, toast } from "@/components/Toaster";
@@ -21,7 +22,7 @@ import SessionBar from "../../../../components/SessionBar";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { PROMPT_MAX, VISION_MAX, VISION_MIN } from "../../../../lib/constants";
+import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, PROMPT_MAX, VISION_MAX, VISION_MIN, VISION_STEP } from "../../../../lib/constants";
 import { addExplored, addExploredPath, eraseExplored, isVisible } from "../../../../lib/fog";
 import type {
   ChipOption,
@@ -87,6 +88,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   // STATE
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tool, setTool] = useState<MapTool>("move");
+  const [brushRadius, setBrushRadius] = useState(BRUSH_DEFAULT);
   const [placingId, setPlacingId] = useState<string | null>(null); // an existing entry waiting for a tap on the map
   const [mobileTab, setMobileTab] = useState<"map" | "details">("map");
   const [isSessionsOpen, setIsSessionsOpen] = useState(false);
@@ -181,12 +183,15 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
 
   function brush(x: number, y: number) {
     if (!activeMap) return;
-    const radius = activeMap.vision_radius * 0.6;
     setMaps((previous) =>
       previous.map((map) =>
-        map.id === activeMap.id ? { ...map, explored: tool === "hide" ? eraseExplored(map.explored, x, y, radius * 0.5) : addExplored(map.explored, x, y, radius) } : map
+        map.id === activeMap.id ? { ...map, explored: tool === "hide" ? eraseExplored(map.explored, x, y, brushRadius) : addExplored(map.explored, x, y, brushRadius) } : map
       )
     );
+  }
+
+  function changeBrush(value: number) {
+    setBrushRadius(Math.min(BRUSH_MAX, Math.max(BRUSH_MIN, Math.round(value))));
   }
 
   function changeVision(value: number) {
@@ -603,6 +608,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       if (hit) {
         setTool(hit.key);
         setPlacingId(null);
+      } else if (key === "[" || key === "]") {
+        // Brush size: [ and ] step by 10, with Shift by 2.
+        setBrushRadius((current) => Math.min(BRUSH_MAX, Math.max(BRUSH_MIN, current + (key === "]" ? 1 : -1) * (event.shiftKey ? 2 : 10))));
       } else if (key === "s") {
         setIsSessionsOpen(true);
       } else if (key === "/") {
@@ -695,6 +703,23 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               })}
             </div>
 
+            {/* BRUSH — only while a fog tool is active */}
+            {activeMap && (tool === "reveal" || tool === "hide") && (
+              <label className="orc-toolbar-group orc-vision orc-brush" title="Brush size ( [ and ] to change, Shift for fine steps )">
+                <span className="orc-label">Brush</span>
+                <input
+                  type="range"
+                  min={BRUSH_MIN}
+                  max={BRUSH_MAX}
+                  step={BRUSH_STEP}
+                  value={brushRadius}
+                  aria-label="Brush size"
+                  onChange={(event) => changeBrush(Number(event.target.value))}
+                />
+                <span className="orc-range-value">{brushRadius}</span>
+              </label>
+            )}
+
             {/* VISION */}
             {activeMap && (
               <label className="orc-toolbar-group orc-vision" title="How far the party sees">
@@ -702,12 +727,13 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 <input
                   type="range"
                   min={VISION_MIN}
-                  max={400}
-                  step={10}
-                  value={Math.min(activeMap.vision_radius, 400)}
+                  max={VISION_MAX}
+                  step={VISION_STEP}
+                  value={activeMap.vision_radius}
                   aria-label="Vision radius"
                   onChange={(event) => changeVision(Number(event.target.value))}
                 />
+                <span className="orc-range-value">{activeMap.vision_radius}</span>
               </label>
             )}
           </div>
@@ -724,6 +750,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 tokens={tokens}
                 mode="dm"
                 tool={tool}
+                brushRadius={brushRadius}
                 selectedId={selectedId}
                 onPartyDrop={moveParty}
                 onBrush={brush}
@@ -743,7 +770,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               /* NO MAP PLACEHOLDER */
               <div className="empty-state">
                 <p className="empty-state-title">No map</p>
-                <p className="empty-state-body">Create one on the Prep tab.</p>
+                <p className="empty-state-body"><Link href={`/modules/oracle/ui/campaign/${campaignId}/prep`}>Make one on the Prep tab.</Link></p>
               </div>
             )}
 

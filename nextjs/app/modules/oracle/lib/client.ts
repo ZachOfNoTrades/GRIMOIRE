@@ -19,6 +19,8 @@ export async function api<T>(url: string, method: "GET" | "POST" | "PUT" | "DELE
     response = await fetch(url, {
       method,
       cache: "no-store",
+      // A save fired by a blur right before the page navigates away must still reach the server.
+      keepalive: method !== "GET",
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

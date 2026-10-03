@@ -1,8 +1,8 @@
 "use client";
 
-import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Plus, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
@@ -13,6 +13,7 @@ import SessionBar from "../../../../components/SessionBar";
 import { PREP_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
 import { NAME_MAX, PROMPT_MAX, SESSION_TITLE_MAX, WORLD_MAX } from "../../../../lib/constants";
+import { saveOnShortcut, useUnsavedWarning } from "../../../../lib/useUnsavedWarning";
 import type { OracleCampaign, OracleImage, OracleMap, OracleSession, TableSnapshot } from "../../../../types/oracle";
 
 interface PrepClientProps {
@@ -42,28 +43,33 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
   // STATE
   const [isWritingWorld, setIsWritingWorld] = useState(false);
+  const [isSavingWorld, setIsSavingWorld] = useState(false);
   const [isAddingSession, setIsAddingSession] = useState(false);
   const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
-  // What the server last confirmed for the world notes, so a blur with no change saves nothing.
-  const savedRef = useRef(snapshot.campaign.world);
+  // What the server last confirmed for the world notes. The box is dirty while it differs.
+  const [savedWorld, setSavedWorld] = useState(snapshot.campaign.world);
+  const isWorldDirty = world.trim() !== savedWorld;
+  useUnsavedWarning(isWorldDirty);
 
   useEntityTitle(campaign.name);
 
-  // The world notes save when focus leaves the box: there is nothing to review, and a Save
-  // button would be one more thing to forget.
+  // The world notes save on the Save button, Ctrl+S, and when focus leaves the box.
   async function saveWorld(value: string): Promise<boolean> {
     const trimmed = value.trim();
-    if (trimmed === savedRef.current) return true;
+    if (trimmed === savedWorld) return true;
+    setIsSavingWorld(true);
     try {
       const saved = await api<OracleCampaign>(base, "PUT", { world: trimmed });
-      savedRef.current = saved.world;
+      setSavedWorld(saved.world);
       setCampaign(saved);
       return true;
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't save the world notes"));
       return false;
+    } finally {
+      setIsSavingWorld(false);
     }
   }
 
@@ -118,6 +124,8 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
     try {
       const created = await api<OracleMap>(`${base}/maps`, "POST", { name, prompt: mapPrompt.trim() || undefined });
       setMaps((list) => [...list, created]);
+      // The first map is put on the table by the server.
+      setCampaign((current) => (current.active_map_id ? current : { ...current, active_map_id: created.id }));
       setMapName("");
       setMapPrompt("");
     } catch (error) {
@@ -199,14 +207,20 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                     aria-label="World notes"
                     onChange={(event) => setWorld(event.target.value)}
                     onBlur={(event) => saveWorld(event.target.value)}
+                    onKeyDown={saveOnShortcut(() => saveWorld(world))}
                   />
 
                   {/* WORLD ROW */}
                   <div className="orc-card-actions">
-                    <span className="orc-small text-secondary">Every idea, fact and map is written to fit this. Saved when you leave the box.</span>
-                    <Button className="btn-blue" disabled={isWritingWorld} onClick={writeWorld} title="Write world notes from the name and what is in the box">
-                      <Sparkles className="w-4 h-4" /> {isWritingWorld ? "Writing…" : world.trim() ? "Rewrite" : "Generate"}
-                    </Button>
+                    <span className="orc-small text-secondary">{isWorldDirty ? "Unsaved changes." : "Every idea, fact and map is written to fit this."}</span>
+                    <div className="orc-row-actions">
+                      <Button className="btn-blue" disabled={isWritingWorld || isSavingWorld} onClick={writeWorld} title="Write world notes from the name and what is in the box">
+                        <Sparkles className="w-4 h-4" /> {isWritingWorld ? "Writing…" : world.trim() ? "Rewrite" : "Generate"}
+                      </Button>
+                      <Button id="orc-world-save" className={isWorldDirty ? "btn-green" : "btn-off"} disabled={!isWorldDirty || isSavingWorld || isWritingWorld} onClick={() => saveWorld(world)} title="Save the world notes (Ctrl+S)">
+                        <Save className="w-4 h-4" /> {isSavingWorld ? "Saving…" : isWorldDirty ? "Save" : "Saved"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -290,6 +304,14 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                 </div>
                 <div className="card-content orc-stack">
 
+                  {/* EMPTY PLACEHOLDER */}
+                  {maps.length === 0 && (
+                    <div className="empty-state">
+                      <p className="empty-state-title">No maps yet</p>
+                      <p className="empty-state-body">The Table shows the first one you make.</p>
+                    </div>
+                  )}
+
                   {/* MAP ROWS */}
                   {maps.map((map) => (
                     <div key={map.id} className="orc-gen-row">
@@ -299,7 +321,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                       </div>
                       <div className="orc-campaign-actions">
                         {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}
-                        <Button className="btn-link-red" disabled={maps.length <= 1} onClick={() => deleteMap(map)} title="Delete map" aria-label={`Delete map ${map.name}`}>
+                        <Button className="btn-link-red" onClick={() => deleteMap(map)} title="Delete map" aria-label={`Delete map ${map.name}`}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

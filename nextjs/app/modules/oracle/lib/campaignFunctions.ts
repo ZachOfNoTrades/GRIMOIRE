@@ -3,9 +3,8 @@ import { rm } from "fs/promises";
 import path from "path";
 import { getMainConnection } from "@/lib/db";
 import type { CampaignSummary, OracleCampaign, PanelKind } from "../types/oracle";
-import { DISPLAY_CODE_ALPHABET, DISPLAY_CODE_LENGTH, MAP_DEFAULT_HEIGHT, MAP_DEFAULT_WIDTH, MAX_CAMPAIGNS } from "./constants";
+import { DISPLAY_CODE_ALPHABET, DISPLAY_CODE_LENGTH, MAX_CAMPAIGNS } from "./constants";
 import { OracleError, isUniqueViolation } from "./errors";
-import { blankMapData } from "./mapData";
 
 export const UPLOAD_ROOT = path.join(process.cwd(), "storage", "oracle-uploads");
 
@@ -80,7 +79,7 @@ export async function listCampaigns(userId: string): Promise<CampaignSummary[]> 
   }));
 }
 
-// A new campaign starts with one blank map so the table page has something to draw. The
+// A new campaign starts empty: no map until one is made on the Prep tab. The
 // per-user application lock makes the count check and the insert atomic, so a double-click
 // cannot create two campaigns.
 export async function createCampaign(userId: string, name: string): Promise<OracleCampaign> {
@@ -111,35 +110,12 @@ export async function createCampaign(userId: string, name: string): Promise<Orac
         .input("code", generateDisplayCode())
         .query(`
           INSERT INTO oracle_campaigns (user_id, name, display_code)
-          OUTPUT INSERTED.id
-          VALUES (@userId, @name, @code)
-        `);
-      const campaignId: string = created.recordset[0].id;
-
-      const map = await transaction
-        .request()
-        .input("campaignId", campaignId)
-        .input("data", JSON.stringify(blankMapData()))
-        .input("partyX", MAP_DEFAULT_WIDTH / 2)
-        .input("partyY", MAP_DEFAULT_HEIGHT / 2)
-        .query(`
-          INSERT INTO oracle_maps (campaign_id, name, data, party_x, party_y)
-          OUTPUT INSERTED.id
-          VALUES (@campaignId, 'First map', @data, @partyX, @partyY)
-        `);
-
-      const finished = await transaction
-        .request()
-        .input("campaignId", campaignId)
-        .input("mapId", map.recordset[0].id)
-        .query(`
-          UPDATE oracle_campaigns SET active_map_id = @mapId
           OUTPUT ${CAMPAIGN_COLUMNS.split(",").map((column) => `INSERTED.${column.trim()}`).join(", ")}
-          WHERE id = @campaignId
+          VALUES (@userId, @name, @code)
         `);
 
       await transaction.commit();
-      return toCampaign(finished.recordset[0]);
+      return toCampaign(created.recordset[0]);
     } catch (error) {
       await transaction.rollback().catch(() => undefined);
       // A display-code collision is the only retryable failure.
