@@ -181,6 +181,34 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     scheduleMapSave(mapId);
   }
 
+  // FOLLOW CHANGES MADE ELSEWHERE — the map can change from Prep, the API or another tab. The
+  // display's cheap version check (public, one number) is polled while the tab is visible; when
+  // the version moves and nothing is mid-save here, the whole snapshot is reloaded.
+  const knownVersionRef = useRef(snapshot.campaign.version);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    let stopped = false;
+    const tick = async () => {
+      if (stopped || document.visibilityState !== "visible" || saveTimerRef.current) return;
+      try {
+        const response = await fetch(`/api/oracle/${campaign.display_code}/state?v=${knownVersionRef.current}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { version?: number; unchanged?: boolean };
+        if (typeof data.version !== "number" || data.version === knownVersionRef.current) return;
+        knownVersionRef.current = data.version;
+        await refreshRef.current();
+      } catch {
+        /* a missed poll is nothing; the next one catches up */
+      }
+    };
+    const timer = setInterval(tick, 4000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [campaign.display_code]);
+
   function moveParty(x: number, y: number, fromX: number, fromY: number) {
     if (!activeMap) return;
     patchMap(activeMap.id, (map) => ({ ...map, party_x: x, party_y: y, explored: addExploredPath(map.explored, fromX, fromY, x, y, map.vision_radius) }));
