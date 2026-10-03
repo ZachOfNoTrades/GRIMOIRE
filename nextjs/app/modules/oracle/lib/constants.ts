@@ -23,12 +23,16 @@ export const FEATURE_TYPES: readonly FeatureType[] = ["building", "road", "water
 export const FEATURE_STATES: readonly FeatureState[] = ["intact", "burned", "ruined"];
 
 // KNOWLEDGE CHECK — the players roll and say the number; the DM clicks the tier it reached.
+// The steps follow the fifth-edition lore ladder (DC 10 common, 15 uncommon, 20 rare), with the
+// natural 1 as a mistaken belief and everything between as trivia that gives no edge.
 export const KNOWLEDGE_TIERS: { key: KnowledgeTier; range: string; label: string }[] = [
-  { key: "common", range: "10-14", label: "common" },
-  { key: "useful", range: "15-19", label: "useful" },
+  { key: "false", range: "1", label: "incorrect" },
+  { key: "trivial", range: "2-9", label: "useless" },
+  { key: "common", range: "10-14", label: "slight" },
+  { key: "useful", range: "15-19", label: "moderate" },
   { key: "secret", range: "20+", label: "secret" },
 ];
-export const KNOWLEDGE_TIER_KEYS: readonly KnowledgeTier[] = ["common", "useful", "secret"];
+export const KNOWLEDGE_TIER_KEYS: readonly KnowledgeTier[] = ["false", "trivial", "common", "useful", "secret"];
 export const KNOWLEDGE_SKILLS: readonly string[] = ["History", "Arcana", "Nature", "Religion", "Insight", "Investigation"];
 
 // LIMITS — text lengths match the column sizes in the migration.
@@ -47,13 +51,14 @@ export const CAPTION_MAX = 120;
 export const MAX_CAMPAIGNS = 30;
 export const MAX_SESSIONS = 200;
 export const MAX_PARTY_MEMBERS = 12;
+export const MAX_PARTY_GROUPS = 8;
+export const GROUP_NAME_MAX = 60;
 export const MEMBER_NAME_MAX = 60;
 export const MAX_MAPS = 30;
 export const MAX_ENTITIES = 300;
 export const MAX_IMAGES = 200;
 export const MAX_FEATURES = 120;
 export const MAX_EXPLORED = 600;
-export const MAX_UNDO = 8;
 
 // MAP — coordinates are map units; the app scales the drawing to whatever box it is given.
 export const MAP_DEFAULT_WIDTH = 1000;
@@ -100,13 +105,12 @@ export const TEXT_MODELS: { key: TextModel; label: string }[] = [
   { key: "opus", label: "Opus" },
 ];
 export const TEXT_MODEL_KEYS: readonly TextModel[] = ["haiku", "sonnet", "opus"];
-export type GenerationTask = "world" | "build" | "map" | "chips" | "ask" | "fact" | "outline" | "picture";
+export type GenerationTask = "world" | "build" | "map" | "chips" | "fact" | "outline" | "picture";
 export const GENERATION_TASKS: { key: GenerationTask; label: string; hint: string }[] = [
   { key: "world", label: "World notes", hint: "Generate on the Prep tab" },
   { key: "build", label: "Session cast", hint: "Session notes into a cast" },
   { key: "map", label: "Maps", hint: "Drawing and editing in words" },
   { key: "chips", label: "Ideas banner", hint: "Batches for the banner" },
-  { key: "ask", label: "Ask bar", hint: "Free-form questions at the table" },
   { key: "fact", label: "Knowledge checks", hint: "The fact a roll earns" },
   { key: "outline", label: "Picture write-ups", hint: "A new entry from a banner picture" },
   { key: "picture", label: "Picture search", hint: "Turns a name into search words" },

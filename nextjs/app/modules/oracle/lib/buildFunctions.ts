@@ -35,9 +35,10 @@ export async function applyBuiltCast(campaignId: string, built: BuiltCast): Prom
         .input("attitude", entity.attitude)
         .input("stats", row ? JSON.stringify(statBlockFromChallenge(row)) : null)
         .input("dmNotes", entity.dm_notes)
+        .input("source", entity.source)
         .query(`
-          INSERT INTO oracle_entities (campaign_id, kind, name, details, attitude, stats, dm_notes)
-          VALUES (@campaignId, @kind, @name, @details, @attitude, @stats, @dmNotes)
+          INSERT INTO oracle_entities (campaign_id, kind, name, details, attitude, stats, dm_notes, source)
+          VALUES (@campaignId, @kind, @name, @details, @attitude, @stats, @dmNotes, @source)
         `);
     }
 

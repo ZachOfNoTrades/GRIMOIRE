@@ -5,7 +5,7 @@ import { bumpVersion, normalizeId } from "./campaignFunctions";
 import { OracleError, isUniqueViolation } from "./errors";
 import { parseJson } from "./mapData";
 
-const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, is_revealed";
+const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, is_revealed, source";
 
 type EntityRow = {
   id: string;
@@ -20,6 +20,7 @@ type EntityRow = {
   map_y: number | null;
   image_id: string | null;
   is_revealed: boolean;
+  source: string | null;
 };
 
 type KnowledgeRow = { id: string; entity_id: string; fact: string; skill: string | null; tier: KnowledgeTier | null; ts_created: Date };
@@ -49,6 +50,7 @@ function toEntity(row: EntityRow, knowledge: Knowledge[]): OracleEntity {
     map_y: row.map_y,
     image_id: normalizeId(row.image_id),
     is_revealed: !!row.is_revealed,
+    source: row.source ?? null,
     knowledge,
   };
 }
@@ -100,6 +102,7 @@ export interface EntityInput {
   attitude: Attitude;
   dm_notes: string;
   stats: StatBlock | null;
+  source?: string | null;
   map_id: string | null;
   map_x: number | null;
   map_y: number | null;
@@ -130,6 +133,7 @@ export async function createEntity(campaignId: string, input: EntityInput): Prom
     .input("attitude", input.attitude)
     .input("stats", input.kind === "creature" && input.stats ? JSON.stringify(input.stats) : null)
     .input("dmNotes", input.dm_notes)
+    .input("source", input.source ?? null)
     .input("mapId", input.map_id)
     .input("mapX", input.map_id ? input.map_x : null)
     .input("mapY", input.map_id ? input.map_y : null)
@@ -138,9 +142,9 @@ export async function createEntity(campaignId: string, input: EntityInput): Prom
 
   try {
     const result = await request.query(`
-      INSERT INTO oracle_entities (${input.id ? "id, " : ""}campaign_id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y)
+      INSERT INTO oracle_entities (${input.id ? "id, " : ""}campaign_id, kind, name, details, attitude, stats, dm_notes, source, map_id, map_x, map_y)
       OUTPUT ${ENTITY_COLUMNS.split(",").map((column) => `INSERTED.${column.trim()}`).join(", ")}
-      SELECT ${input.id ? "@id, " : ""}@campaignId, @kind, @name, @details, @attitude, @stats, @dmNotes, @mapId, @mapX, @mapY
+      SELECT ${input.id ? "@id, " : ""}@campaignId, @kind, @name, @details, @attitude, @stats, @dmNotes, @source, @mapId, @mapX, @mapY
       WHERE (SELECT COUNT(*) FROM oracle_entities WHERE campaign_id = @campaignId) < @maxEntities
     `);
     if (result.recordset.length === 0) {
@@ -168,6 +172,7 @@ export interface EntityPatch {
   map_y?: number | null;
   image_id?: string | null;
   is_revealed?: boolean;
+  source?: string | null;
 }
 
 export async function updateEntity(campaignId: string, entityId: string, patch: EntityPatch): Promise<OracleEntity> {
@@ -212,6 +217,10 @@ export async function updateEntity(campaignId: string, entityId: string, patch: 
     updateFields.push("map_x = CASE WHEN map_id IS NULL THEN NULL ELSE @mapX END", "map_y = CASE WHEN map_id IS NULL THEN NULL ELSE @mapY END");
     request.input("mapX", patch.map_x);
     request.input("mapY", patch.map_y);
+  }
+  if (patch.source !== undefined) {
+    updateFields.push("source = @source");
+    request.input("source", patch.source);
   }
   if (patch.is_revealed !== undefined) {
     updateFields.push("is_revealed = @isRevealed");

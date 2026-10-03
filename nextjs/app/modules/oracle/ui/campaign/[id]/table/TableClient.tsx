@@ -1,9 +1,8 @@
 "use client";
 
-import { Brush, ChevronDown, CornerDownLeft, Eraser, Eye, EyeOff, MapPin, Move, MonitorUp, PanelLeft, Search, Trash2, Undo2, WandSparkles, X, ZoomIn } from "lucide-react";
+import { Brush, ChevronDown, Eraser, Eye, EyeOff, MapPin, Move, MonitorUp, PanelLeft, Search, Trash2, X, ZoomIn } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Modal from "@/components/Modal";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
@@ -19,13 +18,14 @@ import EntityModal, { type EntityDraft } from "../../../../components/EntityModa
 import ImagePicker, { type ImageSource } from "../../../../components/ImagePicker";
 import MapCanvas, { type MapTool, type MapToken } from "../../../../components/MapCanvas";
 import RangeValue from "../../../../components/RangeValue";
+import PartyPanel from "../../../../components/PartyPanel";
 import ResultModal from "../../../../components/ResultModal";
 import SessionsPanel from "../../../../components/SessionsPanel";
 import SessionBar from "../../../../components/SessionBar";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, MAP_GRID, PROMPT_MAX, VISION_MAX, VISION_MIN, VISION_SLIDER_MAX, VISION_STEP } from "../../../../lib/constants";
+import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, MAP_GRID, VISION_MAX, VISION_MIN, VISION_SLIDER_MAX, VISION_STEP } from "../../../../lib/constants";
 import { addExplored, addExploredPath, eraseExplored, isVisibleFrom, visionPoints } from "../../../../lib/fog";
 import type {
   ChipOption,
@@ -36,14 +36,14 @@ import type {
   OracleChip,
   OracleEntity,
   OracleEvent,
+  OraclePartyGroup,
   OraclePartyMember,
   OracleImage,
   OracleMap,
   OracleSession,
   StatBlock,
   TableSnapshot,
-  TextChipContent,
-} from "../../../../types/oracle";
+  } from "../../../../types/oracle";
 
 interface TableClientProps {
   snapshot: TableSnapshot;
@@ -69,7 +69,7 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 // THE TABLE — where the session is run: the map with its fog, the details of whatever is
-// selected, what the players are shown, the ideas banner and the ask bar.
+// selected, what the players are shown, the ideas banner.
 export default function TableClient({ snapshot, imageSources }: TableClientProps) {
   const campaignId = snapshot.campaign.id;
   const base = campaignApi(campaignId);
@@ -85,10 +85,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [chips, setChips] = useState<OracleChip[]>(snapshot.chips);
   const [events, setEvents] = useState<OracleEvent[]>(snapshot.events);
   const [party, setParty] = useState<OraclePartyMember[]>(snapshot.party);
+  const [partyGroups, setPartyGroups] = useState<OraclePartyGroup[]>(snapshot.party_groups);
 
   // INPUT
-  const [question, setQuestion] = useState("");
-  const [mapInstruction, setMapInstruction] = useState("");
 
   // STATE
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -102,6 +101,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const mapSwitchRef = useRef<HTMLDivElement>(null);
   const mapListStyle = usePopoverStyle(mapSwitchRef, isMapListOpen, "left");
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null); // right-click menu on an entry
+  const [groundMenu, setGroundMenu] = useState<{ x: number; y: number; clientX: number; clientY: number } | null>(null); // right-click menu on bare ground
   const [pictureOpacity, setPictureOpacity] = useState(1); // how strongly the map's picture shows on this screen
   const [focus, setFocus] = useState<{ x: number; y: number; nonce: number } | null>(null); // a Zoom to request
   const [entityModal, setEntityModal] = useState<{ entity: OracleEntity | null; kind: EntityKind; at: { x: number; y: number } | null } | null>(null);
@@ -109,9 +109,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [openChip, setOpenChip] = useState<OracleChip | null>(null);
   const [adoptChip, setAdoptChip] = useState<OracleChip | null>(null);
   const [isAdopting, setIsAdopting] = useState(false);
-  const [answer, setAnswer] = useState<{ title: string; content: TextChipContent | null } | null>(null); // the ask bar's result
-  const [isMapEditOpen, setIsMapEditOpen] = useState(false);
-  const [isMapBusy, setIsMapBusy] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
 
   const activeMap = maps.find((map) => map.id === campaign.active_map_id) ?? maps[0] ?? null;
@@ -120,7 +117,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const panelImage = campaign.panel_kind === "image" ? images.find((image) => image.id === campaign.panel_image_id) ?? null : null;
   const currentSession = sessions.find((session) => session.id === campaign.current_session_id) ?? null;
   const displayLabel = `Map${panelEntity ? ` + ${panelEntity.name}` : panelImage ? ` + ${panelImage.caption}` : ""}`;
-  const isOverlayOpen = !!(openChip || adoptChip || answer || entityModal || picker || isMapEditOpen || isSessionsOpen);
+  const isOverlayOpen = !!(openChip || adoptChip || entityModal || picker || isSessionsOpen);
 
   useEntityTitle(campaign.name);
 
@@ -171,6 +168,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       setImages(fresh.images);
       setEvents(fresh.events);
       setParty(fresh.party);
+      setPartyGroups(fresh.party_groups);
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't reload the campaign"));
     }
@@ -178,7 +176,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
 
   // -------------------------------------------------------------------------------------------
   // MAP — party, fog and features
-  // -------------------------------------------------------------------------------------------
 
   // Map edits are painted at once and saved a moment later, latest state wins: dragging the
   // token or brushing fog produces many small changes that should be one write.
@@ -241,49 +238,115 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     patchMap(activeMap.id, (map) => ({ ...map, party_x: x, party_y: y, explored: addExploredPath(map.explored, fromX, fromY, x, y, map.vision_radius) }));
   }
 
-  // PARTY MEMBERS — standing apart from the party token, or rejoined
-  // -------------------------------------------------------------------------------------------
 
-  // Members split off onto the active map.
-  const apartMembers = useMemo(
-    () => (activeMap ? party.filter((member) => member.map_id === activeMap.id && member.map_x !== null && member.map_y !== null).map((member) => ({ id: member.id, name: member.name, x: member.map_x as number, y: member.map_y as number })) : []),
-    [party, activeMap]
+  // The place entry a building or landmark stands for: the one named like it, else one pinned inside it.
+  function placeForFeature(feature: { name: string; x: number; y: number; w: number; h: number }): OracleEntity | undefined {
+    if (!activeMap) return undefined;
+    const places = entities.filter((entity) => entity.kind === "place");
+    const named = feature.name ? places.find((place) => place.name.trim().toLowerCase() === feature.name.trim().toLowerCase()) : undefined;
+    const pinned = places.find((place) => place.map_id === activeMap.id && place.map_x !== null && place.map_y !== null && place.map_x >= feature.x && place.map_x <= feature.x + feature.w && place.map_y >= feature.y && place.map_y <= feature.y + feature.h);
+    return named ?? pinned;
+  }
+
+  // Features that open a location when tapped (shown with a pointer).
+  const linkedFeatures = useMemo(
+    () => (activeMap ? activeMap.data.features.filter((feature) => (feature.type === "building" || feature.type === "landmark") && placeForFeature(feature)).map((feature) => feature.id) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeMap, entities]
   );
 
-  async function saveMember(member: OraclePartyMember, patch: { map_id: string | null; map_x: number | null; map_y: number | null }, failure: string) {
-    const previous = party;
-    setParty((list) => list.map((entry) => (entry.id === member.id ? { ...entry, ...patch } : entry)));
+  // A tap inside a building or landmark opens the location it stands for.
+  function openLocationAt(x: number, y: number) {
+    if (!activeMap) return;
+    const inside = activeMap.data.features
+      .filter((feature) => (feature.type === "building" || feature.type === "landmark") && x >= feature.x && x <= feature.x + feature.w && y >= feature.y && y <= feature.y + feature.h)
+      .sort((a, b) => a.w * a.h - b.w * b.h);
+    for (const feature of inside) {
+      const found = placeForFeature(feature);
+      if (found) {
+        setSelectedId(found.id);
+        setMobileTab("details");
+        return;
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // PARTY GROUPS — a named token on the map that some of the party stands with
+  // -------------------------------------------------------------------------------------------
+
+  // Groups standing on the active map, drawn as their own tokens.
+  const apartGroups = useMemo(
+    () => (activeMap ? partyGroups.filter((group) => group.map_id === activeMap.id && group.map_x !== null && group.map_y !== null).map((group) => ({ id: group.id, name: group.name, x: group.map_x as number, y: group.map_y as number })) : []),
+    [partyGroups, activeMap]
+  );
+
+  // A new group appears two cells from the party token; characters are then dragged into it.
+  async function createGroup() {
+    if (!activeMap) return;
+    const cell = snapCell(Math.min(activeMap.data.width, activeMap.party_x + MAP_GRID * 2), activeMap.party_y);
     try {
-      const saved = await api<OraclePartyMember>(`${base}/party/${member.id}`, "PUT", patch);
-      setParty((list) => list.map((entry) => (entry.id === member.id ? saved : entry)));
+      const created = await api<OraclePartyGroup>(`${base}/party/groups`, "POST", { name: `Group ${partyGroups.length + 2}`, map_id: activeMap.id, map_x: cell.x, map_y: cell.y });
+      setPartyGroups((list) => [...list, created]);
+    } catch (error) {
+      toast.error(errorMessage(error, "Couldn't make the group"));
+    }
+  }
+
+  async function renameGroup(group: OraclePartyGroup, name: string) {
+    const previous = partyGroups;
+    setPartyGroups((list) => list.map((entry) => (entry.id === group.id ? { ...entry, name } : entry)));
+    try {
+      await api(`${base}/party/groups/${group.id}`, "PUT", { name });
+    } catch (error) {
+      setPartyGroups(previous);
+      toast.error(errorMessage(error, "Couldn't rename the group"));
+    }
+  }
+
+  // Disbanding sends the group's characters back to the party.
+  async function disbandGroup(group: OraclePartyGroup) {
+    const previousGroups = partyGroups;
+    const previousParty = party;
+    setPartyGroups((list) => list.filter((entry) => entry.id !== group.id));
+    setParty((list) => list.map((member) => (member.group_id === group.id ? { ...member, group_id: null } : member)));
+    try {
+      await api(`${base}/party/groups/${group.id}`, "DELETE");
+    } catch (error) {
+      setPartyGroups(previousGroups);
+      setParty(previousParty);
+      toast.error(errorMessage(error, "Couldn't disband the group"));
+    }
+  }
+
+  async function moveMemberTo(member: OraclePartyMember, groupId: string | null) {
+    const previous = party;
+    setParty((list) => list.map((entry) => (entry.id === member.id ? { ...entry, group_id: groupId } : entry)));
+    try {
+      await api(`${base}/party/${member.id}`, "PUT", { group_id: groupId });
     } catch (error) {
       setParty(previous);
-      toast.error(errorMessage(error, failure));
+      toast.error(errorMessage(error, "Couldn't move the character"));
     }
   }
 
-  // A member is placed a step away from the party token, then dragged where it goes.
-  function splitOff(member: OraclePartyMember) {
-    if (!activeMap) return;
-    const index = apartMembers.length;
-    const offset = MAP_GRID * (1 + index);
-    saveMember(member, { map_id: activeMap.id, map_x: Math.round(Math.min(activeMap.data.width - MAP_GRID / 2, activeMap.party_x + offset)), map_y: Math.round(activeMap.party_y) }, "Couldn't split the party");
-  }
-
-  function rejoin(member: OraclePartyMember) {
-    saveMember(member, { map_id: null, map_x: null, map_y: null }, "Couldn't rejoin the party");
-  }
-
-  // Dragging a member onto the party token rejoins it; anywhere else moves it and reveals the path.
-  function moveMember(id: string, x: number, y: number, fromX: number, fromY: number) {
-    const member = party.find((entry) => entry.id === id);
-    if (!member || !activeMap) return;
-    if (Math.hypot(x - activeMap.party_x, y - activeMap.party_y) <= activeMap.vision_radius * 0.15 + 12) {
-      rejoin(member);
+  // Dragging a group onto the party token disbands it; anywhere else moves it and reveals the path.
+  async function moveGroup(id: string, x: number, y: number, fromX: number, fromY: number) {
+    const group = partyGroups.find((entry) => entry.id === id);
+    if (!group || !activeMap) return;
+    if (Math.hypot(x - activeMap.party_x, y - activeMap.party_y) <= MAP_GRID / 2) {
+      disbandGroup(group);
       return;
     }
-    patchMap(activeMap.id, (map) => ({ ...map, explored: addExploredPath(map.explored, fromX, fromY, x, y, map.vision_radius) }));
-    saveMember(member, { map_id: activeMap.id, map_x: Math.round(x), map_y: Math.round(y) }, "Couldn't move the member");
+    if (party.some((member) => member.group_id === group.id)) patchMap(activeMap.id, (map) => ({ ...map, explored: addExploredPath(map.explored, fromX, fromY, x, y, map.vision_radius) }));
+    const previous = partyGroups;
+    setPartyGroups((list) => list.map((entry) => (entry.id === id ? { ...entry, map_id: activeMap.id, map_x: Math.round(x), map_y: Math.round(y) } : entry)));
+    try {
+      await api(`${base}/party/groups/${id}`, "PUT", { map_id: activeMap.id, map_x: Math.round(x), map_y: Math.round(y) });
+    } catch (error) {
+      setPartyGroups(previous);
+      toast.error(errorMessage(error, "Couldn't move the group"));
+    }
   }
 
   function brush(x: number, y: number) {
@@ -315,33 +378,16 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     }
   }
 
-  async function editMapWithAi() {
-    const instruction = mapInstruction.trim();
-    if (!activeMap || !instruction || isMapBusy) return;
-    setIsMapBusy(true);
-    try {
-      const updated = await api<OracleMap>(`${base}/maps/${activeMap.id}/edit`, "POST", { instruction });
-      setMaps((previous) => previous.map((map) => (map.id === updated.id ? updated : map)));
-      setIsMapEditOpen(false);
-      setMapInstruction("");
-    } catch (error) {
-      toast.error(errorMessage(error, "Couldn't change the map"));
-    } finally {
-      setIsMapBusy(false);
-    }
+  function snapCell(rawX: number, rawY: number) {
+    if (!activeMap) return { x: rawX, y: rawY };
+    const snap = (value: number, limit: number) => Math.min(limit - MAP_GRID / 2, Math.max(MAP_GRID / 2, Math.floor(value / MAP_GRID) * MAP_GRID + MAP_GRID / 2));
+    return { x: snap(rawX, activeMap.data.width), y: snap(rawY, activeMap.data.height) };
   }
 
-  async function undoMap() {
-    if (!activeMap || isMapBusy) return;
-    setIsMapBusy(true);
-    try {
-      const updated = await api<OracleMap>(`${base}/maps/${activeMap.id}/undo`, "POST");
-      setMaps((previous) => previous.map((map) => (map.id === updated.id ? updated : map)));
-    } catch (error) {
-      toast.error(errorMessage(error, "Nothing to undo"));
-    } finally {
-      setIsMapBusy(false);
-    }
+  // One brush-sized circle revealed or hidden at a point, from the right-click menu.
+  function brushAt(x: number, y: number, how: "reveal" | "hide") {
+    if (!activeMap) return;
+    patchMap(activeMap.id, (map) => ({ ...map, explored: how === "hide" ? eraseExplored(map.explored, x, y, brushRadius) : addExplored(map.explored, x, y, brushRadius) }));
   }
 
   // A tap on the map with the Pin tool: place the entry that is waiting, or start a new one there.
@@ -383,7 +429,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   async function createEntity(draft: EntityDraft, at: { x: number; y: number } | null) {
     const id = generateUUID().toLowerCase();
     const placement = at && activeMap ? { map_id: activeMap.id, map_x: at.x, map_y: at.y } : { map_id: null, map_x: null, map_y: null };
-    const optimistic: OracleEntity = { id, ...draft, ...placement, image_id: null, is_revealed: false, knowledge: [] };
+    const optimistic: OracleEntity = { id, ...draft, ...placement, image_id: null, is_revealed: false, source: draft.source, knowledge: [] };
     setEntities((list) => [...list, optimistic]);
     setSelectedId(id);
     setEntityModal(null);
@@ -658,7 +704,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     addNote(null, `${title}: ${option.text}`.slice(0, 1000));
     if (openChip) removeChip(openChip);
     setOpenChip(null);
-    setAnswer(null);
   }
 
   // A banner picture becomes a creature, person or location. It arrives off the map and the
@@ -693,26 +738,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     }
   }
 
-  // -------------------------------------------------------------------------------------------
-  // ASK BAR
-  // -------------------------------------------------------------------------------------------
-
-  async function ask() {
-    const query = question.trim();
-    if (!query || answer) return;
-    setAnswer({ title: query, content: null });
-    try {
-      const content = await api<TextChipContent>(`${base}/ask`, "POST", { query, entity_id: selected && !selected.id.startsWith("tmp-") ? selected.id : null });
-      // A closed modal means the DM moved on; drop the late answer instead of popping it open.
-      setAnswer((current) => (current && current.title === query ? { title: content.title, content } : current));
-      setQuestion("");
-    } catch (error) {
-      setAnswer(null);
-      toast.error(errorMessage(error, "Couldn't answer that"));
-    }
-  }
-
-  // Placing ends with a press anywhere off the map (the toolbar stays live for switching tools).
+  // Placing ends with a press anywhere off the map (the toolbar stays live for its own controls).
   const isPlacing = placingId !== null || tool === "place";
   useEffect(() => {
     if (!isPlacing) return;
@@ -732,11 +758,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        document.getElementById("orc-ask")?.focus();
-        return;
-      }
       if (isTyping(event.target) || event.ctrlKey || event.metaKey || event.altKey || isOverlayOpen) return;
       const key = event.key.toLowerCase();
       const hit = TOOLS.find((entry) => entry.hotkey === key);
@@ -760,6 +781,31 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [isOverlayOpen]);
+
+  // The sliders live in the map's action bar.
+  const barExtras = activeMap ? (
+    <>
+      {(tool === "reveal" || tool === "hide") && (
+        <label className="orc-bar-slider orc-brush" title="Brush size ( [ and ] to change, Shift for fine steps )">
+          <span className="orc-label">Brush</span>
+          <input type="range" min={BRUSH_MIN} max={BRUSH_MAX} step={BRUSH_STEP} value={brushRadius} aria-label="Brush size" onChange={(event) => changeBrush(Number(event.target.value))} />
+          <RangeValue value={brushRadius} min={BRUSH_MIN} max={BRUSH_MAX} label="Brush size" onCommit={changeBrush} />
+        </label>
+      )}
+      <div className="orc-bar-slider orc-vision" title="How far the party sees">
+        <span className="orc-label">Vision</span>
+        <input type="range" min={VISION_MIN} max={VISION_SLIDER_MAX} step={VISION_STEP} value={Math.min(VISION_SLIDER_MAX, activeMap.vision_radius)} aria-label="Vision radius" onChange={(event) => changeVision(Number(event.target.value))} />
+        <RangeValue value={Math.round(activeMap.vision_radius)} min={VISION_MIN} max={VISION_MAX} label="Vision radius" onCommit={changeVision} />
+      </div>
+      {activeMap.background_image_id && (
+        <div className="orc-bar-slider orc-vision" title="How strongly the map's background shows on this screen">
+          <span className="orc-label">Background</span>
+          <input type="range" min={0} max={100} value={Math.round(pictureOpacity * 100)} aria-label="Background opacity" onChange={(event) => changePictureOpacity(Number(event.target.value) / 100)} />
+          <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Background opacity" onCommit={(value) => changePictureOpacity(value / 100)} />
+        </div>
+      )}
+    </>
+  ) : null;
 
   return (
     // PAGE — a locked full-height shell: only the panes inside scroll
@@ -805,7 +851,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
 
             {/* MAP NAME / SWITCHER */}
             <div className="orc-toolbar-group">
-
               {/* MAP SWITCHER — the active map's name; opens the list of maps */}
               <div className="orc-map-switch" ref={mapSwitchRef}>
                 <button type="button" id="orc-map-switch" className="orc-map-switch-button" aria-expanded={isMapListOpen} aria-haspopup="listbox" title="Change map" onClick={() => setIsMapListOpen((open) => !open)}>
@@ -819,7 +864,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                       {maps.map((map) => (
                         <button key={map.id} type="button" role="option" aria-selected={map.id === activeMap?.id} className="orc-map-switch-item" onClick={() => { setIsMapListOpen(false); if (map.id !== activeMap?.id) switchMap(map.id); }}>
                           <span>{map.name}</span>
-                          {map.id === activeMap?.id && <span className="orc-small text-secondary">on the table</span>}
+                          {map.id === activeMap?.id && <span className="orc-map-switch-check" aria-hidden />}
                         </button>
                       ))}
                       <Link className="orc-map-switch-item orc-map-switch-manage" href={`/modules/oracle/ui/campaign/${campaignId}/prep`}>Add or edit maps</Link>
@@ -827,89 +872,18 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                   </>
                 )}
               </div>
-
-              {/* UNDO */}
-              <Button className="btn-off" disabled={!activeMap?.can_undo || isMapBusy} onClick={undoMap} title="Undo the last map change" aria-label="Undo the last map change">
-                <Undo2 className="w-4 h-4" /> <span className="hidden xl:inline">Undo</span>
-              </Button>
-
-              {/* EDIT WITH AI */}
-              <Button className="btn-off" disabled={!activeMap || isMapBusy} onClick={() => setIsMapEditOpen(true)} title="Edit the map in words" aria-label="Edit the map in words">
-                <WandSparkles className="w-4 h-4" /> <span className="hidden xl:inline">Edit with AI</span>
-              </Button>
             </div>
 
-            {/* TOOLS */}
-            <div className="orc-toolbar-group" role="radiogroup" aria-label="Map tool">
-              {TOOLS.map((entry) => {
-                const Icon = entry.icon;
-                return (
-                  <button
-                    key={entry.key}
-                    type="button"
-                    role="radio"
-                    aria-checked={tool === entry.key}
-                    className="orc-tool"
-                    title={`${entry.label} (${entry.hotkey.toUpperCase()})`}
-                    aria-label={entry.label}
-                    onClick={() => {
-                      setTool(entry.key);
-                      setPlacingId(null);
-                    }}
-                  >
-                    <Icon className="w-4 h-4" aria-hidden />
-                    <span className="orc-tool-label">{entry.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* SLIDERS — kept together so they wrap as one row when the toolbar is tight */}
-            <div className="orc-toolbar-group orc-sliders">
-
-            {/* BRUSH — only while a fog tool is active */}
-            {activeMap && (tool === "reveal" || tool === "hide") && (
-              <label className="orc-toolbar-group orc-vision orc-brush" title="Brush size ( [ and ] to change, Shift for fine steps )">
-                <span className="orc-label">Brush</span>
-                <input
-                  type="range"
-                  min={BRUSH_MIN}
-                  max={BRUSH_MAX}
-                  step={BRUSH_STEP}
-                  value={brushRadius}
-                  aria-label="Brush size"
-                  onChange={(event) => changeBrush(Number(event.target.value))}
-                />
-                <span className="orc-range-value">{brushRadius}</span>
-              </label>
-            )}
-
-            {/* VISION */}
-            {activeMap && (
-              <div className="orc-toolbar-group orc-vision" title="How far the party sees">
-                <span className="orc-label">Vision</span>
-                <input
-                  type="range"
-                  min={VISION_MIN}
-                  max={VISION_SLIDER_MAX}
-                  step={VISION_STEP}
-                  value={Math.min(VISION_SLIDER_MAX, activeMap.vision_radius)}
-                  aria-label="Vision radius"
-                  onChange={(event) => changeVision(Number(event.target.value))}
-                />
-                <RangeValue value={Math.round(activeMap.vision_radius)} min={VISION_MIN} max={VISION_MAX} label="Vision radius" onCommit={changeVision} />
+            {/* FOG TOOL — while painting fog, a chip names it and ends it */}
+            {(tool === "reveal" || tool === "hide") && (
+              <div className="orc-toolbar-group orc-sliders">
+              {(tool === "reveal" || tool === "hide") && (
+                <button type="button" className="orc-tool-chip" onClick={() => setTool("move")} title="Stop painting (Esc or right-click)">
+                  {tool === "reveal" ? <Brush className="w-4 h-4" /> : <Eraser className="w-4 h-4" />} {tool === "reveal" ? "Revealing" : "Hiding"} <X className="w-3 h-3" />
+                </button>
+              )}
               </div>
             )}
-
-            {/* PICTURE OPACITY — only while the map has a picture */}
-            {activeMap?.background_image_id && (
-              <div className="orc-toolbar-group orc-vision" title="How strongly the map's picture shows on this screen">
-                <span className="orc-label">Picture</span>
-                <input type="range" min={0} max={100} value={Math.round(pictureOpacity * 100)} aria-label="Picture opacity" onChange={(event) => changePictureOpacity(Number(event.target.value) / 100)} />
-                <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Picture opacity" onCommit={(value) => changePictureOpacity(value / 100)} />
-              </div>
-            )}
-            </div>
           </div>
 
           {/* MAP */}
@@ -922,9 +896,10 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 visionRadius={activeMap.vision_radius}
                 explored={activeMap.explored}
                 tokens={tokens}
-                members={apartMembers}
+                members={apartGroups}
                 backgroundUrl={activeMap.background_image_id ? `${base}/images/${activeMap.background_image_id}` : null}
                 pictureOpacity={pictureOpacity}
+                barExtras={barExtras}
                 mode="dm"
                 tool={tool}
                 brushRadius={brushRadius}
@@ -932,12 +907,15 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 shownId={panelEntity?.id ?? null}
                 onPartyDrop={moveParty}
                 onPartySelect={() => setIsPartyOpen((open) => !open)}
+                onGroundClick={openLocationAt}
                 focus={focus}
-                onMemberDrop={moveMember}
+                onMemberDrop={moveGroup}
                 onBrush={brush}
                 onBrushEnd={() => scheduleMapSave(activeMap.id)}
                 onPlace={placeAt}
-                onCancelPlace={() => { setPlacingId(null); setTool("move"); }}
+                onCancelTool={() => { setPlacingId(null); setTool("move"); }}
+                onGroundContext={(x, y, clientX, clientY) => setGroundMenu({ x, y, clientX, clientY })}
+                linkedFeatures={linkedFeatures}
                 onTokenContext={(id, x, y) => setMenu({ id, x, y })}
                 onTokenSelect={(id) => {
                   setSelectedId(id);
@@ -959,33 +937,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
 
             {/* PARTY POPOVER — who is with the token and who stands apart */}
             {isPartyOpen && activeMap && (
-              <div className="orc-party-panel" role="dialog" aria-label="Party">
-                <div className="orc-party-panel-head">
-                  <span className="orc-label">Party</span>
-                  <button type="button" className="orc-map-hint-cancel" aria-label="Close" onClick={() => setIsPartyOpen(false)}><X className="w-4 h-4" /></button>
-                </div>
-                {party.length === 0 && (
-                  <p className="orc-small text-secondary"><Link href={`/modules/oracle/ui/campaign/${campaignId}/prep`}>Add the party on Prep</Link></p>
-                )}
-                {party.map((member) => {
-                  const apart = member.map_id === activeMap.id && member.map_x !== null;
-                  return (
-                    <div key={member.id} className="orc-party-row" data-apart={apart ? "true" : undefined}>
-                      <span className="orc-party-name">{member.name} <span className="orc-muted">· {member.level}</span></span>
-                      <span className="orc-small text-secondary">{apart ? "Apart" : "With the party"}</span>
-                      <Button className="btn-off" onClick={() => (apart ? rejoin(member) : splitOff(member))}>{apart ? "Rejoin" : "Split off"}</Button>
-                    </div>
-                  );
-                })}
-              </div>
+              <PartyPanel campaignId={campaignId} party={party} groups={partyGroups} onCreateGroup={createGroup} onRenameGroup={renameGroup} onDisbandGroup={disbandGroup} onMoveMember={moveMemberTo} onClose={() => setIsPartyOpen(false)} />
             )}
 
-            {/* MAP LEGEND */}
-            <div className="orc-legend" aria-hidden>
-              <span className="orc-legend-item" data-zone="visible">In sight</span>
-              <span className="orc-legend-item" data-zone="explored">Explored</span>
-              <span className="orc-legend-item" data-zone="unexplored">Unexplored</span>
-            </div>
           </div>
         </section>
 
@@ -1000,7 +954,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             panelEntityId={panelEntity?.id ?? null}
             isVisibleToPlayers={
               !!(selected && activeMap && selected.map_id === activeMap.id && selected.map_x !== null && selected.map_y !== null &&
-                isVisibleFrom(visionPoints(activeMap, party), activeMap.vision_radius, selected.map_x, selected.map_y))
+                isVisibleFrom(visionPoints(activeMap, partyGroups, party), activeMap.vision_radius, selected.map_x, selected.map_y))
             }
             isPlacing={!!selected && placingId === selected.id}
             onSelect={setSelectedId}
@@ -1008,6 +962,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             onEdit={(entity) => setEntityModal({ entity, kind: entity.kind, at: null })}
             onDelete={deleteEntity}
             onShow={showEntity}
+            onToggleRevealed={toggleRevealed}
             onStats={(entity, stats: StatBlock) => saveEntity(entity, { stats }, "Couldn't save the stats")}
             onAddNote={addNote}
             onReveal={revealFact}
@@ -1028,7 +983,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
         </section>
       </div>
 
-      {/* ASSIST AREA — the ideas banner and the ask bar */}
+      {/* ASSIST AREA — the ideas banner */}
       <div className="orc-assist">
 
         {/* IDEAS BANNER */}
@@ -1047,37 +1002,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             if (chip) removeChip(chip);
           }}
         />
-
-        {/* ASK BAR */}
-        <div className="orc-ask">
-          <div className="input-with-icon orc-grow">
-            <Search className="input-with-icon-leading w-4 h-4" aria-hidden />
-
-            {/* ASK FIELD — not autofocused: it is always on screen and focusing it on load would
-                raise the phone keyboard over the map. Ctrl+K focuses it. */}
-            <input
-              id="orc-ask"
-              className="input-field"
-              value={question}
-              maxLength={PROMPT_MAX}
-              placeholder={selected ? `Ask anything about ${selected.name}, or the session` : "Ask for anything: a name, loot, a rule, what someone says"}
-              aria-label="Ask for anything"
-              onChange={(event) => setQuestion(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                  ask();
-                }
-              }}
-            />
-          </div>
-
-          {/* ASK BUTTON */}
-          <Button className="btn-blue" disabled={!question.trim() || !!answer} onClick={ask} title="Ask (Enter)" aria-label="Ask">
-            <CornerDownLeft className="w-4 h-4" /> <span className="hidden sm:inline">Ask</span>
-          </Button>
-        </div>
       </div>
 
       {/* MOBILE TABS — below 1024px the map and the details share the screen one at a time */}
@@ -1131,9 +1055,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
         onClose={() => setOpenChip(null)}
       />
 
-      {/* ANSWER MODAL */}
-      <ResultModal partyLevels={party.map((member) => member.level)} content={answer?.content ?? null} isLoading={!!answer && !answer.content} loadingTitle={answer?.title} onUse={chooseOption} onClose={() => setAnswer(null)} />
-
       {/* PICTURE-TO-ENTRY MODAL */}
       <AdoptModal chip={adoptChip} isBusy={isAdopting} onAdopt={adopt} onDismiss={(chip) => { removeChip(chip); setAdoptChip(null); }} onClose={() => setAdoptChip(null)} />
 
@@ -1143,46 +1064,22 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       {/* PICTURE PICKER */}
       <ImagePicker isOpen={!!picker} campaignId={campaignId} sources={imageSources} subject={picker?.subject ?? ""} detail={picker?.detail ?? ""} onAdded={pictureAdded} onClose={() => setPicker(null)} />
 
-      {/* MAP EDIT MODAL */}
-      <Modal
-        isOpen={isMapEditOpen}
-        onClose={() => setIsMapEditOpen(false)}
-        disableClose={isMapBusy}
-        title="Edit the map"
-        footer={
-          <div className="flex items-center justify-end gap-2 w-full">
-            <Button className="btn-off" disabled={isMapBusy} onClick={() => setIsMapEditOpen(false)}>Cancel</Button>
-            <Button className="btn-blue" disabled={isMapBusy || !mapInstruction.trim()} onClick={editMapWithAi}>
-              <WandSparkles className="w-4 h-4" /> {isMapBusy ? "Changing…" : "Change the map"}
-            </Button>
-          </div>
-        }
-      >
-        <div className="orc-form">
-
-          {/* INSTRUCTION FIELD — autofocused: the modal exists to take this one instruction. */}
-          <label className="orc-field">
-            <span className="orc-field-label">What should change?</span>
-            <input
-              id="orc-map-instruction"
-              className="input-field"
-              autoFocus
-              value={mapInstruction}
-              maxLength={PROMPT_MAX}
-              disabled={isMapBusy}
-              placeholder="The village was sacked last night"
-              onChange={(event) => setMapInstruction(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  editMapWithAi();
-                }
-              }}
-            />
-          </label>
-
-        </div>
-      </Modal>
+      {/* GROUND MENU — right-click on bare ground */}
+      {groundMenu && activeMap && (
+        <ContextMenu
+          x={groundMenu.clientX}
+          y={groundMenu.clientY}
+          onClose={() => setGroundMenu(null)}
+          items={[
+            { label: "Move party here", icon: <Move className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); moveParty(cell.x, cell.y, activeMap.party_x, activeMap.party_y); } },
+            { label: "Reveal here", icon: <Brush className="w-4 h-4" />, onSelect: () => { brushAt(groundMenu.x, groundMenu.y, "reveal"); } },
+            { label: "Hide here", icon: <Eraser className="w-4 h-4" />, onSelect: () => { brushAt(groundMenu.x, groundMenu.y, "hide"); } },
+            { label: "Paint reveal", icon: <Brush className="w-4 h-4" />, onSelect: () => setTool("reveal") },
+            { label: "Paint hide", icon: <Eraser className="w-4 h-4" />, onSelect: () => setTool("hide") },
+            { label: "Add entry here", icon: <MapPin className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "place", at: cell }); } },
+          ]}
+        />
+      )}
 
       {/* ENTRY MENU — right-click on the map */}
       {menu && (() => {

@@ -23,6 +23,7 @@ interface DetailsPanelProps {
   onEdit: (entity: OracleEntity) => void;
   onDelete: (entity: OracleEntity) => void;
   onShow: (entity: OracleEntity | null) => void;
+  onToggleRevealed: (entity: OracleEntity) => void;
   onStats: (entity: OracleEntity, stats: StatBlock) => void;
   onAddNote: (entity: OracleEntity, body: string) => void;
   onReveal: (entity: OracleEntity, fact: string, skill: string | null, tier: KnowledgeTier | null) => void;
@@ -226,7 +227,12 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               </Button>
             ) : (
               <Button className="btn-off" onClick={() => props.onShow(selected)}>
-                <MonitorUp className="w-4 h-4" /> Show to players
+                <MonitorUp className="w-4 h-4" /> Show details to players
+              </Button>
+            )}
+            {selected.kind !== "place" && selected.map_id === activeMapId && activeMapId && (
+              <Button className={selected.is_revealed ? "btn-green" : "btn-off"} onClick={() => props.onToggleRevealed(selected)} title={selected.is_revealed ? "Take it off the players' map again" : "Put it on the players' map"}>
+                {selected.is_revealed ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />} {selected.is_revealed ? "Revealed" : "Reveal to players"}
               </Button>
             )}
             {selected.map_id === activeMapId && activeMapId ? (
@@ -347,19 +353,6 @@ export default function DetailsPanel(props: DetailsPanelProps) {
 
               {/* TIER BUTTONS */}
               <div className="orc-tiers">
-                <button
-                  type="button"
-                  className="orc-tier"
-                  disabled={isGenerating}
-                  onClick={() => {
-                    setTier(null);
-                    setDraftFact(null);
-                    props.onAddNote(selected, `${skill} check on ${selected.name}: nothing learned.`);
-                  }}
-                >
-                  <span className="orc-tier-range">Under 10</span>
-                  <span className="orc-tier-label">nothing</span>
-                </button>
                 {KNOWLEDGE_TIERS.map((entry) => (
                   <button
                     key={entry.key}
@@ -381,7 +374,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               {/* DRAFT FACT */}
               {draftFact && (
                 <div className="orc-draft">
-                  <span className="orc-draft-label">Players will learn</span>
+                  <span className="orc-draft-label">{tier === "false" ? "Players will believe (wrong)" : "Players will learn"}</span>
                   <p className="orc-section-text">{draftFact}</p>
                   <div className="orc-draft-actions">
                     <Button className="btn-blue" onClick={reveal}>
@@ -429,6 +422,11 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               </div>
             </section>
           </div>
+
+          {/* FOOTER — where a creature comes from */}
+          {selected.kind === "creature" && (
+            <div className="orc-details-footer">Source: {selected.source || "not recorded"}</div>
+          )}
         </div>
       )}
     </div>

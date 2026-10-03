@@ -118,7 +118,7 @@ export default function SettingsClient({ settings: initialSettings }: { settings
         <div className="settings-group">
           <SettingsToggleRow
             label="Allow AI-invented creatures"
-            hint="Off: every creature an idea or a cast offers comes from your world notes, session notes or cast"
+            hint="Off: creatures come only from published sources, your notes or an official book. On: the AI may also create new ones"
             checked={settings.ai_creatures}
             onChange={(next) => save({ ai_creatures: next })}
           />

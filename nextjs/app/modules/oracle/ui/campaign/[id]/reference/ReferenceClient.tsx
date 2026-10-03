@@ -93,6 +93,7 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
             kind: "creature",
             name: `${line.label}${line.count > 1 ? ` ${index + 1}` : ""}`,
             attitude: "hostile",
+            source: "Challenge rating table",
             stats: row ? statBlockFromChallenge(row) : null,
             map_id: activeMap?.id ?? null,
             map_x: activeMap ? Math.round(Math.min(Math.max(activeMap.party_x + Math.cos(angle) * 60, 0), activeMap.data.width)) : null,

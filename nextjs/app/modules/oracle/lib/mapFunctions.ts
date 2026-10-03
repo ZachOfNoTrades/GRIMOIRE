@@ -1,17 +1,16 @@
 import { getMainConnection } from "@/lib/db";
 import type { ExploredCircle, MapData, OracleMap, PictureRect } from "../types/oracle";
-import { MAX_MAPS, MAX_UNDO, VISION_DEFAULT, type ScaleUnit } from "./constants";
+import { MAX_MAPS, VISION_DEFAULT, type ScaleUnit } from "./constants";
 import { bumpVersion } from "./campaignFunctions";
 import { OracleError } from "./errors";
 import { blankMapData, coerceExplored, coerceMapData, parseJson } from "./mapData";
 
-const MAP_COLUMNS = "id, name, data, undo_stack, party_x, party_y, vision_radius, explored, background_image_id";
+const MAP_COLUMNS = "id, name, data, party_x, party_y, vision_radius, explored, background_image_id";
 
 type MapRow = {
   id: string;
   name: string;
   data: string;
-  undo_stack: string;
   party_x: number;
   party_y: number;
   vision_radius: number;
@@ -20,12 +19,10 @@ type MapRow = {
 };
 
 export function toMap(row: MapRow): OracleMap {
-  const undoStack = parseJson<unknown[]>(row.undo_stack, []);
   return {
     id: row.id.toLowerCase(),
     name: row.name,
     data: coerceMapData(parseJson<unknown>(row.data, null)),
-    can_undo: Array.isArray(undoStack) && undoStack.length > 0,
     party_x: row.party_x,
     party_y: row.party_y,
     vision_radius: row.vision_radius,
@@ -169,78 +166,23 @@ export async function updateMap(campaignId: string, mapId: string, patch: MapPat
   return toMap(result.recordset[0]);
 }
 
-// Replace the map's features, keeping the previous version on the undo stack. Read and write
-// happen under an update lock so two edits cannot both push the same "previous" version.
+// Replace the map's features (and the rest of its data) in one write.
 export async function replaceMapData(campaignId: string, mapId: string, data: MapData): Promise<OracleMap> {
   const pool = await getMainConnection();
-  const transaction = pool.transaction();
-  await transaction.begin();
-  try {
-    const current = await transaction.request().input("mapId", mapId).input("campaignId", campaignId).query(`
-      SELECT data, undo_stack FROM oracle_maps WITH (UPDLOCK, ROWLOCK) WHERE id = @mapId AND campaign_id = @campaignId
+  const result = await pool
+    .request()
+    .input("mapId", mapId)
+    .input("campaignId", campaignId)
+    .input("data", JSON.stringify(data))
+    .query(`
+      UPDATE oracle_maps
+      SET data = @data, ts_updated = GETDATE()
+      OUTPUT ${MAP_COLUMNS.split(",").map((column) => `INSERTED.${column.trim()}`).join(", ")}
+      WHERE id = @mapId AND campaign_id = @campaignId
     `);
-    if (current.recordset.length === 0) {
-      throw new OracleError(404, "Map not found");
-    }
-    const undoStack = parseJson<string[]>(current.recordset[0].undo_stack, []);
-    const nextStack = [...(Array.isArray(undoStack) ? undoStack : []), current.recordset[0].data].slice(-MAX_UNDO);
-
-    const result = await transaction
-      .request()
-      .input("mapId", mapId)
-      .input("data", JSON.stringify(data))
-      .input("undoStack", JSON.stringify(nextStack))
-      .query(`
-        UPDATE oracle_maps
-        SET data = @data, undo_stack = @undoStack, ts_updated = GETDATE()
-        OUTPUT ${MAP_COLUMNS.split(",").map((column) => `INSERTED.${column.trim()}`).join(", ")}
-        WHERE id = @mapId
-      `);
-    await transaction.commit();
-    await bumpVersion(campaignId);
-    return toMap(result.recordset[0]);
-  } catch (error) {
-    await transaction.rollback().catch(() => undefined);
-    throw error;
-  }
-}
-
-// Put back the version before the last change.
-export async function undoMapData(campaignId: string, mapId: string): Promise<OracleMap> {
-  const pool = await getMainConnection();
-  const transaction = pool.transaction();
-  await transaction.begin();
-  try {
-    const current = await transaction.request().input("mapId", mapId).input("campaignId", campaignId).query(`
-      SELECT undo_stack FROM oracle_maps WITH (UPDLOCK, ROWLOCK) WHERE id = @mapId AND campaign_id = @campaignId
-    `);
-    if (current.recordset.length === 0) {
-      throw new OracleError(404, "Map not found");
-    }
-    const undoStack = parseJson<string[]>(current.recordset[0].undo_stack, []);
-    if (!Array.isArray(undoStack) || undoStack.length === 0) {
-      throw new OracleError(409, "Nothing to undo");
-    }
-    const previous = undoStack[undoStack.length - 1];
-
-    const result = await transaction
-      .request()
-      .input("mapId", mapId)
-      .input("data", previous)
-      .input("undoStack", JSON.stringify(undoStack.slice(0, -1)))
-      .query(`
-        UPDATE oracle_maps
-        SET data = @data, undo_stack = @undoStack, ts_updated = GETDATE()
-        OUTPUT ${MAP_COLUMNS.split(",").map((column) => `INSERTED.${column.trim()}`).join(", ")}
-        WHERE id = @mapId
-      `);
-    await transaction.commit();
-    await bumpVersion(campaignId);
-    return toMap(result.recordset[0]);
-  } catch (error) {
-    await transaction.rollback().catch(() => undefined);
-    throw error;
-  }
+  if (result.recordset.length === 0) throw new OracleError(404, "Map not found");
+  await bumpVersion(campaignId);
+  return toMap(result.recordset[0]);
 }
 
 // Entities placed on the deleted map are unplaced, and if it was the active map the oldest

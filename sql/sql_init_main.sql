@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610031810 (Oracle AI creatures setting, revealed entries)
+-- Version: 202610031830 (Oracle party groups, entry source)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -361,12 +361,30 @@ BEGIN TRY
             map_id UNIQUEIDENTIFIER NULL, -- set while the member stands apart from the party token
             map_x FLOAT NULL,
             map_y FLOAT NULL,
+            group_id UNIQUEIDENTIFIER NULL, -- oracle_party_groups.id, no FK; NULL = with the main party
             ts_created DATETIME DEFAULT GETDATE(),
 
             CONSTRAINT FK_oracle_party_members_campaign FOREIGN KEY (campaign_id) REFERENCES oracle_campaigns(id) ON DELETE CASCADE
         );
 
         CREATE INDEX IX_oracle_party_members_campaign ON oracle_party_members (campaign_id, ts_created);
+    END
+
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='oracle_party_groups' AND xtype='U')
+    BEGIN
+        CREATE TABLE oracle_party_groups (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            campaign_id UNIQUEIDENTIFIER NOT NULL,
+            name NVARCHAR(60) NOT NULL,
+            map_id UNIQUEIDENTIFIER NULL, -- oracle_maps.id, no FK
+            map_x FLOAT NULL,
+            map_y FLOAT NULL,
+            ts_created DATETIME DEFAULT GETDATE(),
+
+            CONSTRAINT FK_oracle_party_groups_campaign FOREIGN KEY (campaign_id) REFERENCES oracle_campaigns(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IX_oracle_party_groups_campaign ON oracle_party_groups (campaign_id, ts_created);
     END
 
     -- =============================
@@ -413,6 +431,7 @@ BEGIN TRY
             map_y FLOAT NULL,
             image_id UNIQUEIDENTIFIER NULL, -- oracle_images.id, no FK
             is_revealed BIT NOT NULL DEFAULT 0, -- 1 = shown on the player map by hand, even outside the party sight
+            source NVARCHAR(200) NULL, -- book and page, adventure, or AI-generated
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 

@@ -27,11 +27,15 @@ export function isVisibleFrom(points: VisionPoint[], visionRadius: number, x: nu
   return points.some((point) => distance(point.x, point.y, x, y) <= visionRadius);
 }
 
-// The party token plus every member split off onto this map.
-export function visionPoints(map: { id: string; party_x: number; party_y: number }, members: { map_id: string | null; map_x: number | null; map_y: number | null }[]): VisionPoint[] {
+// The party token plus every group standing on this map that has someone in it.
+export function visionPoints(
+  map: { id: string; party_x: number; party_y: number },
+  groups: { id: string; map_id: string | null; map_x: number | null; map_y: number | null }[],
+  members: { group_id: string | null }[]
+): VisionPoint[] {
   const points: VisionPoint[] = [{ x: map.party_x, y: map.party_y }];
-  for (const member of members) {
-    if (member.map_id === map.id && member.map_x !== null && member.map_y !== null) points.push({ x: member.map_x, y: member.map_y });
+  for (const group of groups) {
+    if (group.map_id === map.id && group.map_x !== null && group.map_y !== null && members.some((member) => member.group_id === group.id)) points.push({ x: group.map_x, y: group.map_y });
   }
   return points;
 }

@@ -22,12 +22,11 @@ export const TABLE_HELP: HelpSection[] = [
     heading: "Map and fog",
     body: (
       <ul>
-        <li><strong>Move party</strong>: drag the party token. Players see everything inside the circle around it.</li>
+        <li>Drag the party token to move it. Players see everything inside the circle around it.</li>
         <li>Where the party has been stays on their map, dimmed, showing buildings but never creatures. Where they have not been is black.</li>
-        <li><strong>Reveal</strong> and <strong>Hide</strong> paint the explored area by hand; the Brush slider (or <kbd>[</kbd> and <kbd>]</kbd>) sets how wide a stroke is. <strong>Pin</strong> adds a new entry where you tap.</li>
+        <li>Right-click bare ground to move the party there, reveal or hide a circle, paint fog by hand (the Brush slider or <kbd>[</kbd> and <kbd>]</kbd> sets the width) or add an entry.</li>
         <li>Scroll or pinch to zoom the map; drag the ground to look around. Shift+click the zoom buttons for small steps. Click the number beside Vision to type an exact value.</li>
-        <li>Right-click an entry on the map to reveal it to the players, show its details, zoom to it or delete it. Right-click while placing cancels.</li>
-        <li><strong>Edit with AI</strong> changes the map in words; <strong>Undo</strong> puts back the version before the last change.</li>
+        <li>Right-click an entry on the map to reveal it to the players, show its details, zoom to it or delete it. Right-click while placing or painting stops it.</li>
       </ul>
     ),
   },
@@ -37,7 +36,7 @@ export const TABLE_HELP: HelpSection[] = [
   },
   {
     heading: "Knowledge checks",
-    body: "Pick the skill, then tap the result the players reached: a higher result earns a more valuable fact. Reveal adds it to what the players know about that entry and shows it on the display.",
+    body: "Pick the skill, then tap the result the players reached: a 1 earns a mistaken belief, 2-9 trivia, 10-14 a slight edge, 15-19 a moderate one and 20 or more a secret. Reveal adds it to what the players know about that entry and shows it on the display.",
   },
   {
     heading: "Ideas banner",
@@ -47,7 +46,6 @@ export const TABLE_HELP: HelpSection[] = [
         <li>Tap an idea for three ready answers; picking one writes it to the Log.</li>
         <li><strong>Pin</strong> keeps an idea at the front until you use it.</li>
         <li>Tap a picture to add it to the session as a creature, person or location, then tap the map where it goes.</li>
-        <li>Type in the bar underneath to ask for anything else.</li>
       </ul>
     ),
   },
@@ -64,7 +62,7 @@ export const PREP_HELP: HelpSection[] = [
   },
   {
     heading: "Maps",
-    body: "Add map draws one from a description, or starts blank. Edit sets the name, description, scale and the picture under the map, which can be moved and resized to line up with the grid. On the Table tab, Edit with AI changes the active map in words.",
+    body: "Add map draws one from a description, or starts blank. Edit sets the name, description, scale and the picture under the map, which can be moved and resized to line up with the grid. ",
   },
   {
     heading: "Pictures",
@@ -79,7 +77,7 @@ export const SESSION_HELP: HelpSection[] = [
   },
   {
     heading: "Go live",
-    body: "Makes this the session the Table is running. The ideas banner, the ask bar and knowledge checks are all written against the live session's notes and recap.",
+    body: "Makes this the session the Table is running. The ideas banner and knowledge checks are all written against the live session's notes and recap.",
   },
   {
     heading: "Recap",

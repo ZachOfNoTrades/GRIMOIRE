@@ -10,6 +10,7 @@ import { useAppHeight } from "@/lib/useAppHeight";
 import { useConfirm } from "@/lib/useConfirm";
 import ImagePicker, { type ImageSource } from "../../../../components/ImagePicker";
 import MapModal from "../../../../components/MapModal";
+import MapPreview from "../../../../components/MapPreview";
 import SessionBar from "../../../../components/SessionBar";
 import { PREP_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
@@ -133,6 +134,20 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
       toast.error(errorMessage(error, "Couldn't add the member"));
     } finally {
       setIsAddingMember(false);
+    }
+  }
+
+  // The name is edited in place; leaving the field or Enter saves it, an empty name changes nothing.
+  async function renameMember(member: OraclePartyMember, value: string) {
+    const name = value.trim();
+    if (!name || name === member.name) return;
+    const previous = party;
+    setParty((list) => list.map((entry) => (entry.id === member.id ? { ...entry, name } : entry)));
+    try {
+      await api(`${base}/party/${member.id}`, "PUT", { name });
+    } catch (error) {
+      setParty(previous);
+      toast.error(errorMessage(error, "Couldn't rename the character"));
     }
   }
 
@@ -298,9 +313,25 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                     </Button>
                   </div>
                   {/* MEMBER ROWS — name, level stepper, remove */}
+                  {party.length > 0 && (
+                    <div className="orc-roster" role="table" aria-label="Party">
                   {party.map((member) => (
                     <div key={member.id} className="orc-member-row">
-                      <span className="orc-gen-value">{member.name}</span>
+                      <input
+                        className="orc-roster-name"
+                        defaultValue={member.name}
+                        key={`${member.id}:${member.name}`}
+                        maxLength={MEMBER_NAME_MAX}
+                        aria-label={`Name of ${member.name}`}
+                        onBlur={(event) => renameMember(member, event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") event.currentTarget.blur();
+                          else if (event.key === "Escape") {
+                            event.currentTarget.value = member.name;
+                            event.currentTarget.blur();
+                          }
+                        }}
+                      />
                       <span className="orc-level" role="group" aria-label={`${member.name} level`}>
                         <button type="button" className="orc-level-btn" disabled={member.level <= 1} aria-label="Level down" onClick={() => setLevel(member, member.level - 1)}>−</button>
                         <span className="orc-level-value">Lv {member.level}</span>
@@ -311,6 +342,8 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                       </Button>
                     </div>
                   ))}
+                    </div>
+                  )}
 
                 </div>
               </div>
@@ -399,10 +432,10 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
                   {/* MAP ROWS */}
                   {maps.map((map) => (
-                    <div key={map.id} className="orc-gen-row">
+                    <div key={map.id} className="orc-gen-row" data-active={campaign.active_map_id === map.id ? "true" : undefined}>
+                      <MapPreview data={map.data} pictureUrl={map.background_image_id ? `${base}/images/${map.background_image_id}` : null} />
                       <div className="orc-gen-body">
                         <span className="orc-gen-value">{map.name}</span>
-                        <span className="orc-small text-secondary">{map.data.scale_label} · {map.data.features.length} features{campaign.active_map_id === map.id ? " · on the table" : ""}</span>
                       </div>
                       <div className="orc-campaign-actions">
                         {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}

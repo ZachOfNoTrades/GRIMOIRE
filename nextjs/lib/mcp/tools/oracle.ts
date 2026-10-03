@@ -10,7 +10,7 @@ import { addKnowledge, createEntity, deleteEntity, getEntity, listEntities, upda
 import { OracleError } from '@/app/modules/oracle/lib/errors';
 import { addEvent, listEvents } from '@/app/modules/oracle/lib/eventFunctions';
 import { coerceMapData } from '@/app/modules/oracle/lib/mapData';
-import { createMap, getMap, listMaps, replaceMapData, undoMapData, updateMap } from '@/app/modules/oracle/lib/mapFunctions';
+import { createMap, getMap, listMaps, replaceMapData, updateMap } from '@/app/modules/oracle/lib/mapFunctions';
 import { createSession, listSessions, updateSession } from '@/app/modules/oracle/lib/sessionFunctions';
 import { statBlockSchema } from '@/app/modules/oracle/lib/validation';
 import type { Attitude, EntityKind, KnowledgeTier } from '@/app/modules/oracle/types/oracle';
@@ -20,7 +20,7 @@ const Kind = z.enum(ENTITY_KINDS as [string, ...string[]]);
 const AttitudeEnum = z.enum(ATTITUDES as [string, ...string[]]);
 
 const MapFeature = z.object({
-  id: z.string().describe('Short unique id, e.g. "b1". Keep ids stable when editing so undo and labels stay meaningful.'),
+  id: z.string().describe('Short unique id, e.g. "b1". Keep ids stable when editing so labels stay meaningful.'),
   type: z.enum(['building', 'road', 'water', 'wall', 'landmark']),
   name: z.string().describe('Label for notable buildings/landmarks ("Inn", "Well"); empty string for ordinary houses, roads and water.'),
   x: z.number().describe('Left edge, map units.'),
@@ -34,7 +34,7 @@ const MAP_HELP =
   'A map is structured data, drawn by the app: { width, height, features[] } where every feature is an axis-aligned rectangle. ' +
   'Default size is 1000 wide by 620 tall. Roads are long thin rectangles (20-34 across), water is a river band or pond, a wall is one large outline rectangle, ' +
   'landmarks are small (16-40 a side), buildings 50-130 a side. Buildings must not overlap each other, roads or water. ' +
-  'The grid is 50 units a square. A "region" map makes a square hours of travel, so a town, ruin or tower is one feature about a square across; a "local" map makes a square 5 feet.';
+  'The grid is 50 units a tile. What a tile stands for is scale_value + scale_unit (default 5 feet); a tile of hours or miles makes a town, ruin or tower one feature about a tile across, a tile of feet makes single buildings and walls.';
 
 export function registerOracleTools(server: McpServer, ctx: McpContext) {
   const userId = ctx.user.id;
@@ -92,7 +92,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
       return json({
         campaign,
         sessions,
-        maps: maps.map((map) => ({ id: map.id, name: map.name, feature_count: map.data.features.length, party_x: map.party_x, party_y: map.party_y, can_undo: map.can_undo })),
+        maps: maps.map((map) => ({ id: map.id, name: map.name, feature_count: map.data.features.length, party_x: map.party_x, party_y: map.party_y })),
         entities,
         recent_events: events.slice(0, 30),
       });
@@ -181,14 +181,15 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
         width: z.number().int().min(400).max(2400).default(1000),
         height: z.number().int().min(300).max(1600).default(620),
         features: z.array(MapFeature).max(120),
-        scale: z.enum(['region', 'local']).default('local').describe('What one 50-unit grid square stands for: "region" = hours of travel (whole settlements, ruins and towers are single features), "local" = 5 feet (single buildings, walls, trees).'),
-        scale_label: z.string().max(80).optional().describe('The scale in words, e.g. "1 square = 6 hours\' walk (about 15 miles)" or "1 square = 5 feet".'),
+        scale_value: z.number().positive().max(100000).default(5).describe('How much one 50-unit tile stands for, in scale_unit. Default 5.'),
+        scale_unit: z.enum(['feet', 'yards', 'meters', 'miles', 'kilometers', 'hours', 'days']).default('feet').describe('Unit of scale_value. Default feet; "hours" for a map where a tile is hours of travel.'),
+        description: z.string().max(600).optional().describe('What the map shows, in a sentence.'),
         make_active: z.boolean().default(false),
       },
     },
-    async ({ campaign_id, name, width, height, features, scale, scale_label, make_active }) => {
+    async ({ campaign_id, name, width, height, features, scale_value, scale_unit, description, make_active }) => {
       const id = await owned(campaign_id);
-      const map = await createMap(id, name.trim(), coerceMapData({ width, height, scale, scale_label, features }));
+      const map = await createMap(id, name.trim(), coerceMapData({ width, height, scale_value, scale_unit, description, features }));
       if (make_active) await updateCampaign(userId, id, { active_map_id: map.id });
       return json(map);
     },
@@ -199,23 +200,14 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     {
       description:
         'Replace a map\'s whole feature list (e.g. "update the village to look like it was sacked": fetch the map, set buildings to state "burned" or "ruined", add rubble landmarks, ' +
-        'and send every feature back). Keep ids, positions and sizes of anything you are not changing. The previous version is kept and can be restored with oracle_undo_map. ' + MAP_HELP,
+        'and send every feature back). Keep ids, positions and sizes of anything you are not changing. ' + MAP_HELP,
       inputSchema: { campaign_id: Uuid, map_id: Uuid, features: z.array(MapFeature).max(120) },
     },
     async ({ campaign_id, map_id, features }) => {
       const id = await owned(campaign_id);
       const current = await getMap(id, map_id.toLowerCase());
-      return json(await replaceMapData(id, current.id, coerceMapData({ width: current.data.width, height: current.data.height, features })));
+      return json(await replaceMapData(id, current.id, coerceMapData({ ...current.data, features })));
     },
-  );
-
-  server.registerTool(
-    'oracle_undo_map',
-    {
-      description: 'Restore a map to how it was before its last feature change.',
-      inputSchema: { campaign_id: Uuid, map_id: Uuid },
-    },
-    async ({ campaign_id, map_id }) => json(await undoMapData(await owned(campaign_id), map_id.toLowerCase())),
   );
 
   server.registerTool(

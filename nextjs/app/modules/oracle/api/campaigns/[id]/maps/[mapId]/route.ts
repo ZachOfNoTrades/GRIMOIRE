@@ -6,7 +6,7 @@ import { parseBody, requireUuid, updateMapSchema } from "@/app/modules/oracle/li
 type Params = { params: Promise<{ id: string; mapId: string }> };
 
 // PUT /modules/oracle/api/campaigns/[id]/maps/[mapId] — name, party position, vision, explored
-// area, or the whole feature list (`data`, which goes on the undo stack).
+// area, or the whole feature list (`data`).
 export async function PUT(request: Request, { params }: Params) {
   const { id, mapId } = await params;
   return withOwner(request, id, "PUT /oracle/api/campaigns/[id]/maps/[mapId]", async (owner) => {

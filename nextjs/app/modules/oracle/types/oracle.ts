@@ -5,7 +5,7 @@ export type EntityKind = "creature" | "person" | "place";
 export type Attitude = "friendly" | "neutral" | "hostile";
 export type FeatureType = "building" | "road" | "water" | "wall" | "landmark";
 export type FeatureState = "intact" | "burned" | "ruined";
-export type KnowledgeTier = "common" | "useful" | "secret";
+export type KnowledgeTier = "false" | "trivial" | "common" | "useful" | "secret";
 
 // MAP — a map is structured data the app draws, never a picture, so an edit ("the village was
 // sacked") changes features in place and the layout stays the same.
@@ -53,7 +53,6 @@ export interface OracleMap {
   id: string;
   name: string;
   data: MapData;
-  can_undo: boolean;
   party_x: number;
   party_y: number;
   vision_radius: number;
@@ -99,6 +98,7 @@ export interface OracleEntity {
   map_y: number | null;
   image_id: string | null;
   is_revealed: boolean; // shown on the player map by hand, even outside the party's sight
+  source: string | null; // the book and page, the adventure, or "AI-generated"
   knowledge: Knowledge[];
 }
 
@@ -205,6 +205,13 @@ export interface OraclePartyMember {
   id: string;
   name: string;
   level: number;
+  group_id: string | null; // null = with the main party token
+}
+
+// A named token on a map that some of the party stands with, apart from the main party token.
+export interface OraclePartyGroup {
+  id: string;
+  name: string;
   map_id: string | null;
   map_x: number | null;
   map_y: number | null;
@@ -214,6 +221,7 @@ export interface TableSnapshot {
   campaign: OracleCampaign;
   sessions: OracleSession[];
   party: OraclePartyMember[];
+  party_groups: OraclePartyGroup[];
   maps: OracleMap[];
   entities: OracleEntity[];
   images: OracleImage[];
@@ -227,7 +235,13 @@ export interface TableSnapshot {
 export interface DisplayToken {
   id: string;
   name: string;
+  kind: EntityKind;
   attitude: Attitude;
+  details: string; // the public description
+  revealed: boolean; // put on the map by the DM's hand, whatever the party sees
+  image_id: string | null;
+  knowledge: string[]; // facts already revealed
+
   x: number;
   y: number;
 }
@@ -244,6 +258,15 @@ export type DisplayPanel =
     }
   | { kind: "image"; image_id: string; caption: string };
 
+// A building or landmark the party has seen whose location entry the players may read.
+export interface DisplayLocation {
+  feature_id: string;
+  name: string;
+  details: string;
+  image_id: string | null;
+  knowledge: string[];
+}
+
 export interface DisplayMap {
   name: string;
   data: MapData;
@@ -252,7 +275,8 @@ export interface DisplayMap {
   vision_radius: number;
   explored: ExploredCircle[];
   tokens: DisplayToken[];
-  members: { id: string; name: string; x: number; y: number }[]; // party members standing apart
+  groups: { id: string; name: string; x: number; y: number }[]; // groups standing apart from the party token
+  locations: DisplayLocation[]; // seen buildings and landmarks that have a location entry
   background_image_id: string | null;
 }
 
@@ -272,5 +296,6 @@ export interface BuiltCast {
     attitude: Attitude;
     dm_notes: string;
     cr: string | null;
+    source: string | null;
   }[];
 }

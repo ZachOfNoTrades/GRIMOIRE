@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import MapCanvas, { type MapToken } from "@/app/modules/oracle/components/MapCanvas";
-import type { DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
+import type { DisplayPanel, DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
+import { X } from "lucide-react";
 
 const POLL_MS = 1000;
 const KIND_LABELS = { creature: "You see", person: "You meet", place: "Location" } as const;
@@ -16,6 +17,11 @@ export default function DisplayClient({ code }: { code: string }) {
   // STATE
   const [status, setStatus] = useState<"loading" | "ready" | "missing" | "offline" | "signedout">("loading");
   const versionRef = useRef<number | null>(null);
+  const [localId, setLocalId] = useState<string | null>(null); // an entry tapped on this screen, shown until the DM changes the panel
+  const revealedRef = useRef<Set<string> | null>(null); // tokens the DM had revealed at the last snapshot
+  const [revealFocus, setRevealFocus] = useState<{ id: string; x: number; y: number; nonce: number } | null>(null);
+  const seenFactsRef = useRef<Set<string> | null>(null); // facts already shown, so only a newly added one animates
+  const [newFacts, setNewFacts] = useState<Set<string>>(new Set());
   const [pictureOpacity, setPictureOpacity] = useState(1); // how strongly the map's picture shows on this screen
 
   useEffect(() => {
@@ -89,6 +95,49 @@ export default function DisplayClient({ code }: { code: string }) {
     };
   }, [code]);
 
+  // A fact that was not on the panel a moment ago animates in. The first load, and a switch to
+  // another entry, only record what is there.
+  const dmPanel = snapshot?.panel ?? null;
+  const localToken = localId ? snapshot?.map?.tokens.find((token) => token.id === localId) ?? null : null;
+  const localLocation = localId && !localToken ? snapshot?.map?.locations.find((location) => location.feature_id === localId) ?? null : null;
+  const panel: DisplayPanel | null = localToken
+    ? { kind: "entity", name: localToken.name, entity_kind: localToken.kind, attitude: localToken.attitude, details: localToken.details, image_id: localToken.image_id, knowledge: localToken.knowledge }
+    : localLocation
+      ? { kind: "entity", name: localLocation.name, entity_kind: "place", attitude: "neutral", details: localLocation.details, image_id: localLocation.image_id, knowledge: localLocation.knowledge }
+      : dmPanel;
+  const dmPanelSignature = dmPanel ? (dmPanel.kind === "entity" ? `e|${dmPanel.name}` : `i|${dmPanel.image_id}`) : "";
+  useEffect(() => {
+    setLocalId(null);
+  }, [dmPanelSignature]);
+  const panelKey = panel?.kind === "entity" ? `${panel.name}|${panel.entity_kind}` : null;
+  const factKeys = panel?.kind === "entity" ? panel.knowledge.map((fact) => `${panelKey}|${fact}`) : [];
+  const factSignature = factKeys.join("\n");
+  useEffect(() => {
+    const current = new Set(factKeys);
+    const previous = seenFactsRef.current;
+    seenFactsRef.current = current;
+    if (previous === null) return;
+    const fresh = factKeys.filter((key) => !previous.has(key) && key.startsWith(`${panelKey}|`));
+    const samePanel = [...previous].some((key) => panelKey !== null && key.startsWith(`${panelKey}|`)) || previous.size === 0;
+    if (fresh.length === 0 || !samePanel) return;
+    setNewFacts(new Set(fresh));
+    const timer = setTimeout(() => setNewFacts(new Set()), 4500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [factSignature]);
+
+  // An entry the DM has just revealed starts the reveal sequence; the first load only records.
+  useEffect(() => {
+    if (!snapshot) return;
+    const tokens = snapshot.map?.tokens ?? [];
+    const now = new Set(tokens.filter((token) => token.revealed).map((token) => token.id));
+    const previous = revealedRef.current;
+    revealedRef.current = now;
+    if (previous === null) return;
+    const fresh = tokens.find((token) => token.revealed && !previous.has(token.id));
+    if (fresh) setRevealFocus({ id: fresh.id, x: fresh.x, y: fresh.y, nonce: Date.now() });
+  }, [snapshot]);
+
   // LOADING PLACEHOLDER
   if (status === "loading") {
     return (
@@ -122,8 +171,7 @@ export default function DisplayClient({ code }: { code: string }) {
   }
 
   const map = snapshot.map;
-  const panel = snapshot.panel;
-  const tokens: MapToken[] = map ? map.tokens.map((token) => ({ ...token, kind: "creature" as const })) : [];
+  const tokens: MapToken[] = map ? map.tokens.map((token) => ({ id: token.id, name: token.name, kind: token.kind, attitude: token.attitude, x: token.x, y: token.y })) : [];
   const imageUrl = (imageId: string) => `/api/oracle/${code}/images/${imageId}?v=${snapshot.version}`;
 
   return (
@@ -134,7 +182,7 @@ export default function DisplayClient({ code }: { code: string }) {
       <div className="orc-display-map">
         {map ? (
           <>
-            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.members ?? []} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id) : null} pictureOpacity={pictureOpacity} onPictureOpacity={changePictureOpacity} mode="player" />
+            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.groups ?? []} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id) : null} pictureOpacity={pictureOpacity} onPictureOpacity={changePictureOpacity} onTokenSelect={(id) => setLocalId((current) => (current === id ? null : id))} onFeatureSelect={(id) => setLocalId((current) => (current === id ? null : id))} linkedFeatures={map.locations.map((location) => location.feature_id)} revealFocus={revealFocus} mode="player" />
 
             {/* MAP NAME */}
             <div className="orc-display-caption">{map.name}</div>
@@ -149,6 +197,11 @@ export default function DisplayClient({ code }: { code: string }) {
       {/* REFERENCE PANEL */}
       {panel && (
         <aside className="orc-display-panel">
+          {(localToken || localLocation) && (
+            <button type="button" className="orc-display-close" onClick={() => setLocalId(null)} aria-label="Close">
+              <X className="w-3 h-3" /> Close
+            </button>
+          )}
           {panel.kind === "image" ? (
             <>
               {/* PICTURE */}
@@ -179,7 +232,7 @@ export default function DisplayClient({ code }: { code: string }) {
                   <div className="orc-display-facts">
                     <span className="orc-display-kicker">What you know</span>
                     {panel.knowledge.map((fact, index) => (
-                      <p key={index} className="orc-display-fact">{fact}</p>
+                      <p key={index} className="orc-display-fact" data-new={newFacts.has(`${panelKey}|${fact}`) ? "true" : undefined}>{fact}</p>
                     ))}
                   </div>
                 )}

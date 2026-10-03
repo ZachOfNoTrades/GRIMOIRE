@@ -1,6 +1,6 @@
 "use client";
 
-import { Crosshair, Maximize2, Minus, Plus, SlidersHorizontal, X } from "lucide-react";
+import { Contrast, Crosshair, Maximize2, Minus, Plus, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Attitude, EntityKind, ExploredCircle, MapData } from "../types/oracle";
 import { MAP_GRID } from "../lib/constants";
@@ -52,14 +52,22 @@ interface MapCanvasProps {
   onBrush?: (x: number, y: number) => void;
   onBrushEnd?: () => void;
   onPlace?: (x: number, y: number) => void;
-  onCancelPlace?: () => void; // a right-click while placing
+  onCancelTool?: () => void; // a right-click while placing or painting fog
+  onGroundContext?: (x: number, y: number, clientX: number, clientY: number) => void; // a right-click on bare ground
   onTokenSelect?: (id: string) => void;
   onTokenDrop?: (id: string, x: number, y: number) => void;
   onTokenContext?: (id: string, clientX: number, clientY: number) => void;
   onMemberDrop?: (id: string, x: number, y: number, fromX: number, fromY: number) => void;
   onPartySelect?: () => void; // a tap on the party token (no drag)
+  linkedFeatures?: string[]; // buildings and landmarks that open a location when tapped
+  onFeatureSelect?: (featureId: string) => void; // a tap on a linked building or landmark on the player display
+  onGroundClick?: (x: number, y: number) => void; // a tap on bare ground with the move tool
   // Zoom in on a point. A new `nonce` repeats the request for the same point.
   focus?: { x: number; y: number; nonce: number } | null;
+  // Player display: an entry the DM just revealed. The camera pulls back to show the party and it,
+  // the entry's icon and nameplate are revealed, and the camera returns. A new `nonce` plays it again.
+  revealFocus?: { id: string; x: number; y: number; nonce: number } | null;
+  barExtras?: React.ReactNode; // the DM's sliders, shown first in the action bar
 }
 
 const FOCUS_ZOOM = 2.5;
@@ -245,13 +253,19 @@ export default function MapCanvas({
   onBrush,
   onBrushEnd,
   onPlace,
-  onCancelPlace,
+  onCancelTool,
+  onGroundContext,
   onTokenSelect,
   onTokenDrop,
   onTokenContext,
   onMemberDrop,
   onPartySelect,
+  onGroundClick,
+  onFeatureSelect,
+  linkedFeatures = [],
   focus = null,
+  revealFocus = null,
+  barExtras = null,
 }: MapCanvasProps) {
   const maskId = useId().replace(/:/g, "");
   const svgRef = useRef<SVGSVGElement>(null);
@@ -266,17 +280,62 @@ export default function MapCanvas({
   // Player display: false while the view follows the party (centered on it, at the chosen zoom),
   // true once someone pans it away.
   const [isFree, setIsFree] = useState(false);
-  const [isBarOpen, setIsBarOpen] = useState(false); // the player display's controls
+  // The action bar is open on the DM's map and folded on the player display; the choice is kept per screen.
+  const [isBarOpen, setIsBarOpen] = useState(mode === "dm");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`orc-bar-${mode}`);
+      if (saved === "open" || saved === "closed") setIsBarOpen(saved === "open");
+      else if (window.innerWidth < 700) setIsBarOpen(false);
+    } catch {
+      if (window.innerWidth < 700) setIsBarOpen(false);
+    }
+  }, [mode]);
+  function changeBarOpen(open: boolean) {
+    setIsBarOpen(open);
+    try {
+      localStorage.setItem(`orc-bar-${mode}`, open ? "open" : "closed");
+    } catch {
+      /* storage can be blocked; the change still applies */
+    }
+  }
+  const [cinema, setCinema] = useState<{ x: number; y: number; zoom: number } | null>(null); // a camera move that overrides the view
+  const [revealing, setRevealing] = useState<{ id: string; phase: "pending" | "show"; x: number; y: number } | null>(null);
+  const latestRef = useRef<{ party: { x: number; y: number }; view: View; isFollowing: boolean }>({ party: { x: partyX, y: partyY }, view: { zoom: 1, cx: 0, cy: 0 }, isFollowing: true });
   const panRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null);
   const pinchRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const didPanRef = useRef(false); // the pointer travelled, so the release is not a tap
+  const tapRef = useRef<{ pointerId: number; x: number; y: number; px: number; py: number } | null>(null);
   const pinchStartRef = useRef<{ distance: number; zoom: number } | null>(null);
   const isDm = mode === "dm";
-  const tone = useBackgroundTone(backgroundUrl);
+  const pictureTone = useBackgroundTone(backgroundUrl);
+  // The ground behind the map: the theme's, or black or white by the toggle (kept per screen).
+  const [ground, setGround] = useState<"black" | "white" | null>(null);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`orc-ground-${mode}`);
+      if (saved === "black" || saved === "white") setGround(saved);
+    } catch {
+      /* storage can be blocked; the theme's ground stands */
+    }
+  }, [mode]);
+  function toggleGround() {
+    const next = ground === "black" ? "white" : "black";
+    setGround(next);
+    try {
+      localStorage.setItem(`orc-ground-${mode}`, next);
+    } catch {
+      /* storage can be blocked; the change still applies */
+    }
+  }
+  const groundTone = ground === "white" ? "light" : ground === "black" ? "dark" : null;
+  const tone = backgroundUrl && pictureOpacity >= 0.5 ? pictureTone ?? groundTone : groundTone ?? pictureTone;
   const party = drag?.kind === "party" ? { x: drag.x, y: drag.y } : { x: partyX, y: partyY };
   const memberPositions = members.map((member) => (drag?.kind === "member" && drag.id === member.id ? { ...member, x: drag.x, y: drag.y } : member));
   // Everything the players see from: the party token and each member standing apart.
   const sightPoints = [party, ...memberPositions.map((member) => ({ x: member.x, y: member.y }))];
   const isFollowing = !isDm && !isFree;
+  latestRef.current = { party, view, isFollowing };
 
   // SNAP — party, members and entries land in the middle of a grid cell.
   function snap(x: number, y: number): { x: number; y: number } {
@@ -351,14 +410,83 @@ export default function MapCanvas({
     setView({ zoom: FOCUS_ZOOM, cx: focus.x, cy: focus.y });
   }, [focus, isDm]);
 
+  // REVEAL — the camera pulls back until the party and the revealed entry are both in view, the
+  // entry's icon and nameplate play their reveal, then the camera returns to where it was.
+  const dataSizeRef = useRef({ width: data.width, height: data.height });
+  dataSizeRef.current = { width: data.width, height: data.height };
+  useEffect(() => {
+    if (!revealFocus || isDm) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let frame = 0;
+    let cancelled = false;
+    const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const { party: partyNow, view: viewNow, isFollowing: followingNow } = latestRef.current;
+    const from = followingNow ? { x: partyNow.x, y: partyNow.y, zoom: viewNow.zoom } : { x: viewNow.cx, y: viewNow.cy, zoom: viewNow.zoom };
+    const { width, height } = dataSizeRef.current;
+    const spanX = Math.abs(revealFocus.x - partyNow.x) * 1.7 + 260;
+    const spanY = Math.abs(revealFocus.y - partyNow.y) * 1.7 + 200;
+    const fit = Math.max(ZOOM_MIN, Math.min(from.zoom, width / spanX, height / spanY));
+    const to = { x: (partyNow.x + revealFocus.x) / 2, y: (partyNow.y + revealFocus.y) / 2, zoom: fit };
+    const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+    const tween = (a: typeof from, b: typeof from, ms: number, done: () => void) => {
+      const start = performance.now();
+      const step = (now: number) => {
+        if (cancelled) return;
+        const t = Math.min(1, (now - start) / ms);
+        const k = ease(t);
+        // zoom moves on a log scale so the pull-back feels even
+        setCinema({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: Math.exp(Math.log(a.zoom) + (Math.log(b.zoom) - Math.log(a.zoom)) * k) });
+        if (t < 1) frame = requestAnimationFrame(step);
+        else done();
+      };
+      frame = requestAnimationFrame(step);
+    };
+    setRevealing({ id: revealFocus.id, phase: "pending", x: revealFocus.x, y: revealFocus.y });
+    const cameraMs = reduced ? 0 : 1100;
+    const begin = () => {
+      timers.push(setTimeout(() => setRevealing({ id: revealFocus.id, phase: "show", x: revealFocus.x, y: revealFocus.y }), 150));
+      timers.push(
+        setTimeout(() => {
+          if (reduced) {
+            setCinema(null);
+            setRevealing(null);
+            return;
+          }
+          tween(to, from, 950, () => {
+            setCinema(null);
+            setRevealing(null);
+          });
+        }, 3900)
+      );
+    };
+    if (cameraMs === 0) {
+      setCinema(to);
+      begin();
+    } else {
+      tween(from, to, cameraMs, begin);
+    }
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      timers.forEach(clearTimeout);
+      setCinema(null);
+      setRevealing(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealFocus?.nonce, isDm]);
+
   // VIEW BOX — always the map's shape, so zoom 1 shows the whole map. The player display centers
   // on the party while following; anywhere else the view may be dragged a little past the map's
   // edge.
-  const viewWidth = data.width / view.zoom;
-  const viewHeight = data.height / view.zoom;
+  const cameraZoom = cinema ? cinema.zoom : view.zoom;
+  const viewWidth = data.width / cameraZoom;
+  const viewHeight = data.height / cameraZoom;
   let originX: number;
   let originY: number;
-  if (isFollowing) {
+  if (cinema) {
+    originX = cinema.x - viewWidth / 2;
+    originY = cinema.y - viewHeight / 2;
+  } else if (isFollowing) {
     originX = party.x - viewWidth / 2;
     originY = party.y - viewHeight / 2;
   } else {
@@ -408,7 +536,7 @@ export default function MapCanvas({
   // BACKGROUND GESTURES — the reveal/hide brush paints while the pointer is down; the place tool
   // drops a new entry where the map is tapped.
   function backgroundDown(event: React.PointerEvent) {
-    if (event.button === 2) return;
+    if (event.button === 2 || cinema) return;
     const point = toMapPoint(event);
     if (!point) return;
     // Two fingers pinch, whatever the tool.
@@ -423,13 +551,14 @@ export default function MapCanvas({
     }
     // The player display: any drag looks around.
     if (!isDm) {
-      takeOver();
+      didPanRef.current = false;
       (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
       panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
       return;
     }
+    if (tool === "move" && event.button === 0) tapRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, px: point.x, py: point.y };
     // Middle button, or the move tool on empty ground, drags the view when it is not the whole map.
-    if (event.button === 1 || (tool === "move" && isWindowed)) {
+    if (event.button === 1 || tool === "move") {
       (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
       panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
       return;
@@ -472,6 +601,13 @@ export default function MapCanvas({
     }
     const pan = panRef.current;
     if (pan && pan.pointerId === event.pointerId) {
+      // On the player display a press only lets go of the party once it has travelled a few pixels,
+      // so a tap on an object leaves the camera where it is.
+      if (!isDm && !pan.moved && Math.hypot(event.clientX - pan.x, event.clientY - pan.y) < 5) return;
+      if (!isDm) {
+        didPanRef.current = true;
+        takeOver();
+      }
       const unit = mapUnitsPerPixel();
       panBy((pan.x - event.clientX) * unit, (pan.y - event.clientY) * unit);
       panRef.current = { ...pan, x: event.clientX, y: event.clientY, moved: true };
@@ -483,6 +619,11 @@ export default function MapCanvas({
   }
 
   function backgroundUp(event: React.PointerEvent) {
+    const tap = tapRef.current;
+    if (tap && tap.pointerId === event.pointerId) {
+      tapRef.current = null;
+      if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) < 5) onGroundClick?.(tap.px, tap.py);
+    }
     if (pinchRef.current.delete(event.pointerId) && pinchRef.current.size < 2) pinchStartRef.current = null;
     if (panRef.current?.pointerId === event.pointerId) {
       panRef.current = null;
@@ -497,19 +638,27 @@ export default function MapCanvas({
   function contextMenu(event: React.MouseEvent) {
     if (!isDm) return;
     event.preventDefault();
-    if (tool === "place") {
-      onCancelPlace?.();
+    if (tool !== "move") {
+      onCancelTool?.();
       return;
     }
     const target = (event.target as Element).closest("[data-token-id]");
     const id = target?.getAttribute("data-token-id");
-    if (id) onTokenContext?.(id, event.clientX, event.clientY);
+    if (id) {
+      onTokenContext?.(id, event.clientX, event.clientY);
+      return;
+    }
+    const point = toMapPoint(event);
+    if (point) onGroundContext?.(point.x, point.y, event.clientX, event.clientY);
   }
 
   // Text is sized in map units, but never smaller than 11 screen pixels, however far out the view is.
   const pxPerUnit = box.width > 0 && box.height > 0 ? Math.min(box.width / viewWidth, box.height / viewHeight) : 1;
-  const labelSize = Math.max(data.width / 80, 11 / pxPerUnit);
-  const haloWidth = 2.4 / pxPerUnit;
+  // The scale is snapped to steps of 15% so label sizes, and with them the overlap decisions, hold
+  // still while the wheel or a pinch zooms smoothly and only change when a step is crossed.
+  const steppedPx = 1.15 ** Math.round(Math.log(pxPerUnit) / Math.log(1.15));
+  const labelSize = Math.max(data.width / 80, 11 / steppedPx);
+  const haloWidth = 2.4 / steppedPx;
   const cover = { x: -data.width * 4, y: -data.height * 4, width: data.width * 9, height: data.height * 9 };
   const picture = data.background ?? { x: 0, y: 0, w: data.width, h: data.height };
 
@@ -522,8 +671,45 @@ export default function MapCanvas({
   }, [isDm, explored, visionRadius, party.x, party.y, memberPositions.map((member) => `${member.x},${member.y}`).join("|")]);
 
   // LABEL PLACEMENT — one pass over everything that carries text
-  const positionOf = (token: MapToken) => (drag?.kind === "token" && drag.id === token.id ? { x: drag.x, y: drag.y } : { x: token.x, y: token.y });
-  const isSeen = (token: MapToken) => !isDm || token.revealed || isVisibleFrom(sightPoints, visionRadius, positionOf(token).x, positionOf(token).y);
+  const baseOf = (token: MapToken) => (drag?.kind === "token" && drag.id === token.id ? { x: drag.x, y: drag.y } : { x: token.x, y: token.y });
+  const isSeen = (token: MapToken) => !isDm || token.revealed || isVisibleFrom(sightPoints, visionRadius, baseOf(token).x, baseOf(token).y);
+
+  // STACKS — entries in the same grid cell are fanned out around the cell's middle, smaller, so
+  // none hides another (or the party). Where they are drawn is a display matter only: dragging,
+  // vision and saving all use the real position.
+  const spread = useMemo(() => {
+    const cellOf = (x: number, y: number) => `${Math.floor(x / MAP_GRID)},${Math.floor(y / MAP_GRID)}`;
+    const occupied = new Set([cellOf(party.x, party.y), ...memberPositions.map((member) => cellOf(member.x, member.y))]);
+    const groups = new Map<string, MapToken[]>();
+    for (const token of tokens) {
+      const base = drag?.kind === "token" && drag.id === token.id ? { x: drag.x, y: drag.y } : { x: token.x, y: token.y };
+      const key = cellOf(base.x, base.y);
+      groups.set(key, [...(groups.get(key) ?? []), token]);
+    }
+    const result = new Map<string, { x: number; y: number; scale: number }>();
+    for (const [key, group] of groups) {
+      const crowded = group.length > 1 || occupied.has(key);
+      const [cx, cy] = key.split(",").map(Number);
+      const middle = { x: cx * MAP_GRID + MAP_GRID / 2, y: cy * MAP_GRID + MAP_GRID / 2 };
+      group.forEach((token, index) => {
+        const base = drag?.kind === "token" && drag.id === token.id ? { x: drag.x, y: drag.y } : { x: token.x, y: token.y };
+        if (!crowded) {
+          result.set(token.id, { ...base, scale: 1 });
+          return;
+        }
+        const angle = -Math.PI / 2 + (index * TAU) / group.length + (group.length === 1 ? Math.PI / 4 : 0);
+        const radius = MAP_GRID * (group.length > 8 ? 0.4 : occupied.has(key) ? 0.34 : 0.28);
+        result.set(token.id, { x: middle.x + Math.cos(angle) * radius, y: middle.y + Math.sin(angle) * radius, scale: 0.7 });
+      });
+    }
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokens, drag, party.x, party.y, memberPositions.map((member) => `${member.x},${member.y}`).join("|")]);
+  const positionOf = (token: MapToken) => spread.get(token.id) ?? { ...baseOf(token), scale: 1 };
+  const scaleOf = (token: MapToken) => positionOf(token).scale;
+  // Whether a point is inside the explored area or in sight right now.
+  const isRevealedAt = (x: number, y: number) =>
+    explored.some((circle) => Math.hypot(circle.x - x, circle.y - y) <= circle.r) || isVisibleFrom(sightPoints, visionRadius, x, y);
   const labelRequests: LabelRequest[] = [
     { key: "party", x: party.x, y: party.y + labelSize * 2.4, text: "PARTY", size: labelSize, centered: true, priority: 0, canHide: false },
     ...memberPositions.map((member) => ({ key: `m:${member.id}`, x: member.x, y: member.y + labelSize * 2, text: member.name, size: labelSize * 0.85, centered: true, priority: 0, canHide: false })),
@@ -560,58 +746,56 @@ export default function MapCanvas({
       data-zoomed={isWindowed ? "true" : undefined}
       data-picture={backgroundUrl ? "true" : undefined}
       data-tone={tone ?? undefined}
+      data-ground={ground ?? undefined}
     >
 
-      {/* ZOOM CONTROLS (DM) — Shift+click steps by 2% instead of 10%; the wheel and a pinch are continuous. */}
-      {isDm && (
-        <div className="orc-zoom" role="group" aria-label="Map zoom">
-          <button type="button" className="orc-zoom-btn" disabled={view.zoom <= ZOOM_MIN} title="Zoom out (Shift for a fine step)" aria-label="Zoom out" onClick={(event) => zoomTo(view.zoom / (event.shiftKey ? ZOOM_FINE_STEP : ZOOM_STEP))}>
-            <Minus className="w-4 h-4" />
-          </button>
-          <span className="orc-zoom-value" aria-live="polite">{Math.round(view.zoom * 100)}%</span>
-          <button type="button" className="orc-zoom-btn" disabled={view.zoom >= ZOOM_MAX} title="Zoom in (Shift for a fine step)" aria-label="Zoom in" onClick={(event) => zoomTo(view.zoom * (event.shiftKey ? ZOOM_FINE_STEP : ZOOM_STEP))}>
-            <Plus className="w-4 h-4" />
-          </button>
-          <button type="button" className="orc-zoom-btn" disabled={view.zoom === 1 && view.cx === data.width / 2 && view.cy === data.height / 2} title="Fit the whole map" aria-label="Fit the whole map" onClick={() => setView({ zoom: 1, cx: data.width / 2, cy: data.height / 2 })}>
-            <Maximize2 className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* PLAYER BAR — collapsed to one small button; opens to follow, zoom and picture opacity */}
-      {!isDm && (
-        <div className="orc-bar-float" data-open={isBarOpen ? "true" : undefined}>
-          {isBarOpen && (
-            <div className="orc-bar-panel" role="group" aria-label="Map controls">
-              {isFree && (
-                <button type="button" className="orc-zoom-btn orc-zoom-follow" title="Center on the party" aria-label="Follow party" onClick={() => setIsFree(false)}>
-                  <Crosshair className="w-4 h-4" /> Follow party
-                </button>
-              )}
-              <button type="button" className="orc-zoom-btn" disabled={view.zoom <= ZOOM_MIN} aria-label="Zoom out" onClick={(event) => zoomTo(view.zoom / (event.shiftKey ? ZOOM_FINE_STEP : ZOOM_STEP))}>
-                <Minus className="w-4 h-4" />
-              </button>
-              <span className="orc-zoom-value" aria-live="polite">{Math.round(view.zoom * 100)}%</span>
-              <button type="button" className="orc-zoom-btn" disabled={view.zoom >= ZOOM_MAX} aria-label="Zoom in" onClick={(event) => zoomTo(view.zoom * (event.shiftKey ? ZOOM_FINE_STEP : ZOOM_STEP))}>
-                <Plus className="w-4 h-4" />
-              </button>
-              <button type="button" className="orc-zoom-btn" disabled={view.zoom === 1} title="Zoom to the whole map" aria-label="Fit the whole map" onClick={() => zoomTo(1)}>
-                <Maximize2 className="w-4 h-4" />
-              </button>
-              {backgroundUrl && onPictureOpacity && (
-                <label className="orc-bar-opacity">
-                  <span className="orc-label">Picture</span>
-                  <input type="range" min={0} max={100} value={Math.round(pictureOpacity * 100)} aria-label="Picture opacity" onChange={(event) => onPictureOpacity(Number(event.target.value) / 100)} />
-                  <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Picture opacity" onCommit={(value) => onPictureOpacity(value / 100)} />
-                </label>
-              )}
-            </div>
+      {/* ACTION BAR — one small button that opens the map's controls: on the DM's map the sliders,
+          zoom and background; on the player display follow, zoom and background opacity. */}
+      <div className="orc-bar-float" data-mode={mode} data-open={isBarOpen ? "true" : undefined}>
+        <div className="orc-bar-panel" role="group" aria-label="Map controls" aria-hidden={!isBarOpen} data-open={isBarOpen ? "true" : undefined} inert={!isBarOpen}>
+          {isDm && barExtras}
+          {!isDm && isFree && (
+            <button type="button" className="orc-zoom-btn orc-zoom-follow" title="Center on the party" aria-label="Follow party" onClick={() => setIsFree(false)}>
+              <Crosshair className="w-4 h-4" /> Follow party
+            </button>
           )}
-          <button type="button" className="orc-zoom-btn orc-bar-toggle" title={isBarOpen ? "Hide the controls" : "Map controls"} aria-label={isBarOpen ? "Hide the map controls" : "Show the map controls"} aria-expanded={isBarOpen} onClick={() => setIsBarOpen((open) => !open)}>
-            {isBarOpen ? <X className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4" />}
+
+          {/* ZOOM — Shift+click steps by 2% instead of 10%; the wheel and a pinch are continuous */}
+          <div className="orc-zoom" role="group" aria-label="Map zoom">
+            <button type="button" className="orc-zoom-btn" disabled={view.zoom <= ZOOM_MIN} title="Zoom out (Shift for a fine step)" aria-label="Zoom out" onClick={(event) => zoomTo(view.zoom / (event.shiftKey ? ZOOM_FINE_STEP : ZOOM_STEP))}>
+              <Minus className="w-4 h-4" />
+            </button>
+            <span className="orc-zoom-value" aria-live="polite">{Math.round(view.zoom * 100)}%</span>
+            <button type="button" className="orc-zoom-btn" disabled={view.zoom >= ZOOM_MAX} title="Zoom in (Shift for a fine step)" aria-label="Zoom in" onClick={(event) => zoomTo(view.zoom * (event.shiftKey ? ZOOM_FINE_STEP : ZOOM_STEP))}>
+              <Plus className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              className="orc-zoom-btn"
+              disabled={isDm ? view.zoom === 1 && view.cx === data.width / 2 && view.cy === data.height / 2 : view.zoom === 1}
+              title="Fit the whole map"
+              aria-label="Fit the whole map"
+              onClick={() => (isDm ? setView({ zoom: 1, cx: data.width / 2, cy: data.height / 2 }) : zoomTo(1))}
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          <button type="button" className="orc-zoom-btn" title="Black or white background" aria-label="Toggle black or white background" aria-pressed={ground === "white"} onClick={toggleGround}>
+            <Contrast className="w-4 h-4" />
           </button>
+          {!isDm && backgroundUrl && onPictureOpacity && (
+            <label className="orc-bar-slider">
+              <span className="orc-label">Background</span>
+              <input type="range" min={0} max={100} value={Math.round(pictureOpacity * 100)} aria-label="Background opacity" onChange={(event) => onPictureOpacity(Number(event.target.value) / 100)} />
+              <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Background opacity" onCommit={(value) => onPictureOpacity(value / 100)} />
+            </label>
+          )}
         </div>
-      )}
+        <button type="button" className="orc-zoom-btn orc-bar-toggle" title={isBarOpen ? "Hide the controls" : "Map controls"} aria-label={isBarOpen ? "Hide the map controls" : "Show the map controls"} aria-expanded={isBarOpen} onClick={() => changeBarOpen(!isBarOpen)}>
+          {isBarOpen ? <X className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4" />}
+        </button>
+      </div>
 
       {/* MAP DRAWING */}
       <svg
@@ -681,7 +865,7 @@ export default function MapCanvas({
           data.features
             .filter((feature) => feature.type === layer)
             .map((feature) => (
-              <g key={feature.id} className="orc-feature" data-type={feature.type} data-state={feature.state}>
+              <g key={feature.id} className="orc-feature" data-type={feature.type} data-state={feature.state} data-link={linkedFeatures.includes(feature.id) ? "true" : undefined} onPointerDown={!isDm && linkedFeatures.includes(feature.id) ? (event) => event.stopPropagation() : undefined} onClick={!isDm && linkedFeatures.includes(feature.id) ? () => { if (!didPanRef.current) onFeatureSelect?.(feature.id); } : undefined}>
                 {feature.type === "landmark" ? (
                   <ellipse cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
                 ) : (
@@ -689,11 +873,6 @@ export default function MapCanvas({
                 )}
                 {feature.state !== "intact" && feature.type === "building" && (
                   <rect className="orc-feature-rubble" x={feature.x + feature.w * 0.25} y={feature.y + feature.h * 0.35} width={feature.w * 0.5} height={feature.h * 0.4} />
-                )}
-                {feature.name && (feature.type === "building" || feature.type === "landmark") && !labelAt(`f:${feature.id}`).hidden && (
-                  <text x={feature.x + 5} y={(feature.type === "landmark" ? feature.y - 5 : feature.y + labelSize + 3) + labelAt(`f:${feature.id}`).dy} fontSize={labelSize}>
-                    {feature.name.toUpperCase()}
-                  </text>
                 )}
               </g>
             ))
@@ -712,12 +891,13 @@ export default function MapCanvas({
               data-selected={selectedId === token.id ? "true" : undefined}
               data-shown={shownId === token.id ? "true" : undefined}
               data-hidden="true"
-              onPointerDown={(event) => startDrag(event, "token", token.id, position.x, position.y)}
+              onPointerDown={(event) => (isDm ? startDrag(event, "token", token.id, baseOf(token).x, baseOf(token).y) : event.stopPropagation())}
+              onClick={!isDm ? () => onTokenSelect?.(token.id) : undefined}
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
               onPointerCancel={() => setDrag(null)}
             >
-              <circle cx={position.x} cy={position.y} r={labelSize * 0.8} />
+              <circle cx={position.x} cy={position.y} r={labelSize * 0.8 * position.scale} />
               <text x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
                 {token.name} · hidden
               </text>
@@ -728,6 +908,27 @@ export default function MapCanvas({
         {/* FOG — out of sight (dim), then never seen (solid on the player display) */}
         <rect className="orc-fog-dim" {...cover} mask={`url(#${maskId}-dim)`} />
         <rect className="orc-fog-unexplored" {...cover} mask={`url(#${maskId}-unexplored)`} />
+
+        {/* NAMEPLATES — every name of something the party has seen or can see is drawn above the fog,
+            in full (the DM sees them all) */}
+        <g className="orc-feature-labels" pointerEvents="none">
+          {data.features
+            .filter((feature) => feature.name && (feature.type === "building" || feature.type === "landmark") && !labelAt(`f:${feature.id}`).hidden)
+            .filter((feature) => isDm || isRevealedAt(feature.x + feature.w / 2, feature.y + feature.h / 2))
+            .map((feature) => (
+              <text
+                key={feature.id}
+                className="orc-feature-label"
+                data-type={feature.type}
+                data-state={feature.state}
+                x={feature.x + 5}
+                y={(feature.type === "landmark" ? feature.y - 5 : feature.y + labelSize + 3) + labelAt(`f:${feature.id}`).dy}
+                fontSize={labelSize}
+              >
+                {feature.name.toUpperCase()}
+              </text>
+            ))}
+        </g>
 
         {/* WHAT THE PARTY SEES — above the fog, name in full */}
         {visibleTokens.filter(isSeen).map((token) => {
@@ -740,18 +941,29 @@ export default function MapCanvas({
               data-attitude={token.attitude}
               data-selected={selectedId === token.id ? "true" : undefined}
               data-shown={shownId === token.id ? "true" : undefined}
-              onPointerDown={(event) => startDrag(event, "token", token.id, position.x, position.y)}
+              data-reveal={revealing?.id === token.id ? revealing.phase : undefined}
+              onPointerDown={(event) => (isDm ? startDrag(event, "token", token.id, baseOf(token).x, baseOf(token).y) : event.stopPropagation())}
+              onClick={!isDm ? () => onTokenSelect?.(token.id) : undefined}
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
               onPointerCancel={() => setDrag(null)}
             >
-              <circle cx={position.x} cy={position.y} r={labelSize * 0.8} />
+              <circle cx={position.x} cy={position.y} r={labelSize * 0.8 * position.scale} />
               <text className="orc-token-name" data-attitude={token.attitude} x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
                 {token.name}
               </text>
             </g>
           );
         })}
+
+        {/* REVEAL RINGS — pulses spreading from the entry as it is revealed */}
+        {revealing?.phase === "show" && (
+          <g className="orc-reveal-rings" pointerEvents="none">
+            {[0, 1, 2].map((index) => (
+              <circle key={index} cx={revealing.x} cy={revealing.y} r={labelSize * 0.8} style={{ animationDelay: `${index * 0.45}s` }} />
+            ))}
+          </g>
+        )}
 
         {/* DM OUTLINES — where the players' view ends */}
         {outlines && (
@@ -767,7 +979,7 @@ export default function MapCanvas({
             .filter((token) => token.kind === "place")
             .map((token) => {
               const position = positionOf(token);
-              const size = labelSize * 1.7;
+              const size = labelSize * 1.7 * position.scale;
               return (
                 <g
                   key={token.id}
@@ -775,7 +987,8 @@ export default function MapCanvas({
                   data-token-id={token.id}
                   data-selected={selectedId === token.id ? "true" : undefined}
                   data-shown={shownId === token.id ? "true" : undefined}
-                  onPointerDown={(event) => startDrag(event, "token", token.id, position.x, position.y)}
+                  onPointerDown={(event) => (isDm ? startDrag(event, "token", token.id, baseOf(token).x, baseOf(token).y) : event.stopPropagation())}
+              onClick={!isDm ? () => onTokenSelect?.(token.id) : undefined}
                   onPointerMove={moveDrag}
                   onPointerUp={endDrag}
                   onPointerCancel={() => setDrag(null)}

@@ -10,6 +10,7 @@ import {
   ENTITY_KINDS,
   EVENT_MAX,
   FACT_MAX,
+  GROUP_NAME_MAX,
   KNOWLEDGE_SKILLS,
   KNOWLEDGE_TIER_KEYS,
   MAP_DESCRIPTION_MAX,
@@ -136,8 +137,6 @@ export const updateMapSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, "Nothing to change");
 
-export const editMapSchema = z.object({ instruction: line(PROMPT_MAX, "a change") });
-
 export const createEntitySchema = z.object({
   id: uuid.optional(), // lets the page pick the id, so the row it paints at once is the real one
   kind: z.enum(ENTITY_KINDS as [string, ...string[]]),
@@ -145,6 +144,7 @@ export const createEntitySchema = z.object({
   details: block(DETAILS_MAX, "Details").default(""),
   attitude: z.enum(ATTITUDES as [string, ...string[]]).default("neutral"),
   dm_notes: block(NOTES_MAX, "DM notes").default(""),
+  source: z.string().trim().max(200).nullable().default(null),
   stats: statBlockSchema.nullable().default(null),
   map_id: nullableUuid.default(null),
   map_x: coordinate.nullable().default(null),
@@ -164,6 +164,7 @@ export const updateEntitySchema = z
     map_y: coordinate.nullable().optional(),
     image_id: nullableUuid.optional(),
     is_revealed: z.boolean().optional(),
+    source: z.string().trim().max(200).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "Nothing to change");
 
@@ -183,10 +184,6 @@ export const addEventSchema = z.object({
   entity_id: nullableUuid.default(null),
 });
 
-export const askSchema = z.object({
-  query: line(PROMPT_MAX, "a question"),
-  entity_id: nullableUuid.default(null),
-});
 
 export const updateChipSchema = z.object({ is_pinned: z.boolean() });
 
@@ -225,6 +222,7 @@ export const applyBuildSchema = z.object({
         attitude: z.enum(ATTITUDES as [string, ...string[]]).default("neutral"),
         dm_notes: block(NOTES_MAX, "DM notes").default(""),
         cr: z.string().trim().max(6).nullable().default(null),
+        source: z.string().trim().max(200).nullable().default(null),
       })
     )
     .max(40),
@@ -268,6 +266,20 @@ export const updatePartyMemberSchema = z
   .object({
     name: line(MEMBER_NAME_MAX, "a name").optional(),
     level: z.number().int().min(1).max(20).optional(),
+    group_id: nullableUuid.optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "Nothing to change");
+
+export const createPartyGroupSchema = z.object({
+  name: line(GROUP_NAME_MAX, "a name"),
+  map_id: nullableUuid.default(null),
+  map_x: coordinate.nullable().default(null),
+  map_y: coordinate.nullable().default(null),
+});
+
+export const updatePartyGroupSchema = z
+  .object({
+    name: line(GROUP_NAME_MAX, "a name").optional(),
     map_id: nullableUuid.optional(),
     map_x: coordinate.nullable().optional(),
     map_y: coordinate.nullable().optional(),

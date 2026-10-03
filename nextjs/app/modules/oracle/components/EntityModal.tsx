@@ -14,6 +14,7 @@ export interface EntityDraft {
   details: string;
   attitude: Attitude;
   dm_notes: string;
+  source: string | null;
   stats: StatBlock | null;
 }
 
@@ -44,6 +45,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
   const [details, setDetails] = useState("");
   const [attitude, setAttitude] = useState<Attitude>("neutral");
   const [notes, setNotes] = useState("");
+  const [source, setSource] = useState("");
   const [stats, setStats] = useState<StatBlock | null>(null);
 
   // STATE
@@ -56,6 +58,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
     setDetails(entity?.details ?? "");
     setAttitude(entity?.attitude ?? "neutral");
     setNotes(entity?.dm_notes ?? "");
+    setSource(entity?.source ?? "");
     setStats(entity?.stats ?? null);
     setError(null);
   }, [isOpen, entity, defaultKind]);
@@ -69,7 +72,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
       setError("Enter a name");
       return;
     }
-    onSave({ kind, name: trimmed, details: details.trim(), attitude, dm_notes: notes.trim(), stats: shownStats });
+    onSave({ kind, name: trimmed, details: details.trim(), attitude, dm_notes: notes.trim(), source: kind === "creature" ? source.trim() || null : null, stats: shownStats });
   }
 
   function patchStats(patch: Partial<StatBlock>) {
@@ -147,6 +150,14 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
           <span className="orc-field-label">DM only (never shown to players)</span>
           <textarea className="input-field orc-textarea" rows={3} value={notes} maxLength={NOTES_MAX} onChange={(event) => setNotes(event.target.value)} />
         </label>
+
+        {/* SOURCE — creatures only */}
+        {kind === "creature" && (
+        <label className="orc-field">
+          <span className="orc-field-label">Source</span>
+          <input className="input-field" value={source} maxLength={200} placeholder="Monster Manual, p. 307" onChange={(event) => setSource(event.target.value)} />
+        </label>
+        )}
 
         {/* STAT BLOCK */}
         {shownStats && (
