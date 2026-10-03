@@ -39,6 +39,7 @@ export default function ImagePicker({ isOpen, campaignId, sources, subject, onAd
 
   // DATA
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [terms, setTerms] = useState<string | null>(null); // the words the last search actually used
 
   // INPUT
   const [description, setDescription] = useState("");
@@ -65,8 +66,9 @@ export default function ImagePicker({ isOpen, campaignId, sources, subject, onAd
     if (!trimmed || busy) return;
     setBusy("search");
     try {
-      const result = await api<{ candidates: Candidate[] }>(`${campaignApi(campaignId)}/images/search`, "POST", { query: trimmed });
+      const result = await api<{ terms: string; candidates: Candidate[] }>(`${campaignApi(campaignId)}/images/search`, "POST", { query: trimmed });
       setCandidates(result.candidates);
+      setTerms(result.terms.toLowerCase() === trimmed.toLowerCase() ? null : result.terms);
     } catch (error) {
       toast.error(errorMessage(error, "The search failed"));
     } finally {
@@ -178,6 +180,9 @@ export default function ImagePicker({ isOpen, campaignId, sources, subject, onAd
             <p className="empty-state-body">Try one or two plain words, like &quot;wolf&quot; or &quot;stone bridge&quot;.</p>
           </div>
         )}
+
+        {/* SEARCH TERMS USED */}
+        {terms && candidates !== null && busy !== "search" && <p className="orc-small text-secondary">Searched for: {terms}</p>}
 
         {/* RESULTS GRID */}
         {candidates !== null && candidates.length > 0 && (

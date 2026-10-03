@@ -18,12 +18,16 @@ export default function DisplayClient({ code }: { code: string }) {
   const versionRef = useRef<number | null>(null);
 
   // The display is always dark, whatever theme this browser has saved: it is a shared screen
-  // and the fog has to be black. The previous theme is put back on leaving.
+  // and the fog has to be black. The lock keeps the site's theme sync (which re-stamps the saved
+  // preference after its fetch and on storage events from other tabs) from painting over it.
+  // The previous theme is put back on leaving.
   useEffect(() => {
     const root = document.documentElement;
     const previous = root.dataset.theme;
+    root.dataset.themeLock = "dark";
     root.dataset.theme = "dark";
     return () => {
+      delete root.dataset.themeLock;
       if (previous) root.dataset.theme = previous;
     };
   }, []);
@@ -98,10 +102,10 @@ export default function DisplayClient({ code }: { code: string }) {
       <div className="orc-display-map">
         {map ? (
           <>
-            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} mode="player" />
+            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.members ?? []} mode="player" />
 
             {/* MAP NAME */}
-            <div className="orc-display-caption">{map.name}</div>
+            <div className="orc-display-caption">{map.name}<span className="orc-display-scale"> · {map.data.scale_label}</span></div>
           </>
         ) : (
 

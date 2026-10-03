@@ -50,6 +50,9 @@ export function resolveTheme(theme: ThemeMode): "light" | "dark" {
 // writes, so this is a no-op on load and only does work when the user picks a
 // different mode (or the OS flips while on "auto").
 export function applyTheme(theme: ThemeMode): void {
+  // A page that must paint one palette regardless of the preference (a shared screen) sets
+  // data-theme-lock on <html>; the preference is still saved, just not painted there.
+  if (document.documentElement.dataset.themeLock) return;
   document.documentElement.dataset.theme = resolveTheme(theme);
 }
 

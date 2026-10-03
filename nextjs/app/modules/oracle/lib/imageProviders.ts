@@ -1,7 +1,9 @@
 import type { OracleImage } from "../types/oracle";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from "./constants";
+import type { TextModel } from "./constants";
 import { OracleError } from "./errors";
 import { saveImage } from "./imageFunctions";
+import { generateJson } from "./llm";
 
 // WHERE NEW PICTURES COME FROM — two sources, offered side by side wherever a picture is added:
 //
@@ -118,6 +120,50 @@ async function openverseSearch(query: string, artworkOnly: boolean): Promise<Ima
   if (!response.ok) throw new OracleError(502, "The image search didn't answer. Try again.");
   const body = (await response.json()) as { results?: unknown };
   return (Array.isArray(body.results) ? body.results : []).map(toCandidate).filter((candidate): candidate is ImageCandidate => candidate !== null);
+}
+
+// WHAT TO SEARCH FOR. Openverse matches words in titles and tags, so an entry's own name ("Inquisitor
+// Voss", "Castellan Estate escape route") finds little or the wrong thing. A short model call turns
+// the subject into the plain words a photo or artwork library would carry, with invented names
+// dropped. Answers are cached; a failure falls back to the words as given.
+const termsCache = new Map<string, string>();
+const TERMS_CACHE_MAX = 500;
+
+export async function searchTermsFor(subject: string, world: string, model: TextModel): Promise<string> {
+  const key = subject.trim().toLowerCase();
+  const cached = termsCache.get(key);
+  if (cached) return cached;
+  const prompt = `A game master wants a picture for something at a fantasy tabletop game. Turn the subject into 2 or 3 plain English search words for a library of photographs and public-domain artwork (museum paintings, old illustrations, nature photos). Every word must match, so use only the most essential: the kind of thing first (crab, knight, manor, tower, forest), then one word for its look or period. Never include invented proper names or adjectives like "aggressive".
+Subject: ${subject.slice(0, 160)}
+${world ? `Setting: ${world.slice(0, 300)}` : ""}
+Answer with JSON only: { "terms": "<search words>" }`;
+  try {
+    const result = (await generateJson(prompt, "picture-terms", { model, timeoutMs: 30_000 })) as { terms?: unknown };
+    const terms = typeof result.terms === "string" ? result.terms.replace(/[^\p{L}\p{N} '-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 80) : "";
+    const chosen = terms || subject;
+    if (termsCache.size >= TERMS_CACHE_MAX) termsCache.clear();
+    termsCache.set(key, chosen);
+    return chosen;
+  } catch (error) {
+    console.error("Oracle picture terms failed:", error);
+    return subject;
+  }
+}
+
+// Search the rewritten words; when nothing comes back, drop words from the end, then try the
+// subject as typed. Returns the words that produced the results.
+export async function searchImagesWithFallback(terms: string, subject: string): Promise<{ terms: string; candidates: ImageCandidate[] }> {
+  const attempts: string[] = [];
+  const words = terms.split(" ").filter(Boolean);
+  for (let count = words.length; count >= 1; count -= 1) attempts.push(words.slice(0, count).join(" "));
+  if (!attempts.includes(subject)) attempts.push(subject);
+  let last: { terms: string; candidates: ImageCandidate[] } = { terms, candidates: [] };
+  for (const attempt of attempts) {
+    const candidates = await searchImages(attempt);
+    last = { terms: attempt, candidates };
+    if (candidates.length > 0) return last;
+  }
+  return last;
 }
 
 // Artwork first, because a drawing fits a fantasy table better than a photo; when that finds

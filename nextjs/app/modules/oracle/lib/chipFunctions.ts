@@ -3,14 +3,13 @@ import type { AuthUser } from "@/lib/permissions";
 import { checkGenerationLimit, logGeneration } from "@/lib/generationLimit";
 import type { ChipContent, EntityKind, ImageChipContent, OracleChip, OracleEntity, OracleImage } from "../types/oracle";
 import { CHIP_BATCH_SIZE, CHIP_LABEL_MAX, CHIP_POOL_MAX, ENTITY_KINDS } from "./constants";
-import { getCampaign, setDisplay } from "./campaignFunctions";
+import { setDisplay } from "./campaignFunctions";
 import { createEntity, updateEntity } from "./entityFunctions";
 import { OracleError } from "./errors";
 import { addEvent } from "./eventFunctions";
 import { buildContext, coerceTextContent, generateChipBatch, outlineEntity, type EntityOutline } from "./generationFunctions";
 import { findInspirationImage, importPicture } from "./imageProviders";
 import { parseJson } from "./mapData";
-import { getMap } from "./mapFunctions";
 import { findChallengeRow, statBlockFromChallenge } from "./reference";
 import { getSettings, modelFor } from "./settingsFunctions";
 
@@ -292,21 +291,7 @@ export async function adoptImageChip(
     console.warn(`Oracle outline failed for '${name}', adding it without a write-up:`, error instanceof Error ? error.message : error);
   }
 
-  const campaign = await getCampaign(campaignId);
-  let placement: { map_id: string; map_x: number; map_y: number } | null = null;
-  if (campaign.active_map_id) {
-    const map = await getMap(campaignId, campaign.active_map_id).catch(() => null);
-    if (map) {
-      const step = kind === "place" ? 0 : Math.min(map.vision_radius * 0.5, 70);
-      const angle = Math.random() * Math.PI * 2;
-      placement = {
-        map_id: map.id,
-        map_x: Math.round(Math.min(Math.max(map.party_x + Math.cos(angle) * step, 0), map.data.width)),
-        map_y: Math.round(Math.min(Math.max(map.party_y + Math.sin(angle) * step, 0), map.data.height)),
-      };
-    }
-  }
-
+  // The entry is created off the map; the Table then asks the DM where it goes (Place on map).
   const row = kind === "creature" ? findChallengeRow(outline.cr ?? "1/4") : null;
   const created = await createEntity(campaignId, {
     kind,
@@ -315,9 +300,9 @@ export async function adoptImageChip(
     attitude: outline.attitude,
     dm_notes: outline.dm_notes,
     stats: row ? statBlockFromChallenge(row) : null,
-    map_id: placement?.map_id ?? null,
-    map_x: placement?.map_x ?? null,
-    map_y: placement?.map_y ?? null,
+    map_id: null,
+    map_x: null,
+    map_y: null,
   });
   const entity = await updateEntity(campaignId, created.id, { image_id: image.id });
   await addEvent(campaignId, `${name} entered the session (added from a banner picture).`, entity.id);

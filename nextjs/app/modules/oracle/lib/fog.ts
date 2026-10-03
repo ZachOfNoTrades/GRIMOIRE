@@ -17,6 +17,25 @@ export function isVisible(partyX: number, partyY: number, visionRadius: number, 
   return distance(partyX, partyY, x, y) <= visionRadius;
 }
 
+export interface VisionPoint {
+  x: number;
+  y: number;
+}
+
+// Whether a point is in sight of the party token or of any member standing apart from it.
+export function isVisibleFrom(points: VisionPoint[], visionRadius: number, x: number, y: number): boolean {
+  return points.some((point) => distance(point.x, point.y, x, y) <= visionRadius);
+}
+
+// The party token plus every member split off onto this map.
+export function visionPoints(map: { id: string; party_x: number; party_y: number }, members: { map_id: string | null; map_x: number | null; map_y: number | null }[]): VisionPoint[] {
+  const points: VisionPoint[] = [{ x: map.party_x, y: map.party_y }];
+  for (const member of members) {
+    if (member.map_id === map.id && member.map_x !== null && member.map_y !== null) points.push({ x: member.map_x, y: member.map_y });
+  }
+  return points;
+}
+
 export function isExplored(explored: ExploredCircle[], x: number, y: number): boolean {
   return explored.some((circle) => distance(circle.x, circle.y, x, y) <= circle.r);
 }

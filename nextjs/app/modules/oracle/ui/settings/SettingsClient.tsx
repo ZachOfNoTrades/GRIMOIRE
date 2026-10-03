@@ -47,7 +47,7 @@ export default function SettingsClient({ settings: initialSettings }: { settings
 
   return (
     // PAGE
-    <div className="page orc-shell">
+    <div className="page orc-shell orc-plain">
 
       {/* TOAST CONTAINER */}
       <Toaster position="bottom-right" />

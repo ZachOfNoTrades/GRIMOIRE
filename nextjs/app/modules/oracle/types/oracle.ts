@@ -20,9 +20,16 @@ export interface MapFeature {
   state: FeatureState;
 }
 
+// What one grid square stands for. "region": hours of travel a square, the whole adventure area;
+// "local": five feet a square, one place where a scene plays out. `label` is the human reading,
+// e.g. "1 square = 6 hours' walk (about 15 miles)".
+export type MapScale = "region" | "local";
+
 export interface MapData {
   width: number;
   height: number;
+  scale: MapScale;
+  scale_label: string;
   features: MapFeature[];
 }
 
@@ -179,9 +186,21 @@ export interface CampaignSummary {
 }
 
 // Everything the DM's pages read, loaded in one go on the server.
+// A player character. Level feeds the encounter builder; a map position means the member stands
+// apart from the party token and sees the map from there.
+export interface OraclePartyMember {
+  id: string;
+  name: string;
+  level: number;
+  map_id: string | null;
+  map_x: number | null;
+  map_y: number | null;
+}
+
 export interface TableSnapshot {
   campaign: OracleCampaign;
   sessions: OracleSession[];
+  party: OraclePartyMember[];
   maps: OracleMap[];
   entities: OracleEntity[];
   images: OracleImage[];
@@ -220,6 +239,7 @@ export interface DisplayMap {
   vision_radius: number;
   explored: ExploredCircle[];
   tokens: DisplayToken[];
+  members: { id: string; name: string; x: number; y: number }[]; // party members standing apart
 }
 
 export interface DisplaySnapshot {

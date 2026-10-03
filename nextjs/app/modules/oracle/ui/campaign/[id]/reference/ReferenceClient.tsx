@@ -1,7 +1,8 @@
 "use client";
 
-import { BookOpen, Dices, Flame, Plus, Skull, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { BookOpen, Dices, Flame, Minus, Plus, Swords, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
@@ -11,8 +12,19 @@ import type { ImageSource } from "../../../../components/ImagePicker";
 import SessionBar from "../../../../components/SessionBar";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { CHALLENGE_ROWS, CONDITIONS, DIFFICULTY_CLASSES, GENERATORS, IMPROVISED_DAMAGE, rollDice, statBlockFromChallenge, type ChallengeRow } from "../../../../lib/reference";
+import { CR_KEYS, normalizeCr, summarizeEncounter, xpForCr, type Difficulty } from "../../../../lib/encounter";
+import { CONDITIONS, DIFFICULTY_CLASSES, GENERATORS, IMPROVISED_DAMAGE, findChallengeRow, rollDice, statBlockFromChallenge } from "../../../../lib/reference";
 import type { TableSnapshot } from "../../../../types/oracle";
+
+interface EncounterRow {
+  key: string;
+  label: string;
+  cr: string;
+  count: number;
+  entityId: string | null; // set when the creature came from the cast
+}
+
+const DIFFICULTY_LABEL: Record<Difficulty, string> = { trivial: "Trivial", easy: "Easy", medium: "Medium", hard: "Hard", deadly: "Deadly" };
 
 interface ReferenceClientProps {
   snapshot: TableSnapshot;
@@ -34,37 +46,74 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
   const [conditionName, setConditionName] = useState<string>(CONDITIONS[4].name);
   const [rolled, setRolled] = useState<Record<string, string>>({}); // generator key -> its last result
   const [diceResult, setDiceResult] = useState<string | null>(null);
-  const [addedChallenge, setAddedChallenge] = useState<string | null>(null); // the CR just added to the cast
   const [isAdding, setIsAdding] = useState(false);
   const condition = CONDITIONS.find((entry) => entry.name === conditionName) ?? CONDITIONS[0];
+
+  // ENCOUNTER BUILDER — lines are creatures from the cast (by id) or a plain challenge rating
+  const [lines, setLines] = useState<EncounterRow[]>([]);
+  const [pickCr, setPickCr] = useState("1");
+  const [pickEntity, setPickEntity] = useState("");
+  const [addedNote, setAddedNote] = useState<string | null>(null);
+  const levels = snapshot.party.map((member) => member.level);
+  const castCreatures = useMemo(
+    () => snapshot.entities.filter((entity) => entity.kind === "creature" && normalizeCr(entity.stats?.cr)).sort((a, b) => a.name.localeCompare(b.name)),
+    [snapshot.entities]
+  );
+  const summary = summarizeEncounter(lines.map((line) => ({ cr: line.cr, count: line.count })), levels);
+
+  function addLine(next: Omit<EncounterRow, "count">) {
+    setLines((list) => {
+      const existing = list.find((line) => line.key === next.key);
+      if (existing) return list.map((line) => (line.key === next.key ? { ...line, count: Math.min(30, line.count + 1) } : line));
+      return [...list, { ...next, count: 1 }];
+    });
+    setAddedNote(null);
+  }
+
+  function changeCount(key: string, delta: number) {
+    setLines((list) => list.map((line) => (line.key === key ? { ...line, count: line.count + delta } : line)).filter((line) => line.count > 0 && line.count <= 30));
+  }
+
+  // Put the encounter's plain-CR creatures into the cast beside the party, numbered. Creatures
+  // picked from the cast are already there.
+  async function addEncounterToCast() {
+    if (isAdding) return;
+    const generic = lines.filter((line) => line.entityId === null);
+    if (generic.length === 0) {
+      setAddedNote("Everything in this encounter is already in the cast.");
+      return;
+    }
+    setIsAdding(true);
+    try {
+      let made = 0;
+      for (const line of generic) {
+        const row = findChallengeRow(line.cr);
+        for (let index = 0; index < line.count; index += 1) {
+          const angle = Math.random() * Math.PI * 2;
+          await api(`${campaignApi(campaign.id)}/entities`, "POST", {
+            id: generateUUID().toLowerCase(),
+            kind: "creature",
+            name: `${line.label}${line.count > 1 ? ` ${index + 1}` : ""}`,
+            attitude: "hostile",
+            stats: row ? statBlockFromChallenge(row) : null,
+            map_id: activeMap?.id ?? null,
+            map_x: activeMap ? Math.round(Math.min(Math.max(activeMap.party_x + Math.cos(angle) * 60, 0), activeMap.data.width)) : null,
+            map_y: activeMap ? Math.round(Math.min(Math.max(activeMap.party_y + Math.sin(angle) * 60, 0), activeMap.data.height)) : null,
+          });
+          made += 1;
+        }
+      }
+      setAddedNote(`Added ${made} ${made === 1 ? "creature" : "creatures"} beside the party. Rename them from the Table tab.`);
+    } catch (error) {
+      toast.error(errorMessage(error, "Couldn't add the creatures"));
+    } finally {
+      setIsAdding(false);
+    }
+  }
 
   function roll() {
     const result = rollDice(dice);
     setDiceResult(result ? `${result.total}  (${result.rolls.join(", ")})` : "Write dice like 2d6+1");
-  }
-
-  // Add a creature with this row's stat block to the cast, beside the party on the active map.
-  async function addCreature(row: ChallengeRow) {
-    if (isAdding) return;
-    setIsAdding(true);
-    try {
-      const angle = Math.random() * Math.PI * 2;
-      await api(`${campaignApi(campaign.id)}/entities`, "POST", {
-        id: generateUUID().toLowerCase(),
-        kind: "creature",
-        name: `Creature (CR ${row.cr})`,
-        attitude: "hostile",
-        stats: statBlockFromChallenge(row),
-        map_id: activeMap?.id ?? null,
-        map_x: activeMap ? Math.round(Math.min(Math.max(activeMap.party_x + Math.cos(angle) * 60, 0), activeMap.data.width)) : null,
-        map_y: activeMap ? Math.round(Math.min(Math.max(activeMap.party_y + Math.sin(angle) * 60, 0), activeMap.data.height)) : null,
-      });
-      setAddedChallenge(row.cr);
-    } catch (error) {
-      toast.error(errorMessage(error, "Couldn't add the creature"));
-    } finally {
-      setIsAdding(false);
-    }
   }
 
   return (
@@ -158,39 +207,105 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
             {/* MONSTER COLUMN */}
             <div className="orc-stack">
 
-              {/* QUICK MONSTER CARD */}
+              {/* ENCOUNTER BUILDER CARD */}
               <div className="card">
                 <div className="card-header">
-                  <h2 className="text-card-title"><Skull className="w-5 h-5" /> Quick monster by CR</h2>
+                  <h2 className="text-card-title"><Swords className="w-5 h-5" /> Encounter builder</h2>
                 </div>
-                <div className="card-content orc-table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr><th>CR</th><th>AC</th><th>HP</th><th>Hit</th><th>Dmg</th><th>DC</th><th><span className="sr-only">Add</span></th></tr>
-                    </thead>
-                    <tbody>
-                      {CHALLENGE_ROWS.map((row) => (
-                        <tr key={row.cr} className={addedChallenge === row.cr ? "orc-row-selected" : undefined}>
-                          <td>{row.cr}</td>
-                          <td>{row.ac}</td>
-                          <td>{row.hpMin}-{row.hpMax}</td>
-                          <td>+{row.attack}</td>
-                          <td>{row.damageMin}-{row.damageMax}</td>
-                          <td>{row.saveDc}</td>
-                          <td>
-                            <Button className="btn-link" disabled={isAdding} onClick={() => addCreature(row)} title={`Add a CR ${row.cr} creature to the cast`} aria-label={`Add a CR ${row.cr} creature to the cast`}>
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="card-content orc-stack">
 
-                  {/* ADDED NOTE */}
-                  <p className="orc-small text-secondary mt-3">
-                    {addedChallenge ? `Added a CR ${addedChallenge} creature beside the party. Rename it from the Table tab.` : "Tap + to add a creature with that row's numbers to the cast, beside the party."}
-                  </p>
+                  {/* PARTY LINE */}
+                  <div className="orc-enc-party">
+                    {levels.length === 0 ? (
+                      <span className="orc-small text-secondary">No party yet. <Link href={`/modules/oracle/ui/campaign/${campaign.id}/prep`}>Add the characters on Prep</Link> to size encounters.</span>
+                    ) : (
+                      <span className="orc-small text-secondary">{levels.length} {levels.length === 1 ? "character" : "characters"}, level {levels.join(", ")}. <Link href={`/modules/oracle/ui/campaign/${campaign.id}/prep`}>Edit on Prep</Link></span>
+                    )}
+                    <div className="orc-enc-thresholds" aria-label="Party thresholds">
+                      {(["easy", "medium", "hard", "deadly"] as const).map((key) => (
+                        <span key={key} className="orc-enc-threshold" data-active={summary.difficulty === key ? "true" : undefined}>
+                          <span className="orc-label">{key}</span>
+                          <span className="orc-enc-xp">{summary.thresholds[key].toLocaleString()}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ADD FROM THE CAST */}
+                  <div className="orc-note-row">
+                    <select className="input-field" value={pickEntity} aria-label="Creature from the cast" onChange={(event) => setPickEntity(event.target.value)}>
+                      <option value="">{castCreatures.length ? "From the cast…" : "No cast creatures with a CR yet"}</option>
+                      {castCreatures.map((entity) => (
+                        <option key={entity.id} value={entity.id}>{entity.name} · CR {normalizeCr(entity.stats?.cr)}</option>
+                      ))}
+                    </select>
+                    <Button
+                      className="btn-off"
+                      disabled={!pickEntity}
+                      title="Add this creature"
+                      aria-label="Add this creature"
+                      onClick={() => {
+                        const entity = castCreatures.find((entry) => entry.id === pickEntity);
+                        if (entity) addLine({ key: `e:${entity.id}`, label: entity.name, cr: normalizeCr(entity.stats?.cr) as string, entityId: entity.id });
+                      }}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* ADD BY CHALLENGE RATING */}
+                  <div className="orc-note-row">
+                    <select className="input-field" value={pickCr} aria-label="Challenge rating" onChange={(event) => setPickCr(event.target.value)}>
+                      {CR_KEYS.map((cr) => (
+                        <option key={cr} value={cr}>CR {cr} · {xpForCr(cr).toLocaleString()} XP{findChallengeRow(cr) ? "" : " · no stat block"}</option>
+                      ))}
+                    </select>
+                    <Button className="btn-off" title="Add a creature of this rating" aria-label="Add a creature of this rating" onClick={() => addLine({ key: `cr:${pickCr}`, label: `Creature (CR ${pickCr})`, cr: pickCr, entityId: null })}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* LINES */}
+                  {lines.length === 0 && <span className="orc-small text-secondary">Add creatures from the cast or by challenge rating. The gauge updates as you go.</span>}
+                  {lines.map((line) => (
+                    <div key={line.key} className="orc-enc-line">
+                      <span className="orc-gen-value">{line.label} <span className="orc-muted">· CR {line.cr} · {xpForCr(line.cr).toLocaleString()} XP</span></span>
+                      <span className="orc-level">
+                        <button type="button" className="orc-level-btn" aria-label={`One fewer ${line.label}`} onClick={() => changeCount(line.key, -1)}><Minus className="w-3 h-3" /></button>
+                        <span className="orc-level-value">× {line.count}</span>
+                        <button type="button" className="orc-level-btn" disabled={line.count >= 30} aria-label={`One more ${line.label}`} onClick={() => changeCount(line.key, 1)}><Plus className="w-3 h-3" /></button>
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* GAUGE */}
+                  {lines.length > 0 && (
+                    <div className="orc-enc-result" data-difficulty={summary.difficulty}>
+                      <div className="orc-enc-gauge" role="meter" aria-valuemin={0} aria-valuemax={1} aria-valuenow={summary.gauge} aria-label="Difficulty">
+                        <div className="orc-enc-gauge-fill" style={{ width: `${Math.round(summary.gauge * 100)}%` }} />
+                      </div>
+                      <div className="orc-enc-verdict">
+                        <strong>{levels.length === 0 ? "Add the party to rate this" : DIFFICULTY_LABEL[summary.difficulty]}</strong>
+                        <span className="orc-small text-secondary">
+                          {summary.creatureCount} {summary.creatureCount === 1 ? "creature" : "creatures"} · {summary.rawXp.toLocaleString()} XP × {summary.multiplier} = {summary.adjustedXp.toLocaleString()} adjusted
+                          {levels.length > 0 ? ` · ${summary.xpEach.toLocaleString()} XP each` : ""}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ACTIONS */}
+                  {lines.length > 0 && (
+                    <div className="orc-card-actions">
+                      <span className="orc-small text-secondary">{addedNote ?? ""}</span>
+                      <div className="orc-row-actions">
+                        <Button className="btn-off" onClick={() => { setLines([]); setAddedNote(null); }}>Clear</Button>
+                        <Button className="btn-blue" disabled={isAdding} onClick={addEncounterToCast}>
+                          <Plus className="w-4 h-4" /> {isAdding ? "Adding…" : "Add to cast"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

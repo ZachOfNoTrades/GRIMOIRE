@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Plus, Save, Sparkles, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -12,9 +12,9 @@ import ImagePicker, { type ImageSource } from "../../../../components/ImagePicke
 import SessionBar from "../../../../components/SessionBar";
 import { PREP_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { NAME_MAX, PROMPT_MAX, SESSION_TITLE_MAX, WORLD_MAX } from "../../../../lib/constants";
+import { MEMBER_NAME_MAX, NAME_MAX, PROMPT_MAX, SESSION_TITLE_MAX, WORLD_MAX } from "../../../../lib/constants";
 import { saveOnShortcut, useUnsavedWarning } from "../../../../lib/useUnsavedWarning";
-import type { OracleCampaign, OracleImage, OracleMap, OracleSession, TableSnapshot } from "../../../../types/oracle";
+import type { OracleCampaign, OracleImage, OracleMap, OraclePartyMember, OracleSession, TableSnapshot } from "../../../../types/oracle";
 
 interface PrepClientProps {
   snapshot: TableSnapshot;
@@ -32,19 +32,24 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   // DATA
   const [campaign, setCampaign] = useState<OracleCampaign>(snapshot.campaign);
   const [sessions, setSessions] = useState<OracleSession[]>(snapshot.sessions);
+  const [party, setParty] = useState<OraclePartyMember[]>(snapshot.party);
   const [maps, setMaps] = useState<OracleMap[]>(snapshot.maps);
   const [images, setImages] = useState<OracleImage[]>(snapshot.images);
 
   // INPUT
   const [world, setWorld] = useState(snapshot.campaign.world);
   const [sessionTitle, setSessionTitle] = useState("");
+  const [memberName, setMemberName] = useState("");
+  const [memberLevel, setMemberLevel] = useState(1);
   const [mapName, setMapName] = useState("");
   const [mapPrompt, setMapPrompt] = useState("");
+  const [mapScale, setMapScale] = useState<"" | "region" | "local">(""); // "" lets the description decide
 
   // STATE
   const [isWritingWorld, setIsWritingWorld] = useState(false);
   const [isSavingWorld, setIsSavingWorld] = useState(false);
   const [isAddingSession, setIsAddingSession] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
   const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
@@ -117,12 +122,52 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
     }
   }
 
+  // PARTY — the player characters by name and level
+  async function addMember() {
+    const name = memberName.trim();
+    if (!name || isAddingMember) return;
+    setIsAddingMember(true);
+    try {
+      const created = await api<OraclePartyMember>(`${base}/party`, "POST", { name, level: memberLevel });
+      setParty((list) => [...list, created]);
+      setMemberName("");
+    } catch (error) {
+      toast.error(errorMessage(error, "Couldn't add the member"));
+    } finally {
+      setIsAddingMember(false);
+    }
+  }
+
+  async function setLevel(member: OraclePartyMember, level: number) {
+    const clamped = Math.min(20, Math.max(1, level));
+    if (clamped === member.level) return;
+    const previous = party;
+    setParty((list) => list.map((entry) => (entry.id === member.id ? { ...entry, level: clamped } : entry)));
+    try {
+      await api(`${base}/party/${member.id}`, "PUT", { level: clamped });
+    } catch (error) {
+      setParty(previous);
+      toast.error(errorMessage(error, "Couldn't change the level"));
+    }
+  }
+
+  async function removeMember(member: OraclePartyMember) {
+    const previous = party;
+    setParty((list) => list.filter((entry) => entry.id !== member.id));
+    try {
+      await api(`${base}/party/${member.id}`, "DELETE");
+    } catch (error) {
+      setParty(previous);
+      toast.error(errorMessage(error, "Couldn't remove the member"));
+    }
+  }
+
   async function createMap() {
     const name = mapName.trim();
     if (!name || isCreatingMap) return;
     setIsCreatingMap(true);
     try {
-      const created = await api<OracleMap>(`${base}/maps`, "POST", { name, prompt: mapPrompt.trim() || undefined });
+      const created = await api<OracleMap>(`${base}/maps`, "POST", { name, prompt: mapPrompt.trim() || undefined, scale: mapScale || undefined });
       setMaps((list) => [...list, created]);
       // The first map is put on the table by the server.
       setCampaign((current) => (current.active_map_id ? current : { ...current, active_map_id: created.id }));
@@ -225,8 +270,65 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
               </div>
             </div>
 
-            {/* SESSIONS COLUMN */}
+            {/* PARTY AND SESSIONS COLUMN */}
             <div className="orc-stack">
+
+              {/* PARTY CARD */}
+              <div className="card">
+                <div className="card-header">
+                  <h2 className="text-card-title"><Users className="w-5 h-5" /> Party</h2>
+                </div>
+                <div className="card-content orc-stack">
+
+                  {/* MEMBER ROWS — name, level stepper, remove */}
+                  {party.map((member) => (
+                    <div key={member.id} className="orc-member-row">
+                      <span className="orc-gen-value">{member.name}</span>
+                      <span className="orc-level" role="group" aria-label={`${member.name} level`}>
+                        <button type="button" className="orc-level-btn" disabled={member.level <= 1} aria-label="Level down" onClick={() => setLevel(member, member.level - 1)}>−</button>
+                        <span className="orc-level-value">Lv {member.level}</span>
+                        <button type="button" className="orc-level-btn" disabled={member.level >= 20} aria-label="Level up" onClick={() => setLevel(member, member.level + 1)}>+</button>
+                      </span>
+                      <Button className="btn-link-red" onClick={() => removeMember(member)} title="Remove" aria-label={`Remove ${member.name}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  {/* ADD ROW */}
+                  <div className="orc-note-row">
+                    <input
+                      id="orc-member-name"
+                      className="input-field"
+                      value={memberName}
+                      maxLength={MEMBER_NAME_MAX}
+                      disabled={isAddingMember}
+                      placeholder={party.length === 0 ? "Player character, e.g. Brann" : "Another character"}
+                      aria-label="New member name"
+                      onChange={(event) => setMemberName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addMember();
+                        }
+                      }}
+                    />
+                    <input
+                      type="number"
+                      className="input-field orc-level-input"
+                      min={1}
+                      max={20}
+                      value={memberLevel}
+                      aria-label="New member level"
+                      onChange={(event) => setMemberLevel(Math.min(20, Math.max(1, Number(event.target.value) || 1)))}
+                    />
+                    <Button className="btn-off" disabled={isAddingMember || !memberName.trim()} onClick={addMember} title="Add member" aria-label="Add member">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <span className="orc-small text-secondary">{party.length === 0 ? "The encounter builder and the map's split party use this list." : `${party.length} ${party.length === 1 ? "character" : "characters"}, ${party.map((m) => m.level).join(", ")}.`}</span>
+                </div>
+              </div>
 
               {/* SESSIONS CARD */}
               <div className="card">
@@ -316,7 +418,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                     <div key={map.id} className="orc-gen-row">
                       <div className="orc-gen-body">
                         <span className="orc-gen-value">{map.name}</span>
-                        <span className="orc-small text-secondary">{map.data.features.length} features{campaign.active_map_id === map.id ? " · on the table" : ""}</span>
+                        <span className="orc-small text-secondary">{map.data.scale_label} · {map.data.features.length} features{campaign.active_map_id === map.id ? " · on the table" : ""}</span>
                       </div>
                       <div className="orc-campaign-actions">
                         {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}
@@ -347,7 +449,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                     <textarea
                       id="orc-map-prompt"
                       className="input-field orc-textarea"
-                      rows={3}
+                      rows={4}
                       value={mapPrompt}
                       maxLength={PROMPT_MAX}
                       disabled={isCreatingMap}
@@ -355,6 +457,13 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                       aria-label="New map description"
                       onChange={(event) => setMapPrompt(event.target.value)}
                     />
+
+                    {/* SCALE — what one grid square stands for */}
+                    <select id="orc-map-scale" className="input-field" value={mapScale} aria-label="Map scale" disabled={isCreatingMap} onChange={(event) => setMapScale(event.target.value as "" | "region" | "local")}>
+                      <option value="">Scale: decide from the description</option>
+                      <option value="region">Region: a square is hours of travel</option>
+                      <option value="local">Local: a square is 5 feet</option>
+                    </select>
 
                     {/* CREATE MAP BUTTON */}
                     <Button className="btn-blue" disabled={isCreatingMap || !mapName.trim()} onClick={createMap}>

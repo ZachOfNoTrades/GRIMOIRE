@@ -1,12 +1,14 @@
 // Shared by server and client code — keep this file free of Node-only imports.
-import type { ExploredCircle, FeatureState, FeatureType, MapData, MapFeature } from "../types/oracle";
+import type { ExploredCircle, FeatureState, FeatureType, MapData, MapFeature, MapScale } from "../types/oracle";
 import {
+  DEFAULT_SCALE_LABELS,
   FEATURE_STATES,
   FEATURE_TYPES,
   MAP_DEFAULT_HEIGHT,
   MAP_DEFAULT_WIDTH,
   MAX_EXPLORED,
   MAX_FEATURES,
+  SCALE_LABEL_MAX,
 } from "./constants";
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
@@ -22,6 +24,8 @@ export function coerceMapData(raw: unknown): MapData {
   const source = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const width = Math.round(clampNumber(source.width, 400, 2400, MAP_DEFAULT_WIDTH));
   const height = Math.round(clampNumber(source.height, 300, 1600, MAP_DEFAULT_HEIGHT));
+  const scale: MapScale = source.scale === "region" ? "region" : "local";
+  const scale_label = typeof source.scale_label === "string" && source.scale_label.trim() ? source.scale_label.trim().slice(0, SCALE_LABEL_MAX) : DEFAULT_SCALE_LABELS[scale];
   const rawFeatures = Array.isArray(source.features) ? source.features.slice(0, MAX_FEATURES) : [];
   const usedIds = new Set<string>();
 
@@ -48,7 +52,7 @@ export function coerceMapData(raw: unknown): MapData {
     });
   });
 
-  return { width, height, features };
+  return { width, height, scale, scale_label, features };
 }
 
 export function coerceExplored(raw: unknown): ExploredCircle[] {
@@ -77,5 +81,5 @@ export function parseJson<T>(text: string | null | undefined, fallback: T): T {
 
 // A blank map: an empty field with the party in the middle.
 export function blankMapData(): MapData {
-  return { width: MAP_DEFAULT_WIDTH, height: MAP_DEFAULT_HEIGHT, features: [] };
+  return { width: MAP_DEFAULT_WIDTH, height: MAP_DEFAULT_HEIGHT, scale: "local", scale_label: DEFAULT_SCALE_LABELS.local, features: [] };
 }

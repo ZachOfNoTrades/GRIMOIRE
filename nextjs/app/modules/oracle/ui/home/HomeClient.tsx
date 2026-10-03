@@ -69,7 +69,7 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
 
   return (
     // PAGE
-    <div className="page orc-shell">
+    <div className="page orc-shell orc-plain">
       <div className="page-container">
 
         {/* TOAST CONTAINER */}

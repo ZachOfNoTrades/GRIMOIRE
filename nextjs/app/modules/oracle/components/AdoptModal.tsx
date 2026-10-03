@@ -16,9 +16,9 @@ interface AdoptModalProps {
 }
 
 const KINDS: { key: EntityKind; label: string; hint: string; icon: typeof User }[] = [
-  { key: "creature", label: "Creature", hint: "Added beside the party with a stat block", icon: PawPrint },
-  { key: "person", label: "Person", hint: "Added beside the party", icon: User },
-  { key: "place", label: "Location", hint: "Pinned where the party stands", icon: Landmark },
+  { key: "creature", label: "Creature", hint: "With a stat block; then tap the map to place it", icon: PawPrint },
+  { key: "person", label: "Person", hint: "Then tap the map to place them", icon: User },
+  { key: "place", label: "Location", hint: "Then tap the map to pin it", icon: Landmark },
 ];
 
 // A banner picture, about to become part of the session. One choice (what it is) and a name;

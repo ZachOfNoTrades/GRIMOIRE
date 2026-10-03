@@ -33,7 +33,8 @@ const MapFeature = z.object({
 const MAP_HELP =
   'A map is structured data, drawn by the app: { width, height, features[] } where every feature is an axis-aligned rectangle. ' +
   'Default size is 1000 wide by 620 tall. Roads are long thin rectangles (20-34 across), water is a river band or pond, a wall is one large outline rectangle, ' +
-  'landmarks are small (16-40 a side), buildings 50-130 a side. Buildings must not overlap each other, roads or water.';
+  'landmarks are small (16-40 a side), buildings 50-130 a side. Buildings must not overlap each other, roads or water. ' +
+  'The grid is 50 units a square. A "region" map makes a square hours of travel, so a town, ruin or tower is one feature about a square across; a "local" map makes a square 5 feet.';
 
 export function registerOracleTools(server: McpServer, ctx: McpContext) {
   const userId = ctx.user.id;
@@ -180,12 +181,14 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
         width: z.number().int().min(400).max(2400).default(1000),
         height: z.number().int().min(300).max(1600).default(620),
         features: z.array(MapFeature).max(120),
+        scale: z.enum(['region', 'local']).default('local').describe('What one 50-unit grid square stands for: "region" = hours of travel (whole settlements, ruins and towers are single features), "local" = 5 feet (single buildings, walls, trees).'),
+        scale_label: z.string().max(80).optional().describe('The scale in words, e.g. "1 square = 6 hours\' walk (about 15 miles)" or "1 square = 5 feet".'),
         make_active: z.boolean().default(false),
       },
     },
-    async ({ campaign_id, name, width, height, features, make_active }) => {
+    async ({ campaign_id, name, width, height, features, scale, scale_label, make_active }) => {
       const id = await owned(campaign_id);
-      const map = await createMap(id, name.trim(), coerceMapData({ width, height, features }));
+      const map = await createMap(id, name.trim(), coerceMapData({ width, height, scale, scale_label, features }));
       if (make_active) await updateCampaign(userId, id, { active_map_id: map.id });
       return json(map);
     },

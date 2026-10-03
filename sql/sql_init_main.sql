@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610021800 (Oracle sessions replace scenes)
+-- Version: 202610031500 (Oracle party members)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -346,6 +346,27 @@ BEGIN TRY
         );
 
         CREATE INDEX IX_oracle_sessions_campaign ON oracle_sessions (campaign_id, ts_created);
+    END
+
+    -- =============================
+    -- Oracle Party — the player characters (count and levels feed the encounter builder)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='oracle_party_members' AND xtype='U')
+    BEGIN
+        CREATE TABLE oracle_party_members (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            campaign_id UNIQUEIDENTIFIER NOT NULL,
+            name NVARCHAR(60) NOT NULL,
+            level TINYINT NOT NULL DEFAULT 1, -- 1-20
+            map_id UNIQUEIDENTIFIER NULL, -- set while the member stands apart from the party token
+            map_x FLOAT NULL,
+            map_y FLOAT NULL,
+            ts_created DATETIME DEFAULT GETDATE(),
+
+            CONSTRAINT FK_oracle_party_members_campaign FOREIGN KEY (campaign_id) REFERENCES oracle_campaigns(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IX_oracle_party_members_campaign ON oracle_party_members (campaign_id, ts_created);
     END
 
     -- =============================

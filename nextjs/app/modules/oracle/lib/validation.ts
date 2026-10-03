@@ -12,6 +12,8 @@ import {
   FACT_MAX,
   KNOWLEDGE_SKILLS,
   KNOWLEDGE_TIER_KEYS,
+  MAP_SCALES,
+  MEMBER_NAME_MAX,
   NAME_MAX,
   NOTES_MAX,
   PROMPT_MAX,
@@ -105,6 +107,8 @@ export const displaySchema = z
 export const createMapSchema = z.object({
   name: line(NAME_MAX, "a name"),
   prompt: block(PROMPT_MAX, "The description").optional(),
+  // What a square stands for. Omitted: a generated map decides from the description; a blank map is local.
+  scale: z.enum(MAP_SCALES).optional(),
 });
 
 const exploredCircle = z.object({ x: coordinate, y: coordinate, r: z.number().finite().min(1).max(2000) });
@@ -244,6 +248,17 @@ export const imageGenerateSchema = z.object({
 export const generateWorldSchema = z.object({ seed: z.string().max(WORLD_MAX).default("") });
 
 const sessionDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-10-02").nullable();
+export const createPartyMemberSchema = z.object({ name: line(MEMBER_NAME_MAX, "a name"), level: z.number().int().min(1).max(20).default(1) });
+export const updatePartyMemberSchema = z
+  .object({
+    name: line(MEMBER_NAME_MAX, "a name").optional(),
+    level: z.number().int().min(1).max(20).optional(),
+    map_id: nullableUuid.optional(),
+    map_x: coordinate.nullable().optional(),
+    map_y: coordinate.nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "Nothing to change");
+
 export const createSessionSchema = z.object({ title: line(SESSION_TITLE_MAX, "a title"), session_date: sessionDate.default(null) });
 export const updateSessionSchema = z
   .object({

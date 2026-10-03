@@ -22,8 +22,8 @@ import SessionBar from "../../../../components/SessionBar";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, PROMPT_MAX, VISION_MAX, VISION_MIN, VISION_STEP } from "../../../../lib/constants";
-import { addExplored, addExploredPath, eraseExplored, isVisible } from "../../../../lib/fog";
+import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, MAP_GRID, PROMPT_MAX, VISION_MAX, VISION_MIN, VISION_STEP } from "../../../../lib/constants";
+import { addExplored, addExploredPath, eraseExplored, isVisibleFrom, visionPoints } from "../../../../lib/fog";
 import type {
   ChipOption,
   EntityKind,
@@ -33,6 +33,7 @@ import type {
   OracleChip,
   OracleEntity,
   OracleEvent,
+  OraclePartyMember,
   OracleImage,
   OracleMap,
   OracleSession,
@@ -80,6 +81,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [images, setImages] = useState<OracleImage[]>(snapshot.images);
   const [chips, setChips] = useState<OracleChip[]>(snapshot.chips);
   const [events, setEvents] = useState<OracleEvent[]>(snapshot.events);
+  const [party, setParty] = useState<OraclePartyMember[]>(snapshot.party);
 
   // INPUT
   const [question, setQuestion] = useState("");
@@ -92,6 +94,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [placingId, setPlacingId] = useState<string | null>(null); // an existing entry waiting for a tap on the map
   const [mobileTab, setMobileTab] = useState<"map" | "details">("map");
   const [isSessionsOpen, setIsSessionsOpen] = useState(false);
+  const [isPartyOpen, setIsPartyOpen] = useState(false); // the party popover over the map
+  const [focus, setFocus] = useState<{ x: number; y: number; nonce: number } | null>(null); // a Zoom to request
   const [entityModal, setEntityModal] = useState<{ entity: OracleEntity | null; kind: EntityKind; at: { x: number; y: number } | null } | null>(null);
   const [picker, setPicker] = useState<{ entityId: string | null; subject: string } | null>(null);
   const [openChip, setOpenChip] = useState<OracleChip | null>(null);
@@ -116,7 +120,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const tokens: MapToken[] = useMemo(() => {
     if (!activeMap) return [];
     const placed = entities.filter((entity) => entity.map_id === activeMap.id && entity.map_x !== null && entity.map_y !== null);
-    const places = placed.filter((entity) => entity.kind === "place").sort((a, b) => a.name.localeCompare(b.name));
+    const places = placed.filter((entity) => entity.kind === "place").sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
     return placed.map((entity) => ({
       id: entity.id,
       name: entity.name,
@@ -139,6 +143,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       setEntities(fresh.entities);
       setImages(fresh.images);
       setEvents(fresh.events);
+      setParty(fresh.party);
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't reload the campaign"));
     }
@@ -179,6 +184,51 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   function moveParty(x: number, y: number, fromX: number, fromY: number) {
     if (!activeMap) return;
     patchMap(activeMap.id, (map) => ({ ...map, party_x: x, party_y: y, explored: addExploredPath(map.explored, fromX, fromY, x, y, map.vision_radius) }));
+  }
+
+  // PARTY MEMBERS — standing apart from the party token, or rejoined
+  // -------------------------------------------------------------------------------------------
+
+  // Members split off onto the active map.
+  const apartMembers = useMemo(
+    () => (activeMap ? party.filter((member) => member.map_id === activeMap.id && member.map_x !== null && member.map_y !== null).map((member) => ({ id: member.id, name: member.name, x: member.map_x as number, y: member.map_y as number })) : []),
+    [party, activeMap]
+  );
+
+  async function saveMember(member: OraclePartyMember, patch: { map_id: string | null; map_x: number | null; map_y: number | null }, failure: string) {
+    const previous = party;
+    setParty((list) => list.map((entry) => (entry.id === member.id ? { ...entry, ...patch } : entry)));
+    try {
+      const saved = await api<OraclePartyMember>(`${base}/party/${member.id}`, "PUT", patch);
+      setParty((list) => list.map((entry) => (entry.id === member.id ? saved : entry)));
+    } catch (error) {
+      setParty(previous);
+      toast.error(errorMessage(error, failure));
+    }
+  }
+
+  // A member is placed a step away from the party token, then dragged where it goes.
+  function splitOff(member: OraclePartyMember) {
+    if (!activeMap) return;
+    const index = apartMembers.length;
+    const offset = 30 + index * 10;
+    saveMember(member, { map_id: activeMap.id, map_x: Math.round(activeMap.party_x + offset), map_y: Math.round(activeMap.party_y + offset) }, "Couldn't split the party");
+  }
+
+  function rejoin(member: OraclePartyMember) {
+    saveMember(member, { map_id: null, map_x: null, map_y: null }, "Couldn't rejoin the party");
+  }
+
+  // Dragging a member onto the party token rejoins it; anywhere else moves it and reveals the path.
+  function moveMember(id: string, x: number, y: number, fromX: number, fromY: number) {
+    const member = party.find((entry) => entry.id === id);
+    if (!member || !activeMap) return;
+    if (Math.hypot(x - activeMap.party_x, y - activeMap.party_y) <= activeMap.vision_radius * 0.15 + 12) {
+      rejoin(member);
+      return;
+    }
+    patchMap(activeMap.id, (map) => ({ ...map, explored: addExploredPath(map.explored, fromX, fromY, x, y, map.vision_radius) }));
+    saveMember(member, { map_id: activeMap.id, map_x: Math.round(x), map_y: Math.round(y) }, "Couldn't move the member");
   }
 
   function brush(x: number, y: number) {
@@ -240,16 +290,20 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   }
 
   // A tap on the map with the Pin tool: place the entry that is waiting, or start a new one there.
-  function placeAt(x: number, y: number) {
+  // Placed entries snap to the center of the grid cell that was tapped.
+  function placeAt(rawX: number, rawY: number) {
     if (!activeMap) return;
+    const snap = (value: number, limit: number) => Math.min(limit - MAP_GRID / 2, Math.max(MAP_GRID / 2, Math.floor(value / MAP_GRID) * MAP_GRID + MAP_GRID / 2));
+    const x = snap(rawX, activeMap.data.width);
+    const y = snap(rawY, activeMap.data.height);
     if (placingId) {
       const entity = entities.find((entry) => entry.id === placingId);
       setPlacingId(null);
       setTool("move");
-      if (entity) saveEntity(entity, { map_id: activeMap.id, map_x: Math.round(x), map_y: Math.round(y) }, "Couldn't place it");
+      if (entity) saveEntity(entity, { map_id: activeMap.id, map_x: x, map_y: y }, "Couldn't place it");
       return;
     }
-    setEntityModal({ entity: null, kind: "place", at: { x: Math.round(x), y: Math.round(y) } });
+    setEntityModal({ entity: null, kind: "place", at: { x, y } });
   }
 
   // -------------------------------------------------------------------------------------------
@@ -547,7 +601,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     setAnswer(null);
   }
 
-  // A banner picture becomes a creature, person or location beside the party.
+  // A banner picture becomes a creature, person or location. It arrives off the map and the
+  // Table goes straight into placing it, so the next tap on the map puts it where it belongs.
   async function adopt(chip: OracleChip, kind: EntityKind, name: string, show: boolean) {
     if (isAdopting) return;
     setIsAdopting(true);
@@ -558,8 +613,14 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       setEntities((list) => (list.some((entity) => entity.id === result.entity.id) ? list : [...list, result.entity]));
       if (show) setCampaign((current) => ({ ...current, panel_kind: "entity", panel_entity_id: result.entity.id, panel_image_id: null }));
       setSelectedId(result.entity.id);
-      setMobileTab("details");
       setAdoptChip(null);
+      if (activeMap) {
+        setPlacingId(result.entity.id);
+        setTool("place");
+        setMobileTab("map");
+      } else {
+        setMobileTab("details");
+      }
       // The log gained a line on the server; pick it up without disturbing anything else.
       api<OracleEvent[]>(`${base}/events`).then(setEvents).catch(() => undefined);
       fillBanner();
@@ -666,6 +727,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               ) : (
                 <span className="orc-map-name">{activeMap?.name ?? "No map"}</span>
               )}
+              {activeMap && (
+                <span className="orc-map-scale orc-small text-secondary" title="What one grid square stands for">{activeMap.data.scale_label}</span>
+              )}
 
               {/* UNDO */}
               <Button className="btn-off" disabled={!activeMap?.can_undo || isMapBusy} onClick={undoMap} title="Undo the last map change" aria-label="Undo the last map change">
@@ -703,6 +767,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               })}
             </div>
 
+            {/* SLIDERS — kept together so they wrap as one row when the toolbar is tight */}
+            <div className="orc-toolbar-group orc-sliders">
+
             {/* BRUSH — only while a fog tool is active */}
             {activeMap && (tool === "reveal" || tool === "hide") && (
               <label className="orc-toolbar-group orc-vision orc-brush" title="Brush size ( [ and ] to change, Shift for fine steps )">
@@ -736,6 +803,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 <span className="orc-range-value">{activeMap.vision_radius}</span>
               </label>
             )}
+            </div>
           </div>
 
           {/* MAP */}
@@ -748,11 +816,16 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 visionRadius={activeMap.vision_radius}
                 explored={activeMap.explored}
                 tokens={tokens}
+                members={apartMembers}
                 mode="dm"
                 tool={tool}
                 brushRadius={brushRadius}
                 selectedId={selectedId}
+                shownId={panelEntity?.id ?? null}
                 onPartyDrop={moveParty}
+                onPartySelect={() => setIsPartyOpen((open) => !open)}
+                focus={focus}
+                onMemberDrop={moveMember}
                 onBrush={brush}
                 onBrushEnd={() => scheduleMapSave(activeMap.id)}
                 onPlace={placeAt}
@@ -771,6 +844,30 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               <div className="empty-state">
                 <p className="empty-state-title">No map</p>
                 <p className="empty-state-body"><Link href={`/modules/oracle/ui/campaign/${campaignId}/prep`}>Make one on the Prep tab.</Link></p>
+              </div>
+            )}
+
+            {/* PARTY POPOVER — who is with the token and who stands apart */}
+            {isPartyOpen && activeMap && (
+              <div className="orc-party-panel" role="dialog" aria-label="Party">
+                <div className="orc-party-panel-head">
+                  <span className="orc-label">Party</span>
+                  <button type="button" className="orc-map-hint-cancel" aria-label="Close" onClick={() => setIsPartyOpen(false)}><X className="w-4 h-4" /></button>
+                </div>
+                {party.length === 0 && (
+                  <p className="orc-small text-secondary">No members yet. <Link href={`/modules/oracle/ui/campaign/${campaignId}/prep`}>Add the party on Prep.</Link></p>
+                )}
+                {party.map((member) => {
+                  const apart = member.map_id === activeMap.id && member.map_x !== null;
+                  return (
+                    <div key={member.id} className="orc-party-row" data-apart={apart ? "true" : undefined}>
+                      <span className="orc-party-name">{member.name} <span className="orc-muted">· {member.level}</span></span>
+                      <span className="orc-small text-secondary">{apart ? "Apart" : "With the party"}</span>
+                      <Button className="btn-off" onClick={() => (apart ? rejoin(member) : splitOff(member))}>{apart ? "Rejoin" : "Split off"}</Button>
+                    </div>
+                  );
+                })}
+                <p className="orc-small text-secondary">Drag a member back onto the party token to rejoin.</p>
               </div>
             )}
 
@@ -817,7 +914,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             panelEntityId={panelEntity?.id ?? null}
             isVisibleToPlayers={
               !!(selected && activeMap && selected.map_id === activeMap.id && selected.map_x !== null && selected.map_y !== null &&
-                isVisible(activeMap.party_x, activeMap.party_y, activeMap.vision_radius, selected.map_x, selected.map_y))
+                isVisibleFrom(visionPoints(activeMap, party), activeMap.vision_radius, selected.map_x, selected.map_y))
             }
             isPlacing={!!selected && placingId === selected.id}
             onSelect={setSelectedId}
@@ -836,6 +933,11 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               setMobileTab("map");
             }}
             onUnplace={(entity) => saveEntity(entity, { map_id: null, map_x: null, map_y: null }, "Couldn't take it off the map")}
+            onZoomTo={(entity) => {
+              if (entity.map_x === null || entity.map_y === null) return;
+              setFocus({ x: entity.map_x, y: entity.map_y, nonce: Date.now() });
+              setMobileTab("map");
+            }}
           />
         </section>
       </div>

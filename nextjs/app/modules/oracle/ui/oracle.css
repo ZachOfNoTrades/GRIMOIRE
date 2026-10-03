@@ -19,6 +19,15 @@
 
 /* ---------- shell ---------- */
 
+/* The shell is locked to the viewport and scrolls only in its inner body, so the app-wide
+   `scrollbar-gutter: stable` on `.page` would leave a scrollbar-wide empty strip on the right
+   of the session bar and everything under it. Home and Settings are ordinary scrolling pages
+   and keep the gutter. */
+body:has(.page) > .page.orc-shell:not(.orc-plain) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
 .orc-shell {
   min-height: 0;
   /* The DM works on a ~1390px-wide laptop: one step down from the site's type scale, for the shell
@@ -174,6 +183,8 @@
   gap: 0.5rem 0.75rem;
 }
 .orc-toolbar-group { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.orc-sliders { gap: 0.75rem; margin-left: auto; }
+.orc-sliders:empty { display: none; }
 .orc-map-name { font-size: 0.95rem; font-weight: 700; color: var(--color-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14rem; }
 .orc-map-select { max-width: 14rem; padding-top: 0.3rem; padding-bottom: 0.3rem; }
 .orc-toolbar .btn { padding: 0.3rem 0.6rem; font-size: 0.75rem; white-space: nowrap; }
@@ -476,8 +487,24 @@
 
 .orc-event { display: flex; gap: 0.5rem; align-items: baseline; }
 .orc-event-scene { flex: 0 0 5.5rem; font-size: 0.6875rem; color: var(--color-gray); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Controls that share a row share a height: fields, selects and buttons are all 2.4375rem tall
+   (the field's own padding + border), so nothing in a row sits taller than its neighbor. The
+   map toolbar keeps its compact buttons; link-style buttons have no box. */
+.orc-shell .input-field,
+.orc-shell select.input-field,
+.orc-body .modal-card .input-field,
+.orc-body .modal-card select.input-field { min-height: 2.4375rem; box-sizing: border-box; }
+.orc-shell .btn:not(.btn-link):not(.btn-link-red):not(.orc-toolbar .btn):not(.orc-tool),
+.orc-body .modal-card .btn:not(.btn-link):not(.btn-link-red) { min-height: 2.4375rem; box-sizing: border-box; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+.orc-shell .orc-note-row > .btn,
+.orc-shell .orc-member-row > .btn,
+.orc-shell .orc-enc-line > .btn,
+.orc-shell .orc-details-search > .btn,
+.orc-shell .orc-ask > .btn,
+.orc-shell .orc-session-head > .btn { align-self: stretch; }
 .orc-note-row { display: flex; align-items: center; gap: 0.4rem; }
 .orc-note-row .input-field { flex: 1 1 auto; min-width: 0; }
+.orc-note-row .btn { flex: 0 0 auto; white-space: nowrap; }
 
 /* ---------- assist area: ideas banner + ask bar ---------- */
 
@@ -734,6 +761,8 @@
 .orc-card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .orc-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-left: auto; }
 .orc-table-wrap { overflow-x: auto; }
+.orc-table-wrap th { text-align: left; }
+.orc-table-wrap th:last-child, .orc-table-wrap td:last-child { text-align: right; }
 .orc-chip-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .orc-gen-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.5rem 0.65rem; border: 1px solid var(--card-border); }
 .orc-gen-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
@@ -744,7 +773,8 @@
 .orc-campaign-name { font-size: 0.95rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-campaign-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 0.35rem; }
 .orc-proposal { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.55rem 0.65rem; border: 1px solid var(--card-border); }
-.orc-proposal-title { font-size: 0.8rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
+.orc-proposal-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
+.orc-proposal-title .orc-muted { font-weight: 500; white-space: nowrap; }
 .orc-log-row { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid var(--table-row-border); }
 .orc-log-meta { flex: 0 0 7.5rem; display: flex; flex-direction: column; font-size: 0.6875rem; color: var(--color-gray); min-width: 0; }
 .orc-log-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -824,3 +854,59 @@
   .orc-display-panel { flex: 0 0 45%; border-left: none; border-top: 1px solid var(--card-border); }
   .orc-display-photo { max-height: 45%; }
 }
+
+/* ---------- party members on the map ---------- */
+.orc-member circle { stroke-dasharray: 3 2; }
+.orc-member text { font-weight: 600; letter-spacing: 0; }
+.orc-party-panel {
+  position: absolute; left: 0.5rem; bottom: 2.6rem; z-index: 3; width: min(20rem, calc(100% - 1rem));
+  display: flex; flex-direction: column; gap: 0.4rem; padding: 0.6rem 0.7rem;
+  border: 1px solid var(--card-border); background: var(--card-bg); box-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.25));
+}
+.orc-party-panel-head { display: flex; align-items: center; justify-content: space-between; }
+.orc-party-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.5rem; }
+.orc-party-row[data-apart] .orc-party-name { color: var(--orc-cool); }
+.orc-party-name { font-weight: 600; color: var(--color-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-party-row .btn { padding: 0.25rem 0.6rem; }
+.orc-member-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.5rem; padding: 0.35rem 0.65rem; border: 1px solid var(--card-border); }
+.orc-level { display: inline-flex; align-items: center; gap: 0.15rem; }
+.orc-level-btn { width: 1.6rem; height: 1.6rem; color: var(--color-primary); background: transparent; border: 1px solid var(--card-border); cursor: pointer; }
+.orc-level-btn:disabled { opacity: 0.4; cursor: default; }
+.orc-level-value { min-width: 3rem; text-align: center; font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--color-secondary); }
+.orc-level-input { flex: 0 0 4.5rem; min-width: 0; width: 4.5rem; }
+
+/* ---------- encounter builder ---------- */
+.orc-enc-party { display: flex; flex-direction: column; gap: 0.4rem; }
+.orc-enc-thresholds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
+.orc-enc-threshold { display: flex; flex-direction: column; align-items: center; padding: 0.3rem 0.2rem; border: 1px solid var(--card-border); }
+.orc-enc-threshold[data-active] { border-color: var(--color-primary); background: var(--hover-bg); }
+.orc-enc-xp { font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-primary); }
+.orc-enc-line { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.5rem; padding: 0.35rem 0.65rem; border: 1px solid var(--card-border); }
+.orc-enc-result { display: flex; flex-direction: column; gap: 0.4rem; }
+.orc-enc-gauge { position: relative; height: 0.6rem; background: var(--hover-bg); border: 1px solid var(--card-border); overflow: hidden; }
+.orc-enc-gauge::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(to right, transparent 0 calc(25% - 1px), var(--card-border) calc(25% - 1px) 25%); }
+.orc-enc-gauge-fill { height: 100%; background: var(--orc-good); transition: width 150ms; }
+.orc-enc-result[data-difficulty="medium"] .orc-enc-gauge-fill { background: var(--orc-warn); }
+.orc-enc-result[data-difficulty="hard"] .orc-enc-gauge-fill { background: #e0a060; }
+.orc-enc-result[data-difficulty="deadly"] .orc-enc-gauge-fill { background: var(--orc-bad); }
+.orc-enc-verdict { display: flex; flex-direction: column; gap: 0.15rem; }
+
+/* ---------- map pointer and token motion ---------- */
+/* Tokens are things to tap: a pointer in every DM tool, a grab only while the move tool can drag them. */
+.orc-map[data-mode="dm"] .orc-token, .orc-map[data-mode="dm"] .orc-pin, .orc-map[data-mode="dm"] .orc-party { cursor: pointer; }
+.orc-map[data-mode="dm"][data-tool="move"] .orc-token:active,
+.orc-map[data-mode="dm"][data-tool="move"] .orc-pin:active,
+.orc-map[data-mode="dm"][data-tool="move"] .orc-party:active { cursor: grabbing; }
+.orc-token circle, .orc-pin rect, .orc-party circle { transform-box: fill-box; transform-origin: center; transition: transform 120ms ease-out, stroke-width 120ms ease-out; }
+.orc-map[data-mode="dm"] .orc-token:hover circle, .orc-map[data-mode="dm"] .orc-party:hover circle { transform: scale(1.3); stroke: var(--color-primary); }
+.orc-map[data-mode="dm"] .orc-pin:hover rect { transform: scale(1.2); stroke: var(--color-primary); }
+/* The entry whose details are on the player display breathes, so the DM can see it at a glance. */
+@keyframes orc-shown-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.45); } }
+.orc-token[data-shown] circle, .orc-pin[data-shown] rect { animation: orc-shown-pulse 1.6s ease-in-out infinite; stroke: var(--orc-good); stroke-width: 3; }
+@media (prefers-reduced-motion: reduce) { .orc-token[data-shown] circle, .orc-pin[data-shown] rect { animation: none; } }
+.orc-zoom-follow { width: auto; gap: 0.3rem; padding: 0 0.5rem; font-size: 0.75rem; font-weight: 600; }
+.orc-map[data-mode="player"] .orc-map-svg { touch-action: none; cursor: grab; }
+.orc-map[data-mode="player"] .orc-map-svg:active { cursor: grabbing; }
+.orc-map[data-mode="player"] .orc-zoom { top: auto; bottom: 0.75rem; right: 0.75rem; }
+.orc-map-scale { white-space: nowrap; }
+.orc-display-scale { font-weight: 400; opacity: 0.8; }

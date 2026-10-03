@@ -1,6 +1,6 @@
 "use client";
 
-import { Dices, Eye, EyeOff, Image as ImageIcon, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Trash2, User, X } from "lucide-react";
+import { Dices, Eye, EyeOff, Image as ImageIcon, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Trash2, User, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ interface DetailsPanelProps {
   onPicture: (entity: OracleEntity) => void;
   onPlace: (entity: OracleEntity) => void;
   onUnplace: (entity: OracleEntity) => void;
+  onZoomTo: (entity: OracleEntity) => void;
 }
 
 const KIND_ICONS: Record<EntityKind, typeof User> = { creature: PawPrint, person: User, place: Landmark };
@@ -61,7 +62,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = needle ? entities.filter((entity) => `${entity.name} ${entity.details}`.toLowerCase().includes(needle)) : entities;
-    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
   }, [entities, query]);
 
   const history = selected ? events.filter((event) => event.entity_id === selected.id).slice(0, 8) : [];
@@ -231,9 +232,14 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               </Button>
             )}
             {selected.map_id === activeMapId && activeMapId ? (
-              <Button className="btn-off" onClick={() => props.onUnplace(selected)}>
-                <MapPinOff className="w-4 h-4" /> Take off map
-              </Button>
+              <>
+                <Button className="btn-off" onClick={() => props.onZoomTo(selected)} title="Zoom the map in on this entry">
+                  <ZoomIn className="w-4 h-4" /> Zoom to
+                </Button>
+                <Button className="btn-off" onClick={() => props.onUnplace(selected)}>
+                  <MapPinOff className="w-4 h-4" /> Take off map
+                </Button>
+              </>
             ) : (
               <Button className={isPlacing ? "btn-blue" : "btn-off"} onClick={() => props.onPlace(selected)} disabled={!activeMapId}>
                 <MapPin className="w-4 h-4" /> {isPlacing ? "Tap the map…" : "Place on map"}

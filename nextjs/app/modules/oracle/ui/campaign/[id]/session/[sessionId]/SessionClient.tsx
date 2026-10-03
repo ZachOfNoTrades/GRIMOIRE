@@ -229,7 +229,7 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                   <div className="card-content orc-stack">
                     {proposal.entities.map((entity, index) => (
                       <div key={`${entity.name}-${index}`} className="orc-proposal">
-                        <span className="orc-proposal-title">{entity.name} <span className="orc-muted">· {KIND_LABELS[entity.kind]}{entity.cr ? ` · CR ${entity.cr}` : ""}</span></span>
+                        <span className="orc-proposal-title"><span>{entity.name}</span><span className="orc-muted">{KIND_LABELS[entity.kind]}{entity.cr ? ` · CR ${entity.cr}` : ""}</span></span>
                         <span className="orc-section-text">{entity.details}</span>
                         {entity.dm_notes && <span className="orc-section-text orc-muted">DM only: {entity.dm_notes}</span>}
                       </div>
@@ -258,9 +258,9 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                       <p className="empty-state-body">Build it from the notes, or add entries from the Table tab.</p>
                     </div>
                   )}
-                  {entities.map((entity) => (
+                  {[...entities].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })).map((entity) => (
                     <div key={entity.id} className="orc-proposal">
-                      <span className="orc-proposal-title">{entity.name} <span className="orc-muted">· {KIND_LABELS[entity.kind]}</span></span>
+                      <span className="orc-proposal-title"><span>{entity.name}</span><span className="orc-muted">{KIND_LABELS[entity.kind]}</span></span>
                       {entity.details && <span className="orc-section-text">{entity.details}</span>}
                     </div>
                   ))}

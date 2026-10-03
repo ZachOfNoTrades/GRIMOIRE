@@ -45,6 +45,8 @@ export const CAPTION_MAX = 120;
 
 export const MAX_CAMPAIGNS = 30;
 export const MAX_SESSIONS = 200;
+export const MAX_PARTY_MEMBERS = 12;
+export const MEMBER_NAME_MAX = 60;
 export const MAX_MAPS = 30;
 export const MAX_ENTITIES = 300;
 export const MAX_IMAGES = 200;
@@ -56,6 +58,11 @@ export const MAX_UNDO = 8;
 export const MAP_DEFAULT_WIDTH = 1000;
 export const MAP_DEFAULT_HEIGHT = 620;
 export const VISION_DEFAULT = 150;
+// The map grid (drawn every MAP_GRID units); placed entries snap to cell centers.
+export const MAP_GRID = 50;
+export const MAP_SCALES: readonly ["region", "local"] = ["region", "local"];
+export const SCALE_LABEL_MAX = 80;
+export const DEFAULT_SCALE_LABELS = { region: "1 square = half a day's travel", local: "1 square = 5 feet" } as const;
 export const VISION_MIN = 40;
 export const VISION_MAX = 600;
 export const VISION_STEP = 5;
@@ -87,7 +94,7 @@ export const TEXT_MODELS: { key: TextModel; label: string }[] = [
   { key: "opus", label: "Opus" },
 ];
 export const TEXT_MODEL_KEYS: readonly TextModel[] = ["haiku", "sonnet", "opus"];
-export type GenerationTask = "world" | "build" | "map" | "chips" | "ask" | "fact" | "outline";
+export type GenerationTask = "world" | "build" | "map" | "chips" | "ask" | "fact" | "outline" | "picture";
 export const GENERATION_TASKS: { key: GenerationTask; label: string; hint: string }[] = [
   { key: "world", label: "World notes", hint: "Generate on the Prep tab" },
   { key: "build", label: "Session cast", hint: "Session notes into a cast" },
@@ -96,6 +103,7 @@ export const GENERATION_TASKS: { key: GenerationTask; label: string; hint: strin
   { key: "ask", label: "Ask bar", hint: "Free-form questions at the table" },
   { key: "fact", label: "Knowledge checks", hint: "The fact a roll earns" },
   { key: "outline", label: "Picture write-ups", hint: "A new entry from a banner picture" },
+  { key: "picture", label: "Picture search", hint: "Turns a name into search words" },
 ];
 export const TASK_KEYS: readonly GenerationTask[] = GENERATION_TASKS.map((task) => task.key);
 export const DEFAULT_MODEL: TextModel = "haiku";
