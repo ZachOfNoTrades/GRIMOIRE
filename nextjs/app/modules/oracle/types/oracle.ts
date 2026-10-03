@@ -49,6 +49,7 @@ export interface OracleMap {
   party_y: number;
   vision_radius: number;
   explored: ExploredCircle[];
+  background_image_id: string | null; // one of the campaign's pictures, drawn under the grid
 }
 
 export interface StatAttack {
@@ -240,6 +241,7 @@ export interface DisplayMap {
   explored: ExploredCircle[];
   tokens: DisplayToken[];
   members: { id: string; name: string; x: number; y: number }[]; // party members standing apart
+  background_image_id: string | null;
 }
 
 export interface DisplaySnapshot {

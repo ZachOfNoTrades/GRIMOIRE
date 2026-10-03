@@ -817,6 +817,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 explored={activeMap.explored}
                 tokens={tokens}
                 members={apartMembers}
+                backgroundUrl={activeMap.background_image_id ? `${base}/images/${activeMap.background_image_id}` : null}
                 mode="dm"
                 tool={tool}
                 brushRadius={brushRadius}

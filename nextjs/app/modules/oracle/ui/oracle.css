@@ -910,3 +910,11 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-map[data-mode="player"] .orc-zoom { top: auto; bottom: 0.75rem; right: 0.75rem; }
 .orc-map-scale { white-space: nowrap; }
 .orc-display-scale { font-weight: 400; opacity: 0.8; }
+
+/* ---------- map background picture ---------- */
+/* With a picture under the map, the drawn features become light outlines so the art reads, and the ground tint is dropped. */
+.orc-map[data-picture] .orc-map-ground { fill: #0b0b0b; }
+.orc-map[data-picture] .orc-feature > rect:first-child, .orc-map[data-picture] .orc-feature > ellipse { fill-opacity: 0.12; stroke-opacity: 0.75; }
+.orc-map[data-picture] .orc-feature text { paint-order: stroke; stroke: rgba(0, 0, 0, 0.65); stroke-width: 3px; }
+.orc-map[data-picture] .orc-map-grid line { stroke: rgba(255, 255, 255, 0.14); }
+.orc-map[data-picture] .orc-token text, .orc-map[data-picture] .orc-party text { paint-order: stroke; stroke: rgba(0, 0, 0, 0.7); stroke-width: 3px; }

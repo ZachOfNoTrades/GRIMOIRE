@@ -113,6 +113,7 @@ export async function deleteImage(campaignId: string, imageId: string): Promise<
     fileName = result.recordset[0].file_name;
     await transaction.request().input("imageId", imageId).input("campaignId", campaignId).query(`
       UPDATE oracle_entities SET image_id = NULL WHERE campaign_id = @campaignId AND image_id = @imageId;
+      UPDATE oracle_maps SET background_image_id = NULL WHERE campaign_id = @campaignId AND background_image_id = @imageId;
       UPDATE oracle_campaigns
       SET panel_kind = CASE WHEN panel_image_id = @imageId THEN NULL ELSE panel_kind END,
           panel_image_id = CASE WHEN panel_image_id = @imageId THEN NULL ELSE panel_image_id END,

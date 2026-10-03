@@ -5,7 +5,7 @@ import { bumpVersion } from "./campaignFunctions";
 import { OracleError } from "./errors";
 import { blankMapData, coerceExplored, coerceMapData, parseJson } from "./mapData";
 
-const MAP_COLUMNS = "id, name, data, undo_stack, party_x, party_y, vision_radius, explored";
+const MAP_COLUMNS = "id, name, data, undo_stack, party_x, party_y, vision_radius, explored, background_image_id";
 
 type MapRow = {
   id: string;
@@ -16,6 +16,7 @@ type MapRow = {
   party_y: number;
   vision_radius: number;
   explored: string;
+  background_image_id: string | null;
 };
 
 export function toMap(row: MapRow): OracleMap {
@@ -29,6 +30,7 @@ export function toMap(row: MapRow): OracleMap {
     party_y: row.party_y,
     vision_radius: row.vision_radius,
     explored: coerceExplored(parseJson<unknown>(row.explored, [])),
+    background_image_id: row.background_image_id ? String(row.background_image_id).toLowerCase() : null,
   };
 }
 
@@ -91,6 +93,7 @@ export interface MapPatch {
   party_y?: number;
   vision_radius?: number;
   explored?: ExploredCircle[];
+  background_image_id?: string | null;
 }
 
 // Party position, vision and the explored area. All of it is visible to the players, so the
@@ -119,6 +122,16 @@ export async function updateMap(campaignId: string, mapId: string, patch: MapPat
   if (patch.explored !== undefined) {
     updateFields.push("explored = @explored");
     request.input("explored", JSON.stringify(coerceExplored(patch.explored)));
+  }
+  if (patch.background_image_id !== undefined) {
+    if (patch.background_image_id !== null) {
+      const image = await pool.request().input("id", patch.background_image_id).input("campaignId", campaignId).query(`
+        SELECT 1 AS found FROM oracle_images WHERE id = @id AND campaign_id = @campaignId
+      `);
+      if (image.recordset.length === 0) throw new OracleError(404, "Picture not found");
+    }
+    updateFields.push("background_image_id = @backgroundImageId");
+    request.input("backgroundImageId", patch.background_image_id);
   }
   updateFields.push("ts_updated = GETDATE()");
 

@@ -36,6 +36,7 @@ interface MapCanvasProps {
   explored: ExploredCircle[];
   tokens: MapToken[];
   members?: MapMember[];
+  backgroundUrl?: string | null; // a picture drawn under the grid, stretched to the map
   // "dm": everything is visible, the fog is a tint, the map can be worked on.
   // "player": unexplored is solid, explored is dimmed, and the view follows the party.
   mode: "dm" | "player";
@@ -124,6 +125,7 @@ export default function MapCanvas({
   explored,
   tokens,
   members = [],
+  backgroundUrl = null,
   mode,
   tool = "move",
   brushRadius = 0,
@@ -412,7 +414,7 @@ export default function MapCanvas({
 
   return (
     // MAP WRAPPER
-    <div ref={wrapRef} className="orc-map" data-mode={mode} data-tool={isDm ? tool : undefined} data-zoomed={isWindowed ? "true" : undefined}>
+    <div ref={wrapRef} className="orc-map" data-mode={mode} data-tool={isDm ? tool : undefined} data-zoomed={isWindowed ? "true" : undefined} data-picture={backgroundUrl ? "true" : undefined}>
 
       {/* ZOOM CONTROLS — Shift+click steps by 2% instead of 10%; the wheel and a pinch are continuous.
           On the display, a zoom lets go of following the party; "Follow party" picks it up again. */}
@@ -483,6 +485,9 @@ export default function MapCanvas({
 
         {/* GROUND */}
         <rect className="orc-map-ground" {...cover} />
+
+        {/* BACKGROUND PICTURE — stretched to the map; features are drawn lightly over it */}
+        {backgroundUrl && <image className="orc-map-picture" href={backgroundUrl} x={0} y={0} width={data.width} height={data.height} preserveAspectRatio="none" />}
 
         {/* GRID */}
         <g className="orc-map-grid">

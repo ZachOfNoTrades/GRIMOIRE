@@ -102,7 +102,7 @@ export default function DisplayClient({ code }: { code: string }) {
       <div className="orc-display-map">
         {map ? (
           <>
-            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.members ?? []} mode="player" />
+            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.members ?? []} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id) : null} mode="player" />
 
             {/* MAP NAME */}
             <div className="orc-display-caption">{map.name}<span className="orc-display-scale"> · {map.data.scale_label}</span></div>

@@ -120,6 +120,7 @@ export const updateMapSchema = z
     party_y: coordinate.optional(),
     vision_radius: z.number().finite().min(VISION_MIN).max(VISION_MAX).optional(),
     explored: z.array(exploredCircle).max(600).optional(),
+    background_image_id: nullableUuid.optional(),
     // Whole-map replacement (MCP and the in-app feature editor). Coerced server-side.
     data: z.unknown().optional(),
   })

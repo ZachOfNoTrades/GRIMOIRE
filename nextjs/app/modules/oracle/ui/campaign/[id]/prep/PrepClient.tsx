@@ -52,6 +52,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [pictureForMap, setPictureForMap] = useState<OracleMap | null>(null); // the picker is choosing a map's background
 
   // What the server last confirmed for the world notes. The box is dirty while it differs.
   const [savedWorld, setSavedWorld] = useState(snapshot.campaign.world);
@@ -177,6 +178,19 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
       toast.error(errorMessage(error, "Couldn't create the map"));
     } finally {
       setIsCreatingMap(false);
+    }
+  }
+
+  // A picture under the map: chosen from the library picker, or taken off again.
+  async function setBackground(map: OracleMap, imageId: string | null) {
+    const previous = maps;
+    setMaps((list) => list.map((entry) => (entry.id === map.id ? { ...entry, background_image_id: imageId } : entry)));
+    try {
+      const saved = await api<OracleMap>(`${base}/maps/${map.id}`, "PUT", { background_image_id: imageId });
+      setMaps((list) => list.map((entry) => (entry.id === map.id ? saved : entry)));
+    } catch (error) {
+      setMaps(previous);
+      toast.error(errorMessage(error, "Couldn't change the map's picture"));
     }
   }
 
@@ -421,6 +435,15 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                         <span className="orc-small text-secondary">{map.data.scale_label} · {map.data.features.length} features{campaign.active_map_id === map.id ? " · on the table" : ""}</span>
                       </div>
                       <div className="orc-campaign-actions">
+                        {map.background_image_id ? (
+                          <Button className="btn-off" onClick={() => setBackground(map, null)} title="Take the picture off this map" aria-label={`Remove the picture from ${map.name}`}>
+                            <ImageIcon className="w-4 h-4" /> No picture
+                          </Button>
+                        ) : (
+                          <Button className="btn-off" onClick={() => setPictureForMap(map)} title="Draw a picture under this map" aria-label={`Choose a picture for ${map.name}`}>
+                            <ImageIcon className="w-4 h-4" /> Picture
+                          </Button>
+                        )}
                         {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}
                         <Button className="btn-link-red" onClick={() => deleteMap(map)} title="Delete map" aria-label={`Delete map ${map.name}`}>
                           <Trash2 className="w-4 h-4" />
@@ -519,12 +542,18 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
       {/* PICTURE PICKER */}
       <ImagePicker
-        isOpen={isPickerOpen}
+        isOpen={isPickerOpen || !!pictureForMap}
         campaignId={campaignId}
         sources={imageSources}
-        subject=""
-        onAdded={(image) => setImages((list) => (list.some((entry) => entry.id === image.id) ? list : [...list, image]))}
-        onClose={() => setIsPickerOpen(false)}
+        subject={pictureForMap ? `${pictureForMap.name} map` : ""}
+        onAdded={(image) => {
+          setImages((list) => (list.some((entry) => entry.id === image.id) ? list : [...list, image]));
+          if (pictureForMap) setBackground(pictureForMap, image.id);
+        }}
+        onClose={() => {
+          setIsPickerOpen(false);
+          setPictureForMap(null);
+        }}
       />
 
       {/* CONFIRM MODAL */}

@@ -115,6 +115,7 @@ export async function getDisplaySnapshot(campaignId: string): Promise<DisplaySna
           explored: map.explored,
           tokens,
           members: apart.map((member) => ({ id: member.id, name: member.name, x: member.map_x as number, y: member.map_y as number })),
+          background_image_id: map.background_image_id && images.some((image) => image.id === map.background_image_id) ? map.background_image_id : null,
         }
       : null,
     panel,
@@ -123,8 +124,11 @@ export async function getDisplaySnapshot(campaignId: string): Promise<DisplaySna
 
 // The one image the display may fetch right now: the panel's picture, or the portrait of the
 // entry on the panel. Anything else in the library stays unreachable from the public route.
-export async function getDisplayImageId(campaignId: string): Promise<string | null> {
+// The pictures the display may fetch right now: the panel's picture and the active map's background.
+export async function getDisplayImageIds(campaignId: string): Promise<Set<string>> {
   const snapshot = await getDisplaySnapshot(campaignId);
-  if (!snapshot.panel) return null;
-  return snapshot.panel.image_id;
+  const allowed = new Set<string>();
+  if (snapshot.panel?.image_id) allowed.add(snapshot.panel.image_id);
+  if (snapshot.map?.background_image_id) allowed.add(snapshot.map.background_image_id);
+  return allowed;
 }

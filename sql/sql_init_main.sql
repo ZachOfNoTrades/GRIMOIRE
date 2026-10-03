@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610031500 (Oracle party members)
+-- Version: 202610031700 (Oracle map background picture)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -384,6 +384,7 @@ BEGIN TRY
             party_y FLOAT NOT NULL DEFAULT 0,
             vision_radius FLOAT NOT NULL DEFAULT 150,
             explored NVARCHAR(MAX) NOT NULL DEFAULT '[]', -- JSON array of { x, y, r } circles the party has seen
+            background_image_id UNIQUEIDENTIFIER NULL, -- oracle_images.id, no FK
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 
