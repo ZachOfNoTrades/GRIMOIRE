@@ -41,7 +41,7 @@ export const TABLE_HELP: HelpSection[] = [
     heading: "Ideas banner",
     body: (
       <ul>
-        <li>Ideas scroll past and drop off the left edge. Pointing at the banner pauses it.</li>
+        <li>Ideas scroll past and come round again; using one removes it. Pointing at the banner pauses it.</li>
         <li>Tap an idea for three ready answers; picking one writes it to the Log.</li>
         <li><strong>Pin</strong> keeps an idea at the front until you use it.</li>
         <li>Tap a picture to add it to the session as a creature, person or location beside the party.</li>

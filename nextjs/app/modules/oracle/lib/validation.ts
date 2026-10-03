@@ -188,7 +188,7 @@ export const updateChipSchema = z.object({ is_pinned: z.boolean() });
 
 export const chipActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("fill") }),
-  z.object({ action: z.literal("drop"), chip_id: uuid }),
+  z.object({ action: z.literal("recycle"), chip_id: uuid }),
 ]);
 
 export const adoptChipSchema = z.object({

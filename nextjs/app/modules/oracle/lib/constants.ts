@@ -59,12 +59,13 @@ export const VISION_DEFAULT = 150;
 export const VISION_MIN = 40;
 export const VISION_MAX = 600;
 
-// SUGGESTION BANNER — a ticker of prepared items. One new item comes on every `chip_seconds`
-// (a per-DM setting); an item that has scrolled off the left edge is dropped. Items are prepared a
-// batch at a time, ahead of need, so the banner never waits on a generation.
-export const CHIP_BAR_SIZE = 12; // items kept on the banner at once: comfortably more than a wide screen shows
+// SUGGESTION BANNER — a ticker that cycles through a pool of prepared ideas. One item comes on
+// every `chip_seconds` (a per-DM setting); an item that has scrolled off the left edge goes to the
+// back of the pool, not away. Only using an item (or a picture that will not load) removes it.
+// The pool is topped up a batch at a time until it holds CHIP_POOL_MAX, and no further: this is
+// the hard ceiling on what the banner can spend of the Claude allowance on its own.
+export const CHIP_POOL_MAX = 50;
 export const CHIP_BATCH_SIZE = 6;
-export const CHIP_QUEUE_LOW = 4;
 export const CHIP_LABEL_MAX = 60;
 export const CHIP_SECONDS_DEFAULT = 15;
 export const CHIP_SECONDS_MIN = 5;

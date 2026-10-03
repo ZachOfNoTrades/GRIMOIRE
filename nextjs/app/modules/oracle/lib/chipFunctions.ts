@@ -2,7 +2,7 @@ import { getMainConnection } from "@/lib/db";
 import type { AuthUser } from "@/lib/permissions";
 import { checkGenerationLimit, logGeneration } from "@/lib/generationLimit";
 import type { ChipContent, EntityKind, ImageChipContent, OracleChip, OracleEntity, OracleImage } from "../types/oracle";
-import { CHIP_BAR_SIZE, CHIP_BATCH_SIZE, CHIP_LABEL_MAX, CHIP_QUEUE_LOW, ENTITY_KINDS } from "./constants";
+import { CHIP_BATCH_SIZE, CHIP_LABEL_MAX, CHIP_POOL_MAX, ENTITY_KINDS } from "./constants";
 import { getCampaign, setDisplay } from "./campaignFunctions";
 import { createEntity, updateEntity } from "./entityFunctions";
 import { OracleError } from "./errors";
@@ -16,10 +16,11 @@ import { getSettings } from "./settingsFunctions";
 
 // THE SUGGESTION BANNER
 //
-// The banner is a ticker: items scroll past, and one that has gone off the left edge is dropped.
-// It holds up to CHIP_BAR_SIZE items (is_queued = 0); behind it sits a queue prepared ahead of
-// time (is_queued = 1). Dropping an item brings the next queued one on at the right, and when
-// the queue runs low a new batch is prepared in the background. Because an item is prepared
+// The banner is a ticker over a pool of prepared items. An item that scrolls off the left edge is
+// recycled to the back of the pool, so the same ideas come round again; only using an item (or a
+// picture that fails to load) removes it. The pool is topped up a batch at a time, in the
+// background, until it holds CHIP_POOL_MAX items, and never past that: a banner left running
+// cannot spend more than the batches it takes to fill the pool. Because an item is prepared
 // together with whatever a tap needs, neither the scroll nor a tap ever waits on a generation.
 //
 // Two kinds of item:
@@ -61,13 +62,13 @@ function toChip(row: ChipRow): OracleChip | null {
   };
 }
 
-// The banner, oldest first.
+// The pool in banner order: the item that has waited longest since it last showed comes first.
 export async function listChips(campaignId: string): Promise<OracleChip[]> {
   const pool = await getMainConnection();
   const result = await pool.request().input("campaignId", campaignId).query(`
     SELECT id, label, content, is_pinned, ts_shown
     FROM oracle_chips
-    WHERE campaign_id = @campaignId AND is_queued = 0
+    WHERE campaign_id = @campaignId
     ORDER BY ts_shown, ts_created, id
   `);
   return (result.recordset as ChipRow[]).map(toChip).filter((chip): chip is OracleChip => chip !== null);
@@ -89,33 +90,37 @@ const holdUntil: Map<string, number> = globalStore.__oracleChipHold ?? (globalSt
 const LIMIT_HOLD_MS = 10 * 60 * 1000;
 const FAILURE_HOLD_MS = 30 * 1000;
 
-async function countChips(campaignId: string): Promise<{ bar: number; queued: number }> {
+async function countChips(campaignId: string): Promise<number> {
   const pool = await getMainConnection();
   const result = await pool.request().input("campaignId", campaignId).query(`
-    SELECT SUM(CASE WHEN is_queued = 0 THEN 1 ELSE 0 END) AS bar, SUM(CASE WHEN is_queued = 1 THEN 1 ELSE 0 END) AS queued
-    FROM oracle_chips WHERE campaign_id = @campaignId
+    SELECT COUNT(*) AS total FROM oracle_chips WHERE campaign_id = @campaignId
   `);
-  return { bar: result.recordset[0].bar ?? 0, queued: result.recordset[0].queued ?? 0 };
+  return result.recordset[0].total ?? 0;
 }
 
-async function insertQueued(campaignId: string, label: string, content: ChipContent): Promise<void> {
+// A new item joins the back of the pool. The ceiling is enforced here as well as before the
+// batch starts, so two batches that overlap (a module reload, two servers) cannot overfill it.
+async function insertChip(campaignId: string, label: string, content: ChipContent): Promise<void> {
   const pool = await getMainConnection();
   await pool
     .request()
     .input("campaignId", campaignId)
     .input("label", label.slice(0, CHIP_LABEL_MAX))
     .input("content", JSON.stringify(content))
+    .input("max", CHIP_POOL_MAX)
     .query(`
-      INSERT INTO oracle_chips (campaign_id, label, content, is_queued)
-      SELECT @campaignId, @label, @content, 1
+      INSERT INTO oracle_chips (campaign_id, label, content, is_queued, ts_shown)
+      SELECT @campaignId, @label, @content, 0, GETDATE()
       WHERE EXISTS (SELECT 1 FROM oracle_campaigns WHERE id = @campaignId)
+        AND (SELECT COUNT(*) FROM oracle_chips WHERE campaign_id = @campaignId) < @max
     `);
 }
 
 // Start a background batch unless one is already running for this campaign. Counts against the
-// app-wide generation limit like any other generation.
+// app-wide generation limit like any other generation. `wanted` is already capped to the room
+// left in the pool.
 function startGeneration(campaignId: string, user: AuthUser, wanted: number): void {
-  if (runs.has(campaignId) || (holdUntil.get(campaignId) ?? 0) > Date.now()) return;
+  if (wanted <= 0 || runs.has(campaignId) || (holdUntil.get(campaignId) ?? 0) > Date.now()) return;
   const run = (async () => {
     try {
       const limit = await checkGenerationLimit(user.id, user.generationLimit);
@@ -161,7 +166,7 @@ function startGeneration(campaignId: string, user: AuthUser, wanted: number): vo
         items.splice(Math.min(slot, items.length), 0, { label: idea.name, content });
         slot += 3;
       }
-      for (const item of items) await insertQueued(campaignId, item.label, item.content);
+      for (const item of items.slice(0, wanted)) await insertChip(campaignId, item.label, item.content);
       lastErrors.delete(campaignId);
     } catch (error) {
       const message = error instanceof OracleError ? error.message : "Suggestions couldn't be prepared. They will retry.";
@@ -173,22 +178,6 @@ function startGeneration(campaignId: string, user: AuthUser, wanted: number): vo
     }
   })();
   runs.set(campaignId, run);
-}
-
-// Move queued items onto the banner until it is full. Returns how many were moved.
-async function promoteQueued(campaignId: string, free: number): Promise<number> {
-  if (free <= 0) return 0;
-  const pool = await getMainConnection();
-  const result = await pool.request().input("campaignId", campaignId).input("free", free).query(`
-    WITH next_chips AS (
-      SELECT TOP (@free) id, is_queued, ts_shown
-      FROM oracle_chips WITH (UPDLOCK, READPAST)
-      WHERE campaign_id = @campaignId AND is_queued = 1
-      ORDER BY ts_created, id
-    )
-    UPDATE next_chips SET is_queued = 0, ts_shown = GETDATE()
-  `);
-  return result.rowsAffected[0] ?? 0;
 }
 
 export interface ChipBarState {
@@ -204,26 +193,22 @@ async function barState(campaignId: string): Promise<ChipBarState> {
   return { chips: await listChips(campaignId), generating: runs.has(campaignId), error };
 }
 
-// Top the banner up from the queue and make sure more are on the way when the queue is low.
+// Make sure more items are on the way while the pool is below its ceiling. A pool at the ceiling
+// starts nothing: the banner just keeps cycling what it has.
 export async function fillChips(campaignId: string, user: AuthUser): Promise<ChipBarState> {
-  const counts = await countChips(campaignId);
-  const moved = await promoteQueued(campaignId, CHIP_BAR_SIZE - counts.bar);
-  const bar = counts.bar + moved;
-  const queued = counts.queued - moved;
-  if (queued < CHIP_QUEUE_LOW) {
-    // One modest batch at a time: a batch of six is ready in about fifteen seconds, where a batch big
-    // enough to fill an empty banner in one go would keep the DM waiting twice as long for the first item.
-    startGeneration(campaignId, user, CHIP_BATCH_SIZE);
-  }
+  const total = await countChips(campaignId);
+  // One modest batch at a time: a batch of six is ready in about fifteen seconds, where a batch big
+  // enough to fill the pool in one go would keep the DM waiting far longer for the first item.
+  startGeneration(campaignId, user, Math.min(CHIP_BATCH_SIZE, CHIP_POOL_MAX - total));
   return barState(campaignId);
 }
 
-// An item scrolled off the banner: drop it and bring the next queued one on. A pinned item is
-// never dropped this way, and dropping one that is already gone is not an error.
-export async function dropChip(campaignId: string, chipId: string, user: AuthUser): Promise<ChipBarState> {
+// An item scrolled off the banner: send it to the back of the pool so it comes round again.
+// A pinned item is never moved this way, and recycling one that is already gone is not an error.
+export async function recycleChip(campaignId: string, chipId: string, user: AuthUser): Promise<ChipBarState> {
   const pool = await getMainConnection();
   await pool.request().input("chipId", chipId).input("campaignId", campaignId).query(`
-    DELETE FROM oracle_chips WHERE id = @chipId AND campaign_id = @campaignId AND is_pinned = 0
+    UPDATE oracle_chips SET ts_shown = GETDATE() WHERE id = @chipId AND campaign_id = @campaignId AND is_pinned = 0
   `);
   return fillChips(campaignId, user);
 }
@@ -247,7 +232,9 @@ export async function removeChip(campaignId: string, chipId: string): Promise<vo
   `);
 }
 
-// Throw away everything prepared for an older situation (scene changed, cast rebuilt).
+// Throw away everything prepared for an older situation (the cast was rebuilt). Not used on a
+// scene change: refilling a whole pool per scene is exactly the kind of spend the ceiling exists
+// to prevent, and the generator folds the current scene into every later batch anyway.
 export async function clearChips(campaignId: string): Promise<void> {
   const pool = await getMainConnection();
   await pool.request().input("campaignId", campaignId).query(`

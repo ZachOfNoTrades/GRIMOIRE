@@ -398,8 +398,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   async function goLive(scene: OracleScene) {
     const previous = campaign;
     setCampaign({ ...campaign, current_scene_id: scene.id });
-    // The banner's ideas were written for the previous scene; only pinned ones carry over.
-    setChips((list) => list.filter((chip) => chip.is_pinned));
     setIsScenesOpen(false);
     try {
       setCampaign(await api<OracleCampaign>(base, "PUT", { current_scene_id: scene.id }));
@@ -488,14 +486,17 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     return () => clearInterval(timer);
   }, [isPreparing, isPaused, fillBanner]);
 
-  // An item scrolled off the left edge.
-  const dropChip = useCallback(
+  // An item scrolled off the left edge: it goes to the back of the banner and comes round again.
+  const recycleChip = useCallback(
     async (chipId: string) => {
-      setChips((list) => list.filter((chip) => chip.id !== chipId));
+      setChips((list) => {
+        const chip = list.find((entry) => entry.id === chipId);
+        return chip ? [...list.filter((entry) => entry.id !== chipId), chip] : list;
+      });
       try {
-        mergeBanner(await api<ChipBarState>(`${base}/chips`, "POST", { action: "drop", chip_id: chipId }));
+        mergeBanner(await api<ChipBarState>(`${base}/chips`, "POST", { action: "recycle", chip_id: chipId }));
       } catch {
-        // Dropping is best effort: the item is already gone from the screen.
+        // Best effort: the item has already moved on screen, and the next poll reconciles order.
       }
     },
     [base, mergeBanner]
@@ -825,7 +826,11 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
           onTogglePause={togglePause}
           onOpen={(chip) => (chip.content.type === "image" ? setAdoptChip(chip) : setOpenChip(chip))}
           onPin={pinChip}
-          onDrop={dropChip}
+          onRecycle={recycleChip}
+          onDiscard={(chipId) => {
+            const chip = chips.find((entry) => entry.id === chipId);
+            if (chip) removeChip(chip);
+          }}
         />
 
         {/* ASK BAR */}

@@ -1,5 +1,4 @@
 import { deleteCampaign, updateCampaign } from "@/app/modules/oracle/lib/campaignFunctions";
-import { clearChips } from "@/app/modules/oracle/lib/chipFunctions";
 import { ok, withOwner } from "@/app/modules/oracle/lib/routeHandlers";
 import { getTableSnapshot } from "@/app/modules/oracle/lib/snapshotFunctions";
 import { parseBody, updateCampaignSchema } from "@/app/modules/oracle/lib/validation";
@@ -17,10 +16,9 @@ export async function PUT(request: Request, { params }: Params) {
   const { id } = await params;
   return withOwner(request, id, "PUT /oracle/api/campaigns/[id]", async (owner) => {
     const body = await parseBody(request, updateCampaignSchema);
-    const campaign = await updateCampaign(owner.userId, owner.campaignId, body);
-    // Suggestions were written for the previous scene; a new scene starts them over.
-    if (body.current_scene_id !== undefined) await clearChips(owner.campaignId);
-    return ok(campaign);
+    // A scene change keeps the ideas pool: later batches are written for the new scene, and
+    // refilling a whole pool per scene would spend far more of the Claude allowance.
+    return ok(await updateCampaign(owner.userId, owner.campaignId, body));
   });
 }
 

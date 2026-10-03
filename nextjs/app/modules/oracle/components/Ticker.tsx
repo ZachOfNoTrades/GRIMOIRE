@@ -12,7 +12,8 @@ interface TickerProps {
   onTogglePause: () => void;
   onOpen: (chip: OracleChip) => void;
   onPin: (chip: OracleChip, isPinned: boolean) => void;
-  onDrop: (chipId: string) => void; // an item scrolled off the left edge
+  onRecycle: (chipId: string) => void; // an item scrolled off the left edge: move it to the back
+  onDiscard: (chipId: string) => void; // an item that cannot be shown (its picture will not load)
 }
 
 const GAP = 10;
@@ -22,17 +23,17 @@ const TOUCH_HOLD_MS = 4000;
 // THE SUGGESTION BANNER — items scroll past like a news ticker, one new item per `secondsPerChip`.
 //   - the pointer over the banner pauses it
 //   - pointing at an item that is partly off the left edge slides everything right until it is whole
-//   - an item that has fully left on the left is dropped, which brings the next one on at the right
+//   - an item that has fully left on the left goes to the back of the banner and comes round again
 //   - pinned items do not scroll: they sit at the front until they are used
-export default function Ticker({ chips, secondsPerChip, isPaused, isPreparing, onTogglePause, onOpen, onPin, onDrop }: TickerProps) {
+export default function Ticker({ chips, secondsPerChip, isPaused, isPreparing, onTogglePause, onOpen, onPin, onRecycle, onDiscard }: TickerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0); // how far the track has moved left, in px
   const hoverRef = useRef(false);
   const holdUntilRef = useRef(0);
-  const droppedRef = useRef(new Map<string, number>()); // id -> width it occupied, for ids we asked to drop
-  const stateRef = useRef({ secondsPerChip, isPaused, onDrop });
-  stateRef.current = { secondsPerChip, isPaused, onDrop };
+  const droppedRef = useRef(new Map<string, number>()); // id -> width it occupied, for ids sent to the back
+  const stateRef = useRef({ secondsPerChip, isPaused, onRecycle });
+  stateRef.current = { secondsPerChip, isPaused, onRecycle };
 
   const pinned = chips.filter((chip) => chip.is_pinned);
   const moving = chips.filter((chip) => !chip.is_pinned);
@@ -45,12 +46,14 @@ export default function Ticker({ chips, secondsPerChip, isPaused, isPreparing, o
     track.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
   }
 
-  // When a dropped item leaves the list, the track gets shorter on the left by that item's
-  // width. Taking the same amount off the offset in the same frame keeps everything still.
+  // When an item that left on the left is moved to the back (or removed), the track gets shorter
+  // on the left by that item's width. Taking the same amount off the offset in the same frame
+  // keeps everything still.
   useLayoutEffect(() => {
-    const present = new Set(moving.map((chip) => chip.id));
+    const position = new Map(moving.map((chip, index) => [chip.id, index]));
     for (const [id, width] of droppedRef.current) {
-      if (!present.has(id)) {
+      const index = position.get(id);
+      if (index === undefined || index > 0) {
         offsetRef.current = Math.max(0, offsetRef.current - width);
         droppedRef.current.delete(id);
       }
@@ -76,10 +79,17 @@ export default function Ticker({ chips, secondsPerChip, isPaused, isPreparing, o
     };
 
     const dropFirst = () => {
+      const track = trackRef.current;
       const first = firstMovable();
-      if (!first?.dataset.chipId) return;
+      if (!track || !first?.dataset.chipId) return;
+      // A lone item has nothing to go behind: start it over from the left instead.
+      if (track.children.length - droppedRef.current.size <= 1) {
+        offsetRef.current = 0;
+        applyOffset(false);
+        return;
+      }
       droppedRef.current.set(first.dataset.chipId, first.offsetWidth + GAP);
-      stateRef.current.onDrop(first.dataset.chipId);
+      stateRef.current.onRecycle(first.dataset.chipId);
     };
 
     const stopped = () =>
@@ -145,8 +155,8 @@ export default function Ticker({ chips, secondsPerChip, isPaused, isPreparing, o
               src={chip.content.thumbnail}
               alt=""
               draggable={false}
-              // A picture that will not load is no use as inspiration: drop the item.
-              onError={() => onDrop(chip.id)}
+              // A picture that will not load is no use as inspiration: remove the item for good.
+              onError={() => onDiscard(chip.id)}
             />
           ) : null}
           {isImage ? <ImageIcon className="orc-chip-icon" aria-hidden /> : null}
