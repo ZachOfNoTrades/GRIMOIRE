@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 // Warn before the tab closes or reloads while a field holds text the server has not confirmed.
-// In-app navigation is not covered: the blur save runs with keepalive, so it completes anyway.
+// In-app navigation (the tabs) is not covered; the dirty note under the field says to save first.
 export function useUnsavedWarning(isDirty: boolean) {
   useEffect(() => {
     if (!isDirty) return;

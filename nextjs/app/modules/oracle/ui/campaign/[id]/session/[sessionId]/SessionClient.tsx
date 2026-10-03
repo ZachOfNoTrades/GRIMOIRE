@@ -6,7 +6,6 @@ import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
-import { blurOnEnter } from "@/lib/inputBehavior";
 import { useAppHeight } from "@/lib/useAppHeight";
 import SessionBar from "../../../../../components/SessionBar";
 import { SESSION_HELP } from "../../../../../components/help";
@@ -57,7 +56,7 @@ export default function SessionClient({ campaign: initialCampaign, session: init
   const isLive = campaign.current_session_id === session.id;
   useEntityTitle(`${session.title} · ${campaign.name}`);
 
-  // Fields save on the Save buttons, Ctrl+S, and when focus leaves them. Only changed keys go up.
+  // Fields save only on the Save buttons or Ctrl+S; nothing is written while typing. Only changed keys go up.
   async function save(patch: { title?: string; session_date?: string | null; notes?: string; recap?: string; is_done?: boolean }): Promise<boolean> {
     const changed = Object.entries(patch).filter(([key, value]) => session[key as keyof OracleSession] !== value);
     if (changed.length === 0) return true;
@@ -79,16 +78,7 @@ export default function SessionClient({ campaign: initialCampaign, session: init
     return save({ title: title.trim() || session.title, session_date: date || null, notes: notes.trim(), recap: recap.trim() });
   }
 
-  function commitTitle(raw: string) {
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      setTitle(session.title);
-      return;
-    }
-    save({ title: trimmed });
-  }
-
-  // SAVE BUTTON — one per text card; each saves the whole page.
+  // SAVE BUTTON — one in the header and one per text card; each saves the whole page.
   const saveButton = (
     <Button className={isDirty ? "btn-green" : "btn-off"} disabled={!isDirty || isSaving} onClick={saveAll} title="Save the session (Ctrl+S)">
       <Save className="w-4 h-4" /> {isSaving ? "Saving…" : isDirty ? "Save" : "Saved"}
@@ -161,8 +151,7 @@ export default function SessionClient({ campaign: initialCampaign, session: init
               maxLength={SESSION_TITLE_MAX}
               aria-label="Session title"
               onChange={(event) => setTitle(event.target.value)}
-              onBlur={(event) => commitTitle(event.target.value)}
-              onKeyDown={blurOnEnter}
+              onKeyDown={saveOnShortcut(saveAll)}
             />
 
             {/* DATE FIELD */}
@@ -173,8 +162,10 @@ export default function SessionClient({ campaign: initialCampaign, session: init
               value={date}
               aria-label="Session date"
               onChange={(event) => setDate(event.target.value)}
-              onBlur={(event) => save({ session_date: event.target.value || null })}
             />
+
+            {/* SAVE */}
+            {saveButton}
 
             {/* STATUS */}
             {isLive ? <span className="badge badge-green">Live</span> : (
@@ -209,13 +200,12 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                     placeholder="Paste your plan for the night in any shape. The Table writes every idea against it."
                     aria-label="Rough session notes"
                     onChange={(event) => setNotes(event.target.value)}
-                    onBlur={(event) => save({ notes: event.target.value.trim() })}
                     onKeyDown={saveOnShortcut(saveAll)}
                   />
 
                   {/* BUILD ROW */}
                   <div className="orc-card-actions">
-                    <span className="orc-small text-secondary">{isNotesDirty ? "Unsaved changes." : "The Table writes every idea against these."}</span>
+                    <span className="orc-small text-secondary">{isNotesDirty ? "Unsaved changes. Save before leaving the page." : "The Table writes every idea against these."}</span>
                     <div className="orc-row-actions">
                       <Button className="btn-blue" disabled={isBuilding || isSaving || notes.trim().length < 20} onClick={build}>
                         <Sparkles className="w-4 h-4" /> {isBuilding ? "Building…" : "Build cast"}
@@ -298,13 +288,12 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                     placeholder="What happened. Written after the night, or as you go; the next session's ideas draw on it."
                     aria-label="Session recap"
                     onChange={(event) => setRecap(event.target.value)}
-                    onBlur={(event) => save({ recap: event.target.value.trim() })}
                     onKeyDown={saveOnShortcut(saveAll)}
                   />
 
                   {/* RECAP ROW */}
                   <div className="orc-card-actions">
-                    <span className="orc-small text-secondary">{isRecapDirty ? "Unsaved changes." : "The next session's ideas draw on this."}</span>
+                    <span className="orc-small text-secondary">{isRecapDirty ? "Unsaved changes. Save before leaving the page." : "The next session's ideas draw on this."}</span>
                     {saveButton}
                   </div>
                 </div>

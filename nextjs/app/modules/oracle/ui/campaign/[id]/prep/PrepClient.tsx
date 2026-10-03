@@ -55,7 +55,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
   useEntityTitle(campaign.name);
 
-  // The world notes save on the Save button, Ctrl+S, and when focus leaves the box.
+  // The world notes save only on the Save button or Ctrl+S; nothing is written while typing.
   async function saveWorld(value: string): Promise<boolean> {
     const trimmed = value.trim();
     if (trimmed === savedWorld) return true;
@@ -206,13 +206,12 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                     placeholder="Tone and setting in a few sentences: grim frontier, low magic, a failing crown…"
                     aria-label="World notes"
                     onChange={(event) => setWorld(event.target.value)}
-                    onBlur={(event) => saveWorld(event.target.value)}
                     onKeyDown={saveOnShortcut(() => saveWorld(world))}
                   />
 
                   {/* WORLD ROW */}
                   <div className="orc-card-actions">
-                    <span className="orc-small text-secondary">{isWorldDirty ? "Unsaved changes." : "Every idea, fact and map is written to fit this."}</span>
+                    <span className="orc-small text-secondary">{isWorldDirty ? "Unsaved changes. Save before leaving the page." : "Every idea, fact and map is written to fit this."}</span>
                     <div className="orc-row-actions">
                       <Button className="btn-blue" disabled={isWritingWorld || isSavingWorld} onClick={writeWorld} title="Write world notes from the name and what is in the box">
                         <Sparkles className="w-4 h-4" /> {isWritingWorld ? "Writing…" : world.trim() ? "Rewrite" : "Generate"}

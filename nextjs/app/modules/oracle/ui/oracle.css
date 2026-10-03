@@ -21,9 +21,19 @@
 
 .orc-shell {
   min-height: 0;
+  /* The DM works on a ~1390px-wide laptop: one step down from the site's type scale, for the shell
+     and the shared controls (buttons and fields inherit; titles and badges set their own size). */
+  font-size: 0.875rem;
 }
+.orc-shell .text-card-title { font-size: 0.95rem; }
+.orc-shell .badge { font-size: 0.65rem; }
+.orc-shell .empty-state-title { font-size: 0.875rem; }
+.orc-shell .empty-state-body { font-size: 0.75rem; }
+.orc-body .modal-card { font-size: 0.875rem; }
+.orc-body .modal-card .text-card-title, .orc-body .modal-title { font-size: 0.95rem; }
+.orc-shell h1 { font-size: 1.25rem; }
 
-.orc-small { font-size: 0.8125rem; line-height: 1.4; }
+.orc-small { font-size: 0.75rem; line-height: 1.4; }
 .orc-muted { color: var(--color-gray); }
 .orc-grow { flex: 1 1 auto; min-width: 0; }
 
@@ -32,7 +42,7 @@
 .orc-section-title,
 .orc-draft-label,
 .orc-option-tone {
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -44,7 +54,7 @@
   min-width: 1.4rem;
   padding: 0 0.3rem;
   text-align: center;
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 500;
   line-height: 1.5;
   color: var(--color-secondary);
@@ -95,7 +105,7 @@
   min-width: 0;
   max-width: 22rem;
   padding: 0.3rem 0.6rem;
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--color-primary);
   background: var(--btn-off-bg);
@@ -110,7 +120,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.35rem 0.75rem;
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--color-secondary);
   border: 1px solid transparent;
@@ -164,9 +174,9 @@
   gap: 0.5rem 0.75rem;
 }
 .orc-toolbar-group { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
-.orc-map-name { font-size: 1.05rem; font-weight: 700; color: var(--color-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14rem; }
+.orc-map-name { font-size: 0.95rem; font-weight: 700; color: var(--color-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14rem; }
 .orc-map-select { max-width: 14rem; padding-top: 0.3rem; padding-bottom: 0.3rem; }
-.orc-toolbar .btn { padding: 0.3rem 0.6rem; font-size: 0.8125rem; white-space: nowrap; }
+.orc-toolbar .btn { padding: 0.3rem 0.6rem; font-size: 0.75rem; white-space: nowrap; }
 .orc-toolbar .btn,
 .orc-details-buttons .btn,
 .orc-draft-actions .btn,
@@ -178,7 +188,7 @@
   gap: 0.4rem;
   min-height: 2.25rem;
   padding: 0.3rem 0.6rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-secondary);
   background: var(--btn-off-bg);
@@ -190,15 +200,15 @@
   background: var(--btn-blue-bg);
   border-color: var(--color-primary);
 }
-.orc-vision input { width: 6.5rem; accent-color: var(--color-primary); }
-.orc-range-value { min-width: 2.2rem; font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--color-secondary); }
+.orc-vision input { width: 5.5rem; accent-color: var(--color-primary); }
+.orc-range-value { min-width: 2.2rem; font-size: 0.6875rem; font-variant-numeric: tabular-nums; color: var(--color-secondary); }
 .orc-brush-ring { fill: none; stroke: var(--color-primary); stroke-width: 1.5; stroke-dasharray: 6 4; pointer-events: none; vector-effect: non-scaling-stroke; }
 .orc-brush-ring[data-tool="hide"] { stroke: #e0a060; }
 .orc-zoom { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2; display: flex; align-items: center; gap: 0.15rem; padding: 0.15rem; border: 1px solid var(--card-border); background: var(--card-bg); }
 .orc-zoom-btn { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; color: var(--color-primary); background: transparent; border: 0; cursor: pointer; }
 .orc-zoom-btn:hover:not(:disabled) { background: var(--hover-bg); }
 .orc-zoom-btn:disabled { opacity: 0.4; cursor: default; }
-.orc-zoom-value { min-width: 3rem; text-align: center; font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--color-secondary); }
+.orc-zoom-value { min-width: 3rem; text-align: center; font-size: 0.6875rem; font-variant-numeric: tabular-nums; color: var(--color-secondary); }
 .orc-map[data-zoomed][data-tool="move"] .orc-map-svg { cursor: grab; }
 .orc-map[data-zoomed][data-tool="move"] .orc-map-svg:active { cursor: grabbing; }
 
@@ -282,7 +292,7 @@
   gap: 0.5rem;
   max-width: calc(100% - 1rem);
   padding: 0.35rem 0.6rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--alert-blue-text);
   background: var(--alert-blue-bg);
   border: 1px solid var(--alert-blue-border);
@@ -297,7 +307,7 @@
   display: flex;
   gap: 0.75rem;
   padding: 0.25rem 0.5rem;
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   color: var(--color-secondary);
   background: color-mix(in srgb, var(--card-bg) 85%, transparent);
   border: 1px solid var(--card-border);
@@ -312,7 +322,7 @@
 
 .orc-tray { flex: 0 0 auto; display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
 .orc-tray-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
-.orc-tray-link { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--btn-link-text); white-space: nowrap; }
+.orc-tray-link { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.6875rem; color: var(--btn-link-text); white-space: nowrap; }
 .orc-tray-tiles { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; overscroll-behavior-x: contain; }
 .orc-tile {
   flex: 0 0 auto;
@@ -338,7 +348,7 @@
   border: 1px solid var(--card-border);
 }
 .orc-tile-art img { width: 100%; height: 100%; object-fit: cover; }
-.orc-tile-caption { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-tile-caption { font-size: 0.6875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orc-tile[data-active="true"] { color: var(--orc-good); }
 .orc-tile[data-active="true"] .orc-tile-art { border: 2px solid var(--orc-good); }
 .orc-tile-add .orc-tile-art { border-style: dashed; }
@@ -367,7 +377,7 @@
 }
 @media (hover: hover) { .orc-details-row:hover { background: var(--hover-bg); } }
 .orc-details-row-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orc-details-row-kind { flex: 0 0 auto; font-size: 0.75rem; color: var(--color-gray); }
+.orc-details-row-kind { flex: 0 0 auto; font-size: 0.6875rem; color: var(--color-gray); }
 .orc-attitude[data-attitude="hostile"] { color: var(--orc-bad); }
 .orc-attitude[data-attitude="friendly"] { color: var(--orc-good); }
 .orc-attitude[data-attitude="neutral"] { color: var(--color-secondary); }
@@ -375,12 +385,12 @@
 
 .orc-details-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
 .orc-details-title { display: flex; align-items: center; gap: 0.6rem; min-width: 0; padding-top: 0.35rem; }
-.orc-details-name { font-size: 1.25rem; font-weight: 700; line-height: 1.25; color: var(--color-primary); overflow-wrap: anywhere; }
+.orc-details-name { font-size: 1.1rem; font-weight: 700; line-height: 1.25; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-details-actions { flex: 0 0 auto; display: flex; align-items: center; }
 .orc-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
 .orc-badges .badge { display: inline-flex; align-items: center; gap: 0.3rem; }
 .orc-details-buttons { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }
-.orc-details-buttons .btn { padding: 0.35rem 0.65rem; font-size: 0.8125rem; }
+.orc-details-buttons .btn { padding: 0.35rem 0.65rem; font-size: 0.75rem; }
 .orc-details-image { display: block; width: 100%; max-height: 14rem; object-fit: cover; border: 1px solid var(--card-border); }
 
 .orc-sections { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; margin-top: 0.9rem; }
@@ -402,7 +412,7 @@
 .orc-section[data-tone="check"] { border-color: var(--orc-cool); }
 .orc-section[data-tone="check"] .orc-section-title { color: var(--orc-cool); }
 .orc-section-title { display: flex; align-items: center; gap: 0.35rem; }
-.orc-section-text { font-size: 0.875rem; line-height: 1.5; color: var(--color-secondary); overflow-wrap: anywhere; }
+.orc-section-text { font-size: 0.78rem; line-height: 1.5; color: var(--color-secondary); overflow-wrap: anywhere; }
 
 .orc-vitals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
 .orc-vital { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; padding: 0.3rem 0.2rem; background: var(--hover-bg); border: 1px solid var(--card-border); }
@@ -410,12 +420,12 @@
    of a phone-width panel. */
 .orc-vital-hp { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; gap: 0.5rem; padding: 0.3rem 0.4rem; }
 .orc-vital-hp > span { display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.orc-vital-value { font-size: 0.95rem; font-weight: 700; line-height: 1.2; color: var(--color-primary); white-space: nowrap; }
-.orc-vital-label { font-size: 0.625rem; line-height: 1.2; color: var(--color-gray); }
+.orc-vital-value { font-size: 0.85rem; font-weight: 700; line-height: 1.2; color: var(--color-primary); white-space: nowrap; }
+.orc-vital-label { font-size: 0.575rem; line-height: 1.2; color: var(--color-gray); }
 .orc-hp-step { display: flex; align-items: center; justify-content: center; min-width: 2.5rem; min-height: 2.25rem; color: var(--color-primary); background: var(--btn-off-bg); border: 1px solid var(--card-border); cursor: pointer; }
 .orc-abilities { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.25rem; }
-.orc-ability { display: flex; flex-direction: column; align-items: center; font-size: 0.8125rem; color: var(--color-primary); }
-.orc-attack { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.8125rem; }
+.orc-ability { display: flex; flex-direction: column; align-items: center; font-size: 0.75rem; color: var(--color-primary); }
+.orc-attack { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; }
 .orc-attack-name { font-weight: 500; color: var(--color-primary); }
 .orc-attack-roll { color: var(--color-secondary); text-align: right; }
 
@@ -427,7 +437,7 @@
 .orc-skill {
   min-height: 2rem;
   padding: 0.2rem 0.55rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-secondary);
   background: transparent;
@@ -455,17 +465,17 @@
   .orc-tiers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .orc-tier[aria-pressed="true"] { color: var(--badge-green-text); background: var(--badge-green-bg); border-color: var(--badge-green-text); }
-.orc-tier-range { font-size: 0.8125rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
-.orc-tier-label { font-size: 0.6875rem; line-height: 1.2; color: var(--color-gray); }
+.orc-tier-range { font-size: 0.75rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.orc-tier-label { font-size: 0.625rem; line-height: 1.2; color: var(--color-gray); }
 .orc-tier[aria-pressed="true"] .orc-tier-label { color: inherit; }
 .orc-draft { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.55rem 0.65rem; background: var(--hover-bg); border: 1px solid var(--card-border); }
 .orc-draft .orc-section-text { color: var(--color-primary); }
 .orc-draft-label { color: var(--orc-good); }
 .orc-draft-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.orc-draft-actions .btn { padding: 0.35rem 0.65rem; font-size: 0.8125rem; }
+.orc-draft-actions .btn { padding: 0.35rem 0.65rem; font-size: 0.75rem; }
 
 .orc-event { display: flex; gap: 0.5rem; align-items: baseline; }
-.orc-event-scene { flex: 0 0 5.5rem; font-size: 0.75rem; color: var(--color-gray); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-event-scene { flex: 0 0 5.5rem; font-size: 0.6875rem; color: var(--color-gray); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orc-note-row { display: flex; align-items: center; gap: 0.4rem; }
 .orc-note-row .input-field { flex: 1 1 auto; min-width: 0; }
 
@@ -481,12 +491,12 @@
   border-top: 1px solid var(--card-border);
 }
 .orc-ticker { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
-.orc-ticker-label { flex: 0 0 auto; display: flex; align-items: center; gap: 0.35rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--orc-cool); }
+.orc-ticker-label { flex: 0 0 auto; display: flex; align-items: center; gap: 0.35rem; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--orc-cool); }
 .orc-ticker-pause { flex: 0 0 auto; }
 .orc-ticker-pinned { flex: 0 1 auto; display: flex; gap: 0.6rem; max-width: 45%; padding: 0.55rem 0.6rem 0 0; overflow-x: auto; border-right: 1px solid var(--card-border); }
 .orc-ticker-viewport { position: relative; flex: 1 1 auto; min-width: 0; height: 3.1rem; overflow: hidden; }
 .orc-ticker-track { position: absolute; left: 0; top: 0.55rem; display: flex; width: max-content; will-change: transform; }
-.orc-ticker-empty { position: absolute; left: 0; top: 0.9rem; font-size: 0.8125rem; color: var(--color-gray); }
+.orc-ticker-empty { position: absolute; left: 0; top: 0.9rem; font-size: 0.75rem; color: var(--color-gray); }
 
 .orc-chip { position: relative; flex: 0 0 auto; display: flex; }
 .orc-chip-open {
@@ -496,7 +506,7 @@
   height: 2.4rem;
   max-width: 19rem;
   padding: 0 0.75rem;
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--color-primary);
   background: var(--btn-off-bg);
@@ -552,8 +562,8 @@
 }
 @media (hover: hover) { .orc-option:hover { background: var(--hover-bg); border-color: var(--color-primary); } }
 .orc-option-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
-.orc-option-text { font-size: 0.95rem; line-height: 1.5; overflow-wrap: anywhere; }
-.orc-option-note { font-size: 0.75rem; color: var(--orc-warn); }
+.orc-option-text { font-size: 0.85rem; line-height: 1.5; overflow-wrap: anywhere; }
+.orc-option-note { font-size: 0.6875rem; color: var(--orc-warn); }
 .orc-option-log { flex: 0 0 auto; margin-top: 0.2rem; color: var(--color-gray); }
 .orc-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-width: 0; }
 .orc-footer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-left: auto; }
@@ -569,7 +579,7 @@
 .orc-segment {
   min-height: 2.25rem;
   padding: 0.3rem 0.75rem;
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--color-secondary);
   background: transparent;
@@ -579,9 +589,9 @@
 .orc-segment[aria-checked="true"] { color: var(--color-primary); background: var(--hover-bg); border-color: var(--color-primary); }
 .orc-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
 .orc-stat-grid-attack { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr); margin-top: 0.5rem; }
-.orc-stat-field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; font-size: 0.75rem; color: var(--color-gray); }
+.orc-stat-field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; font-size: 0.6875rem; color: var(--color-gray); }
 .orc-stat-field .input-field { min-width: 0; width: 100%; }
-.orc-check { display: flex; align-items: center; gap: 0.6rem; min-height: 2.25rem; font-size: 0.875rem; color: var(--color-secondary); cursor: pointer; }
+.orc-check { display: flex; align-items: center; gap: 0.6rem; min-height: 2.25rem; font-size: 0.78rem; color: var(--color-secondary); cursor: pointer; }
 
 .orc-adopt-image { display: block; width: 100%; max-height: 16rem; object-fit: cover; border: 1px solid var(--card-border); background: var(--hover-bg); }
 .orc-kind-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
@@ -599,8 +609,8 @@
   cursor: pointer;
 }
 .orc-kind[aria-checked="true"] { color: var(--color-primary); background: var(--hover-bg); border-color: var(--color-primary); }
-.orc-kind-label { font-size: 0.9rem; font-weight: 700; }
-.orc-kind-hint { font-size: 0.6875rem; line-height: 1.35; color: var(--color-gray); }
+.orc-kind-label { font-size: 0.8rem; font-weight: 700; }
+.orc-kind-hint { font-size: 0.625rem; line-height: 1.35; color: var(--color-gray); }
 
 .orc-picker-sources { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .orc-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.6rem; }
@@ -608,7 +618,7 @@
 .orc-picker-result { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; padding: 0; text-align: left; color: var(--color-secondary); background: transparent; border: none; cursor: pointer; }
 .orc-picker-result img { width: 100%; height: 6.5rem; object-fit: cover; border: 1px solid var(--card-border); background: var(--hover-bg); }
 @media (hover: hover) { .orc-picker-result:hover img { border-color: var(--color-primary); } }
-.orc-picker-credit { font-size: 0.6875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-picker-credit { font-size: 0.625rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- scenes drawer ---------- */
 
@@ -638,12 +648,12 @@
 .orc-scene { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem 0.7rem; border: 1px solid var(--card-border); }
 .orc-scene[data-live="true"] { background: var(--hover-bg); border-color: var(--color-primary); }
 .orc-scene-head { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
-.orc-scene-number { flex: 0 0 auto; font-size: 0.8125rem; font-weight: 700; color: var(--color-gray); }
-.orc-scene-title { flex: 1 1 auto; min-width: 0; font-size: 0.9rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
+.orc-scene-number { flex: 0 0 auto; font-size: 0.75rem; font-weight: 700; color: var(--color-gray); }
+.orc-scene-title { flex: 1 1 auto; min-width: 0; font-size: 0.8rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-scene[data-done="true"] .orc-scene-title { color: var(--color-secondary); text-decoration: line-through; }
-.orc-scene-summary { font-size: 0.8125rem; line-height: 1.45; color: var(--color-secondary); overflow-wrap: anywhere; }
+.orc-scene-summary { font-size: 0.75rem; line-height: 1.45; color: var(--color-secondary); overflow-wrap: anywhere; }
 .orc-scene-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
-.orc-scene-actions .btn { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
+.orc-scene-actions .btn { padding: 0.25rem 0.55rem; font-size: 0.6875rem; }
 
 /* ---------- mobile DM view (below 1024px) ----------
    The map and the details take turns on the one screen; a bottom tab bar switches between them.
@@ -667,9 +677,9 @@
   .orc-tool-label { display: none; }
   .orc-tool { min-width: 2.5rem; min-height: 2.5rem; justify-content: center; }
   .orc-map-name { max-width: 8rem; }
-  .orc-vision .orc-label { font-size: 0.6rem; }
+  .orc-vision .orc-label { font-size: 0.55rem; }
   .orc-vision input { width: 4.5rem; }
-  .orc-range-value { min-width: 1.8rem; font-size: 0.65rem; }
+  .orc-range-value { min-width: 1.8rem; font-size: 0.6rem; }
   .orc-legend { display: none; }
   .orc-tray-head .orc-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .orc-tile { width: 5.5rem; }
@@ -700,7 +710,7 @@
     gap: 0.1rem;
     min-height: 3.25rem;
     padding: 0.35rem 0.25rem;
-    font-size: 0.6875rem;
+    font-size: 0.625rem;
     color: var(--color-secondary);
     background: transparent;
     border: none;
@@ -727,22 +737,22 @@
 .orc-chip-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .orc-gen-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.5rem 0.65rem; border: 1px solid var(--card-border); }
 .orc-gen-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-.orc-gen-value { font-size: 0.95rem; font-weight: 500; color: var(--color-primary); overflow-wrap: anywhere; }
+.orc-gen-value { font-size: 0.85rem; font-weight: 500; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-row-selected td { background: var(--hover-bg); }
 .orc-campaign { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.75rem 0.85rem; border: 1px solid var(--card-border); background: var(--card-bg); }
 .orc-campaign-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-.orc-campaign-name { font-size: 1.05rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
+.orc-campaign-name { font-size: 0.95rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-campaign-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 0.35rem; }
 .orc-proposal { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.55rem 0.65rem; border: 1px solid var(--card-border); }
-.orc-proposal-title { font-size: 0.9rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
+.orc-proposal-title { font-size: 0.8rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-log-row { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid var(--table-row-border); }
-.orc-log-meta { flex: 0 0 7.5rem; display: flex; flex-direction: column; font-size: 0.75rem; color: var(--color-gray); min-width: 0; }
+.orc-log-meta { flex: 0 0 7.5rem; display: flex; flex-direction: column; font-size: 0.6875rem; color: var(--color-gray); min-width: 0; }
 .orc-log-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orc-log-body { flex: 1 1 auto; min-width: 0; font-size: 0.9rem; line-height: 1.5; color: var(--color-primary); overflow-wrap: anywhere; }
+.orc-log-body { flex: 1 1 auto; min-width: 0; font-size: 0.8rem; line-height: 1.5; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: 0.6rem; }
 .orc-image-card { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
 .orc-image-card img { width: 100%; height: 5.5rem; object-fit: cover; border: 1px solid var(--card-border); background: var(--hover-bg); }
-.orc-image-caption { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; font-size: 0.75rem; color: var(--color-secondary); min-width: 0; }
+.orc-image-caption { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; font-size: 0.6875rem; color: var(--color-secondary); min-width: 0; }
 .orc-image-caption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 639px) {
   .orc-log-meta { flex-basis: 5.5rem; }
