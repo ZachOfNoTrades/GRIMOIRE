@@ -11,7 +11,7 @@ import { OracleError } from '@/app/modules/oracle/lib/errors';
 import { addEvent, listEvents } from '@/app/modules/oracle/lib/eventFunctions';
 import { coerceMapData } from '@/app/modules/oracle/lib/mapData';
 import { createMap, getMap, listMaps, replaceMapData, undoMapData, updateMap } from '@/app/modules/oracle/lib/mapFunctions';
-import { createScene, listScenes, updateScene } from '@/app/modules/oracle/lib/sceneFunctions';
+import { createSession, listSessions, updateSession } from '@/app/modules/oracle/lib/sessionFunctions';
 import { statBlockSchema } from '@/app/modules/oracle/lib/validation';
 import type { Attitude, EntityKind, KnowledgeTier } from '@/app/modules/oracle/types/oracle';
 
@@ -75,22 +75,22 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     'oracle_get_campaign',
     {
       description:
-        'A campaign in full: world notes (tone and setting — read these before generating anything), the rough session draft, scenes, maps (without feature lists; use oracle_get_map), ' +
+        'A campaign in full: world notes (tone and setting — read these before generating anything), the sessions (each with its rough notes and recap; the campaign current_session_id is the live one), maps (without feature lists; use oracle_get_map), ' +
         'the cast (creatures, people, places with DM notes and what the players already know) and the recent session log.',
       inputSchema: { campaign_id: Uuid },
     },
     async ({ campaign_id }) => {
       const id = await owned(campaign_id);
-      const [campaign, scenes, maps, entities, events] = await Promise.all([
+      const [campaign, sessions, maps, entities, events] = await Promise.all([
         requireOwnedCampaign(userId, id),
-        listScenes(id),
+        listSessions(id),
         listMaps(id),
         listEntities(id),
         listEvents(id),
       ]);
       return json({
         campaign,
-        scenes,
+        sessions,
         maps: maps.map((map) => ({ id: map.id, name: map.name, feature_count: map.data.features.length, party_x: map.party_x, party_y: map.party_y, can_undo: map.can_undo })),
         entities,
         recent_events: events.slice(0, 30),
@@ -112,27 +112,51 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
   );
 
   server.registerTool(
-    'oracle_add_scene',
+    'oracle_add_session',
     {
-      description: 'Add a scene to the end of the campaign scene list.',
-      inputSchema: { campaign_id: Uuid, title: z.string().min(1).max(160), summary: z.string().max(500).default('') },
+      description: 'Add a session (one night at the table) with its rough notes. Use oracle_set_live_session to make it the one the Table runs.',
+      inputSchema: {
+        campaign_id: Uuid,
+        title: z.string().min(1).max(160),
+        session_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+        notes: z.string().max(20000).default(''),
+      },
     },
-    async ({ campaign_id, title, summary }) => json(await createScene(await owned(campaign_id), title.trim(), summary.trim())),
+    async ({ campaign_id, title, session_date, notes }) => {
+      const id = await owned(campaign_id);
+      const created = await createSession(id, title.trim(), session_date);
+      return json(notes.trim() ? await updateSession(id, created.id, { notes: notes.trim() }) : created);
+    },
   );
 
   server.registerTool(
-    'oracle_update_scene',
+    'oracle_update_session',
     {
-      description: 'Rename a scene, change its summary, or mark it done.',
+      description: 'Change a session: title, date, rough notes, recap (what happened), or mark it done.',
       inputSchema: {
         campaign_id: Uuid,
-        scene_id: Uuid,
+        session_id: Uuid,
         title: z.string().min(1).max(160).optional(),
-        summary: z.string().max(500).optional(),
+        session_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        notes: z.string().max(20000).optional(),
+        recap: z.string().max(4000).optional(),
         is_done: z.boolean().optional(),
       },
     },
-    async ({ campaign_id, scene_id, ...patch }) => json(await updateScene(await owned(campaign_id), scene_id.toLowerCase(), patch)),
+    async ({ campaign_id, session_id, ...patch }) => json(await updateSession(await owned(campaign_id), session_id.toLowerCase(), patch)),
+  );
+
+  server.registerTool(
+    'oracle_set_live_session',
+    {
+      description: 'Make a session the live one: every generation at the Table is written against its notes and recap.',
+      inputSchema: { campaign_id: Uuid, session_id: Uuid },
+    },
+    async ({ campaign_id, session_id }) => {
+      const id = await owned(campaign_id);
+      await updateCampaign(userId, id, { current_session_id: session_id.toLowerCase() });
+      return text('Session is live.');
+    },
   );
 
   server.registerTool(

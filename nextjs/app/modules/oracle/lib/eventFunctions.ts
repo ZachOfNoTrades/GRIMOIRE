@@ -4,13 +4,13 @@ import { EVENT_PAGE_SIZE } from "./constants";
 import { normalizeId } from "./campaignFunctions";
 import { OracleError } from "./errors";
 
-type EventRow = { id: string; entity_id: string | null; scene_title: string | null; body: string; ts_created: Date };
+type EventRow = { id: string; entity_id: string | null; session_title: string | null; body: string; ts_created: Date };
 
 function toEvent(row: EventRow): OracleEvent {
   return {
     id: row.id.toLowerCase(),
     entity_id: normalizeId(row.entity_id),
-    scene_title: row.scene_title,
+    session_title: row.session_title,
     body: row.body,
     ts_created: new Date(row.ts_created).toISOString(),
   };
@@ -20,7 +20,7 @@ function toEvent(row: EventRow): OracleEvent {
 export async function listEvents(campaignId: string): Promise<OracleEvent[]> {
   const pool = await getMainConnection();
   const result = await pool.request().input("campaignId", campaignId).input("pageSize", EVENT_PAGE_SIZE).query(`
-    SELECT TOP (@pageSize) id, entity_id, scene_title, body, ts_created
+    SELECT TOP (@pageSize) id, entity_id, session_title, body, ts_created
     FROM oracle_events
     WHERE campaign_id = @campaignId
     ORDER BY ts_created DESC, id
@@ -28,7 +28,7 @@ export async function listEvents(campaignId: string): Promise<OracleEvent[]> {
   return result.recordset.map(toEvent);
 }
 
-// The live scene's title is copied onto the event so the log still reads right after scenes
+// The live session's title is copied onto the event so the log still reads right after sessions
 // are renamed or deleted.
 export async function addEvent(campaignId: string, body: string, entityId: string | null): Promise<OracleEvent> {
   const pool = await getMainConnection();
@@ -44,10 +44,10 @@ export async function addEvent(campaignId: string, body: string, entityId: strin
     .input("entityId", entityId)
     .input("body", body)
     .query(`
-      INSERT INTO oracle_events (campaign_id, entity_id, scene_title, body)
-      OUTPUT INSERTED.id, INSERTED.entity_id, INSERTED.scene_title, INSERTED.body, INSERTED.ts_created
+      INSERT INTO oracle_events (campaign_id, entity_id, session_title, body)
+      OUTPUT INSERTED.id, INSERTED.entity_id, INSERTED.session_title, INSERTED.body, INSERTED.ts_created
       SELECT @campaignId, @entityId,
-             (SELECT s.title FROM oracle_scenes s INNER JOIN oracle_campaigns c ON c.current_scene_id = s.id WHERE c.id = @campaignId),
+             (SELECT s.title FROM oracle_sessions s INNER JOIN oracle_campaigns c ON c.current_session_id = s.id WHERE c.id = @campaignId),
              @body
     `);
   return toEvent(result.recordset[0]);

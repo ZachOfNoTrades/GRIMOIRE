@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610021500 (Oracle models per task)
+-- Version: 202610021800 (Oracle sessions replace scenes)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -306,9 +306,8 @@ BEGIN TRY
             user_id UNIQUEIDENTIFIER NOT NULL,
             name NVARCHAR(120) NOT NULL,
             world NVARCHAR(MAX) NOT NULL DEFAULT '', -- tone and setting notes fed to every generation
-            draft NVARCHAR(MAX) NOT NULL DEFAULT '', -- the DM's rough session notes, as pasted
             display_code VARCHAR(8) NOT NULL, -- opens the public player display
-            current_scene_id UNIQUEIDENTIFIER NULL, -- oracle_scenes.id, no FK (see cascade layout)
+            current_session_id UNIQUEIDENTIFIER NULL, -- oracle_sessions.id, no FK (see cascade layout)
             active_map_id UNIQUEIDENTIFIER NULL, -- oracle_maps.id, no FK
             panel_kind VARCHAR(10) NULL, -- NULL = empty panel, 'entity' or 'image'
             panel_entity_id UNIQUEIDENTIFIER NULL, -- oracle_entities.id, no FK
@@ -328,24 +327,25 @@ BEGIN TRY
     END
 
     -- =============================
-    -- Oracle Scenes
+    -- Oracle Sessions — one night at the table
     -- =============================
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='oracle_scenes' AND xtype='U')
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='oracle_sessions' AND xtype='U')
     BEGIN
-        CREATE TABLE oracle_scenes (
+        CREATE TABLE oracle_sessions (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             campaign_id UNIQUEIDENTIFIER NOT NULL,
-            sort_order INT NOT NULL DEFAULT 0,
             title NVARCHAR(160) NOT NULL,
-            summary NVARCHAR(500) NOT NULL DEFAULT '',
+            session_date DATE NULL,
+            notes NVARCHAR(MAX) NOT NULL DEFAULT '', -- the DM's rough plan for the night, in any shape
+            recap NVARCHAR(4000) NOT NULL DEFAULT '', -- what happened, written after or during the night
             is_done BIT NOT NULL DEFAULT 0,
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 
-            CONSTRAINT FK_oracle_scenes_campaign FOREIGN KEY (campaign_id) REFERENCES oracle_campaigns(id) ON DELETE CASCADE
+            CONSTRAINT FK_oracle_sessions_campaign FOREIGN KEY (campaign_id) REFERENCES oracle_campaigns(id) ON DELETE CASCADE
         );
 
-        CREATE INDEX IX_oracle_scenes_campaign ON oracle_scenes (campaign_id, sort_order);
+        CREATE INDEX IX_oracle_sessions_campaign ON oracle_sessions (campaign_id, ts_created);
     END
 
     -- =============================
@@ -429,7 +429,7 @@ BEGIN TRY
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             campaign_id UNIQUEIDENTIFIER NOT NULL,
             entity_id UNIQUEIDENTIFIER NULL, -- oracle_entities.id, no FK; NULL = a general log note
-            scene_title NVARCHAR(160) NULL, -- the scene that was live, copied so it survives scene edits
+            session_title NVARCHAR(160) NULL, -- the session that was live, copied so it survives session edits
             body NVARCHAR(1000) NOT NULL,
             ts_created DATETIME DEFAULT GETDATE(),
 

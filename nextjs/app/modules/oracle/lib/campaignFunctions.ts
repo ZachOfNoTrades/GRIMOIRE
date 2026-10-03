@@ -9,7 +9,7 @@ import { blankMapData } from "./mapData";
 
 export const UPLOAD_ROOT = path.join(process.cwd(), "storage", "oracle-uploads");
 
-const CAMPAIGN_COLUMNS = `id, user_id, name, world, draft, display_code, current_scene_id, active_map_id,
+const CAMPAIGN_COLUMNS = `id, user_id, name, world, display_code, current_session_id, active_map_id,
   panel_kind, panel_entity_id, panel_image_id, display_blank, chips_paused, version`;
 
 type CampaignRow = {
@@ -17,9 +17,8 @@ type CampaignRow = {
   user_id: string;
   name: string;
   world: string;
-  draft: string;
   display_code: string;
-  current_scene_id: string | null;
+  current_session_id: string | null;
   active_map_id: string | null;
   panel_kind: PanelKind | null;
   panel_entity_id: string | null;
@@ -38,9 +37,8 @@ function toCampaign(row: CampaignRow): OracleCampaign {
     id: row.id.toLowerCase(),
     name: row.name,
     world: row.world,
-    draft: row.draft,
     display_code: row.display_code,
-    current_scene_id: normalizeId(row.current_scene_id),
+    current_session_id: normalizeId(row.current_session_id),
     active_map_id: normalizeId(row.active_map_id),
     panel_kind: row.panel_kind,
     panel_entity_id: normalizeId(row.panel_entity_id),
@@ -63,7 +61,7 @@ export async function listCampaigns(userId: string): Promise<CampaignSummary[]> 
   const pool = await getMainConnection();
   const result = await pool.request().input("userId", userId).query(`
     SELECT c.id, c.name, c.display_code, c.ts_updated,
-           (SELECT COUNT(*) FROM oracle_scenes s WHERE s.campaign_id = c.id) AS scene_count
+           (SELECT COUNT(*) FROM oracle_sessions s WHERE s.campaign_id = c.id) AS session_count
     FROM oracle_campaigns c
     WHERE c.user_id = @userId
     ORDER BY c.ts_updated DESC
@@ -77,7 +75,7 @@ export async function listCampaigns(userId: string): Promise<CampaignSummary[]> 
     id: String(row.id).toLowerCase(),
     name: row.name,
     display_code: row.display_code,
-    scene_count: row.scene_count,
+    session_count: row.session_count,
     ts_updated: new Date(row.ts_updated).toISOString(),
   }));
 }
@@ -188,8 +186,7 @@ export async function bumpVersion(campaignId: string): Promise<void> {
 export interface CampaignPatch {
   name?: string;
   world?: string;
-  draft?: string;
-  current_scene_id?: string | null;
+  current_session_id?: string | null;
   active_map_id?: string | null;
   chips_paused?: boolean;
 }
@@ -211,23 +208,19 @@ export async function updateCampaign(userId: string, campaignId: string, patch: 
     updateFields.push("world = @world");
     request.input("world", patch.world);
   }
-  if (patch.draft !== undefined) {
-    updateFields.push("draft = @draft");
-    request.input("draft", patch.draft);
-  }
   if (patch.chips_paused !== undefined) {
     updateFields.push("chips_paused = @chipsPaused");
     request.input("chipsPaused", patch.chips_paused ? 1 : 0);
   }
-  if (patch.current_scene_id !== undefined) {
-    if (patch.current_scene_id !== null) {
-      const scene = await pool.request().input("id", patch.current_scene_id).input("campaignId", campaignId).query(`
-        SELECT 1 AS found FROM oracle_scenes WHERE id = @id AND campaign_id = @campaignId
+  if (patch.current_session_id !== undefined) {
+    if (patch.current_session_id !== null) {
+      const session = await pool.request().input("id", patch.current_session_id).input("campaignId", campaignId).query(`
+        SELECT 1 AS found FROM oracle_sessions WHERE id = @id AND campaign_id = @campaignId
       `);
-      if (scene.recordset.length === 0) throw new OracleError(404, "Scene not found");
+      if (session.recordset.length === 0) throw new OracleError(404, "Session not found");
     }
-    updateFields.push("current_scene_id = @sceneId");
-    request.input("sceneId", patch.current_scene_id);
+    updateFields.push("current_session_id = @sessionId");
+    request.input("sessionId", patch.current_session_id);
   }
   if (patch.active_map_id !== undefined) {
     if (patch.active_map_id !== null) {

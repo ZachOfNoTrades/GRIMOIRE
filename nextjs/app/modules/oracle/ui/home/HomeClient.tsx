@@ -40,11 +40,11 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
     creatingRef.current = true;
 
     const tempId = `tmp-${Date.now()}-${Math.random()}`;
-    setCampaigns((list) => [{ id: tempId, name: trimmed, display_code: "······", scene_count: 0, ts_updated: new Date().toISOString() }, ...list]);
+    setCampaigns((list) => [{ id: tempId, name: trimmed, display_code: "······", session_count: 0, ts_updated: new Date().toISOString() }, ...list]);
     setName("");
     try {
       const created = await api<OracleCampaign>("/modules/oracle/api/campaigns", "POST", { name: trimmed });
-      setCampaigns((list) => list.map((campaign) => (campaign.id === tempId ? { id: created.id, name: created.name, display_code: created.display_code, scene_count: 0, ts_updated: new Date().toISOString() } : campaign)));
+      setCampaigns((list) => list.map((campaign) => (campaign.id === tempId ? { id: created.id, name: created.name, display_code: created.display_code, session_count: 0, ts_updated: new Date().toISOString() } : campaign)));
     } catch (createError) {
       setCampaigns((list) => list.filter((campaign) => campaign.id !== tempId));
       toast.error(errorMessage(createError, "Couldn't create the campaign"));
@@ -54,7 +54,7 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
   }
 
   async function deleteCampaign(campaign: CampaignSummary) {
-    if (!(await confirm({ title: `Delete ${campaign.name}?`, message: "Its scenes, maps, cast, pictures and log are all removed. This cannot be undone.", confirmLabel: "Delete", danger: true }))) return;
+    if (!(await confirm({ title: `Delete ${campaign.name}?`, message: "Its sessions, maps, cast, pictures and log are all removed. This cannot be undone.", confirmLabel: "Delete", danger: true }))) return;
     const previous = campaigns;
     setCampaigns((list) => list.filter((entry) => entry.id !== campaign.id));
     try {
@@ -165,7 +165,7 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
                 <div className="orc-campaign-body">
                   <span className="orc-campaign-name">{campaign.name}</span>
                   <span className="orc-small text-secondary">
-                    {campaign.scene_count} {campaign.scene_count === 1 ? "scene" : "scenes"} · display code {campaign.display_code}
+                    {campaign.session_count} {campaign.session_count === 1 ? "session" : "sessions"} · display code {campaign.display_code}
                   </span>
                 </div>
 

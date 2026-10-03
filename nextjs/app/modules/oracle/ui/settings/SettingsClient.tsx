@@ -99,7 +99,7 @@ export default function SettingsClient({ settings: initialSettings }: { settings
           {/* PICTURES TOGGLE */}
           <SettingsToggleRow
             label="Mix in reference pictures"
-            hint="Pictures of creatures, people and places that could enter the scene"
+            hint="Pictures of creatures, people and places that could enter the session"
             checked={settings.banner_images}
             onChange={(next) => save({ banner_images: next })}
           />

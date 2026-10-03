@@ -8,14 +8,14 @@ import { listEvents } from "./eventFunctions";
 import { isVisible } from "./fog";
 import { listImages } from "./imageFunctions";
 import { listMaps } from "./mapFunctions";
-import { listScenes } from "./sceneFunctions";
+import { listSessions } from "./sessionFunctions";
 import { getSettings } from "./settingsFunctions";
 
 // Everything the DM's pages read, in one round of queries.
 export async function getTableSnapshot(campaignId: string, userId: string): Promise<TableSnapshot> {
-  const [campaign, scenes, maps, entities, images, chips, events, settings] = await Promise.all([
+  const [campaign, sessions, maps, entities, images, chips, events, settings] = await Promise.all([
     getCampaign(campaignId),
-    listScenes(campaignId),
+    listSessions(campaignId),
     listMaps(campaignId),
     listEntities(campaignId),
     listImages(campaignId),
@@ -23,7 +23,7 @@ export async function getTableSnapshot(campaignId: string, userId: string): Prom
     listEvents(campaignId),
     getSettings(userId),
   ]);
-  return { campaign, scenes, maps, entities, images, chips, events, settings };
+  return { campaign, sessions, maps, entities, images, chips, events, settings };
 }
 
 // The campaign a display code opens. Codes are public; the id never leaves the server.
@@ -52,7 +52,7 @@ export async function getDisplayVersion(code: string): Promise<number> {
 
 // THE PLAYER VIEW. Built from the same rows as the DM's snapshot, with everything the players
 // must not see left out HERE, on the server — the display never receives it:
-//   - DM notes, stat blocks and the scene list are never included
+//   - DM notes, stat blocks and the session list are never included
 //   - creatures and people appear only while inside the party's current vision
 //   - places are never drawn as tokens (the map already shows the building)
 //   - the panel carries only the entry's public details and the facts already revealed

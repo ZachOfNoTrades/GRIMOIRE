@@ -43,8 +43,8 @@ export default function LogClient({ snapshot }: LogClientProps) {
     const body = note.trim();
     if (!body) return;
     const tempId = `tmp-${Date.now()}-${Math.random()}`;
-    const currentScene = snapshot.scenes.find((scene) => scene.id === campaign.current_scene_id);
-    setEvents((list) => [{ id: tempId, entity_id: null, scene_title: currentScene?.title ?? null, body, ts_created: new Date().toISOString() }, ...list]);
+    const currentSession = snapshot.sessions.find((session) => session.id === campaign.current_session_id);
+    setEvents((list) => [{ id: tempId, entity_id: null, session_title: currentSession?.title ?? null, body, ts_created: new Date().toISOString() }, ...list]);
     setNote("");
     try {
       const saved = await api<OracleEvent>(`${base}/events`, "POST", { body });
@@ -130,7 +130,7 @@ export default function LogClient({ snapshot }: LogClientProps) {
                   {/* WHEN AND WHERE */}
                   <div className="orc-log-meta">
                     <span suppressHydrationWarning>{formatTime(event.ts_created)}</span>
-                    <span>{event.scene_title ?? "No scene"}</span>
+                    <span>{event.session_title ?? "No session"}</span>
                   </div>
 
                   {/* WHAT */}

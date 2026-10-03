@@ -1,8 +1,10 @@
 import { headers } from "next/headers";
 import { userCanAccessModule } from "@/lib/moduleAccess";
 import { getAuthorizedUser, type AuthUser } from "@/lib/permissions";
-import type { CampaignSummary, OracleSettings, TableSnapshot } from "../types/oracle";
-import { listCampaigns, requireOwnedCampaign } from "./campaignFunctions";
+import type { CampaignSummary, OracleCampaign, OracleEntity, OracleSession, OracleSettings, TableSnapshot } from "../types/oracle";
+import { getCampaign, listCampaigns, requireOwnedCampaign } from "./campaignFunctions";
+import { listEntities } from "./entityFunctions";
+import { getSession } from "./sessionFunctions";
 import { MODULE_SLUG } from "./constants";
 import { OracleError } from "./errors";
 import { listImageSources, type ImageSourceInfo } from "./imageProviders";
@@ -62,4 +64,20 @@ export function loadHomePage(): Promise<PageLoad<CampaignSummary[]>> {
 
 export function loadSettingsPage(): Promise<PageLoad<OracleSettings>> {
   return guarded((user) => getSettings(user.id));
+}
+
+export interface SessionPageData {
+  campaign: OracleCampaign;
+  session: OracleSession;
+  entities: OracleEntity[];
+}
+
+export function loadSessionPage(campaignIdParam: string, sessionIdParam: string): Promise<PageLoad<SessionPageData>> {
+  return guarded(async (user) => {
+    if (!UUID_PATTERN.test(campaignIdParam) || !UUID_PATTERN.test(sessionIdParam)) throw new OracleError(404, "Session not found");
+    const campaignId = campaignIdParam.toLowerCase();
+    await requireOwnedCampaign(user.id, campaignId);
+    const [campaign, session, entities] = await Promise.all([getCampaign(campaignId), getSession(campaignId, sessionIdParam.toLowerCase()), listEntities(campaignId)]);
+    return { campaign, session, entities };
+  });
 }

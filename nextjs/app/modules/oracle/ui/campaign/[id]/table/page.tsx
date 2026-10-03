@@ -1,5 +1,5 @@
 // The Table tab — a SERVER component that preloads everything the first paint reads (campaign,
-// scenes, maps, cast, pictures, banner, log, settings) and hands it to TableClient.
+// sessions, maps, cast, pictures, banner, log, settings) and hands it to TableClient.
 import { PageLoadFailed, PageMissing } from "../../../../components/PageStates";
 import { loadCampaignPage } from "../../../../lib/pageData";
 import TableClient from "./TableClient";

@@ -233,9 +233,9 @@ export async function removeChip(campaignId: string, chipId: string): Promise<vo
   `);
 }
 
-// Throw away everything prepared for an older situation (the cast was rebuilt). Not used on a
-// scene change: refilling a whole pool per scene is exactly the kind of spend the ceiling exists
-// to prevent, and the generator folds the current scene into every later batch anyway.
+// Throw away everything prepared for an older situation. Not used on a session change:
+// refilling a whole pool per session is exactly the kind of spend the ceiling exists to
+// prevent, and the generator folds the live session into every later batch anyway.
 export async function clearChips(campaignId: string): Promise<void> {
   const pool = await getMainConnection();
   await pool.request().input("campaignId", campaignId).query(`
@@ -254,7 +254,7 @@ export interface AdoptResult {
 
 // The whole "this picture is now a creature / person / place" flow, started by one tap:
 //   1. the picture is saved into the campaign's library
-//   2. a short write-up is generated so it fits the current scene (skipped, not fatal, on failure)
+//   2. a short write-up is generated so it fits the live session (skipped, not fatal, on failure)
 //   3. the entry is created with that picture, and placed on the active map beside the party —
 //      a creature or person a short step away, a place right where the party stands
 //   4. the item leaves the banner and the session log notes what appeared

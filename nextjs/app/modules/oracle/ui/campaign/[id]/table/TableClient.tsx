@@ -16,7 +16,7 @@ import ImagePicker, { type ImageSource } from "../../../../components/ImagePicke
 import MapCanvas, { type MapTool, type MapToken } from "../../../../components/MapCanvas";
 import PanelTray from "../../../../components/PanelTray";
 import ResultModal from "../../../../components/ResultModal";
-import ScenesPanel from "../../../../components/ScenesPanel";
+import SessionsPanel from "../../../../components/SessionsPanel";
 import SessionBar from "../../../../components/SessionBar";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
@@ -34,7 +34,7 @@ import type {
   OracleEvent,
   OracleImage,
   OracleMap,
-  OracleScene,
+  OracleSession,
   StatBlock,
   TableSnapshot,
   TextChipContent,
@@ -73,7 +73,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
 
   // DATA — seeded from the server snapshot; nothing is refetched on mount
   const [campaign, setCampaign] = useState<OracleCampaign>(snapshot.campaign);
-  const [scenes, setScenes] = useState<OracleScene[]>(snapshot.scenes);
+  const [sessions, setSessions] = useState<OracleSession[]>(snapshot.sessions);
   const [maps, setMaps] = useState<OracleMap[]>(snapshot.maps);
   const [entities, setEntities] = useState<OracleEntity[]>(snapshot.entities);
   const [images, setImages] = useState<OracleImage[]>(snapshot.images);
@@ -89,7 +89,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [tool, setTool] = useState<MapTool>("move");
   const [placingId, setPlacingId] = useState<string | null>(null); // an existing entry waiting for a tap on the map
   const [mobileTab, setMobileTab] = useState<"map" | "details">("map");
-  const [isScenesOpen, setIsScenesOpen] = useState(false);
+  const [isSessionsOpen, setIsSessionsOpen] = useState(false);
   const [entityModal, setEntityModal] = useState<{ entity: OracleEntity | null; kind: EntityKind; at: { x: number; y: number } | null } | null>(null);
   const [picker, setPicker] = useState<{ entityId: string | null; subject: string } | null>(null);
   const [openChip, setOpenChip] = useState<OracleChip | null>(null);
@@ -104,9 +104,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const selected = entities.find((entity) => entity.id === selectedId) ?? null;
   const panelEntity = campaign.panel_kind === "entity" ? entities.find((entity) => entity.id === campaign.panel_entity_id) ?? null : null;
   const panelImage = campaign.panel_kind === "image" ? images.find((image) => image.id === campaign.panel_image_id) ?? null : null;
-  const currentScene = scenes.find((scene) => scene.id === campaign.current_scene_id) ?? null;
+  const currentSession = sessions.find((session) => session.id === campaign.current_session_id) ?? null;
   const displayLabel = `Map${panelEntity ? ` + ${panelEntity.name}` : panelImage ? ` + ${panelImage.caption}` : ""}`;
-  const isOverlayOpen = !!(openChip || adoptChip || answer || entityModal || picker || isMapEditOpen || isScenesOpen);
+  const isOverlayOpen = !!(openChip || adoptChip || answer || entityModal || picker || isMapEditOpen || isSessionsOpen);
 
   useEntityTitle(campaign.name);
 
@@ -132,7 +132,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     try {
       const fresh = await api<TableSnapshot>(base);
       setCampaign(fresh.campaign);
-      setScenes(fresh.scenes);
+      setSessions(fresh.sessions);
       setMaps(fresh.maps);
       setEntities(fresh.entities);
       setImages(fresh.images);
@@ -313,7 +313,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
 
   async function addNote(entity: OracleEntity | null, body: string) {
     const tempId = `tmp-${Date.now()}-${Math.random()}`;
-    const optimistic: OracleEvent = { id: tempId, entity_id: entity?.id ?? null, scene_title: currentScene?.title ?? null, body, ts_created: new Date().toISOString() };
+    const optimistic: OracleEvent = { id: tempId, entity_id: entity?.id ?? null, session_title: currentSession?.title ?? null, body, ts_created: new Date().toISOString() };
     setEvents((list) => [optimistic, ...list]);
     try {
       const saved = await api<OracleEvent>(`${base}/events`, "POST", { body, entity_id: entity?.id ?? null });
@@ -392,59 +392,58 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   }
 
   // -------------------------------------------------------------------------------------------
-  // SCENES
+  // SESSIONS
   // -------------------------------------------------------------------------------------------
 
-  async function goLive(scene: OracleScene) {
+  async function goLive(session: OracleSession) {
     const previous = campaign;
-    setCampaign({ ...campaign, current_scene_id: scene.id });
-    setIsScenesOpen(false);
+    setCampaign({ ...campaign, current_session_id: session.id });
+    setIsSessionsOpen(false);
     try {
-      setCampaign(await api<OracleCampaign>(base, "PUT", { current_scene_id: scene.id }));
+      setCampaign(await api<OracleCampaign>(base, "PUT", { current_session_id: session.id }));
       fillBanner();
     } catch (error) {
       setCampaign(previous);
-      toast.error(errorMessage(error, "Couldn't switch scenes"));
+      toast.error(errorMessage(error, "Couldn't switch sessions"));
       fillBanner();
     }
   }
 
-  async function toggleSceneDone(scene: OracleScene) {
-    const previous = scenes;
-    setScenes((list) => list.map((entry) => (entry.id === scene.id ? { ...entry, is_done: !scene.is_done } : entry)));
+  async function toggleSessionDone(session: OracleSession) {
+    const previous = sessions;
+    setSessions((list) => list.map((entry) => (entry.id === session.id ? { ...entry, is_done: !session.is_done } : entry)));
     try {
-      await api(`${base}/scenes/${scene.id}`, "PUT", { is_done: !scene.is_done });
+      await api(`${base}/sessions/${session.id}`, "PUT", { is_done: !session.is_done });
     } catch (error) {
-      setScenes(previous);
-      toast.error(errorMessage(error, "Couldn't update the scene"));
+      setSessions(previous);
+      toast.error(errorMessage(error, "Couldn't update the session"));
     }
   }
 
-  async function addScene(title: string) {
+  async function addSession(title: string) {
     const tempId = `tmp-${Date.now()}-${Math.random()}`;
-    const lastOrder = scenes.reduce((max, scene) => Math.max(max, scene.sort_order), 0);
-    setScenes((list) => [...list, { id: tempId, title, summary: "", is_done: false, sort_order: lastOrder + 10 }]);
+    setSessions((list) => [...list, { id: tempId, title, session_date: null, notes: "", recap: "", is_done: false, ts_created: new Date().toISOString() }]);
     try {
-      const saved = await api<OracleScene>(`${base}/scenes`, "POST", { title });
-      setScenes((list) => list.map((scene) => (scene.id === tempId ? saved : scene)));
+      const saved = await api<OracleSession>(`${base}/sessions`, "POST", { title });
+      setSessions((list) => list.map((session) => (session.id === tempId ? saved : session)));
     } catch (error) {
-      setScenes((list) => list.filter((scene) => scene.id !== tempId));
-      toast.error(errorMessage(error, "Couldn't add the scene"));
+      setSessions((list) => list.filter((session) => session.id !== tempId));
+      toast.error(errorMessage(error, "Couldn't add the session"));
     }
   }
 
-  async function deleteScene(scene: OracleScene) {
-    if (!(await confirm({ title: `Delete "${scene.title}"?`, message: "The scene is removed from the list. Log entries keep its name.", confirmLabel: "Delete", danger: true }))) return;
-    const previousScenes = scenes;
+  async function deleteSession(session: OracleSession) {
+    if (!(await confirm({ title: `Delete "${session.title}"?`, message: "Its notes and recap are removed. Log entries keep its name.", confirmLabel: "Delete", danger: true }))) return;
+    const previousSessions = sessions;
     const previousCampaign = campaign;
-    setScenes((list) => list.filter((entry) => entry.id !== scene.id));
-    if (campaign.current_scene_id === scene.id) setCampaign({ ...campaign, current_scene_id: null });
+    setSessions((list) => list.filter((entry) => entry.id !== session.id));
+    if (campaign.current_session_id === session.id) setCampaign({ ...campaign, current_session_id: null });
     try {
-      await api(`${base}/scenes/${scene.id}`, "DELETE");
+      await api(`${base}/sessions/${session.id}`, "DELETE");
     } catch (error) {
-      setScenes(previousScenes);
+      setSessions(previousSessions);
       setCampaign(previousCampaign);
-      toast.error(errorMessage(error, "Couldn't delete the scene"));
+      toast.error(errorMessage(error, "Couldn't delete the session"));
     }
   }
 
@@ -605,7 +604,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
         setTool(hit.key);
         setPlacingId(null);
       } else if (key === "s") {
-        setIsScenesOpen(true);
+        setIsSessionsOpen(true);
       } else if (key === "/") {
         event.preventDefault();
         setMobileTab("details");
@@ -632,8 +631,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
         campaignName={campaign.name}
         active="table"
         help={TABLE_HELP}
-        sceneLabel={currentScene ? currentScene.title : "No live scene"}
-        onOpenScenes={() => setIsScenesOpen(true)}
+        sessionLabel={currentSession ? currentSession.title : "No live session"}
+        onOpenSessions={() => setIsSessionsOpen(true)}
         displayLabel={displayLabel}
         isBlank={campaign.display_blank}
         onToggleBlank={toggleBlank}
@@ -845,7 +844,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               className="input-field"
               value={question}
               maxLength={PROMPT_MAX}
-              placeholder={selected ? `Ask anything about ${selected.name}, or the scene` : "Ask for anything: a name, loot, a rule, what someone says"}
+              placeholder={selected ? `Ask anything about ${selected.name}, or the session` : "Ask for anything: a name, loot, a rule, what someone says"}
               aria-label="Ask for anything"
               onChange={(event) => setQuestion(event.target.value)}
               onKeyDown={(event) => {
@@ -875,28 +874,28 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
           <Search className="w-5 h-5" aria-hidden />
           <span>Details</span>
         </button>
-        <button type="button" className="orc-mobile-tab" onClick={() => setIsScenesOpen(true)}>
+        <button type="button" className="orc-mobile-tab" onClick={() => setIsSessionsOpen(true)}>
           <PanelLeft className="w-5 h-5" aria-hidden />
-          <span>Scenes</span>
+          <span>Sessions</span>
         </button>
       </nav>
 
-      {/* SCENES DRAWER */}
-      {isScenesOpen && (
-        <div className="orc-drawer-backdrop" onClick={() => setIsScenesOpen(false)}>
-          <aside className="orc-drawer" aria-label="Scenes" onClick={(event) => event.stopPropagation()}>
+      {/* SESSIONS DRAWER */}
+      {isSessionsOpen && (
+        <div className="orc-drawer-backdrop" onClick={() => setIsSessionsOpen(false)}>
+          <aside className="orc-drawer" aria-label="Sessions" onClick={(event) => event.stopPropagation()}>
 
             {/* DRAWER HEADER */}
             <div className="orc-drawer-head">
-              <h2 className="text-card-title">Scenes</h2>
-              <Button className="btn-link" onClick={() => setIsScenesOpen(false)} aria-label="Close the scene list" title="Close">
+              <h2 className="text-card-title">Sessions</h2>
+              <Button className="btn-link" onClick={() => setIsSessionsOpen(false)} aria-label="Close the session list" title="Close">
                 <X className="w-5 h-5" />
               </Button>
             </div>
 
             {/* DRAWER BODY */}
             <div className="orc-drawer-body">
-              <ScenesPanel scenes={scenes} currentSceneId={campaign.current_scene_id} onGoLive={goLive} onToggleDone={toggleSceneDone} onAdd={addScene} onDelete={deleteScene} />
+              <SessionsPanel campaignId={campaignId} sessions={sessions} currentSessionId={campaign.current_session_id} onGoLive={goLive} onToggleDone={toggleSessionDone} onAdd={addSession} onDelete={deleteSession} />
             </div>
           </aside>
         </div>

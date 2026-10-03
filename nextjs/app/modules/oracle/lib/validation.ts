@@ -15,8 +15,8 @@ import {
   NAME_MAX,
   NOTES_MAX,
   PROMPT_MAX,
-  SCENE_SUMMARY_MAX,
-  SCENE_TITLE_MAX,
+  RECAP_MAX,
+  SESSION_TITLE_MAX,
   VISION_MAX,
   VISION_MIN,
   TASK_KEYS,
@@ -86,8 +86,7 @@ export const updateCampaignSchema = z
   .object({
     name: line(NAME_MAX, "a name").optional(),
     world: block(WORLD_MAX, "World notes").optional(),
-    draft: block(DRAFT_MAX, "The draft").optional(),
-    current_scene_id: nullableUuid.optional(),
+    current_session_id: nullableUuid.optional(),
     active_map_id: nullableUuid.optional(),
     chips_paused: z.boolean().optional(),
   })
@@ -101,19 +100,6 @@ export const displaySchema = z
   })
   .refine((value) => Object.keys(value).length > 0, "Nothing to change");
 
-export const createSceneSchema = z.object({
-  title: line(SCENE_TITLE_MAX, "a title"),
-  summary: block(SCENE_SUMMARY_MAX, "The summary").default(""),
-});
-
-export const updateSceneSchema = z
-  .object({
-    title: line(SCENE_TITLE_MAX, "a title").optional(),
-    summary: block(SCENE_SUMMARY_MAX, "The summary").optional(),
-    is_done: z.boolean().optional(),
-    sort_order: z.number().int().min(-100000).max(100000).optional(),
-  })
-  .refine((value) => Object.keys(value).length > 0, "Nothing to change");
 
 // A new map is either blank (name only) or generated from a description.
 export const createMapSchema = z.object({
@@ -210,10 +196,9 @@ export const settingsSchema = z
 
 export const updateImageSchema = z.object({ caption: line(CAPTION_MAX, "a caption") });
 
-// What the DM accepts from a "build session" run. Sent back whole so nothing is saved until
+// What the DM accepts from a "build cast" run. Sent back whole so nothing is saved until
 // the DM has seen it.
 export const applyBuildSchema = z.object({
-  scenes: z.array(z.object({ title: line(SCENE_TITLE_MAX, "a title"), summary: block(SCENE_SUMMARY_MAX, "The summary").default("") })).max(30),
   entities: z
     .array(
       z.object({
@@ -257,3 +242,15 @@ export const imageGenerateSchema = z.object({
 });
 
 export const generateWorldSchema = z.object({ seed: z.string().max(WORLD_MAX).default("") });
+
+const sessionDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-10-02").nullable();
+export const createSessionSchema = z.object({ title: line(SESSION_TITLE_MAX, "a title"), session_date: sessionDate.default(null) });
+export const updateSessionSchema = z
+  .object({
+    title: line(SESSION_TITLE_MAX, "a title").optional(),
+    session_date: sessionDate.optional(),
+    notes: block(DRAFT_MAX, "The notes").optional(),
+    recap: block(RECAP_MAX, "The recap").optional(),
+    is_done: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "Nothing to change");

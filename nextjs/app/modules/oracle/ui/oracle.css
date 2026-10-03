@@ -736,6 +736,16 @@
   .orc-log-meta { flex-basis: 5.5rem; }
 }
 
+/* ---------- session page ---------- */
+
+.orc-session-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+.orc-session-title { flex: 1 1 14rem; min-width: 0; font-weight: 600; }
+.orc-session-date { flex: 0 0 auto; width: 10.5rem; }
+.orc-session-link { text-decoration: none; color: inherit; min-width: 0; }
+.orc-session-link .orc-gen-value { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.orc-gen-row[data-live="true"] { border-color: var(--color-primary); }
+.orc-gen-row[data-done="true"] .orc-gen-value { color: var(--text-secondary); }
+
 /* ---------- settings ---------- */
 
 .orc-rate { display: flex; align-items: center; gap: 0.5rem; }

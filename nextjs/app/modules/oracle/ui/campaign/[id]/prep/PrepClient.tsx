@@ -1,6 +1,7 @@
 "use client";
 
-import { BookOpen, FileText, Image as ImageIcon, Map as MapIcon, Plus, ScrollText, Sparkles, Trash2, Users } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Plus, Sparkles, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
@@ -11,18 +12,16 @@ import ImagePicker, { type ImageSource } from "../../../../components/ImagePicke
 import SessionBar from "../../../../components/SessionBar";
 import { PREP_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { DRAFT_MAX, NAME_MAX, PROMPT_MAX, WORLD_MAX } from "../../../../lib/constants";
-import type { BuiltSession, OracleCampaign, OracleEntity, OracleImage, OracleMap, OracleScene, TableSnapshot } from "../../../../types/oracle";
+import { NAME_MAX, PROMPT_MAX, SESSION_TITLE_MAX, WORLD_MAX } from "../../../../lib/constants";
+import type { OracleCampaign, OracleImage, OracleMap, OracleSession, TableSnapshot } from "../../../../types/oracle";
 
 interface PrepClientProps {
   snapshot: TableSnapshot;
   imageSources: ImageSource[];
 }
 
-const KIND_LABELS = { creature: "Creature", person: "Person", place: "Location" } as const;
-
-// PREP — before the session: rough notes become scenes and a cast, the world gets its tone,
-// maps are drawn from a description, and pictures are collected.
+// PREP — the campaign's world (its notes, maps and pictures) and the list of sessions. A session
+// has its own page for notes, cast and recap.
 export default function PrepClient({ snapshot, imageSources }: PrepClientProps) {
   const campaignId = snapshot.campaign.id;
   const base = campaignApi(campaignId);
@@ -31,70 +30,52 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
   // DATA
   const [campaign, setCampaign] = useState<OracleCampaign>(snapshot.campaign);
-  const [scenes, setScenes] = useState<OracleScene[]>(snapshot.scenes);
-  const [entities, setEntities] = useState<OracleEntity[]>(snapshot.entities);
+  const [sessions, setSessions] = useState<OracleSession[]>(snapshot.sessions);
   const [maps, setMaps] = useState<OracleMap[]>(snapshot.maps);
   const [images, setImages] = useState<OracleImage[]>(snapshot.images);
-  const [proposal, setProposal] = useState<BuiltSession | null>(null);
 
   // INPUT
-  const [draft, setDraft] = useState(snapshot.campaign.draft);
   const [world, setWorld] = useState(snapshot.campaign.world);
+  const [sessionTitle, setSessionTitle] = useState("");
   const [mapName, setMapName] = useState("");
   const [mapPrompt, setMapPrompt] = useState("");
 
   // STATE
-  const [isBuilding, setIsBuilding] = useState(false);
   const [isWritingWorld, setIsWritingWorld] = useState(false);
-  const [isApplying, setIsApplying] = useState(false);
+  const [isAddingSession, setIsAddingSession] = useState(false);
   const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
-  // What the server last confirmed for the two text areas, so a blur with no change saves nothing.
-  const savedRef = useRef({ draft: snapshot.campaign.draft, world: snapshot.campaign.world });
+  // What the server last confirmed for the world notes, so a blur with no change saves nothing.
+  const savedRef = useRef(snapshot.campaign.world);
 
   useEntityTitle(campaign.name);
 
-  // The text areas save when focus leaves them: there is nothing to review, and a Save button
-  // would be one more thing to forget before building.
-  async function saveText(field: "draft" | "world", value: string): Promise<boolean> {
+  // The world notes save when focus leaves the box: there is nothing to review, and a Save
+  // button would be one more thing to forget.
+  async function saveWorld(value: string): Promise<boolean> {
     const trimmed = value.trim();
-    if (trimmed === savedRef.current[field]) return true;
+    if (trimmed === savedRef.current) return true;
     try {
-      const saved = await api<OracleCampaign>(base, "PUT", { [field]: trimmed });
-      savedRef.current = { ...savedRef.current, [field]: saved[field] };
+      const saved = await api<OracleCampaign>(base, "PUT", { world: trimmed });
+      savedRef.current = saved.world;
       setCampaign(saved);
       return true;
     } catch (error) {
-      toast.error(errorMessage(error, field === "draft" ? "Couldn't save the notes" : "Couldn't save the world notes"));
+      toast.error(errorMessage(error, "Couldn't save the world notes"));
       return false;
     }
   }
 
-  async function build() {
-    if (isBuilding) return;
-    setIsBuilding(true);
-    try {
-      // Build reads the saved notes, so make sure what is on screen is what is saved.
-      if (!(await saveText("draft", draft)) || !(await saveText("world", world))) return;
-      setProposal(await api<BuiltSession>(`${base}/build`, "POST"));
-    } catch (error) {
-      toast.error(errorMessage(error, "Couldn't build the session"));
-    } finally {
-      setIsBuilding(false);
-    }
-  }
-
-  // Generate world notes from the name, whatever is in the box (a few words or a draft to
-  // improve) and the session notes. The result lands in the box and saves like typed text.
+  // Generate world notes from the name and whatever is in the box (a few words, or a draft to
+  // improve). The result lands in the box and saves like typed text.
   async function writeWorld() {
     if (isWritingWorld) return;
     setIsWritingWorld(true);
     try {
-      if (!(await saveText("draft", draft))) return;
       const result = await api<{ world: string }>(`${base}/world/generate`, "POST", { seed: world });
       setWorld(result.world);
-      await saveText("world", result.world);
+      await saveWorld(result.world);
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't write the world notes"));
     } finally {
@@ -102,18 +83,31 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
     }
   }
 
-  async function applyProposal() {
-    if (!proposal || isApplying) return;
-    setIsApplying(true);
+  async function addSession() {
+    const title = sessionTitle.trim();
+    if (!title || isAddingSession) return;
+    setIsAddingSession(true);
     try {
-      const fresh = await api<TableSnapshot>(`${base}/build/apply`, "POST", proposal);
-      setScenes(fresh.scenes);
-      setEntities(fresh.entities);
-      setProposal(null);
+      const created = await api<OracleSession>(`${base}/sessions`, "POST", { title });
+      setSessions((list) => [...list, created]);
+      setSessionTitle("");
     } catch (error) {
-      toast.error(errorMessage(error, "Couldn't add those to the campaign"));
+      toast.error(errorMessage(error, "Couldn't add the session"));
     } finally {
-      setIsApplying(false);
+      setIsAddingSession(false);
+    }
+  }
+
+  async function deleteSession(session: OracleSession) {
+    if (!(await confirm({ title: `Delete "${session.title}"?`, message: "Its notes and recap are removed. Log entries keep its name.", confirmLabel: "Delete", danger: true }))) return;
+    const previous = sessions;
+    setSessions((list) => list.filter((entry) => entry.id !== session.id));
+    try {
+      await api(`${base}/sessions/${session.id}`, "DELETE");
+      if (campaign.current_session_id === session.id) setCampaign({ ...campaign, current_session_id: null });
+    } catch (error) {
+      setSessions(previous);
+      toast.error(errorMessage(error, "Couldn't delete the session"));
     }
   }
 
@@ -184,39 +178,8 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
         <div className="page-container">
           <div className="orc-columns" data-columns="3">
 
-            {/* NOTES COLUMN */}
+            {/* WORLD COLUMN */}
             <div className="orc-stack">
-
-              {/* ROUGH DRAFT CARD */}
-              <div className="card">
-                <div className="card-header">
-                  <h2 className="text-card-title"><FileText className="w-5 h-5" /> Rough notes</h2>
-                </div>
-                <div className="card-content orc-form">
-
-                  {/* DRAFT FIELD — not autofocused: the page has several starting points (notes,
-                      world, maps, pictures) and this one is long text the DM pastes, not types. */}
-                  <textarea
-                    id="orc-draft"
-                    className="input-field orc-textarea"
-                    rows={12}
-                    value={draft}
-                    maxLength={DRAFT_MAX}
-                    placeholder="Paste your session notes in any shape."
-                    aria-label="Rough session notes"
-                    onChange={(event) => setDraft(event.target.value)}
-                    onBlur={(event) => saveText("draft", event.target.value)}
-                  />
-
-                  {/* BUILD ROW */}
-                  <div className="orc-card-actions">
-                    <span className="orc-small text-secondary">Saved when you leave the box.</span>
-                    <Button className="btn-blue" disabled={isBuilding || draft.trim().length < 20} onClick={build}>
-                      <Sparkles className="w-4 h-4" /> {isBuilding ? "Building…" : "Build session"}
-                    </Button>
-                  </div>
-                </div>
-              </div>
 
               {/* WORLD CARD */}
               <div className="card">
@@ -225,23 +188,23 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                 </div>
                 <div className="card-content orc-form">
 
-                  {/* WORLD FIELD */}
+                  {/* WORLD FIELD — not autofocused: the page has several starting points. */}
                   <textarea
                     id="orc-world"
                     className="input-field orc-textarea"
-                    rows={5}
+                    rows={12}
                     value={world}
                     maxLength={WORLD_MAX}
                     placeholder="Tone and setting in a few sentences: grim frontier, low magic, a failing crown…"
                     aria-label="World notes"
                     onChange={(event) => setWorld(event.target.value)}
-                    onBlur={(event) => saveText("world", event.target.value)}
+                    onBlur={(event) => saveWorld(event.target.value)}
                   />
 
                   {/* WORLD ROW */}
                   <div className="orc-card-actions">
-                    <span className="orc-small text-secondary">Every idea, fact and map is written to fit this.</span>
-                    <Button className="btn-blue" disabled={isWritingWorld} onClick={writeWorld} title="Write world notes from the name, what is in the box and the session notes">
+                    <span className="orc-small text-secondary">Every idea, fact and map is written to fit this. Saved when you leave the box.</span>
+                    <Button className="btn-blue" disabled={isWritingWorld} onClick={writeWorld} title="Write world notes from the name and what is in the box">
                       <Sparkles className="w-4 h-4" /> {isWritingWorld ? "Writing…" : world.trim() ? "Rewrite" : "Generate"}
                     </Button>
                   </div>
@@ -249,96 +212,70 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
               </div>
             </div>
 
-            {/* SESSION COLUMN */}
+            {/* SESSIONS COLUMN */}
             <div className="orc-stack">
 
-              {/* PROPOSAL CARD — shown after Build session, until it is added or discarded */}
-              {proposal && (
-                <div className="card">
-                  <div className="card-header">
-                    <h2 className="text-card-title"><Sparkles className="w-5 h-5" /> Proposed session</h2>
-                  </div>
-                  <div className="card-content orc-stack">
-
-                    {/* PROPOSED SCENES */}
-                    <span className="orc-label">Scenes</span>
-                    {proposal.scenes.length === 0 && <p className="orc-section-text orc-muted">No scenes proposed.</p>}
-                    {proposal.scenes.map((scene, index) => (
-                      <div key={`${scene.title}-${index}`} className="orc-proposal">
-                        <span className="orc-proposal-title">{index + 1}. {scene.title}</span>
-                        <span className="orc-section-text">{scene.summary}</span>
-                      </div>
-                    ))}
-
-                    {/* PROPOSED CAST */}
-                    <span className="orc-label">Cast</span>
-                    {proposal.entities.length === 0 && <p className="orc-section-text orc-muted">No cast proposed.</p>}
-                    {proposal.entities.map((entity, index) => (
-                      <div key={`${entity.name}-${index}`} className="orc-proposal">
-                        <span className="orc-proposal-title">{entity.name} <span className="orc-muted">· {KIND_LABELS[entity.kind]}{entity.cr ? ` · CR ${entity.cr}` : ""}</span></span>
-                        <span className="orc-section-text">{entity.details}</span>
-                        {entity.dm_notes && <span className="orc-section-text orc-muted">DM only: {entity.dm_notes}</span>}
-                      </div>
-                    ))}
-
-                    {/* PROPOSAL ACTIONS */}
-                    <div className="orc-card-actions">
-                      <Button className="btn-off" disabled={isApplying} onClick={() => setProposal(null)}>Discard</Button>
-                      <Button className="btn-green" disabled={isApplying} onClick={applyProposal}>
-                        <Plus className="w-4 h-4" /> {isApplying ? "Adding…" : "Add to campaign"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SCENES CARD */}
+              {/* SESSIONS CARD */}
               <div className="card">
                 <div className="card-header">
-                  <h2 className="text-card-title"><ScrollText className="w-5 h-5" /> Scenes</h2>
+                  <h2 className="text-card-title"><CalendarDays className="w-5 h-5" /> Sessions</h2>
                 </div>
                 <div className="card-content orc-stack">
 
                   {/* EMPTY PLACEHOLDER */}
-                  {scenes.length === 0 && (
+                  {sessions.length === 0 && (
                     <div className="empty-state">
-                      <p className="empty-state-title">No scenes yet</p>
-                      <p className="empty-state-body">Build them from your notes, or add them from the Table tab.</p>
+                      <p className="empty-state-title">No sessions yet</p>
+                      <p className="empty-state-body">Name the first one below.</p>
                     </div>
                   )}
 
-                  {/* SCENE ROWS */}
-                  {scenes.map((scene, index) => (
-                    <div key={scene.id} className="orc-proposal">
-                      <span className="orc-proposal-title">{index + 1}. {scene.title}</span>
-                      {scene.summary && <span className="orc-section-text">{scene.summary}</span>}
+                  {/* SESSION ROWS — each opens the session's page */}
+                  {sessions.map((session, index) => (
+                    <div key={session.id} className="orc-gen-row" data-live={campaign.current_session_id === session.id ? "true" : undefined} data-done={session.is_done ? "true" : undefined}>
+                      <Link href={`/modules/oracle/ui/campaign/${campaignId}/session/${session.id}`} className="orc-gen-body orc-session-link">
+                        <span className="orc-gen-value">
+                          {index + 1}. {session.title}
+                          {campaign.current_session_id === session.id && <span className="badge badge-green">Live</span>}
+                          {session.is_done && <span className="badge">Done</span>}
+                        </span>
+                        <span className="orc-small text-secondary">
+                          {session.session_date ?? "No date"}{session.notes.trim() ? " · notes" : ""}{session.recap.trim() ? " · recap" : ""}
+                        </span>
+                      </Link>
+                      <div className="orc-campaign-actions">
+                        <Link href={`/modules/oracle/ui/campaign/${campaignId}/session/${session.id}`} className="btn btn-off" title="Open the session" aria-label={`Open session ${session.title}`}>
+                          <ChevronRight className="w-4 h-4" />
+                        </Link>
+                        <Button className="btn-link-red" onClick={() => deleteSession(session)} title="Delete session" aria-label={`Delete session ${session.title}`}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
-                </div>
-              </div>
 
-              {/* CAST CARD */}
-              <div className="card">
-                <div className="card-header">
-                  <h2 className="text-card-title"><Users className="w-5 h-5" /> Cast</h2>
-                </div>
-                <div className="card-content orc-stack">
-
-                  {/* EMPTY PLACEHOLDER */}
-                  {entities.length === 0 && (
-                    <div className="empty-state">
-                      <p className="empty-state-title">No cast yet</p>
-                      <p className="empty-state-body">Build it from your notes, or add entries from the Table tab.</p>
-                    </div>
-                  )}
-
-                  {/* CAST ROWS */}
-                  {entities.map((entity) => (
-                    <div key={entity.id} className="orc-proposal">
-                      <span className="orc-proposal-title">{entity.name} <span className="orc-muted">· {KIND_LABELS[entity.kind]}</span></span>
-                      {entity.details && <span className="orc-section-text">{entity.details}</span>}
-                    </div>
-                  ))}
+                  {/* ADD ROW */}
+                  <div className="orc-note-row">
+                    <input
+                      id="orc-session-title"
+                      className="input-field"
+                      value={sessionTitle}
+                      maxLength={SESSION_TITLE_MAX}
+                      disabled={isAddingSession}
+                      placeholder="New session, e.g. Session 3: the mill"
+                      aria-label="New session title"
+                      onChange={(event) => setSessionTitle(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addSession();
+                        }
+                      }}
+                    />
+                    <Button className="btn-off" disabled={isAddingSession || !sessionTitle.trim()} onClick={addSession} title="Add session" aria-label="Add session">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

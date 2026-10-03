@@ -87,7 +87,7 @@ export interface OracleEntity {
 export interface OracleEvent {
   id: string;
   entity_id: string | null;
-  scene_title: string | null;
+  session_title: string | null;
   body: string;
   ts_created: string;
 }
@@ -141,12 +141,16 @@ export interface OracleSettings {
   models: TaskModels; // which Claude model each kind of generation runs on
 }
 
-export interface OracleScene {
+// A night at the table: rough notes going in, a recap coming out. The campaign points at the
+// live one, and every generation at the table is written against it.
+export interface OracleSession {
   id: string;
-  sort_order: number;
   title: string;
-  summary: string;
+  session_date: string | null; // YYYY-MM-DD
+  notes: string;
+  recap: string;
   is_done: boolean;
+  ts_created: string;
 }
 
 export type PanelKind = "entity" | "image";
@@ -155,9 +159,8 @@ export interface OracleCampaign {
   id: string;
   name: string;
   world: string;
-  draft: string;
   display_code: string;
-  current_scene_id: string | null;
+  current_session_id: string | null;
   active_map_id: string | null;
   panel_kind: PanelKind | null;
   panel_entity_id: string | null;
@@ -171,14 +174,14 @@ export interface CampaignSummary {
   id: string;
   name: string;
   display_code: string;
-  scene_count: number;
+  session_count: number;
   ts_updated: string;
 }
 
 // Everything the DM's pages read, loaded in one go on the server.
 export interface TableSnapshot {
   campaign: OracleCampaign;
-  scenes: OracleScene[];
+  sessions: OracleSession[];
   maps: OracleMap[];
   entities: OracleEntity[];
   images: OracleImage[];
@@ -226,9 +229,8 @@ export interface DisplaySnapshot {
   panel: DisplayPanel | null;
 }
 
-// What a "build session" run proposes from the DM's rough draft.
-export interface BuiltSession {
-  scenes: { title: string; summary: string }[];
+// What a "build cast" run proposes from a session's rough notes.
+export interface BuiltCast {
   entities: {
     kind: EntityKind;
     name: string;

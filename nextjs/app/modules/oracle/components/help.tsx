@@ -5,7 +5,7 @@ import type { HelpSection } from "@/components/ui/HelpButton";
 export const HOME_HELP: HelpSection[] = [
   {
     heading: "Getting started",
-    body: "Tap New campaign, then open its Prep tab: paste your rough session notes and tap Build session to turn them into scenes and a cast. The Table tab is where you run the session.",
+    body: "Tap New campaign, then open its Prep tab: write or generate the world, then add a session and paste your rough notes into it. Build cast turns those notes into entries. The Table tab is where you run the night.",
   },
   {
     heading: "Player display",
@@ -53,8 +53,8 @@ export const TABLE_HELP: HelpSection[] = [
 
 export const PREP_HELP: HelpSection[] = [
   {
-    heading: "Notes to session",
-    body: "Paste notes in any shape and tap Build session. You get a proposed scene list and cast to review; nothing is saved until you tap Add to campaign. Entries whose name already exists are skipped.",
+    heading: "Sessions",
+    body: "One per night at the table. Open a session for its notes, the cast those notes need, and its recap. Go live on the one you are running: every idea at the Table is written against its notes and recap.",
   },
   {
     heading: "World",
@@ -67,5 +67,20 @@ export const PREP_HELP: HelpSection[] = [
   {
     heading: "Pictures",
     body: "Get a picture searches the web or, once an OpenRouter key is set up, generates one. Pictures can be shown on the player display or attached to an entry.",
+  },
+];
+
+export const SESSION_HELP: HelpSection[] = [
+  {
+    heading: "Rough notes",
+    body: "Paste your plan for the night in any shape. Build cast proposes the creatures, people and places it needs; nothing is saved until you tap Add to campaign. Entries whose name already exists are skipped.",
+  },
+  {
+    heading: "Go live",
+    body: "Makes this the session the Table is running. The ideas banner, the ask bar and knowledge checks are all written against the live session's notes and recap.",
+  },
+  {
+    heading: "Recap",
+    body: "What happened, in your words. Write it after the night or as you go. The next session's ideas draw on it.",
   },
 ];

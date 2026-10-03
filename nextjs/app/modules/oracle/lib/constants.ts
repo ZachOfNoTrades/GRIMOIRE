@@ -32,8 +32,8 @@ export const KNOWLEDGE_SKILLS: readonly string[] = ["History", "Arcana", "Nature
 
 // LIMITS — text lengths match the column sizes in the migration.
 export const NAME_MAX = 120;
-export const SCENE_TITLE_MAX = 160;
-export const SCENE_SUMMARY_MAX = 500;
+export const SESSION_TITLE_MAX = 160;
+export const RECAP_MAX = 4000;
 export const DETAILS_MAX = 1000;
 export const NOTES_MAX = 4000;
 export const FACT_MAX = 600;
@@ -44,7 +44,7 @@ export const PROMPT_MAX = 600;
 export const CAPTION_MAX = 120;
 
 export const MAX_CAMPAIGNS = 30;
-export const MAX_SCENES = 60;
+export const MAX_SESSIONS = 200;
 export const MAX_MAPS = 30;
 export const MAX_ENTITIES = 300;
 export const MAX_IMAGES = 200;
@@ -84,7 +84,7 @@ export const TEXT_MODEL_KEYS: readonly TextModel[] = ["haiku", "sonnet", "opus"]
 export type GenerationTask = "world" | "build" | "map" | "chips" | "ask" | "fact" | "outline";
 export const GENERATION_TASKS: { key: GenerationTask; label: string; hint: string }[] = [
   { key: "world", label: "World notes", hint: "Generate on the Prep tab" },
-  { key: "build", label: "Session build", hint: "Notes into scenes and a cast" },
+  { key: "build", label: "Session cast", hint: "Session notes into a cast" },
   { key: "map", label: "Maps", hint: "Drawing and editing in words" },
   { key: "chips", label: "Ideas banner", hint: "Batches for the banner" },
   { key: "ask", label: "Ask bar", hint: "Free-form questions at the table" },

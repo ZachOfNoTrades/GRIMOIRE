@@ -12,9 +12,9 @@ interface SessionBarProps {
   campaignName: string;
   active: CampaignTab;
   help: HelpSection[];
-  // Table tab only: the live scene button, what the players see, and the blank switch.
-  sceneLabel?: string | null;
-  onOpenScenes?: () => void;
+  // Table tab only: the live session button, what the players see, and the blank switch.
+  sessionLabel?: string | null;
+  onOpenSessions?: () => void;
   displayLabel?: string | null;
   isBlank?: boolean;
   onToggleBlank?: () => void;
@@ -28,8 +28,8 @@ const TABS: { key: CampaignTab; label: string; icon: typeof MapIcon }[] = [
 ];
 
 // The strip under the navbar on every campaign page: which campaign, the four tabs, and — on the
-// Table tab — the live scene and what the players are looking at.
-export default function SessionBar({ campaignId, campaignName, active, help, sceneLabel, onOpenScenes, displayLabel, isBlank, onToggleBlank }: SessionBarProps) {
+// Table tab — the live session and what the players are looking at.
+export default function SessionBar({ campaignId, campaignName, active, help, sessionLabel, onOpenSessions, displayLabel, isBlank, onToggleBlank }: SessionBarProps) {
   return (
     // SESSION BAR
     <div className="orc-bar">
@@ -43,11 +43,11 @@ export default function SessionBar({ campaignId, campaignName, active, help, sce
           <span className="orc-bar-name">{campaignName}</span>
         </Link>
 
-        {/* SCENES BUTTON */}
-        {onOpenScenes && (
-          <button type="button" className="orc-bar-scene" onClick={onOpenScenes} title="Scenes" aria-label="Open the scene list">
+        {/* SESSIONS BUTTON */}
+        {onOpenSessions && (
+          <button type="button" className="orc-bar-scene" onClick={onOpenSessions} title="Sessions" aria-label="Open the session list">
             <PanelLeft className="w-4 h-4 shrink-0" aria-hidden />
-            <span className="orc-bar-scene-label">{sceneLabel ?? "Scenes"}</span>
+            <span className="orc-bar-scene-label">{sessionLabel ?? "Sessions"}</span>
           </button>
         )}
       </div>

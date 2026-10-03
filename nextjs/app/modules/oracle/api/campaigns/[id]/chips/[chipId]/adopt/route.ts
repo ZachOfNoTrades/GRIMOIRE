@@ -4,7 +4,7 @@ import type { EntityKind } from "@/app/modules/oracle/types/oracle";
 import { adoptChipSchema, parseBody, requireUuid } from "@/app/modules/oracle/lib/validation";
 
 // POST /modules/oracle/api/campaigns/[id]/chips/[chipId]/adopt — turn a banner picture into a
-// creature, person or place: saves the picture, writes it up to fit the scene, and puts it on the
+// creature, person or place: saves the picture, writes it up to fit the session, and puts it on the
 // map beside the party. Body: { kind, name, show? }.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string; chipId: string }> }) {
   const { id, chipId } = await params;

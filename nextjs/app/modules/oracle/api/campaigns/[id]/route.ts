@@ -11,13 +11,13 @@ export async function GET(request: Request, { params }: Params) {
   return withOwner(request, id, "GET /oracle/api/campaigns/[id]", async (owner) => ok(await getTableSnapshot(owner.campaignId, owner.userId)));
 }
 
-// PUT /modules/oracle/api/campaigns/[id] — name, world notes, draft, live scene, active map.
+// PUT /modules/oracle/api/campaigns/[id] — name, world notes, live session, active map.
 export async function PUT(request: Request, { params }: Params) {
   const { id } = await params;
   return withOwner(request, id, "PUT /oracle/api/campaigns/[id]", async (owner) => {
     const body = await parseBody(request, updateCampaignSchema);
-    // A scene change keeps the ideas pool: later batches are written for the new scene, and
-    // refilling a whole pool per scene would spend far more of the Claude allowance.
+    // A session change keeps the ideas pool: later batches are written for the new session, and
+    // refilling a whole pool per session would spend far more of the Claude allowance.
     return ok(await updateCampaign(owner.userId, owner.campaignId, body));
   });
 }

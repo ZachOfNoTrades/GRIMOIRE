@@ -398,7 +398,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               {history.length === 0 && <p className="orc-section-text orc-muted">Nothing logged yet.</p>}
               {history.map((event) => (
                 <div key={event.id} className="orc-event">
-                  <span className="orc-event-scene">{event.scene_title ?? "—"}</span>
+                  <span className="orc-event-scene">{event.session_title ?? "—"}</span>
                   <span className="orc-section-text">{event.body}</span>
                 </div>
               ))}
