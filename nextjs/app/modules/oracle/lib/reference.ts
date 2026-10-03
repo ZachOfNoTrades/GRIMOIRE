@@ -4,22 +4,6 @@ import type { StatBlock } from "../types/oracle";
 // QUICK REFERENCE — fifth-edition (2014) table values the DM reaches for mid-session. Static on
 // purpose: these answer instantly and never cost a generation.
 
-export const DIFFICULTY_CLASSES: { task: string; dc: number }[] = [
-  { task: "Very easy", dc: 5 },
-  { task: "Easy", dc: 10 },
-  { task: "Medium", dc: 15 },
-  { task: "Hard", dc: 20 },
-  { task: "Very hard", dc: 25 },
-  { task: "Nearly impossible", dc: 30 },
-];
-
-export const IMPROVISED_DAMAGE: { levels: string; setback: string; dangerous: string; deadly: string }[] = [
-  { levels: "1-4", setback: "1d10", dangerous: "2d10", deadly: "4d10" },
-  { levels: "5-10", setback: "2d10", dangerous: "4d10", deadly: "10d10" },
-  { levels: "11-16", setback: "4d10", dangerous: "10d10", deadly: "18d10" },
-  { levels: "17-20", setback: "10d10", dangerous: "18d10", deadly: "24d10" },
-];
-
 export interface ChallengeRow {
   cr: string;
   ac: number;
@@ -66,24 +50,6 @@ export function statBlockFromChallenge(row: ChallengeRow): StatBlock {
     attacks: [{ name: "Attack", bonus: row.attack, damage: `${damage} per round` }],
   };
 }
-
-export const CONDITIONS: { name: string; effect: string }[] = [
-  { name: "Blinded", effect: "Cannot see and fails any check that needs sight. Attacks against it have advantage; its own attacks have disadvantage." },
-  { name: "Charmed", effect: "Cannot attack the charmer or target them with harmful effects. The charmer has advantage on social checks with it." },
-  { name: "Deafened", effect: "Cannot hear and fails any check that needs hearing." },
-  { name: "Frightened", effect: "Disadvantage on checks and attacks while the source of fear is in sight. Cannot willingly move closer to it." },
-  { name: "Grappled", effect: "Speed becomes 0. Ends if the grappler is incapacitated or the target is moved out of reach." },
-  { name: "Incapacitated", effect: "Cannot take actions or reactions." },
-  { name: "Invisible", effect: "Cannot be seen without magic or a special sense. Attacks against it have disadvantage; its own attacks have advantage." },
-  { name: "Paralyzed", effect: "Incapacitated, cannot move or speak. Fails Strength and Dexterity saves. Attacks have advantage, and a hit from within 5 feet is a critical." },
-  { name: "Petrified", effect: "Turned to stone: incapacitated, unaware, resistant to all damage, immune to poison and disease." },
-  { name: "Poisoned", effect: "Disadvantage on attack rolls and ability checks." },
-  { name: "Prone", effect: "Can only crawl. Disadvantage on attacks. Attacks from within 5 feet have advantage against it; from farther away, disadvantage." },
-  { name: "Restrained", effect: "Speed becomes 0. Attacks against it have advantage; its own attacks and Dexterity saves have disadvantage." },
-  { name: "Stunned", effect: "Incapacitated, cannot move, can speak only falteringly. Fails Strength and Dexterity saves. Attacks against it have advantage." },
-  { name: "Unconscious", effect: "Incapacitated, drops what it holds, falls prone. Fails Strength and Dexterity saves. A hit from within 5 feet is a critical." },
-  { name: "Exhaustion", effect: "Six levels: 1 disadvantage on checks, 2 speed halved, 3 disadvantage on attacks and saves, 4 hit point maximum halved, 5 speed 0, 6 death." },
-];
 
 // GENERATORS — plain random tables, no generation call. Each returns a fresh result per roll.
 const FIRST_NAMES = ["Tobren", "Maera", "Aldric", "Sunniva", "Corwin", "Ysolde", "Harl", "Brenna", "Dunstan", "Elowen", "Garrick", "Thessaly", "Osric", "Wynne", "Jorund", "Petra", "Lucan", "Isaura", "Bram", "Odalys"];

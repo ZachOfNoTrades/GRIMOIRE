@@ -120,3 +120,17 @@ export function summarizeEncounter(lines: EncounterLine[], levels: number[]): En
   }
   return { creatureCount, rawXp, multiplier, adjustedXp, difficulty, thresholds, xpEach: levels.length ? Math.floor(rawXp / levels.length) : 0, gauge };
 }
+
+// The banner's four-step reading of how hard an encounter is for this party. Nothing is rated
+// until a party is set.
+export type ChipDifficulty = "easy" | "medium" | "hard" | "impossible";
+
+export function chipDifficulty(lines: EncounterLine[], levels: number[]): ChipDifficulty | null {
+  if (levels.length === 0 || lines.length === 0) return null;
+  const summary = summarizeEncounter(lines, levels);
+  if (summary.adjustedXp <= 0) return null;
+  if (summary.adjustedXp >= summary.thresholds.deadly) return "impossible";
+  if (summary.adjustedXp >= summary.thresholds.hard) return "hard";
+  if (summary.adjustedXp >= summary.thresholds.medium) return "medium";
+  return "easy";
+}

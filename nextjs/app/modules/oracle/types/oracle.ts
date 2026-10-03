@@ -1,4 +1,4 @@
-import type { TaskModels } from "../lib/constants";
+import type { ScaleUnit, TaskModels } from "../lib/constants";
 // Shared by server and client code — keep this file free of Node-only imports.
 
 export type EntityKind = "creature" | "person" | "place";
@@ -20,16 +20,25 @@ export interface MapFeature {
   state: FeatureState;
 }
 
-// What one grid square stands for. "region": hours of travel a square, the whole adventure area;
-// "local": five feet a square, one place where a scene plays out. `label` is the human reading,
-// e.g. "1 square = 6 hours' walk (about 15 miles)".
-export type MapScale = "region" | "local";
+// What one tile stands for is `scale_value` of `scale_unit` (default 5 feet). `scale_label` is the
+// reading derived from them, e.g. "1 tile = 5 feet".
+// Where the background picture sits on the map: its rectangle in map units. Absent means the
+// picture is stretched over the whole map.
+export interface PictureRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 export interface MapData {
   width: number;
   height: number;
-  scale: MapScale;
+  scale_value: number;
+  scale_unit: ScaleUnit;
   scale_label: string;
+  description: string; // what the map shows, in the DM's words; also what a generated map was drawn from
+  background: PictureRect | null;
   features: MapFeature[];
 }
 
@@ -89,6 +98,7 @@ export interface OracleEntity {
   map_x: number | null;
   map_y: number | null;
   image_id: string | null;
+  is_revealed: boolean; // shown on the player map by hand, even outside the party's sight
   knowledge: Knowledge[];
 }
 
@@ -112,6 +122,7 @@ export interface ChipOption {
   tone: string; // short label for the option ("Guarded", "Loot", …); may be empty
   text: string;
   note: string | null; // DM-only aside, e.g. "Insight DC 12: she is lying"
+  encounter?: { name: string; cr: string; count: number }[]; // creatures this option puts in front of the party
 }
 
 // A text item: a question the DM is likely to have, with up to three ready answers.
@@ -146,6 +157,7 @@ export interface OracleChip {
 export interface OracleSettings {
   chip_seconds: number;
   banner_images: boolean;
+  ai_creatures: boolean; // false: every creature must come from the campaign's own material
   models: TaskModels; // which Claude model each kind of generation runs on
 }
 

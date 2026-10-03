@@ -12,12 +12,14 @@ import {
   FACT_MAX,
   KNOWLEDGE_SKILLS,
   KNOWLEDGE_TIER_KEYS,
-  MAP_SCALES,
+  MAP_DESCRIPTION_MAX,
   MEMBER_NAME_MAX,
   NAME_MAX,
   NOTES_MAX,
   PROMPT_MAX,
   RECAP_MAX,
+  SCALE_UNITS,
+  SCALE_VALUE_MAX,
   SESSION_TITLE_MAX,
   VISION_MAX,
   VISION_MIN,
@@ -104,11 +106,15 @@ export const displaySchema = z
 
 
 // A new map is either blank (name only) or generated from a description.
+const pictureRect = z.object({ x: z.number().finite(), y: z.number().finite(), w: z.number().finite().min(20), h: z.number().finite().min(20) });
+const scaleValue = z.number().finite().positive("The scale must be more than zero").max(SCALE_VALUE_MAX);
+
 export const createMapSchema = z.object({
   name: line(NAME_MAX, "a name"),
   prompt: block(PROMPT_MAX, "The description").optional(),
-  // What a square stands for. Omitted: a generated map decides from the description; a blank map is local.
-  scale: z.enum(MAP_SCALES).optional(),
+  // What a tile stands for. Omitted: a generated map reads it from the description, else 5 feet.
+  scale_value: scaleValue.optional(),
+  scale_unit: z.enum(SCALE_UNITS).optional(),
 });
 
 const exploredCircle = z.object({ x: coordinate, y: coordinate, r: z.number().finite().min(1).max(2000) });
@@ -121,6 +127,10 @@ export const updateMapSchema = z
     vision_radius: z.number().finite().min(VISION_MIN).max(VISION_MAX).optional(),
     explored: z.array(exploredCircle).max(600).optional(),
     background_image_id: nullableUuid.optional(),
+    description: z.string().max(MAP_DESCRIPTION_MAX).optional(),
+    scale_value: scaleValue.optional(),
+    scale_unit: z.enum(SCALE_UNITS).optional(),
+    background: pictureRect.nullable().optional(), // where the picture sits; null puts it back over the whole map
     // Whole-map replacement (MCP and the in-app feature editor). Coerced server-side.
     data: z.unknown().optional(),
   })
@@ -153,6 +163,7 @@ export const updateEntitySchema = z
     map_x: coordinate.nullable().optional(),
     map_y: coordinate.nullable().optional(),
     image_id: nullableUuid.optional(),
+    is_revealed: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "Nothing to change");
 
@@ -194,6 +205,7 @@ export const settingsSchema = z
   .object({
     chip_seconds: z.number().int().min(CHIP_SECONDS_MIN, `At least ${CHIP_SECONDS_MIN} seconds`).max(CHIP_SECONDS_MAX, `At most ${CHIP_SECONDS_MAX} seconds`).optional(),
     banner_images: z.boolean().optional(),
+    ai_creatures: z.boolean().optional(),
     // Any subset of tasks; each must name a known model.
     models: z.object(Object.fromEntries(TASK_KEYS.map((task) => [task, z.enum(TEXT_MODEL_KEYS as [string, ...string[]]).optional()]))).strict().optional(),
   })
@@ -234,7 +246,8 @@ export async function parseBody<Schema extends z.ZodType>(request: Request, sche
   return result.data;
 }
 
-export const imageSearchSchema = z.object({ query: line(120, "something to search for") });
+// `detail` is what the page knows about the subject (an entry's description), used to steer the search words and the drawing.
+export const imageSearchSchema = z.object({ query: line(120, "something to search for"), detail: z.string().max(DETAILS_MAX).optional() });
 
 export const imageImportSchema = z.object({
   source_id: z.string().regex(UUID_PATTERN, "Unknown search result"),
@@ -243,6 +256,7 @@ export const imageImportSchema = z.object({
 
 export const imageGenerateSchema = z.object({
   prompt: line(PROMPT_MAX, "a description"),
+  detail: z.string().max(DETAILS_MAX).optional(),
   caption: line(CAPTION_MAX, "a caption"),
 });
 

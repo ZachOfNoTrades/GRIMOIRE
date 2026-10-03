@@ -5,7 +5,8 @@ export const MODULE_SLUG = "oracle";
 
 // DISPLAY CODE — 6 letters, no digits, easy to read off the DM's screen and type on the display
 // PC. I, L and O are left out because they are easily misread. The display is read-only and only
-// ever shows what the DM has revealed, so the code is a convenience, not a secret.
+// ever shows what the DM has revealed, so the code is a convenience, not a secret. Reading it
+// takes a signed-in account.
 export const DISPLAY_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
 export const DISPLAY_CODE_LENGTH = 6;
 export const DISPLAY_CODE_PATTERN = /^[ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/;
@@ -60,12 +61,17 @@ export const MAP_DEFAULT_HEIGHT = 620;
 export const VISION_DEFAULT = 150;
 // The map grid (drawn every MAP_GRID units); placed entries snap to cell centers.
 export const MAP_GRID = 50;
-export const MAP_SCALES: readonly ["region", "local"] = ["region", "local"];
-export const SCALE_LABEL_MAX = 80;
-export const DEFAULT_SCALE_LABELS = { region: "1 square = half a day's travel", local: "1 square = 5 feet" } as const;
-export const VISION_MIN = 40;
-export const VISION_MAX = 600;
-export const VISION_STEP = 5;
+// What one tile stands for: a number the DM types and a unit chosen from a short list.
+export const SCALE_UNITS = ["feet", "yards", "meters", "miles", "kilometers", "hours", "days"] as const;
+export type ScaleUnit = (typeof SCALE_UNITS)[number];
+export const SCALE_DEFAULT_VALUE = 5;
+export const SCALE_DEFAULT_UNIT: ScaleUnit = "feet";
+export const SCALE_VALUE_MAX = 100000;
+export const MAP_DESCRIPTION_MAX = 600;
+export const VISION_MIN = 10;
+export const VISION_MAX = 1500;
+export const VISION_SLIDER_MAX = 600; // the slider stops here; a typed number may go on to VISION_MAX
+export const VISION_STEP = 1;
 // Fog brush (reveal/hide) radius in map units; independent of how far the party sees.
 export const BRUSH_MIN = 8;
 export const BRUSH_MAX = 300;

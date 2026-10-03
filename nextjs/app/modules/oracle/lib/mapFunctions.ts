@@ -1,6 +1,6 @@
 import { getMainConnection } from "@/lib/db";
-import type { ExploredCircle, MapData, OracleMap } from "../types/oracle";
-import { MAX_MAPS, MAX_UNDO, VISION_DEFAULT } from "./constants";
+import type { ExploredCircle, MapData, OracleMap, PictureRect } from "../types/oracle";
+import { MAX_MAPS, MAX_UNDO, VISION_DEFAULT, type ScaleUnit } from "./constants";
 import { bumpVersion } from "./campaignFunctions";
 import { OracleError } from "./errors";
 import { blankMapData, coerceExplored, coerceMapData, parseJson } from "./mapData";
@@ -94,6 +94,11 @@ export interface MapPatch {
   vision_radius?: number;
   explored?: ExploredCircle[];
   background_image_id?: string | null;
+  // Held inside the map's data; changing them does not touch the features or the undo stack.
+  description?: string;
+  scale_value?: number;
+  scale_unit?: ScaleUnit;
+  background?: PictureRect | null;
 }
 
 // Party position, vision and the explored area. All of it is visible to the players, so the
@@ -132,6 +137,22 @@ export async function updateMap(campaignId: string, mapId: string, patch: MapPat
     }
     updateFields.push("background_image_id = @backgroundImageId");
     request.input("backgroundImageId", patch.background_image_id);
+  }
+  if (patch.description !== undefined || patch.scale_value !== undefined || patch.scale_unit !== undefined || patch.background !== undefined) {
+    const row = await pool.request().input("mapId", mapId).input("campaignId", campaignId).query(`
+      SELECT data FROM oracle_maps WHERE id = @mapId AND campaign_id = @campaignId
+    `);
+    if (row.recordset.length === 0) throw new OracleError(404, "Map not found");
+    const current = coerceMapData(parseJson<unknown>(row.recordset[0].data, null));
+    const next = coerceMapData({
+      ...current,
+      description: patch.description ?? current.description,
+      scale_value: patch.scale_value ?? current.scale_value,
+      scale_unit: patch.scale_unit ?? current.scale_unit,
+      background: patch.background === undefined ? current.background : patch.background,
+    });
+    updateFields.push("data = @data");
+    request.input("data", JSON.stringify(next));
   }
   updateFields.push("ts_updated = GETDATE()");
 

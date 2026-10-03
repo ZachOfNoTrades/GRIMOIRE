@@ -37,6 +37,18 @@ export async function withOwner(
   }
 }
 
+// The player display's routes: any signed-in account may read them. The display code picks the
+// campaign; it is not a credential, so the sign-in is what keeps the screen private.
+export async function withViewer(request: Request, context: string, handler: () => Promise<Response>): Promise<Response> {
+  const session = await getAuthorizedUser(request);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    return await handler();
+  } catch (error) {
+    return oracleErrorResponse(error, context);
+  }
+}
+
 // Generation endpoints share the app-wide per-user generation limit (0 = unlimited).
 export async function spendGeneration(user: AuthUser, endpoint: string): Promise<void> {
   const limit = await checkGenerationLimit(user.id, user.generationLimit);

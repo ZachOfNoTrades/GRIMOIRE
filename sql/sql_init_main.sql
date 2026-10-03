@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610031700 (Oracle map background picture)
+-- Version: 202610031810 (Oracle AI creatures setting, revealed entries)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -412,6 +412,7 @@ BEGIN TRY
             map_x FLOAT NULL,
             map_y FLOAT NULL,
             image_id UNIQUEIDENTIFIER NULL, -- oracle_images.id, no FK
+            is_revealed BIT NOT NULL DEFAULT 0, -- 1 = shown on the player map by hand, even outside the party sight
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 
@@ -511,6 +512,7 @@ BEGIN TRY
             user_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
             chip_seconds INT NOT NULL DEFAULT 15, -- the banner brings on one new suggestion every this many seconds
             banner_images BIT NOT NULL DEFAULT 1, -- 1 = the banner mixes in reference pictures
+            ai_creatures BIT NOT NULL DEFAULT 0, -- 1 = generations may invent creatures; 0 = every creature must come from the campaign material
             models NVARCHAR(400) NOT NULL DEFAULT '{}', -- JSON: generation task -> Claude model (haiku/sonnet/opus); missing entries mean haiku
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),

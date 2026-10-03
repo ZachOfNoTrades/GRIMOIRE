@@ -28,13 +28,14 @@ interface ImagePickerProps {
   campaignId: string;
   sources: ImageSource[];
   subject: string; // what the picture is for; pre-fills the description
+  detail?: string; // what is known about it (an entry's description), passed on to the search and the drawing
   onAdded: (image: OracleImage) => void;
   onClose: () => void;
 }
 
 // GET A PICTURE — one description, two ways to turn it into a picture, side by side:
 // search the web, or have an image model draw it. A file from this device can be uploaded too.
-export default function ImagePicker({ isOpen, campaignId, sources, subject, onAdded, onClose }: ImagePickerProps) {
+export default function ImagePicker({ isOpen, campaignId, sources, subject, detail = "", onAdded, onClose }: ImagePickerProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // DATA
@@ -66,7 +67,7 @@ export default function ImagePicker({ isOpen, campaignId, sources, subject, onAd
     if (!trimmed || busy) return;
     setBusy("search");
     try {
-      const result = await api<{ terms: string; candidates: Candidate[] }>(`${campaignApi(campaignId)}/images/search`, "POST", { query: trimmed });
+      const result = await api<{ terms: string; candidates: Candidate[] }>(`${campaignApi(campaignId)}/images/search`, "POST", { query: trimmed, detail: detail || undefined });
       setCandidates(result.candidates);
       setTerms(result.terms.toLowerCase() === trimmed.toLowerCase() ? null : result.terms);
     } catch (error) {
@@ -91,7 +92,7 @@ export default function ImagePicker({ isOpen, campaignId, sources, subject, onAd
     if (!trimmed || busy || !generate?.available) return;
     setBusy("generate");
     try {
-      finish(await api<OracleImage>(`${campaignApi(campaignId)}/images/generate`, "POST", { prompt: trimmed, caption: trimmed.slice(0, CAPTION_MAX) }));
+      finish(await api<OracleImage>(`${campaignApi(campaignId)}/images/generate`, "POST", { prompt: trimmed, caption: trimmed.slice(0, CAPTION_MAX), detail: detail || undefined }));
     } catch (error) {
       toast.error(errorMessage(error, "The generator failed"));
       setBusy(null);
@@ -116,7 +117,7 @@ export default function ImagePicker({ isOpen, campaignId, sources, subject, onAd
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Get a picture" wide disableClose={busy === "import" || busy === "generate" || busy === "upload"}>
+    <Modal isOpen={isOpen} onClose={onClose} title={generate?.available ? "Generate image" : "Get a picture"} wide disableClose={busy === "import" || busy === "generate" || busy === "upload"}>
       <div className="orc-picker">
 
         {/* DESCRIPTION FIELD — autofocused: the modal exists to take this one description, and
@@ -141,12 +142,12 @@ export default function ImagePicker({ isOpen, campaignId, sources, subject, onAd
         <div className="orc-picker-sources">
 
           {/* SEARCH */}
-          <Button className="btn-blue" disabled={!trimmed || busy !== null} onClick={search}>
+          <Button className={generate?.available ? "btn-off" : "btn-blue"} disabled={!trimmed || busy !== null} onClick={search}>
             <Search className="w-4 h-4" /> {busy === "search" ? "Searching…" : "Search the web"}
           </Button>
 
           {/* GENERATE */}
-          <Button className="btn-off" disabled={!trimmed || busy !== null || !generate?.available} onClick={generateImage} title={generate?.note ?? undefined}>
+          <Button className={generate?.available ? "btn-blue" : "btn-off"} disabled={!trimmed || busy !== null || !generate?.available} onClick={generateImage} title={generate?.note ?? undefined}>
             <Sparkles className="w-4 h-4" /> {busy === "generate" ? "Generating…" : "Generate"}
           </Button>
 

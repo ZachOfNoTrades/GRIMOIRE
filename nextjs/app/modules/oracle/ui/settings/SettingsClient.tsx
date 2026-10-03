@@ -113,6 +113,17 @@ export default function SettingsClient({ settings: initialSettings }: { settings
           it, and it stops while the tab is in the background. Saved as soon as you change it; the Table tab picks it up the next time it is opened.
         </p>
 
+        {/* CREATURES SECTION */}
+        <h2 className="settings-section-title">Creatures</h2>
+        <div className="settings-group">
+          <SettingsToggleRow
+            label="Allow AI-invented creatures"
+            hint="Off: every creature an idea or a cast offers comes from your world notes, session notes or cast"
+            checked={settings.ai_creatures}
+            onChange={(next) => save({ ai_creatures: next })}
+          />
+        </div>
+
         {/* MODELS SECTION — one model per kind of generation */}
         <h2 className="settings-section-title">Models</h2>
         <div className="settings-group">

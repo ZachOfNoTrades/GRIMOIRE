@@ -25,7 +25,8 @@ export const TABLE_HELP: HelpSection[] = [
         <li><strong>Move party</strong>: drag the party token. Players see everything inside the circle around it.</li>
         <li>Where the party has been stays on their map, dimmed, showing buildings but never creatures. Where they have not been is black.</li>
         <li><strong>Reveal</strong> and <strong>Hide</strong> paint the explored area by hand; the Brush slider (or <kbd>[</kbd> and <kbd>]</kbd>) sets how wide a stroke is. <strong>Pin</strong> adds a new entry where you tap.</li>
-        <li>Scroll or pinch to zoom the map; drag the ground to look around while zoomed. Shift+click the zoom buttons for small steps.</li>
+        <li>Scroll or pinch to zoom the map; drag the ground to look around. Shift+click the zoom buttons for small steps. Click the number beside Vision to type an exact value.</li>
+        <li>Right-click an entry on the map to reveal it to the players, show its details, zoom to it or delete it. Right-click while placing cancels.</li>
         <li><strong>Edit with AI</strong> changes the map in words; <strong>Undo</strong> puts back the version before the last change.</li>
       </ul>
     ),
@@ -36,7 +37,7 @@ export const TABLE_HELP: HelpSection[] = [
   },
   {
     heading: "Knowledge checks",
-    body: "Players roll and tell you the number. Pick the skill, then tap the result they reached: a higher result earns a more valuable fact. Reveal adds it to what the players know about that entry and shows it on the display.",
+    body: "Pick the skill, then tap the result the players reached: a higher result earns a more valuable fact. Reveal adds it to what the players know about that entry and shows it on the display.",
   },
   {
     heading: "Ideas banner",
@@ -63,11 +64,11 @@ export const PREP_HELP: HelpSection[] = [
   },
   {
     heading: "Maps",
-    body: "New map draws one from a description. On the Table tab, Edit with AI changes the active map in words, and Undo puts back the version before the last change.",
+    body: "Add map draws one from a description, or starts blank. Edit sets the name, description, scale and the picture under the map, which can be moved and resized to line up with the grid. On the Table tab, Edit with AI changes the active map in words.",
   },
   {
     heading: "Pictures",
-    body: "Get a picture searches the web or, once an OpenRouter key is set up, generates one. Pictures can be shown on the player display or attached to an entry.",
+    body: "Get a picture searches the web or, once an OpenRouter key is set up, generates one. Pictures can be shown on the player display, attached to an entry or put under a map.",
   },
 ];
 

@@ -14,8 +14,27 @@ export default function DisplayClient({ code }: { code: string }) {
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
 
   // STATE
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "offline">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "offline" | "signedout">("loading");
   const versionRef = useRef<number | null>(null);
+  const [pictureOpacity, setPictureOpacity] = useState(1); // how strongly the map's picture shows on this screen
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("orc-picture-opacity-display");
+      if (saved !== null && Number.isFinite(Number(saved))) setPictureOpacity(Math.min(1, Math.max(0, Number(saved))));
+    } catch {
+      /* storage can be blocked; the default stands */
+    }
+  }, []);
+
+  function changePictureOpacity(value: number) {
+    setPictureOpacity(value);
+    try {
+      localStorage.setItem("orc-picture-opacity-display", String(value));
+    } catch {
+      /* storage can be blocked; the change still applies */
+    }
+  }
 
   // The display is always dark, whatever theme this browser has saved: it is a shared screen
   // and the fog has to be black. The lock keeps the site's theme sync (which re-stamps the saved
@@ -41,6 +60,10 @@ export default function DisplayClient({ code }: { code: string }) {
         const query = versionRef.current === null ? "" : `?v=${versionRef.current}`;
         const response = await fetch(`/api/oracle/${code}/state${query}`, { cache: "no-store" });
         if (stopped) return;
+        if (response.status === 401 || response.redirected) {
+          setStatus("signedout");
+          return; // the sign-in ended; reloading the page asks for it again
+        }
         if (response.status === 404) {
           setStatus("missing");
           return; // a wrong code never becomes right; stop asking
@@ -75,6 +98,15 @@ export default function DisplayClient({ code }: { code: string }) {
     );
   }
 
+  // SIGN-IN ENDED
+  if (status === "signedout") {
+    return (
+      <div className="orc-display">
+        <p className="orc-display-message">Signed out. <a href={`/oracle/${code}`}>Sign in again</a></p>
+      </div>
+    );
+  }
+
   // UNKNOWN CODE
   if (status === "missing" || !snapshot) {
     return (
@@ -102,10 +134,10 @@ export default function DisplayClient({ code }: { code: string }) {
       <div className="orc-display-map">
         {map ? (
           <>
-            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.members ?? []} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id) : null} mode="player" />
+            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.members ?? []} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id) : null} pictureOpacity={pictureOpacity} onPictureOpacity={changePictureOpacity} mode="player" />
 
             {/* MAP NAME */}
-            <div className="orc-display-caption">{map.name}<span className="orc-display-scale"> · {map.data.scale_label}</span></div>
+            <div className="orc-display-caption">{map.name}</div>
           </>
         ) : (
 

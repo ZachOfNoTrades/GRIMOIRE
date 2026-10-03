@@ -3,7 +3,7 @@ import { OracleError } from "@/app/modules/oracle/lib/errors";
 import { buildCast } from "@/app/modules/oracle/lib/generationFunctions";
 import { ok, spendGeneration, withOwner } from "@/app/modules/oracle/lib/routeHandlers";
 import { getSession } from "@/app/modules/oracle/lib/sessionFunctions";
-import { modelFor } from "@/app/modules/oracle/lib/settingsFunctions";
+import { getSettings, modelFor } from "@/app/modules/oracle/lib/settingsFunctions";
 import { requireUuid } from "@/app/modules/oracle/lib/validation";
 
 // POST /modules/oracle/api/campaigns/[id]/sessions/[sessionId]/build — read the session's saved
@@ -15,6 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (session.notes.trim().length < 20) throw new OracleError(400, "Write or paste some session notes first");
     const campaign = await getCampaign(owner.campaignId);
     await spendGeneration(owner.user, "oracle/build");
-    return ok(await buildCast(campaign.world, session.notes, await modelFor(owner.user.id, "build")));
+    return ok(await buildCast(campaign.world, session.notes, await modelFor(owner.user.id, "build"), (await getSettings(owner.user.id)).ai_creatures));
   });
 }

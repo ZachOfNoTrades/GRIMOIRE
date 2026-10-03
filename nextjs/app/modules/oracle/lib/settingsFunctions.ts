@@ -18,17 +18,17 @@ function coerceModels(raw: unknown): TaskModels {
   return models;
 }
 
-const DEFAULT_SETTINGS: OracleSettings = { chip_seconds: CHIP_SECONDS_DEFAULT, banner_images: true, models: defaultModels() };
+const DEFAULT_SETTINGS: OracleSettings = { chip_seconds: CHIP_SECONDS_DEFAULT, banner_images: true, ai_creatures: false, models: defaultModels() };
 
 // A DM with no row yet gets the defaults; the row is only written on the first save.
 export async function getSettings(userId: string): Promise<OracleSettings> {
   const pool = await getMainConnection();
   const result = await pool.request().input("userId", userId).query(`
-    SELECT chip_seconds, banner_images, models FROM oracle_settings WHERE user_id = @userId
+    SELECT chip_seconds, banner_images, ai_creatures, models FROM oracle_settings WHERE user_id = @userId
   `);
   if (result.recordset.length === 0) return { ...DEFAULT_SETTINGS, models: defaultModels() };
   const row = result.recordset[0];
-  return { chip_seconds: row.chip_seconds, banner_images: !!row.banner_images, models: coerceModels(parseJson<unknown>(row.models, null)) };
+  return { chip_seconds: row.chip_seconds, banner_images: !!row.banner_images, ai_creatures: !!row.ai_creatures, models: coerceModels(parseJson<unknown>(row.models, null)) };
 }
 
 // The model this DM chose for one kind of generation.
@@ -43,6 +43,7 @@ export async function saveSettings(userId: string, patch: SettingsPatch): Promis
   const next: OracleSettings = {
     chip_seconds: patch.chip_seconds ?? current.chip_seconds,
     banner_images: patch.banner_images ?? current.banner_images,
+    ai_creatures: patch.ai_creatures ?? current.ai_creatures,
     models: coerceModels({ ...current.models, ...(patch.models ?? {}) }),
   };
   const pool = await getMainConnection();
@@ -51,12 +52,13 @@ export async function saveSettings(userId: string, patch: SettingsPatch): Promis
     .input("userId", userId)
     .input("chipSeconds", next.chip_seconds)
     .input("bannerImages", next.banner_images ? 1 : 0)
+    .input("aiCreatures", next.ai_creatures ? 1 : 0)
     .input("models", JSON.stringify(next.models))
     .query(`
       MERGE oracle_settings WITH (HOLDLOCK) AS target
       USING (SELECT @userId AS user_id) AS source ON target.user_id = source.user_id
-      WHEN MATCHED THEN UPDATE SET chip_seconds = @chipSeconds, banner_images = @bannerImages, models = @models, ts_updated = GETDATE()
-      WHEN NOT MATCHED THEN INSERT (user_id, chip_seconds, banner_images, models) VALUES (@userId, @chipSeconds, @bannerImages, @models);
+      WHEN MATCHED THEN UPDATE SET chip_seconds = @chipSeconds, banner_images = @bannerImages, ai_creatures = @aiCreatures, models = @models, ts_updated = GETDATE()
+      WHEN NOT MATCHED THEN INSERT (user_id, chip_seconds, banner_images, ai_creatures, models) VALUES (@userId, @chipSeconds, @bannerImages, @aiCreatures, @models);
     `);
   return next;
 }

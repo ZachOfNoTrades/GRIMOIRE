@@ -12,7 +12,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await parseBody(request, askSchema);
     const subject = body.entity_id ? await getEntity(owner.campaignId, body.entity_id) : null;
     await spendGeneration(owner.user, "oracle/ask");
-    const context = await buildContext(owner.campaignId);
+    const context = await buildContext(owner.campaignId, owner.user.id);
     return ok(await askOracle(context, body.query, subject, await modelFor(owner.user.id, "ask")));
   });
 }

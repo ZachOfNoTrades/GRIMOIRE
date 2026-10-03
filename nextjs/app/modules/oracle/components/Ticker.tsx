@@ -3,8 +3,10 @@
 import { Image as ImageIcon, Pause, Pin, PinOff, Play, Sparkles } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { OracleChip } from "../types/oracle";
+import DifficultyIcon, { chipContentDifficulty } from "./DifficultyIcon";
 
 interface TickerProps {
+  partyLevels: number[]; // the party's levels, for rating encounters
   chips: OracleChip[]; // banner order, oldest first; pinned ones are shown apart, at the front
   secondsPerChip: number;
   isPaused: boolean; // the DM paused the banner, or something is open over it
@@ -25,7 +27,7 @@ const TOUCH_HOLD_MS = 4000;
 //   - pointing at an item that is partly off the left edge slides everything right until it is whole
 //   - an item that has fully left on the left goes to the back of the banner and comes round again
 //   - pinned items do not scroll: they sit at the front until they are used
-export default function Ticker({ chips, secondsPerChip, isPaused, isPreparing, onTogglePause, onOpen, onPin, onRecycle, onDiscard }: TickerProps) {
+export default function Ticker({ partyLevels, chips, secondsPerChip, isPaused, isPreparing, onTogglePause, onOpen, onPin, onRecycle, onDiscard }: TickerProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0); // how far the track has moved left, in px
@@ -136,6 +138,7 @@ export default function Ticker({ chips, secondsPerChip, isPaused, isPreparing, o
 
   function renderChip(chip: OracleChip, isMoving: boolean) {
     const isImage = chip.content.type === "image";
+    const difficulty = chipContentDifficulty(chip.content, partyLevels);
     return (
       // BANNER ITEM
       <div
@@ -160,6 +163,7 @@ export default function Ticker({ chips, secondsPerChip, isPaused, isPreparing, o
             />
           ) : null}
           {isImage ? <ImageIcon className="orc-chip-icon" aria-hidden /> : null}
+          {difficulty && <DifficultyIcon difficulty={difficulty} />}
           <span className="orc-chip-label">{chip.label}</span>
         </button>
 

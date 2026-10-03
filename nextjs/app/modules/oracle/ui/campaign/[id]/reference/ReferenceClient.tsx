@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Dices, Flame, Minus, Plus, Swords, TriangleAlert } from "lucide-react";
+import { Dices, Minus, Plus, Swords } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -13,7 +13,7 @@ import SessionBar from "../../../../components/SessionBar";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
 import { CR_KEYS, normalizeCr, summarizeEncounter, xpForCr, type Difficulty } from "../../../../lib/encounter";
-import { CONDITIONS, DIFFICULTY_CLASSES, GENERATORS, IMPROVISED_DAMAGE, findChallengeRow, rollDice, statBlockFromChallenge } from "../../../../lib/reference";
+import { GENERATORS, findChallengeRow, rollDice, statBlockFromChallenge } from "../../../../lib/reference";
 import type { TableSnapshot } from "../../../../types/oracle";
 
 interface EncounterRow {
@@ -31,7 +31,7 @@ interface ReferenceClientProps {
   imageSources: ImageSource[];
 }
 
-// QUICK REFERENCE — fifth-edition numbers, conditions and random tables. Nothing here calls a
+// QUICK REFERENCE — the encounter builder, dice and random tables. Nothing here calls a
 // generator: every answer is instant.
 export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
   const campaign = snapshot.campaign;
@@ -43,11 +43,9 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
   const [dice, setDice] = useState("1d20");
 
   // STATE
-  const [conditionName, setConditionName] = useState<string>(CONDITIONS[4].name);
   const [rolled, setRolled] = useState<Record<string, string>>({}); // generator key -> its last result
   const [diceResult, setDiceResult] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const condition = CONDITIONS.find((entry) => entry.name === conditionName) ?? CONDITIONS[0];
 
   // ENCOUNTER BUILDER — lines are creatures from the cast (by id) or a plain challenge rating
   const [lines, setLines] = useState<EncounterRow[]>([]);
@@ -134,44 +132,6 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
             {/* RULES COLUMN */}
             <div className="orc-stack">
 
-              {/* DIFFICULTY CLASS CARD */}
-              <div className="card">
-                <div className="card-header">
-                  <h2 className="text-card-title"><BookOpen className="w-5 h-5" /> Difficulty class</h2>
-                </div>
-                <div className="card-content orc-table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr><th>Task</th><th>DC</th></tr>
-                    </thead>
-                    <tbody>
-                      {DIFFICULTY_CLASSES.map((entry) => (
-                        <tr key={entry.dc}><td>{entry.task}</td><td>{entry.dc}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* IMPROVISED DAMAGE CARD */}
-              <div className="card">
-                <div className="card-header">
-                  <h2 className="text-card-title"><Flame className="w-5 h-5" /> Improvised damage</h2>
-                </div>
-                <div className="card-content orc-table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr><th>Level</th><th>Setback</th><th>Dangerous</th><th>Deadly</th></tr>
-                    </thead>
-                    <tbody>
-                      {IMPROVISED_DAMAGE.map((entry) => (
-                        <tr key={entry.levels}><td>{entry.levels}</td><td>{entry.setback}</td><td>{entry.dangerous}</td><td>{entry.deadly}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
               {/* DICE CARD */}
               <div className="card">
                 <div className="card-header">
@@ -217,7 +177,7 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
                   {/* PARTY LINE */}
                   <div className="orc-enc-party">
                     {levels.length === 0 ? (
-                      <span className="orc-small text-secondary">No party yet. <Link href={`/modules/oracle/ui/campaign/${campaign.id}/prep`}>Add the characters on Prep</Link> to size encounters.</span>
+                      <span className="orc-small text-secondary">No party. <Link href={`/modules/oracle/ui/campaign/${campaign.id}/prep`}>Add characters on Prep</Link></span>
                     ) : (
                       <span className="orc-small text-secondary">{levels.length} {levels.length === 1 ? "character" : "characters"}, level {levels.join(", ")}. <Link href={`/modules/oracle/ui/campaign/${campaign.id}/prep`}>Edit on Prep</Link></span>
                     )}
@@ -266,7 +226,7 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
                   </div>
 
                   {/* LINES */}
-                  {lines.length === 0 && <span className="orc-small text-secondary">Add creatures from the cast or by challenge rating. The gauge updates as you go.</span>}
+                  {lines.length === 0 && <span className="orc-small text-secondary">No creatures yet</span>}
                   {lines.map((line) => (
                     <div key={line.key} className="orc-enc-line">
                       <span className="orc-gen-value">{line.label} <span className="orc-muted">· CR {line.cr} · {xpForCr(line.cr).toLocaleString()} XP</span></span>
@@ -309,26 +269,6 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
                 </div>
               </div>
 
-              {/* CONDITIONS CARD */}
-              <div className="card">
-                <div className="card-header">
-                  <h2 className="text-card-title"><TriangleAlert className="w-5 h-5" /> Conditions</h2>
-                </div>
-                <div className="card-content">
-
-                  {/* CONDITION NAMES */}
-                  <div className="orc-chip-list" role="radiogroup" aria-label="Condition">
-                    {CONDITIONS.map((entry) => (
-                      <button key={entry.name} type="button" role="radio" aria-checked={conditionName === entry.name} className="orc-skill" onClick={() => setConditionName(entry.name)}>
-                        {entry.name}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* CONDITION EFFECT */}
-                  <p className="orc-section-text mt-3"><strong>{condition.name}.</strong> {condition.effect}</p>
-                </div>
-              </div>
             </div>
 
             {/* GENERATORS COLUMN */}

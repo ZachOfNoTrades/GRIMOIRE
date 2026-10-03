@@ -129,12 +129,13 @@ async function openverseSearch(query: string, artworkOnly: boolean): Promise<Ima
 const termsCache = new Map<string, string>();
 const TERMS_CACHE_MAX = 500;
 
-export async function searchTermsFor(subject: string, world: string, model: TextModel): Promise<string> {
-  const key = subject.trim().toLowerCase();
+export async function searchTermsFor(subject: string, world: string, model: TextModel, detail = ""): Promise<string> {
+  const key = `${subject.trim().toLowerCase()}|${detail.trim().toLowerCase().slice(0, 200)}`;
   const cached = termsCache.get(key);
   if (cached) return cached;
   const prompt = `A game master wants a picture for something at a fantasy tabletop game. Turn the subject into 2 or 3 plain English search words for a library of photographs and public-domain artwork (museum paintings, old illustrations, nature photos). Every word must match, so use only the most essential: the kind of thing first (crab, knight, manor, tower, forest), then one word for its look or period. Never include invented proper names or adjectives like "aggressive".
 Subject: ${subject.slice(0, 160)}
+${detail ? `What is known about it: ${detail.slice(0, 400)}` : ""}
 ${world ? `Setting: ${world.slice(0, 300)}` : ""}
 Answer with JSON only: { "terms": "<search words>" }`;
   try {
@@ -278,11 +279,11 @@ export async function importSearchImage(campaignId: string, sourceId: string, ca
 // The model is configurable because prices and quality move quickly.
 const IMAGE_MODEL = process.env.ORACLE_IMAGE_MODEL || "bytedance-seed/seedream-4.5";
 
-export async function generateImage(campaignId: string, prompt: string, world: string, caption: string): Promise<OracleImage> {
+export async function generateImage(campaignId: string, prompt: string, world: string, caption: string, detail = ""): Promise<OracleImage> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new OracleError(409, "Image generation isn't set up yet. It needs an OpenRouter key.");
 
-  const fullPrompt = `${prompt}. Fantasy tabletop illustration, painterly, no text or lettering.${world ? ` Setting: ${world.slice(0, 400)}` : ""}`;
+  const fullPrompt = `${prompt}.${detail ? ` ${detail.slice(0, 500)}` : ""} Fantasy tabletop illustration, painterly, no text or lettering.${world ? ` Setting: ${world.slice(0, 400)}` : ""}`;
   let response: Response;
   try {
     response = await fetch("https://openrouter.ai/api/v1/images", {

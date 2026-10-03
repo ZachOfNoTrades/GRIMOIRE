@@ -12,7 +12,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return withOwner(request, id, "POST /oracle/api/campaigns/[id]/images/search", async (owner) => {
     const body = await parseBody(request, imageSearchSchema);
     const [campaign, model] = await Promise.all([getCampaign(owner.campaignId), modelFor(owner.user.id, "picture")]);
-    const terms = await searchTermsFor(body.query, campaign.world, model);
+    const terms = await searchTermsFor(body.query, campaign.world, model, body.detail ?? "");
     return ok(await searchImagesWithFallback(terms, body.query));
   });
 }

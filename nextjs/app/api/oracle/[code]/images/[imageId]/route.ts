@@ -1,16 +1,17 @@
-import { OracleError, oracleErrorResponse } from "@/app/modules/oracle/lib/errors";
+import { OracleError } from "@/app/modules/oracle/lib/errors";
 import { readImage } from "@/app/modules/oracle/lib/imageFunctions";
+import { withViewer } from "@/app/modules/oracle/lib/routeHandlers";
 import { findCampaignIdByCode, getDisplayImageIds } from "@/app/modules/oracle/lib/snapshotFunctions";
 import { requireDisplayCode, requireUuid } from "@/app/modules/oracle/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/oracle/[code]/images/[imageId] — a picture for the player display. Public, but it
-// only ever serves what is on the display right now (the panel's picture and the active map's
-// background); the rest of the DM's library cannot be fetched through it.
-export async function GET(_request: Request, { params }: { params: Promise<{ code: string; imageId: string }> }) {
-  try {
+// GET /api/oracle/[code]/images/[imageId] — a picture for the player display. Needs a signed-in
+// account, and it only ever serves what is on the display right now (the panel's picture and the
+// active map's background); the rest of the DM's library cannot be fetched through it.
+export async function GET(request: Request, { params }: { params: Promise<{ code: string; imageId: string }> }) {
+  return withViewer(request, "GET /api/oracle/[code]/images/[imageId]", async () => {
     const { code, imageId } = await params;
     const campaignId = await findCampaignIdByCode(requireDisplayCode(code));
     const wanted = requireUuid(imageId, "Image");
@@ -19,7 +20,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cod
     return new Response(new Uint8Array(image.bytes), {
       headers: { "Content-Type": image.contentType, "Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff" },
     });
-  } catch (error) {
-    return oracleErrorResponse(error, "GET /api/oracle/[code]/images/[imageId]");
-  }
+  });
 }

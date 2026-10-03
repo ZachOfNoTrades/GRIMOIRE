@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Plus, Save, Sparkles, Trash2, Users } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Pencil, Plus, Save, Sparkles, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -9,10 +9,11 @@ import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useAppHeight } from "@/lib/useAppHeight";
 import { useConfirm } from "@/lib/useConfirm";
 import ImagePicker, { type ImageSource } from "../../../../components/ImagePicker";
+import MapModal from "../../../../components/MapModal";
 import SessionBar from "../../../../components/SessionBar";
 import { PREP_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { MEMBER_NAME_MAX, NAME_MAX, PROMPT_MAX, SESSION_TITLE_MAX, WORLD_MAX } from "../../../../lib/constants";
+import { MEMBER_NAME_MAX, SESSION_TITLE_MAX, WORLD_MAX } from "../../../../lib/constants";
 import { saveOnShortcut, useUnsavedWarning } from "../../../../lib/useUnsavedWarning";
 import type { OracleCampaign, OracleImage, OracleMap, OraclePartyMember, OracleSession, TableSnapshot } from "../../../../types/oracle";
 
@@ -41,18 +42,14 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   const [sessionTitle, setSessionTitle] = useState("");
   const [memberName, setMemberName] = useState("");
   const [memberLevel, setMemberLevel] = useState(1);
-  const [mapName, setMapName] = useState("");
-  const [mapPrompt, setMapPrompt] = useState("");
-  const [mapScale, setMapScale] = useState<"" | "region" | "local">(""); // "" lets the description decide
 
   // STATE
   const [isWritingWorld, setIsWritingWorld] = useState(false);
   const [isSavingWorld, setIsSavingWorld] = useState(false);
   const [isAddingSession, setIsAddingSession] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [pictureForMap, setPictureForMap] = useState<OracleMap | null>(null); // the picker is choosing a map's background
+  const [mapModal, setMapModal] = useState<{ map: OracleMap | null } | null>(null); // adding (null) or editing a map
 
   // What the server last confirmed for the world notes. The box is dirty while it differs.
   const [savedWorld, setSavedWorld] = useState(snapshot.campaign.world);
@@ -163,35 +160,10 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
     }
   }
 
-  async function createMap() {
-    const name = mapName.trim();
-    if (!name || isCreatingMap) return;
-    setIsCreatingMap(true);
-    try {
-      const created = await api<OracleMap>(`${base}/maps`, "POST", { name, prompt: mapPrompt.trim() || undefined, scale: mapScale || undefined });
-      setMaps((list) => [...list, created]);
-      // The first map is put on the table by the server.
-      setCampaign((current) => (current.active_map_id ? current : { ...current, active_map_id: created.id }));
-      setMapName("");
-      setMapPrompt("");
-    } catch (error) {
-      toast.error(errorMessage(error, "Couldn't create the map"));
-    } finally {
-      setIsCreatingMap(false);
-    }
-  }
-
-  // A picture under the map: chosen from the library picker, or taken off again.
-  async function setBackground(map: OracleMap, imageId: string | null) {
-    const previous = maps;
-    setMaps((list) => list.map((entry) => (entry.id === map.id ? { ...entry, background_image_id: imageId } : entry)));
-    try {
-      const saved = await api<OracleMap>(`${base}/maps/${map.id}`, "PUT", { background_image_id: imageId });
-      setMaps((list) => list.map((entry) => (entry.id === map.id ? saved : entry)));
-    } catch (error) {
-      setMaps(previous);
-      toast.error(errorMessage(error, "Couldn't change the map's picture"));
-    }
+  // A map saved from the modal: a new one joins the list (and goes on the table when it is the first), an edited one is replaced.
+  function mapSaved(saved: OracleMap) {
+    setMaps((list) => (list.some((entry) => entry.id === saved.id) ? list.map((entry) => (entry.id === saved.id ? saved : entry)) : [...list, saved]));
+    setCampaign((current) => (current.active_map_id ? current : { ...current, active_map_id: saved.id }));
   }
 
   async function makeActive(map: OracleMap) {
@@ -270,7 +242,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
                   {/* WORLD ROW */}
                   <div className="orc-card-actions">
-                    <span className="orc-small text-secondary">{isWorldDirty ? "Unsaved changes. Save before leaving the page." : "Every idea, fact and map is written to fit this."}</span>
+                    <span className="orc-small text-secondary">{isWorldDirty ? "Unsaved changes" : ""}</span>
                     <div className="orc-row-actions">
                       <Button className="btn-blue" disabled={isWritingWorld || isSavingWorld} onClick={writeWorld} title="Write world notes from the name and what is in the box">
                         <Sparkles className="w-4 h-4" /> {isWritingWorld ? "Writing…" : world.trim() ? "Rewrite" : "Generate"}
@@ -293,21 +265,6 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                   <h2 className="text-card-title"><Users className="w-5 h-5" /> Party</h2>
                 </div>
                 <div className="card-content orc-stack">
-
-                  {/* MEMBER ROWS — name, level stepper, remove */}
-                  {party.map((member) => (
-                    <div key={member.id} className="orc-member-row">
-                      <span className="orc-gen-value">{member.name}</span>
-                      <span className="orc-level" role="group" aria-label={`${member.name} level`}>
-                        <button type="button" className="orc-level-btn" disabled={member.level <= 1} aria-label="Level down" onClick={() => setLevel(member, member.level - 1)}>−</button>
-                        <span className="orc-level-value">Lv {member.level}</span>
-                        <button type="button" className="orc-level-btn" disabled={member.level >= 20} aria-label="Level up" onClick={() => setLevel(member, member.level + 1)}>+</button>
-                      </span>
-                      <Button className="btn-link-red" onClick={() => removeMember(member)} title="Remove" aria-label={`Remove ${member.name}`}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
 
                   {/* ADD ROW */}
                   <div className="orc-note-row">
@@ -340,7 +297,21 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                       <Plus className="w-4 h-4" />
                     </Button>
                   </div>
-                  <span className="orc-small text-secondary">{party.length === 0 ? "The encounter builder and the map's split party use this list." : `${party.length} ${party.length === 1 ? "character" : "characters"}, ${party.map((m) => m.level).join(", ")}.`}</span>
+                  {/* MEMBER ROWS — name, level stepper, remove */}
+                  {party.map((member) => (
+                    <div key={member.id} className="orc-member-row">
+                      <span className="orc-gen-value">{member.name}</span>
+                      <span className="orc-level" role="group" aria-label={`${member.name} level`}>
+                        <button type="button" className="orc-level-btn" disabled={member.level <= 1} aria-label="Level down" onClick={() => setLevel(member, member.level - 1)}>−</button>
+                        <span className="orc-level-value">Lv {member.level}</span>
+                        <button type="button" className="orc-level-btn" disabled={member.level >= 20} aria-label="Level up" onClick={() => setLevel(member, member.level + 1)}>+</button>
+                      </span>
+                      <Button className="btn-link-red" onClick={() => removeMember(member)} title="Remove" aria-label={`Remove ${member.name}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+
                 </div>
               </div>
 
@@ -355,7 +326,6 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                   {sessions.length === 0 && (
                     <div className="empty-state">
                       <p className="empty-state-title">No sessions yet</p>
-                      <p className="empty-state-body">Name the first one below.</p>
                     </div>
                   )}
 
@@ -423,7 +393,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                   {maps.length === 0 && (
                     <div className="empty-state">
                       <p className="empty-state-title">No maps yet</p>
-                      <p className="empty-state-body">The Table shows the first one you make.</p>
+
                     </div>
                   )}
 
@@ -435,16 +405,10 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                         <span className="orc-small text-secondary">{map.data.scale_label} · {map.data.features.length} features{campaign.active_map_id === map.id ? " · on the table" : ""}</span>
                       </div>
                       <div className="orc-campaign-actions">
-                        {map.background_image_id ? (
-                          <Button className="btn-off" onClick={() => setBackground(map, null)} title="Take the picture off this map" aria-label={`Remove the picture from ${map.name}`}>
-                            <ImageIcon className="w-4 h-4" /> No picture
-                          </Button>
-                        ) : (
-                          <Button className="btn-off" onClick={() => setPictureForMap(map)} title="Draw a picture under this map" aria-label={`Choose a picture for ${map.name}`}>
-                            <ImageIcon className="w-4 h-4" /> Picture
-                          </Button>
-                        )}
                         {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}
+                        <Button className="btn-off" onClick={() => setMapModal({ map })} title="Edit map" aria-label={`Edit map ${map.name}`}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
                         <Button className="btn-link-red" onClick={() => deleteMap(map)} title="Delete map" aria-label={`Delete map ${map.name}`}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -452,47 +416,10 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                     </div>
                   ))}
 
-                  {/* NEW MAP FORM */}
-                  <div className="orc-form">
-                    <span className="orc-label">New map</span>
-
-                    {/* MAP NAME FIELD — not autofocused: one of several forms on the page. */}
-                    <input
-                      id="orc-map-name"
-                      className="input-field"
-                      value={mapName}
-                      maxLength={NAME_MAX}
-                      disabled={isCreatingMap}
-                      placeholder="Name, e.g. Millbrook"
-                      aria-label="New map name"
-                      onChange={(event) => setMapName(event.target.value)}
-                    />
-
-                    {/* MAP DESCRIPTION FIELD */}
-                    <textarea
-                      id="orc-map-prompt"
-                      className="input-field orc-textarea"
-                      rows={4}
-                      value={mapPrompt}
-                      maxLength={PROMPT_MAX}
-                      disabled={isCreatingMap}
-                      placeholder="Describe it to have it drawn: a small palisaded river village with an inn, a chapel and a mill. Leave empty for a blank map."
-                      aria-label="New map description"
-                      onChange={(event) => setMapPrompt(event.target.value)}
-                    />
-
-                    {/* SCALE — what one grid square stands for */}
-                    <select id="orc-map-scale" className="input-field" value={mapScale} aria-label="Map scale" disabled={isCreatingMap} onChange={(event) => setMapScale(event.target.value as "" | "region" | "local")}>
-                      <option value="">Scale: decide from the description</option>
-                      <option value="region">Region: a square is hours of travel</option>
-                      <option value="local">Local: a square is 5 feet</option>
-                    </select>
-
-                    {/* CREATE MAP BUTTON */}
-                    <Button className="btn-blue" disabled={isCreatingMap || !mapName.trim()} onClick={createMap}>
-                      <Plus className="w-4 h-4" /> {isCreatingMap ? (mapPrompt.trim() ? "Drawing the map…" : "Creating…") : mapPrompt.trim() ? "Draw map" : "Blank map"}
-                    </Button>
-                  </div>
+                  {/* ADD MAP BUTTON */}
+                  <Button id="orc-map-add" className="btn-off" onClick={() => setMapModal({ map: null })}>
+                    <Plus className="w-4 h-4" /> Add map
+                  </Button>
                 </div>
               </div>
 
@@ -540,20 +467,26 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
         </div>
       </div>
 
+      {/* MAP MODAL */}
+      <MapModal
+        isOpen={!!mapModal}
+        campaignId={campaignId}
+        map={mapModal?.map ?? null}
+        images={images}
+        imageSources={imageSources}
+        onImageAdded={(image) => setImages((list) => (list.some((entry) => entry.id === image.id) ? list : [...list, image]))}
+        onSaved={mapSaved}
+        onClose={() => setMapModal(null)}
+      />
+
       {/* PICTURE PICKER */}
       <ImagePicker
-        isOpen={isPickerOpen || !!pictureForMap}
+        isOpen={isPickerOpen}
         campaignId={campaignId}
         sources={imageSources}
-        subject={pictureForMap ? `${pictureForMap.name} map` : ""}
-        onAdded={(image) => {
-          setImages((list) => (list.some((entry) => entry.id === image.id) ? list : [...list, image]));
-          if (pictureForMap) setBackground(pictureForMap, image.id);
-        }}
-        onClose={() => {
-          setIsPickerOpen(false);
-          setPictureForMap(null);
-        }}
+        subject=""
+        onAdded={(image) => setImages((list) => (list.some((entry) => entry.id === image.id) ? list : [...list, image]))}
+        onClose={() => setIsPickerOpen(false)}
       />
 
       {/* CONFIRM MODAL */}

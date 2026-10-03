@@ -5,9 +5,12 @@ import { useEffect } from "react";
 import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import type { ChipOption, TextChipContent } from "../types/oracle";
+import { chipDifficulty } from "../lib/encounter";
+import DifficultyIcon from "./DifficultyIcon";
 
 interface ResultModalProps {
   content: TextChipContent | null; // null = closed
+  partyLevels?: number[]; // rates any encounter an option holds
   isLoading?: boolean; // an answer is being generated (command bar)
   loadingTitle?: string;
   // Banner items can be pinned or dismissed; an answer from the command bar cannot.
@@ -20,7 +23,7 @@ interface ResultModalProps {
 
 // A prepared answer: up to three alternatives. Choosing one writes it to the session log, so
 // whatever was improvised at the table is on record afterwards.
-export default function ResultModal({ content, isLoading = false, loadingTitle, pinState = null, onPin, onDismiss, onUse, onClose }: ResultModalProps) {
+export default function ResultModal({ content, partyLevels = [], isLoading = false, loadingTitle, pinState = null, onPin, onDismiss, onUse, onClose }: ResultModalProps) {
   const isOpen = content !== null || isLoading;
 
   // Number keys choose an option, as on the banner's hints.
@@ -84,6 +87,15 @@ export default function ResultModal({ content, isLoading = false, loadingTitle, 
 
               {/* OPTION BODY */}
               <span className="orc-option-body">
+                {option.encounter && option.encounter.length > 0 && (
+                  <span className="orc-option-encounter">
+                    {(() => {
+                      const rating = chipDifficulty(option.encounter, partyLevels);
+                      return rating ? <DifficultyIcon difficulty={rating} /> : null;
+                    })()}
+                    {option.encounter.map((line) => `${line.count} × ${line.name} (CR ${line.cr})`).join(", ")}
+                  </span>
+                )}
                 {option.tone && <span className="orc-option-tone">{option.tone}</span>}
                 <span className="orc-option-text">{option.text}</span>
                 {option.note && <span className="orc-option-note">{option.note}</span>}

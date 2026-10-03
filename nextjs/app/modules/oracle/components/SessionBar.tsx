@@ -1,6 +1,7 @@
 "use client";
 
-import { BookOpen, EyeOff, FileText, Map as MapIcon, Monitor, PanelLeft, ScrollText, Settings, Swords } from "lucide-react";
+import { BookOpen, EyeOff, FileText, Map as MapIcon, PanelLeft, ScrollText, Settings, Swords } from "lucide-react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import HelpButton, { type HelpSection } from "@/components/ui/HelpButton";
@@ -12,10 +13,10 @@ interface SessionBarProps {
   campaignName: string;
   active: CampaignTab;
   help: HelpSection[];
-  // Table tab only: the live session button, what the players see, and the blank switch.
+  // Table tab only: the live session button, the player display control, and the blank switch.
   sessionLabel?: string | null;
   onOpenSessions?: () => void;
-  displayLabel?: string | null;
+  displayControl?: ReactNode;
   isBlank?: boolean;
   onToggleBlank?: () => void;
 }
@@ -29,7 +30,7 @@ const TABS: { key: CampaignTab; label: string; icon: typeof MapIcon }[] = [
 
 // The strip under the navbar on every campaign page: which campaign, the four tabs, and — on the
 // Table tab — the live session and what the players are looking at.
-export default function SessionBar({ campaignId, campaignName, active, help, sessionLabel, onOpenSessions, displayLabel, isBlank, onToggleBlank }: SessionBarProps) {
+export default function SessionBar({ campaignId, campaignName, active, help, sessionLabel, onOpenSessions, displayControl, isBlank, onToggleBlank }: SessionBarProps) {
   return (
     // SESSION BAR
     <div className="orc-bar">
@@ -68,12 +69,8 @@ export default function SessionBar({ campaignId, campaignName, active, help, ses
       {/* RIGHT SIDE */}
       <div className="orc-bar-right">
 
-        {/* DISPLAY STATUS */}
-        {displayLabel !== undefined && (
-          <span className={`badge ${isBlank ? "badge-gray" : "badge-green"} orc-bar-display`} title="What the players see">
-            <Monitor className="w-3 h-3" aria-hidden /> <span className="orc-bar-display-text">{isBlank ? "Display blank" : displayLabel ?? "Map"}</span>
-          </span>
-        )}
+        {/* PLAYER DISPLAY */}
+        {displayControl}
 
         {/* BLANK BUTTON */}
         {onToggleBlank && (

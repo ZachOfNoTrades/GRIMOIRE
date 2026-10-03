@@ -78,7 +78,7 @@ export async function getDisplaySnapshot(campaignId: string): Promise<DisplaySna
     const points = visionPoints(map, party);
     for (const entity of entities) {
       if (entity.kind === "place" || entity.map_id !== map.id || entity.map_x === null || entity.map_y === null) continue;
-      if (!isVisibleFrom(points, map.vision_radius, entity.map_x, entity.map_y)) continue;
+      if (!entity.is_revealed && !isVisibleFrom(points, map.vision_radius, entity.map_x, entity.map_y)) continue;
       tokens.push({ id: entity.id, name: entity.name, attitude: entity.attitude, x: entity.map_x, y: entity.map_y });
     }
   }

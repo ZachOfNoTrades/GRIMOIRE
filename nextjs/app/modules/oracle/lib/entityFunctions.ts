@@ -5,7 +5,7 @@ import { bumpVersion, normalizeId } from "./campaignFunctions";
 import { OracleError, isUniqueViolation } from "./errors";
 import { parseJson } from "./mapData";
 
-const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id";
+const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, is_revealed";
 
 type EntityRow = {
   id: string;
@@ -19,6 +19,7 @@ type EntityRow = {
   map_x: number | null;
   map_y: number | null;
   image_id: string | null;
+  is_revealed: boolean;
 };
 
 type KnowledgeRow = { id: string; entity_id: string; fact: string; skill: string | null; tier: KnowledgeTier | null; ts_created: Date };
@@ -47,6 +48,7 @@ function toEntity(row: EntityRow, knowledge: Knowledge[]): OracleEntity {
     map_x: row.map_x,
     map_y: row.map_y,
     image_id: normalizeId(row.image_id),
+    is_revealed: !!row.is_revealed,
     knowledge,
   };
 }
@@ -165,6 +167,7 @@ export interface EntityPatch {
   map_x?: number | null;
   map_y?: number | null;
   image_id?: string | null;
+  is_revealed?: boolean;
 }
 
 export async function updateEntity(campaignId: string, entityId: string, patch: EntityPatch): Promise<OracleEntity> {
@@ -209,6 +212,10 @@ export async function updateEntity(campaignId: string, entityId: string, patch: 
     updateFields.push("map_x = CASE WHEN map_id IS NULL THEN NULL ELSE @mapX END", "map_y = CASE WHEN map_id IS NULL THEN NULL ELSE @mapY END");
     request.input("mapX", patch.map_x);
     request.input("mapY", patch.map_y);
+  }
+  if (patch.is_revealed !== undefined) {
+    updateFields.push("is_revealed = @isRevealed");
+    request.input("isRevealed", patch.is_revealed ? 1 : 0);
   }
   if (patch.image_id !== undefined) {
     if (patch.image_id !== null) {

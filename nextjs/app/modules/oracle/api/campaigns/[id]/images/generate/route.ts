@@ -11,6 +11,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await parseBody(request, imageGenerateSchema);
     const campaign = await getCampaign(owner.campaignId);
     await spendGeneration(owner.user, "oracle/image");
-    return ok(await generateImage(owner.campaignId, body.prompt, campaign.world, body.caption), 201);
+    return ok(await generateImage(owner.campaignId, body.prompt, campaign.world, body.caption, body.detail ?? ""), 201);
   });
 }

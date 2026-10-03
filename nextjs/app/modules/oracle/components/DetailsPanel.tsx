@@ -1,6 +1,6 @@
 "use client";
 
-import { Dices, Eye, EyeOff, Image as ImageIcon, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Trash2, User, X, ZoomIn } from "lucide-react";
+import { ArrowLeft, Dices, Eye, EyeOff, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, User, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
@@ -204,21 +204,19 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                 <Trash2 className="w-4 h-4" />
               </Button>
               <Button className="btn-link" onClick={() => props.onSelect(null)} title="Back to the list" aria-label="Back to the list">
-                <X className="w-4 h-4" />
+                <ArrowLeft className="w-4 h-4" />
               </Button>
             </div>
           </div>
 
-          {/* BADGES */}
-          <div className="orc-badges">
-            <span className="badge badge-gray">{KIND_LABELS[selected.kind]}</span>
-            <span className={`badge ${selected.attitude === "hostile" ? "badge-red" : selected.attitude === "friendly" ? "badge-green" : "badge-gray"}`}>{selected.attitude}</span>
-            {selected.kind !== "place" && selected.map_id === activeMapId && (
-              <span className={`badge ${isVisibleToPlayers ? "badge-green" : "badge-gray"}`}>
-                {isVisibleToPlayers ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />} {isVisibleToPlayers ? "In sight" : "Hidden"}
+          {/* VISIBILITY — whether the players can see it on their map */}
+          {selected.kind !== "place" && selected.map_id === activeMapId && (
+            <div className="orc-badges">
+              <span className={`badge ${isVisibleToPlayers || selected.is_revealed ? "badge-green" : "badge-gray"}`}>
+                {isVisibleToPlayers || selected.is_revealed ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />} {selected.is_revealed ? "Revealed" : isVisibleToPlayers ? "In sight" : "Hidden"}
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* DISPLAY AND MAP ACTIONS */}
           <div className="orc-details-buttons">
@@ -246,7 +244,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               </Button>
             )}
             <Button className="btn-off" onClick={() => props.onPicture(selected)}>
-              <ImageIcon className="w-4 h-4" /> {selected.image_id ? "Change picture" : "Picture"}
+              <Sparkles className="w-4 h-4" /> Generate image
             </Button>
           </div>
 
@@ -348,7 +346,6 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               </div>
 
               {/* TIER BUTTONS */}
-              <p className="orc-small orc-muted">Players roll. Tap the result.</p>
               <div className="orc-tiers">
                 <button
                   type="button"

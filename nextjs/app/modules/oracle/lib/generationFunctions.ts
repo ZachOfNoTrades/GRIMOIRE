@@ -1,12 +1,15 @@
-import type { Attitude, BuiltCast, ChipOption, EntityKind, KnowledgeTier, MapData, MapScale, OracleEntity, TextChipContent } from "../types/oracle";
-import { ATTITUDES, CHIP_LABEL_MAX, ENTITY_KINDS, FACT_MAX, MAP_DEFAULT_HEIGHT, MAP_DEFAULT_WIDTH, MAP_GRID, WORLD_MAX, type TextModel } from "./constants";
+import type { Attitude, BuiltCast, ChipOption, EntityKind, KnowledgeTier, MapData, OracleEntity, TextChipContent } from "../types/oracle";
+import { ATTITUDES, CHIP_LABEL_MAX, ENTITY_KINDS, FACT_MAX, MAP_DEFAULT_HEIGHT, MAP_DEFAULT_WIDTH, MAP_GRID, SCALE_DEFAULT_UNIT, SCALE_DEFAULT_VALUE, WORLD_MAX, type ScaleUnit, type TextModel } from "./constants";
 import { getCampaign } from "./campaignFunctions";
 import { listEntities } from "./entityFunctions";
 import { OracleError } from "./errors";
 import { listEvents } from "./eventFunctions";
 import { distance } from "./fog";
 import { generateJson, quoteForPrompt } from "./llm";
-import { coerceMapData } from "./mapData";
+import { coerceMapData, formatScale, isRegionScale } from "./mapData";
+import { normalizeCr } from "./encounter";
+import { listPartyMembers } from "./partyFunctions";
+import { getSettings } from "./settingsFunctions";
 import { listMaps } from "./mapFunctions";
 import { CHALLENGE_ROWS } from "./reference";
 import { listSessions } from "./sessionFunctions";
@@ -17,6 +20,9 @@ import { listSessions } from "./sessionFunctions";
 
 export interface GenerationContext {
   world: string;
+  partyLevels: number[]; // the player characters' levels, empty when no party is set
+  aiCreatures: boolean; // may a creature be invented, or must every creature come from the campaign's own material
+
   session: { title: string; notes: string; recap: string } | null;
   nearby: OracleEntity[];
   recentLog: string[];
@@ -24,13 +30,15 @@ export interface GenerationContext {
 
 // The world notes, the live session, the entries closest to the party and the last few log lines.
 // "Closest" is by map distance on the active map; entries that are not placed come after.
-export async function buildContext(campaignId: string): Promise<GenerationContext> {
-  const [campaign, sessions, maps, entities, events] = await Promise.all([
+export async function buildContext(campaignId: string, userId: string): Promise<GenerationContext> {
+  const [campaign, sessions, maps, entities, events, party, settings] = await Promise.all([
     getCampaign(campaignId),
     listSessions(campaignId),
     listMaps(campaignId),
     listEntities(campaignId),
     listEvents(campaignId),
+    listPartyMembers(campaignId),
+    getSettings(userId),
   ]);
   const session = sessions.find((entry) => entry.id === campaign.current_session_id) ?? null;
   const map = maps.find((entry) => entry.id === campaign.active_map_id) ?? null;
@@ -47,6 +55,8 @@ export async function buildContext(campaignId: string): Promise<GenerationContex
 
   return {
     world: campaign.world,
+    partyLevels: party.map((member) => member.level),
+    aiCreatures: settings.ai_creatures,
     session: session ? { title: session.title, notes: session.notes, recap: session.recap } : null,
     nearby: ranked,
     recentLog: events.slice(0, 6).map((event) => event.body).reverse(),
@@ -59,6 +69,17 @@ function describeEntity(entity: OracleEntity): string {
   if (entity.dm_notes) parts.push(`DM only: ${entity.dm_notes}`);
   if (entity.knowledge.length > 0) parts.push(`Players already know: ${entity.knowledge.map((fact) => fact.fact).join(" / ")}`);
   return quoteForPrompt(parts.join(". "), 500);
+}
+
+// What the model may do about creatures, and how hard they should be for this party.
+function creatureRules(context: GenerationContext): string {
+  const source = context.aiCreatures
+    ? "Creatures may be invented when the situation needs one, but prefer the ones the notes already name."
+    : "Every creature must be one that the campaign's own material names: the world notes, the session plan or the entries listed here. Never add a creature that none of them names, and never invent one. When none fits, offer something that is not a creature.";
+  const party = context.partyLevels.length > 0
+    ? `The party is ${context.partyLevels.length} ${context.partyLevels.length === 1 ? "character" : "characters"} at level ${context.partyLevels.join(", ")}. Size every encounter to them by choosing how many creatures to send, with a wide spread across the ideas: some easy, most medium or hard, now and then one far beyond them. Keep each creature at its own challenge rating; change the number, not the creature.`
+    : "No party is set, so assume a small group of low-level characters.";
+  return `${source} ${party}`;
 }
 
 function contextBlock(context: GenerationContext): string {
@@ -79,6 +100,7 @@ function contextBlock(context: GenerationContext): string {
     lines.push("Recent events:");
     for (const entry of context.recentLog) lines.push(`- ${quoteForPrompt(entry, 200)}`);
   }
+  lines.push(creatureRules(context));
   return `"""\n${lines.join("\n")}\n"""`;
 }
 
@@ -90,6 +112,21 @@ function text(value: unknown, max: number): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
 }
 
+// The creatures an option puts in front of the party, so the banner can rate how hard it is.
+function coerceEncounter(raw: unknown): { name: string; cr: string; count: number }[] {
+  if (!Array.isArray(raw)) return [];
+  const lines: { name: string; cr: string; count: number }[] = [];
+  for (const entry of raw.slice(0, 6)) {
+    const item = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+    const name = text(item.name, 60);
+    const cr = normalizeCr(String(item.cr ?? ""));
+    const count = Math.round(Number(item.count));
+    if (!name || !cr) continue;
+    lines.push({ name, cr, count: Number.isFinite(count) ? Math.min(30, Math.max(1, count)) : 1 });
+  }
+  return lines;
+}
+
 function coerceOptions(raw: unknown): ChipOption[] {
   if (!Array.isArray(raw)) return [];
   const options: ChipOption[] = [];
@@ -98,7 +135,8 @@ function coerceOptions(raw: unknown): ChipOption[] {
     const body = text(item.text, 500);
     if (!body) continue;
     const note = text(item.note, 200);
-    options.push({ tone: text(item.tone, 24), text: body, note: note || null });
+    const encounter = coerceEncounter(item.encounter);
+    options.push({ tone: text(item.tone, 24), text: body, note: note || null, ...(encounter.length > 0 ? { encounter } : {}) });
   }
   return options;
 }
@@ -144,13 +182,13 @@ ${contextBlock(context)}
 Already on the banner — do not repeat these: ${avoidLabels.length > 0 ? avoidLabels.map((label) => quoteForPrompt(label, 60)).join("; ") : "(nothing)"}
 
 Reply with one JSON object:
-{ "chips": [ { "label": string, "title": string, "options": [ { "tone": string, "text": string, "note": string or null } ] } ]${wantsImages ? `, "images": [ { "query": string, "kind": "creature" | "person" | "place", "name": string } ]` : ""} }
+{ "chips": [ { "label": string, "title": string, "options": [ { "tone": string, "text": string, "note": string or null, "encounter": array or null } ] } ]${wantsImages ? `, "images": [ { "query": string, "kind": "creature" | "person" | "place", "name": string } ]` : ""} }
 
 Rules for chips:
 - Exactly ${count} chips, each about something different. Mix kinds: what a named character says, a complication, what is found in a place, a fitting reward, a name, a quick stat line for a creature, a sensory description, a twist.
 - label: 2 to 5 words, what the game master would tap, e.g. "What Brenna says", "A complication", "Reward for helping". Use names from the situation when there are any.
 - title: the label, slightly fuller.
-- options: exactly 3 alternatives. "text" is ready to use at the table, at most 35 words; dialogue is written in quotes as the character would say it. "tone" is one or two words that tell the options apart (e.g. "Guarded", "Pleading"). "note" is an optional game-master-only aside such as "Insight DC 12: she is lying", else null.
+- options: exactly 3 alternatives. "text" is ready to use at the table, at most 35 words; dialogue is written in quotes as the character would say it. "tone" is one or two words that tell the options apart (e.g. "Guarded", "Pleading"). "note" is an optional game-master-only aside such as "Insight DC 12: she is lying", else null. "encounter" is null unless the option puts creatures in front of the party (a fight, an ambush, a wandering monster); then it is an array with one object per kind of creature, like { "name": "Giant crab", "cr": "1/8", "count": 3 } ("cr" is a string such as "1/4" or "3").
 - Fifth-edition rules, plain numbers. Stay consistent with the situation. No modern language.${wantsImages ? `
 
 Rules for images:
@@ -214,7 +252,7 @@ Rules:
 - details: what the players see or can be told, at most 30 words. No secrets.
 - dm_notes: why it is here, what it wants, and one hook or secret, at most 40 words.
 - attitude: toward the party, as it fits the situation.
-- cr: for a creature, one of ${challengeRatings}, suited to a low-level party unless the situation says otherwise; null for a person or a place.`;
+- cr: for a creature, one of ${challengeRatings}, suited to the party described in the situation; null for a person or a place.`;
 
   const reply = (await generateJson(prompt, "outline", { model })) as Record<string, unknown>;
   const challenge = text(reply.cr, 6);
@@ -242,10 +280,11 @@ ${quoteForPrompt(query, 600)}
 """
 
 Reply with one JSON object:
-{ "title": string, "options": [ { "tone": string, "text": string, "note": string or null } ] }
+{ "title": string, "options": [ { "tone": string, "text": string, "note": string or null, "encounter": array or null } ] }
 
 Rules:
 - title: at most 8 words naming what this is.
+- encounter: null unless the option puts creatures in front of the party; then an array with one object per kind of creature, like { "name": "Giant crab", "cr": "1/8", "count": 3 } ("cr" is a string such as "1/4" or "3").
 - options: 3 alternatives when the request is creative (dialogue, a name, loot, a description, a complication); 1 option when it has one right answer (a rule, a number).
 - "text" is ready to use at the table, at most 45 words. "tone" is one or two words that tell the options apart, or an empty string. "note" is an optional game-master-only aside, else null.
 - Fifth-edition rules, plain numbers. Stay consistent with the situation.`;
@@ -302,7 +341,7 @@ Rules:
 // BUILD CAST — the cast a session needs, from the DM's rough notes
 // ---------------------------------------------------------------------------------------------
 
-export async function buildCast(world: string, draft: string, model: TextModel): Promise<BuiltCast> {
+export async function buildCast(world: string, draft: string, model: TextModel, aiCreatures: boolean): Promise<BuiltCast> {
   const challengeRatings = CHALLENGE_ROWS.map((row) => row.cr).join(", ");
   const prompt = `A game master pasted their rough notes for a session. List the cast it needs, keeping every idea of theirs and inventing only what is needed to fill gaps.
 
@@ -322,7 +361,7 @@ Reply with one JSON object:
 }
 
 Rules:
-- entities: every character, creature type and notable place the notes mention, plus at most three invented ones the session clearly needs. At most 14 in total.
+- entities: every character, creature type and notable place the notes mention, plus at most three invented ones the session clearly needs${aiCreatures ? "" : " (people and places only: never invent a creature, every creature must be one the notes name)"}. At most 14 in total.
 - name: use the name from the notes; invent a fitting one where the notes have none.
 - details: what the players could see or be told, at most 30 words. dm_notes: secrets, motives and what the game master should remember, at most 40 words.
 - kind "creature" is for anything the players might fight; give it "cr" as one of: ${challengeRatings}. Use null for people and places.
@@ -367,12 +406,16 @@ const MAP_FORMAT = `A map is ${MAP_DEFAULT_WIDTH} units wide and ${MAP_DEFAULT_H
 - Buildings never overlap each other, a road or water. Leave at least 12 units between buildings. Line buildings up along the roads.
 - ids are short and unique ("b1", "road1").`;
 
-export async function generateMapData(world: string, description: string, model: TextModel, scale?: MapScale): Promise<MapData> {
-  const scaleRule = scale === "region"
-    ? `This is a REGION map: one grid square (${MAP_GRID} units) is hours of travel. Features are whole settlements, ruins, towers, forests, lakes, rivers, roads between places and cliff lines, each at least one square. "scale": "region"; "scale_label": what a square is in hours and about how far, e.g. "1 square = 6 hours' walk (about 15 miles)".`
-    : scale === "local"
-      ? `This is a LOCAL map: one grid square (${MAP_GRID} units) is 5 feet. Features are single buildings, walls, wells, trees, streams: a place where a scene is played out. "scale": "local"; "scale_label": "1 square = 5 feet".`
-      : `Decide the scale from the description. A journey, wilderness, coast or whole land is a REGION map: one grid square (${MAP_GRID} units) is hours of travel, features are whole settlements, ruins, towers, forests, lakes and the roads between them, each at least one square, "scale": "region", "scale_label" names the hours and rough distance a square is (e.g. "1 square = 6 hours' walk (about 15 miles)"). A village, building, camp or battlefield is a LOCAL map: a square is 5 feet, features are single buildings, walls, wells and trees, "scale": "local", "scale_label": "1 square = 5 feet".`;
+const SCALE_REPLY = `"scale_value": number, "scale_unit": "feet" | "yards" | "meters" | "miles" | "kilometers" | "hours" | "days"`;
+
+export async function generateMapData(world: string, description: string, model: TextModel, scale?: { value: number; unit: ScaleUnit }): Promise<MapData> {
+  const layoutFor = (value: number, unit: ScaleUnit) =>
+    isRegionScale(value, unit)
+      ? `A tile that large makes this a wide-area map: features are whole settlements, ruins, towers, forests, lakes, rivers, roads between places and cliff lines, each at least one tile.`
+      : `A tile that small makes this a scene map: features are single buildings, walls, wells, trees and streams, sized to match.`;
+  const scaleRule = scale
+    ? `One grid tile (${MAP_GRID} units) is ${formatScale(scale.value, scale.unit).replace("1 tile = ", "")}. ${layoutFor(scale.value, scale.unit)} Answer "scale_value": ${scale.value}, "scale_unit": "${scale.unit}".`
+    : `If the description says what a tile stands for (for example "6 hours per square", "10 feet a tile"), use that. Otherwise one grid tile (${MAP_GRID} units) is ${SCALE_DEFAULT_VALUE} ${SCALE_DEFAULT_UNIT}: a scene map whose features are single buildings, walls, wells, trees and streams. Answer "scale_value" and "scale_unit" with whatever you used.`;
   const prompt = `Design a top-down map for a game master.
 
 ${scaleRule}
@@ -389,12 +432,11 @@ ${quoteForPrompt(description, 600)}
 
 ${MAP_FORMAT}
 
-Reply with one JSON object: { "width": ${MAP_DEFAULT_WIDTH}, "height": ${MAP_DEFAULT_HEIGHT}, "scale": "region" | "local", "scale_label": string, "features": [ ... ] }
+Reply with one JSON object: { "width": ${MAP_DEFAULT_WIDTH}, "height": ${MAP_DEFAULT_HEIGHT}, ${SCALE_REPLY}, "features": [ ... ] }
 
 Use 12 to 30 features. Fill the map sensibly: roads that connect, buildings along them, any water or wall the description implies, a few landmarks. Everything starts "intact" unless the description says otherwise.`;
 
-  const data = coerceMapData(await generateJson(prompt, "map", { model, timeoutMs: 120_000 }));
-  if (scale) data.scale = scale;
+  const data = coerceMapData({ ...((await generateJson(prompt, "map", { model, timeoutMs: 120_000 })) as object), ...(scale ? { scale_value: scale.value, scale_unit: scale.unit } : {}), description });
   if (data.features.length === 0) throw new OracleError(502, "The generator returned an empty map. Try again.");
   return data;
 }
@@ -424,7 +466,7 @@ Reply with one JSON object holding the WHOLE map after the change: { "width": ${
 - Width and height stay the same.`;
 
   const edited = coerceMapData(await generateJson(prompt, "map-edit", { model, timeoutMs: 120_000 }));
-  const data: MapData = { ...edited, scale: current.scale, scale_label: current.scale_label };
+  const data: MapData = { ...edited, scale_value: current.scale_value, scale_unit: current.scale_unit, scale_label: current.scale_label, description: current.description, background: current.background };
   if (data.features.length === 0) throw new OracleError(502, "The generator returned an empty map. Try again.");
   return { ...data, width: current.width, height: current.height };
 }
