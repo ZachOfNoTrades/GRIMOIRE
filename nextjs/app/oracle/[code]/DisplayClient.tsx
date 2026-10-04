@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import MapCanvas, { type MapToken } from "@/app/modules/oracle/components/MapCanvas";
+import AutoScroll from "@/app/modules/oracle/components/AutoScroll";
 import type { DisplayPanel, DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
 import { X } from "lucide-react";
 
 const POLL_MS = 1000;
-const KIND_LABELS = { creature: "You see", person: "You meet", place: "Location" } as const;
+const KIND_LABELS = { creature: "You see", person: "You meet", place: "Location", item: "You find" } as const;
 
 // THE PLAYER DISPLAY — map on the left, a reference panel on the right. It asks the server once
 // a second whether anything changed (a version number), and reloads the view only when it did.
@@ -20,7 +21,7 @@ export default function DisplayClient({ code }: { code: string }) {
   const [localId, setLocalId] = useState<string | null>(null); // an entry tapped on this screen, shown until the DM changes the panel
   const revealedRef = useRef<Set<string> | null>(null); // tokens the DM had revealed at the last snapshot
   const [revealFocus, setRevealFocus] = useState<{ id: string; x: number; y: number; nonce: number } | null>(null);
-  const seenFactsRef = useRef<Set<string> | null>(null); // facts already shown, so only a newly added one animates
+  const seenFactsRef = useRef<{ panelKey: string | null; keys: Set<string> } | null>(null); // facts already shown, so only a newly added one animates
   const [newFacts, setNewFacts] = useState<Set<string>>(new Set());
   const [pictureOpacity, setPictureOpacity] = useState(1); // how strongly the map's picture shows on this screen
 
@@ -113,13 +114,13 @@ export default function DisplayClient({ code }: { code: string }) {
   const factKeys = panel?.kind === "entity" ? panel.knowledge.map((fact) => `${panelKey}|${fact}`) : [];
   const factSignature = factKeys.join("\n");
   useEffect(() => {
-    const current = new Set(factKeys);
+    // Only facts that arrive while the same entry stays on screen are new; the first load and a
+    // switch to another entry just record what is there.
     const previous = seenFactsRef.current;
-    seenFactsRef.current = current;
-    if (previous === null) return;
-    const fresh = factKeys.filter((key) => !previous.has(key) && key.startsWith(`${panelKey}|`));
-    const samePanel = [...previous].some((key) => panelKey !== null && key.startsWith(`${panelKey}|`)) || previous.size === 0;
-    if (fresh.length === 0 || !samePanel) return;
+    seenFactsRef.current = { panelKey, keys: new Set(factKeys) };
+    if (previous === null || panelKey === null || previous.panelKey !== panelKey) return;
+    const fresh = factKeys.filter((key) => !previous.keys.has(key));
+    if (fresh.length === 0) return;
     setNewFacts(new Set(fresh));
     const timer = setTimeout(() => setNewFacts(new Set()), 4500);
     return () => clearTimeout(timer);
@@ -225,17 +226,21 @@ export default function DisplayClient({ code }: { code: string }) {
               <div className="orc-display-info">
                 <span className="orc-display-kicker">{KIND_LABELS[panel.entity_kind]}</span>
                 <h1 className="orc-display-name">{panel.name}</h1>
-                {panel.details && <p className="orc-display-text">{panel.details}</p>}
 
-                {/* WHAT THE PLAYERS KNOW */}
-                {panel.knowledge.length > 0 && (
-                  <div className="orc-display-facts">
-                    <span className="orc-display-kicker">What you know</span>
-                    {panel.knowledge.map((fact, index) => (
-                      <p key={index} className="orc-display-fact" data-new={newFacts.has(`${panelKey}|${fact}`) ? "true" : undefined}>{fact}</p>
-                    ))}
-                  </div>
-                )}
+                {/* DESCRIPTION AND FACTS — scroll by themselves when they do not fit */}
+                <AutoScroll className="orc-display-scroll" resetKey={panelKey ?? ""} revealKey={[...newFacts].join("\n")}>
+                  {panel.details && <p className="orc-display-text">{panel.details}</p>}
+
+                  {/* WHAT THE PLAYERS KNOW */}
+                  {panel.knowledge.length > 0 && (
+                    <div className="orc-display-facts">
+                      <span className="orc-display-kicker">What you know</span>
+                      {panel.knowledge.map((fact, index) => (
+                        <p key={index} className="orc-display-fact" data-new={newFacts.has(`${panelKey}|${fact}`) ? "true" : undefined}>{fact}</p>
+                      ))}
+                    </div>
+                  )}
+                </AutoScroll>
               </div>
             </>
           )}

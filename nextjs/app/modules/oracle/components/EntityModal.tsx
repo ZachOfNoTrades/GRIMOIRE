@@ -26,7 +26,7 @@ interface EntityModalProps {
   onClose: () => void;
 }
 
-const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location" };
+const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
 
 function numberOr(value: string, fallback: number, min: number, max: number): number {
   const parsed = Number(value);
@@ -72,7 +72,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
       setError("Enter a name");
       return;
     }
-    onSave({ kind, name: trimmed, details: details.trim(), attitude, dm_notes: notes.trim(), source: kind === "creature" ? source.trim() || null : null, stats: shownStats });
+    onSave({ kind, name: trimmed, details: details.trim(), attitude: kind === "item" ? "neutral" : attitude, dm_notes: notes.trim(), source: kind === "creature" ? source.trim() || null : null, stats: shownStats });
   }
 
   function patchStats(patch: Partial<StatBlock>) {
@@ -127,7 +127,8 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
           />
         </label>
 
-        {/* ATTITUDE */}
+        {/* ATTITUDE — not for items */}
+        {kind !== "item" && (
         <div className="orc-field">
           <span className="orc-field-label">Attitude</span>
           <div className="orc-segments" role="radiogroup" aria-label="Attitude">
@@ -138,6 +139,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
             ))}
           </div>
         </div>
+        )}
 
         {/* DETAILS FIELD */}
         <label className="orc-field">

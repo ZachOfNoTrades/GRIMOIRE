@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610031830 (Oracle party groups, entry source)
+-- Version: 202610041500 (Oracle item entries)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -435,7 +435,7 @@ BEGIN TRY
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 
-            CONSTRAINT CK_oracle_entities_kind CHECK (kind IN ('creature','person','place')),
+            CONSTRAINT CK_oracle_entities_kind CHECK (kind IN ('creature','person','place','item')),
             CONSTRAINT CK_oracle_entities_attitude CHECK (attitude IN ('friendly','neutral','hostile')),
             CONSTRAINT FK_oracle_entities_campaign FOREIGN KEY (campaign_id) REFERENCES oracle_campaigns(id) ON DELETE CASCADE
         );

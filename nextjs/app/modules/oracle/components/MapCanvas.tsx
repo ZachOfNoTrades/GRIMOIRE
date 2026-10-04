@@ -72,6 +72,13 @@ interface MapCanvasProps {
 
 const FOCUS_ZOOM = 2.5;
 
+// A token's marker: a dot for creatures and people, a diamond for items.
+function TokenMark({ kind, x, y, r }: { kind: EntityKind; x: number; y: number; r: number }) {
+  if (kind !== "item") return <circle cx={x} cy={y} r={r} />;
+  const d = r * 1.2;
+  return <polygon points={`${x},${y - d} ${x + d},${y} ${x},${y + d} ${x - d},${y}`} />;
+}
+
 type Drag = { kind: "party" | "token" | "member"; id: string | null; x: number; y: number; moved: boolean } | null;
 
 // How far past the map's edge the view may be dragged, as a share of the view: the edge can be
@@ -878,7 +885,7 @@ export default function MapCanvas({
             ))
         )}
 
-        {/* CREATURES AND PEOPLE THE PARTY CANNOT SEE (the DM's map only) — under the fog, so the
+        {/* CREATURES, PEOPLE AND ITEMS THE PARTY CANNOT SEE (the DM's map only) — under the fog, so the
             tint itself shows what is hidden */}
         {visibleTokens.filter((token) => !isSeen(token)).map((token) => {
           const position = positionOf(token);
@@ -897,7 +904,7 @@ export default function MapCanvas({
               onPointerUp={endDrag}
               onPointerCancel={() => setDrag(null)}
             >
-              <circle cx={position.x} cy={position.y} r={labelSize * 0.8 * position.scale} />
+              <TokenMark kind={token.kind} x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />
               <text x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
                 {token.name} · hidden
               </text>
@@ -948,7 +955,7 @@ export default function MapCanvas({
               onPointerUp={endDrag}
               onPointerCancel={() => setDrag(null)}
             >
-              <circle cx={position.x} cy={position.y} r={labelSize * 0.8 * position.scale} />
+              <TokenMark kind={token.kind} x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />
               <text className="orc-token-name" data-attitude={token.attitude} x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
                 {token.name}
               </text>

@@ -1,7 +1,7 @@
 import type { ScaleUnit, TaskModels } from "../lib/constants";
 // Shared by server and client code — keep this file free of Node-only imports.
 
-export type EntityKind = "creature" | "person" | "place";
+export type EntityKind = "creature" | "person" | "place" | "item";
 export type Attitude = "friendly" | "neutral" | "hostile";
 export type FeatureType = "building" | "road" | "water" | "wall" | "landmark";
 export type FeatureState = "intact" | "burned" | "ruined";

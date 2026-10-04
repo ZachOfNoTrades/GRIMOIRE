@@ -1,6 +1,6 @@
 "use client";
 
-import { Landmark, PawPrint, User } from "lucide-react";
+import { Gem, Landmark, PawPrint, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ const KINDS: { key: EntityKind; label: string; hint: string; icon: typeof User }
   { key: "creature", label: "Creature", hint: "With a stat block; then tap the map to place it", icon: PawPrint },
   { key: "person", label: "Person", hint: "Then tap the map to place them", icon: User },
   { key: "place", label: "Location", hint: "Then tap the map to pin it", icon: Landmark },
+  { key: "item", label: "Item", hint: "Then tap the map to place it", icon: Gem },
 ];
 
 // A banner picture, about to become part of the session. One choice (what it is) and a name;

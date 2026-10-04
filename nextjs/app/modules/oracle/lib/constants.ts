@@ -17,7 +17,7 @@ export function displayUrlFor(code: string): string {
   return `${PUBLIC_ORIGIN}/oracle/${code}`;
 }
 
-export const ENTITY_KINDS: readonly EntityKind[] = ["creature", "person", "place"];
+export const ENTITY_KINDS: readonly EntityKind[] = ["creature", "person", "place", "item"];
 export const ATTITUDES: readonly Attitude[] = ["friendly", "neutral", "hostile"];
 export const FEATURE_TYPES: readonly FeatureType[] = ["building", "road", "water", "wall", "landmark"];
 export const FEATURE_STATES: readonly FeatureState[] = ["intact", "burned", "ruined"];

@@ -77,7 +77,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     {
       description:
         'A campaign in full: world notes (tone and setting — read these before generating anything), the sessions (each with its rough notes and recap; the campaign current_session_id is the live one), maps (without feature lists; use oracle_get_map), ' +
-        'the cast (creatures, people, places with DM notes and what the players already know) and the recent session log.',
+        'the cast (creatures, people, places and items with DM notes and what the players already know) and the recent session log.',
       inputSchema: { campaign_id: Uuid },
     },
     async ({ campaign_id }) => {
@@ -223,8 +223,8 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     'oracle_create_entity',
     {
       description:
-        'Add a creature, person or place to the campaign cast. "details" is what the players may be shown; "dm_notes" is never shown to players. ' +
-        'Give creatures a stat block. To put it on a map pass map_id with map_x/map_y (players only see creatures and people inside the party\'s current vision).',
+        'Add a creature, person, place or item to the campaign cast. "details" is what the players may be shown; "dm_notes" is never shown to players. ' +
+        'Give creatures a stat block. To put it on a map pass map_id with map_x/map_y (players only see creatures, people and items inside the party\'s current vision).',
       inputSchema: {
         campaign_id: Uuid,
         kind: Kind,

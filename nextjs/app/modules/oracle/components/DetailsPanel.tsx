@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Dices, Eye, EyeOff, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, User, X, ZoomIn } from "lucide-react";
+import { ArrowLeft, Dices, Eye, EyeOff, Gem, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, User, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
@@ -34,8 +34,8 @@ interface DetailsPanelProps {
   onZoomTo: (entity: OracleEntity) => void;
 }
 
-const KIND_ICONS: Record<EntityKind, typeof User> = { creature: PawPrint, person: User, place: Landmark };
-const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location" };
+const KIND_ICONS: Record<EntityKind, typeof User> = { creature: PawPrint, person: User, place: Landmark, item: Gem };
+const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
 
 // THE DETAILS PANEL — everything about one creature, person or location. It is filled by
 // tapping something on the map or by picking a search result at the top.

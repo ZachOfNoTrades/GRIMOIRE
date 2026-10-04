@@ -20,7 +20,7 @@ interface SessionClientProps {
   entities: OracleEntity[];
 }
 
-const KIND_LABELS = { creature: "Creature", person: "Person", place: "Location" } as const;
+const KIND_LABELS = { creature: "Creature", person: "Person", place: "Location", item: "Item" } as const;
 
 // SESSION — one night at the table: the rough notes going in, the cast those notes need, and the
 // recap coming out. Go live makes it the session every generation at the Table is written for.

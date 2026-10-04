@@ -182,7 +182,7 @@ ${contextBlock(context)}
 Already on the banner — do not repeat these: ${avoidLabels.length > 0 ? avoidLabels.map((label) => quoteForPrompt(label, 60)).join("; ") : "(nothing)"}
 
 Reply with one JSON object:
-{ "chips": [ { "label": string, "title": string, "options": [ { "tone": string, "text": string, "note": string or null, "encounter": array or null } ] } ]${wantsImages ? `, "images": [ { "query": string, "kind": "creature" | "person" | "place", "name": string } ]` : ""} }
+{ "chips": [ { "label": string, "title": string, "options": [ { "tone": string, "text": string, "note": string or null, "encounter": array or null } ] } ]${wantsImages ? `, "images": [ { "query": string, "kind": "creature" | "person" | "place" | "item", "name": string } ]` : ""} }
 
 Rules for chips:
 - Exactly ${count} chips, each about something different. Mix kinds: what a named character says, a complication, what is found in a place, a fitting reward, a name, a quick stat line for a creature, a sensory description, a twist.
@@ -252,9 +252,9 @@ Reply with one JSON object:
 Rules:
 - details: what the players see or can be told, at most 30 words. No secrets.
 - dm_notes: why it is here, what it wants, and one hook or secret, at most 40 words.
-- attitude: toward the party, as it fits the situation.
-- cr: for a creature, one of ${challengeRatings}, suited to the party described in the situation; null for a person or a place.
-- source: for a creature, where it comes from: the book and page ("Monster Manual, p. 307"), the adventure's name, or "AI-generated" when you created it from scratch (only if the situation allows that); null for a person or a place.`;
+- attitude: toward the party, as it fits the situation; "neutral" for an item.
+- cr: for a creature, one of ${challengeRatings}, suited to the party described in the situation; null for a person, a place or an item.
+- source: for a creature, where it comes from: the book and page ("Monster Manual, p. 307"), the adventure's name, or "AI-generated" when you created it from scratch (only if the situation allows that); null for a person, a place or an item.`;
 
   const reply = (await generateJson(prompt, "outline", { model })) as Record<string, unknown>;
   const challenge = text(reply.cr, 6);
@@ -332,14 +332,15 @@ ${quoteForPrompt(draft, 12000)}
 
 Reply with one JSON object:
 {
-  "entities": [ { "kind": "creature" | "person" | "place", "name": string, "details": string, "attitude": "friendly" | "neutral" | "hostile", "dm_notes": string, "cr": string or null, "source": string or null } ]
+  "entities": [ { "kind": "creature" | "person" | "place" | "item", "name": string, "details": string, "attitude": "friendly" | "neutral" | "hostile", "dm_notes": string, "cr": string or null, "source": string or null } ]
 }
 
 Rules:
-- entities: every character, creature type and notable place the notes mention, plus at most three invented ones the session clearly needs${aiCreatures ? "" : " (creatures must come from the notes or an official published book; never create a new one)"}. At most 14 in total.
+- entities: every character, creature type, notable place and notable item (treasure, relic, key object) the notes mention, plus at most three invented ones the session clearly needs${aiCreatures ? "" : " (creatures must come from the notes or an official published book; never create a new one)"}. At most 14 in total.
 - name: use the name from the notes; invent a fitting one where the notes have none.
 - details: what the players could see or be told, at most 30 words. dm_notes: secrets, motives and what the game master should remember, at most 40 words.
-- kind "creature" is for anything the players might fight; give it "cr" as one of: ${challengeRatings} and "source": where it comes from (the notes' adventure or book, an official book and page such as "Monster Manual, p. 307"${aiCreatures ? ', or "AI-generated" for one you create from scratch' : ""}). Use null for people and places.
+- kind "creature" is for anything the players might fight; give it "cr" as one of: ${challengeRatings} and "source": where it comes from (the notes' adventure or book, an official book and page such as "Monster Manual, p. 307"${aiCreatures ? ', or "AI-generated" for one you create from scratch' : ""}). Use null for people, places and items.
+- kind "item" is for an object the players might find, take or use; attitude "neutral".
 - Where the notes are unsure about something, pick one option and say in dm_notes that the notes left it open.`;
 
   const reply = (await generateJson(prompt, "build", { model, timeoutMs: 120_000 })) as { entities?: unknown };
