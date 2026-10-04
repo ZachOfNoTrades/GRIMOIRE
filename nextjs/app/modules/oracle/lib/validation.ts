@@ -7,6 +7,7 @@ import {
   DETAILS_MAX,
   DISPLAY_CODE_PATTERN,
   DRAFT_MAX,
+  ENTITY_IDEA_MAX,
   ENTITY_KINDS,
   EVENT_MAX,
   FACT_MAX,
@@ -164,6 +165,7 @@ export const updateEntitySchema = z
     map_y: coordinate.nullable().optional(),
     image_id: nullableUuid.optional(),
     is_revealed: z.boolean().optional(),
+    is_down: z.boolean().optional(),
     source: z.string().trim().max(200).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "Nothing to change");
@@ -172,6 +174,15 @@ const skill = z.enum(KNOWLEDGE_SKILLS as [string, ...string[]]);
 const tier = z.enum(KNOWLEDGE_TIER_KEYS as [string, ...string[]]);
 
 export const generateKnowledgeSchema = z.object({ skill, tier });
+
+// A write-up for a new entry from a name, a short idea, or both. Nothing is saved.
+export const draftEntitySchema = z
+  .object({
+    kind: z.enum(ENTITY_KINDS as [string, ...string[]]),
+    name: z.string().trim().max(NAME_MAX).default(""),
+    idea: z.string().trim().max(ENTITY_IDEA_MAX).default(""),
+  })
+  .refine((body) => body.name.length > 0 || body.idea.length > 0, { message: "Give it a name or say what it is" });
 
 export const addKnowledgeSchema = z.object({
   fact: line(FACT_MAX, "a fact"),

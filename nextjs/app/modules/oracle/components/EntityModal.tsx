@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Attitude, EntityKind, OracleEntity, StatBlock } from "../types/oracle";
-import { ATTITUDES, DETAILS_MAX, ENTITY_KINDS, NAME_MAX, NOTES_MAX } from "../lib/constants";
+import { ATTITUDES, DETAILS_MAX, ENTITY_IDEA_MAX, ENTITY_KINDS, NAME_MAX, NOTES_MAX } from "../lib/constants";
 import { CHALLENGE_ROWS, findChallengeRow, statBlockFromChallenge } from "../lib/reference";
 import { blurOnEnter, selectOnFocus } from "@/lib/inputBehavior";
 
@@ -18,15 +19,27 @@ export interface EntityDraft {
   stats: StatBlock | null;
 }
 
+// What the AI writes for a new entry; the DM reviews it before saving.
+export interface EntityWriteUp {
+  name: string;
+  details: string;
+  dm_notes: string;
+  attitude: Attitude;
+  source: string | null;
+  stats: StatBlock | null;
+}
+
 interface EntityModalProps {
   isOpen: boolean;
   entity: OracleEntity | null; // null = a new entry
   defaultKind?: EntityKind;
   onSave: (draft: EntityDraft) => void;
   onClose: () => void;
+  onWrite?: (request: { kind: EntityKind; name: string; idea: string }) => Promise<EntityWriteUp>; // new entries only
 }
 
 const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
+const IDEA_PLACEHOLDERS: Record<EntityKind, string> = { creature: "A swamp beast guarding the ford", person: "A shopkeeper in the village", place: "A smugglers' cave", item: "A cursed coral necklace" };
 
 function numberOr(value: string, fallback: number, min: number, max: number): number {
   const parsed = Number(value);
@@ -34,9 +47,9 @@ function numberOr(value: string, fallback: number, min: number, max: number): nu
   return Math.min(max, Math.max(min, Math.round(parsed)));
 }
 
-// Add or edit a creature, person or location. Creatures carry a stat block, started from the
+// Add or edit a creature, person, location or item. Creatures carry a stat block, started from the
 // quick-monster table by challenge rating and adjustable from there.
-export default function EntityModal({ isOpen, entity, defaultKind = "creature", onSave, onClose }: EntityModalProps) {
+export default function EntityModal({ isOpen, entity, defaultKind = "creature", onSave, onClose, onWrite }: EntityModalProps) {
   const isEdit = entity !== null;
 
   // INPUT
@@ -47,9 +60,11 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
   const [notes, setNotes] = useState("");
   const [source, setSource] = useState("");
   const [stats, setStats] = useState<StatBlock | null>(null);
+  const [idea, setIdea] = useState("");
 
   // STATE
   const [error, setError] = useState<string | null>(null);
+  const [isWriting, setIsWriting] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -60,7 +75,9 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
     setNotes(entity?.dm_notes ?? "");
     setSource(entity?.source ?? "");
     setStats(entity?.stats ?? null);
+    setIdea("");
     setError(null);
+    setIsWriting(false);
   }, [isOpen, entity, defaultKind]);
 
   // A creature always has a stat block; switching to creature starts one at CR 1/4.
@@ -73,6 +90,32 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
       return;
     }
     onSave({ kind, name: trimmed, details: details.trim(), attitude: kind === "item" ? "neutral" : attitude, dm_notes: notes.trim(), source: kind === "creature" ? source.trim() || null : null, stats: shownStats });
+  }
+
+  // WRITE WITH AI — fills the form from the idea (and the name, if one is typed); a typed name is kept.
+  async function write() {
+    if (!onWrite || isWriting) return;
+    if (!name.trim() && !idea.trim()) {
+      setError("Say what it is, or give it a name");
+      return;
+    }
+    setError(null);
+    setIsWriting(true);
+    try {
+      const written = await onWrite({ kind, name: name.trim(), idea: idea.trim() });
+      if (!name.trim()) setName(written.name);
+      setDetails(written.details);
+      setNotes(written.dm_notes);
+      setAttitude(written.attitude);
+      if (kind === "creature") {
+        setSource(written.source ?? "");
+        setStats(written.stats);
+      }
+    } catch (writeError) {
+      setError(writeError instanceof Error ? writeError.message : "Couldn't write it");
+    } finally {
+      setIsWriting(false);
+    }
   }
 
   function patchStats(patch: Partial<StatBlock>) {
@@ -112,6 +155,33 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
             ))}
           </div>
         </div>
+
+        {/* WRITE WITH AI — new entries only */}
+        {!isEdit && onWrite && (
+          <div className="orc-field">
+            <span className="orc-field-label">Write with AI</span>
+            <div className="orc-write-row">
+              <input
+                className="input-field"
+                aria-label="What it is"
+                value={idea}
+                maxLength={ENTITY_IDEA_MAX}
+                placeholder={IDEA_PLACEHOLDERS[kind]}
+                disabled={isWriting}
+                onChange={(event) => setIdea(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void write();
+                  }
+                }}
+              />
+              <Button className="btn-off" onClick={() => void write()} disabled={isWriting}>
+                <Sparkles className="w-4 h-4" aria-hidden /> {isWriting ? "Writing…" : "Write"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* NAME FIELD — autofocused on create (typing a name is the first step); not on edit,
             where the DM came to change some field and it is not necessarily this one. */}

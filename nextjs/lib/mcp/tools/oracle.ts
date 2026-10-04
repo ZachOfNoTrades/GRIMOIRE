@@ -271,6 +271,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
         map_id: Uuid.nullable().optional(),
         map_x: z.number().nullable().optional(),
         map_y: z.number().nullable().optional(),
+        is_down: z.boolean().optional().describe('true: dead or out of the fight; it stays on the map, greyed out'),
       },
     },
     async ({ campaign_id, entity_id, ...patch }) => {

@@ -5,7 +5,7 @@ import { bumpVersion, normalizeId } from "./campaignFunctions";
 import { OracleError, isUniqueViolation } from "./errors";
 import { parseJson } from "./mapData";
 
-const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, is_revealed, source";
+const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, is_revealed, is_down, source";
 
 type EntityRow = {
   id: string;
@@ -20,6 +20,7 @@ type EntityRow = {
   map_y: number | null;
   image_id: string | null;
   is_revealed: boolean;
+  is_down: boolean;
   source: string | null;
 };
 
@@ -50,6 +51,7 @@ function toEntity(row: EntityRow, knowledge: Knowledge[]): OracleEntity {
     map_y: row.map_y,
     image_id: normalizeId(row.image_id),
     is_revealed: !!row.is_revealed,
+    is_down: !!row.is_down,
     source: row.source ?? null,
     knowledge,
   };
@@ -172,6 +174,7 @@ export interface EntityPatch {
   map_y?: number | null;
   image_id?: string | null;
   is_revealed?: boolean;
+  is_down?: boolean;
   source?: string | null;
 }
 
@@ -221,6 +224,10 @@ export async function updateEntity(campaignId: string, entityId: string, patch: 
   if (patch.source !== undefined) {
     updateFields.push("source = @source");
     request.input("source", patch.source);
+  }
+  if (patch.is_down !== undefined) {
+    updateFields.push("is_down = @isDown");
+    request.input("isDown", patch.is_down ? 1 : 0);
   }
   if (patch.is_revealed !== undefined) {
     updateFields.push("is_revealed = @isRevealed");

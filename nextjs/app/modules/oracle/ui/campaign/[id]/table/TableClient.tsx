@@ -1,6 +1,6 @@
 "use client";
 
-import { Brush, ChevronDown, Eraser, Eye, EyeOff, MapPin, Move, MonitorUp, PanelLeft, RotateCcw, Search, Trash2, X, ZoomIn } from "lucide-react";
+import { Brush, ChevronDown, Eraser, Eye, EyeOff, HeartPulse, MapPin, Move, MonitorUp, PanelLeft, RotateCcw, Search, Skull, Trash2, X, ZoomIn } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -14,7 +14,7 @@ import AdoptModal from "../../../../components/AdoptModal";
 import ContextMenu from "../../../../components/ContextMenu";
 import DisplayMenu from "../../../../components/DisplayMenu";
 import DetailsPanel from "../../../../components/DetailsPanel";
-import EntityModal, { type EntityDraft } from "../../../../components/EntityModal";
+import EntityModal, { type EntityDraft, type EntityWriteUp } from "../../../../components/EntityModal";
 import ImagePicker, { type ImageSource } from "../../../../components/ImagePicker";
 import MapCanvas, { type MapTool, type MapToken } from "../../../../components/MapCanvas";
 import RangeValue from "../../../../components/RangeValue";
@@ -70,14 +70,23 @@ function isTyping(target: EventTarget | null): boolean {
 
 // THE TABLE — where the session is run: the map with its fog, the details of whatever is
 // selected, what the players are shown, the ideas banner.
+// The map last in use on each campaign's Table, for this browser tab's lifetime (survives moving
+// between the campaign's tabs, which can restore an older server snapshot).
+const lastMapChoice = new Map<string, string>();
+
 export default function TableClient({ snapshot, imageSources }: TableClientProps) {
   const campaignId = snapshot.campaign.id;
   const base = campaignApi(campaignId);
   const { confirm, confirmModal } = useConfirm();
   useAppHeight();
 
-  // DATA — seeded from the server snapshot; nothing is refetched on mount
-  const [campaign, setCampaign] = useState<OracleCampaign>(snapshot.campaign);
+  // DATA — seeded from the server snapshot. The browser's Back button can hand back the snapshot
+  // from when the Table was first opened, so the map last chosen here wins over it at once, and
+  // the version check below runs on mount to bring the rest up to date.
+  const [campaign, setCampaign] = useState<OracleCampaign>(() => {
+    const chosen = lastMapChoice.get(snapshot.campaign.id);
+    return chosen && chosen !== snapshot.campaign.active_map_id && snapshot.maps.some((map) => map.id === chosen) ? { ...snapshot.campaign, active_map_id: chosen } : snapshot.campaign;
+  });
   const [sessions, setSessions] = useState<OracleSession[]>(snapshot.sessions);
   const [maps, setMaps] = useState<OracleMap[]>(snapshot.maps);
   const [entities, setEntities] = useState<OracleEntity[]>(snapshot.entities);
@@ -153,6 +162,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       y: entity.map_y as number,
       pin: entity.kind === "place" ? places.findIndex((place) => place.id === entity.id) + 1 : undefined,
       revealed: entity.is_revealed,
+      down: entity.is_down,
     }));
   }, [entities, activeMap]);
 
@@ -238,12 +248,23 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
         /* a missed poll is nothing; the next one catches up */
       }
     };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void tick();
+    };
+    void tick();
     const timer = setInterval(tick, 4000);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       stopped = true;
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [campaign.display_code]);
+
+  // Remember the map in use, for when the Table is shown again from the browser's history.
+  useEffect(() => {
+    if (campaign.active_map_id) lastMapChoice.set(campaign.id, campaign.active_map_id);
+  }, [campaign.id, campaign.active_map_id]);
 
   function moveParty(x: number, y: number, fromX: number, fromY: number) {
     if (!activeMap) return;
@@ -441,7 +462,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   async function createEntity(draft: EntityDraft, at: { x: number; y: number } | null) {
     const id = generateUUID().toLowerCase();
     const placement = at && activeMap ? { map_id: activeMap.id, map_x: at.x, map_y: at.y } : { map_id: null, map_x: null, map_y: null };
-    const optimistic: OracleEntity = { id, ...draft, ...placement, image_id: null, is_revealed: false, source: draft.source, knowledge: [] };
+    const optimistic: OracleEntity = { id, ...draft, ...placement, image_id: null, is_revealed: false, is_down: false, source: draft.source, knowledge: [] };
     setEntities((list) => [...list, optimistic]);
     setSelectedId(id);
     setEntityModal(null);
@@ -484,6 +505,10 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   }
 
   // Put an entry on the players' map by hand even though the party cannot see it, or take it off again.
+  function toggleDown(entity: OracleEntity) {
+    saveEntity(entity, { is_down: !entity.is_down }, entity.is_down ? "Couldn't bring it back" : "Couldn't mark it down");
+  }
+
   function toggleRevealed(entity: OracleEntity) {
     saveEntity(entity, { is_revealed: !entity.is_revealed }, "Couldn't change what the players see");
   }
@@ -501,8 +526,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     }
   }
 
-  // Reveal a fact: it joins what the players know, and the entry goes on the display's panel so
-  // they actually see it.
+  // Reveal a fact: it joins what the players know. It does not put the entry on the player screen;
+  // the players see the fact whenever the DM shows the entry or they tap it on their map.
   async function revealFact(entity: OracleEntity, fact: string, skill: string | null, tier: KnowledgeTier | null) {
     const tempId = `tmp-${Date.now()}-${Math.random()}`;
     const optimistic: Knowledge = { id: tempId, entity_id: entity.id, fact, skill, tier, ts_created: new Date().toISOString() };
@@ -516,7 +541,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             : entry
         )
       );
-      if (campaign.panel_entity_id !== entity.id) showEntity(entity);
     } catch (error) {
       setEntities((list) => list.map((entry) => (entry.id === entity.id ? { ...entry, knowledge: entry.knowledge.filter((item) => item.id !== tempId) } : entry)));
       toast.error(errorMessage(error, "Couldn't reveal that"));
@@ -718,7 +742,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     setOpenChip(null);
   }
 
-  // A banner picture becomes a creature, person or location. It arrives off the map and the
+  // A banner picture becomes a creature, person, location or item. It arrives off the map and the
   // Table goes straight into placing it, so the next tap on the map puts it where it belongs.
   async function adopt(chip: OracleChip, kind: EntityKind, name: string, show: boolean) {
     if (isAdopting) return;
@@ -975,6 +999,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             onDelete={deleteEntity}
             onShow={showEntity}
             onToggleRevealed={toggleRevealed}
+            onToggleDown={toggleDown}
             onStats={(entity, stats: StatBlock) => saveEntity(entity, { stats }, "Couldn't save the stats")}
             onAddNote={addNote}
             onReveal={revealFact}
@@ -1071,7 +1096,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       <AdoptModal chip={adoptChip} isBusy={isAdopting} onAdopt={adopt} onDismiss={(chip) => { removeChip(chip); setAdoptChip(null); }} onClose={() => setAdoptChip(null)} />
 
       {/* ENTRY MODAL */}
-      <EntityModal isOpen={!!entityModal} entity={entityModal?.entity ?? null} defaultKind={entityModal?.kind} onSave={submitEntity} onClose={() => setEntityModal(null)} />
+      <EntityModal isOpen={!!entityModal} entity={entityModal?.entity ?? null} defaultKind={entityModal?.kind} onSave={submitEntity} onClose={() => setEntityModal(null)} onWrite={(request) => api<EntityWriteUp>(`${base}/entities/draft`, "POST", request)} />
 
       {/* PICTURE PICKER */}
       <ImagePicker isOpen={!!picker} campaignId={campaignId} sources={imageSources} subject={picker?.subject ?? ""} detail={picker?.detail ?? ""} onAdded={pictureAdded} onClose={() => setPicker(null)} />
@@ -1106,6 +1131,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             onClose={() => setMenu(null)}
             items={[
               ...(entity.kind !== "place" ? [{ label: entity.is_revealed ? "Hide from players" : "Reveal to players", icon: entity.is_revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />, onSelect: () => toggleRevealed(entity) }] : []),
+              ...(entity.kind === "creature" || entity.kind === "person" ? [{ label: entity.is_down ? "Bring back" : "Mark down", icon: entity.is_down ? <HeartPulse className="w-4 h-4" /> : <Skull className="w-4 h-4" />, onSelect: () => toggleDown(entity) }] : []),
               { label: panelEntity?.id === entity.id ? "Stop showing details" : "Show details to players", icon: <MonitorUp className="w-4 h-4" />, onSelect: () => showEntity(panelEntity?.id === entity.id ? null : entity) },
               ...(placedHere ? [{ label: "Zoom to", icon: <ZoomIn className="w-4 h-4" />, onSelect: () => setFocus({ x: entity.map_x as number, y: entity.map_y as number, nonce: Date.now() }) }] : []),
               { label: "Delete", icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: () => deleteEntity(entity) },

@@ -33,10 +33,11 @@ export const KNOWLEDGE_TIERS: { key: KnowledgeTier; range: string; label: string
   { key: "secret", range: "20+", label: "secret" },
 ];
 export const KNOWLEDGE_TIER_KEYS: readonly KnowledgeTier[] = ["false", "trivial", "common", "useful", "secret"];
-export const KNOWLEDGE_SKILLS: readonly string[] = ["History", "Arcana", "Nature", "Religion", "Insight", "Investigation"];
+export const KNOWLEDGE_SKILLS: readonly string[] = ["History", "Arcana", "Nature", "Religion", "Insight", "Investigation", "Perception"];
 
 // LIMITS — text lengths match the column sizes in the migration.
 export const NAME_MAX = 120;
+export const ENTITY_IDEA_MAX = 400; // the short idea the AI writes a new entry from
 export const SESSION_TITLE_MAX = 160;
 export const RECAP_MAX = 4000;
 export const DETAILS_MAX = 1000;
@@ -112,7 +113,7 @@ export const GENERATION_TASKS: { key: GenerationTask; label: string; hint: strin
   { key: "map", label: "Maps", hint: "Drawing and editing in words" },
   { key: "chips", label: "Ideas banner", hint: "Batches for the banner" },
   { key: "fact", label: "Knowledge checks", hint: "The fact a roll earns" },
-  { key: "outline", label: "Picture write-ups", hint: "A new entry from a banner picture" },
+  { key: "outline", label: "Entry write-ups", hint: "A new entry from a banner picture or written with AI" },
   { key: "picture", label: "Picture search", hint: "Turns a name into search words" },
 ];
 export const TASK_KEYS: readonly GenerationTask[] = GENERATION_TASKS.map((task) => task.key);

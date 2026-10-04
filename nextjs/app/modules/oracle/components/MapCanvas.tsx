@@ -18,6 +18,7 @@ export interface MapToken {
   y: number;
   pin?: number; // places are drawn as numbered pins on the DM's map
   revealed?: boolean; // shown to the players by hand, whatever the party can see
+  down?: boolean; // dead or out of the fight: drawn faded and crossed out
 }
 
 export type MapTool = "move" | "reveal" | "hide" | "place";
@@ -71,6 +72,12 @@ interface MapCanvasProps {
 }
 
 const FOCUS_ZOOM = 2.5;
+
+// A cross over a downed entry's marker.
+function DownMark({ x, y, r }: { x: number; y: number; r: number }) {
+  const d = r * 0.75;
+  return <path className="orc-token-down" d={`M${x - d},${y - d}L${x + d},${y + d}M${x + d},${y - d}L${x - d},${y + d}`} />;
+}
 
 // A token's marker: a dot for creatures and people, a diamond for items.
 function TokenMark({ kind, x, y, r }: { kind: EntityKind; x: number; y: number; r: number }) {
@@ -895,6 +902,7 @@ export default function MapCanvas({
               className="orc-token"
               data-token-id={isDm ? token.id : undefined}
               data-attitude={token.attitude}
+              data-down={token.down ? "true" : undefined}
               data-selected={selectedId === token.id ? "true" : undefined}
               data-shown={shownId === token.id ? "true" : undefined}
               data-hidden="true"
@@ -905,6 +913,7 @@ export default function MapCanvas({
               onPointerCancel={() => setDrag(null)}
             >
               <TokenMark kind={token.kind} x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />
+              {token.down && <DownMark x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />}
               <text x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
                 {token.name} · hidden
               </text>
@@ -946,6 +955,7 @@ export default function MapCanvas({
               className="orc-token"
               data-token-id={isDm ? token.id : undefined}
               data-attitude={token.attitude}
+              data-down={token.down ? "true" : undefined}
               data-selected={selectedId === token.id ? "true" : undefined}
               data-shown={shownId === token.id ? "true" : undefined}
               data-reveal={revealing?.id === token.id ? revealing.phase : undefined}
@@ -956,6 +966,7 @@ export default function MapCanvas({
               onPointerCancel={() => setDrag(null)}
             >
               <TokenMark kind={token.kind} x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />
+              {token.down && <DownMark x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />}
               <text className="orc-token-name" data-attitude={token.attitude} x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
                 {token.name}
               </text>

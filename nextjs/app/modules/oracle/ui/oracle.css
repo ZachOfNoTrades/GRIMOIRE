@@ -282,6 +282,10 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-token[data-attitude="neutral"] :is(circle, polygon),
 .orc-token[data-attitude="neutral"] text { fill: var(--color-secondary); }
 .orc-token[data-selected="true"] :is(circle, polygon) { stroke: var(--color-primary); stroke-width: 3; }
+.orc-token[data-down="true"] { opacity: 0.8; }
+.orc-token[data-down="true"] :is(circle, polygon) { fill: var(--color-gray); }
+.orc-token[data-down="true"] .orc-token-name { fill: var(--color-gray); text-decoration: line-through; }
+.orc-token-down { fill: none; stroke: var(--solid-background); stroke-width: 2.5; stroke-linecap: round; vector-effect: non-scaling-stroke; pointer-events: none; }
 
 .orc-pin rect { fill: var(--orc-warn); stroke: var(--solid-background); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .orc-pin text { fill: var(--solid-background); font-weight: 700; pointer-events: none; }
@@ -599,6 +603,9 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-check { display: flex; align-items: center; gap: 0.6rem; min-height: 2.25rem; font-size: 0.78rem; color: var(--color-secondary); cursor: pointer; }
 
 .orc-adopt-image { display: block; width: 100%; max-height: 16rem; object-fit: cover; border: 1px solid var(--card-border); background: var(--hover-bg); }
+.orc-write-row { display: flex; gap: 0.5rem; align-items: stretch; }
+.orc-write-row .input-field { flex: 1 1 auto; min-width: 0; }
+.orc-write-row .btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.35rem; }
 .orc-kind-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
 @media (max-width: 560px) { .orc-kind-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .orc-kind {
@@ -817,8 +824,11 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
   overflow: hidden;
 }
 .orc-display-photo { flex: 0 0 auto; width: 100%; max-height: 34%; object-fit: cover; background: var(--hover-bg); }
+.orc-display-figure { position: relative; flex: 0 1 auto; width: 100%; max-height: 55%; min-height: 0; margin: 0; overflow: hidden; background: var(--hover-bg); }
+.orc-display-figure::before { content: ""; position: absolute; inset: -2rem; background: var(--photo) center / cover no-repeat; filter: blur(24px) brightness(0.55); }
+.orc-display-figure-img { position: relative; display: block; width: 100%; height: 100%; object-fit: contain; }
 .orc-display-photo-full { flex: 1 1 auto; max-height: none; min-height: 0; object-fit: contain; background: var(--solid-background); }
-.orc-display-info { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: clamp(0.5rem, 1.1vh, 1rem); padding: clamp(0.9rem, 1.8vw, 2rem); overflow: hidden; }
+.orc-display-info { flex: 1 1 auto; min-height: 35%; display: flex; flex-direction: column; gap: clamp(0.5rem, 1.1vh, 1rem); padding: clamp(0.9rem, 1.8vw, 2rem); overflow: hidden; }
 .orc-display-kicker { font-size: clamp(0.7rem, 0.8vw, 0.95rem); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gray); }
 .orc-display-name { font-size: clamp(1.4rem, 2.5vw, 2.75rem); font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
 .orc-display-text { font-size: clamp(1rem, 1.35vw, 1.6rem); line-height: 1.5; color: var(--color-secondary); overflow-wrap: anywhere; }
@@ -837,11 +847,13 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-display-message { margin: auto; padding: 2rem; text-align: center; font-size: clamp(1rem, 1.6vw, 1.75rem); color: var(--color-gray); }
 .orc-display-join { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem; width: min(26rem, 100%); }
 .orc-display-join .input-field { text-align: center; font-size: 1.5rem; letter-spacing: 0.3em; text-transform: uppercase; }
+@media (min-width: 1600px) and (orientation: landscape) { .orc-display-panel { flex-basis: 42%; } }
 @media (max-width: 767px), (orientation: portrait) {
   .orc-display { flex-direction: column; }
   .orc-display-map { flex: 1 1 45%; min-height: 0; }
   .orc-display-panel { flex: 0 0 55%; border-left: none; border-top: 1px solid var(--card-border); }
   .orc-display-photo { max-height: 26%; }
+  .orc-display-figure { max-height: 40%; }
 }
 
 /* ---------- party members on the map ---------- */

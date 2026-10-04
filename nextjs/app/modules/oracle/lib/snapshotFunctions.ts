@@ -89,6 +89,7 @@ export async function getDisplaySnapshot(campaignId: string): Promise<DisplaySna
         attitude: entity.attitude,
         details: entity.details,
         revealed: entity.is_revealed,
+        down: entity.is_down,
         image_id: entity.image_id && images.some((image) => image.id === entity.image_id) ? entity.image_id : null,
         knowledge: entity.knowledge.map((fact) => fact.fact),
         x: entity.map_x,

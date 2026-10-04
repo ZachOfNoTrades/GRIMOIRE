@@ -280,7 +280,7 @@ export async function adoptImageChip(
 
   const image = await importPicture(campaignId, content.image_url, name);
 
-  let outline: EntityOutline = { details: "", dm_notes: "", attitude: "neutral", cr: null, source: null };
+  let outline: EntityOutline = { name, details: "", dm_notes: "", attitude: "neutral", cr: null, source: null };
   try {
     const limit = await checkGenerationLimit(user.id, user.generationLimit);
     if (limit.allowed) {

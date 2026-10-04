@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Dices, Eye, EyeOff, Gem, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, User, X, ZoomIn } from "lucide-react";
+import { ArrowLeft, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ interface DetailsPanelProps {
   onEdit: (entity: OracleEntity) => void;
   onDelete: (entity: OracleEntity) => void;
   onShow: (entity: OracleEntity | null) => void;
+  onToggleDown: (entity: OracleEntity) => void;
   onToggleRevealed: (entity: OracleEntity) => void;
   onStats: (entity: OracleEntity, stats: StatBlock) => void;
   onAddNote: (entity: OracleEntity, body: string) => void;
@@ -37,7 +38,7 @@ interface DetailsPanelProps {
 const KIND_ICONS: Record<EntityKind, typeof User> = { creature: PawPrint, person: User, place: Landmark, item: Gem };
 const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
 
-// THE DETAILS PANEL — everything about one creature, person or location. It is filled by
+// THE DETAILS PANEL — everything about one creature, person, location or item. It is filled by
 // tapping something on the map or by picking a search result at the top.
 export default function DetailsPanel(props: DetailsPanelProps) {
   const { campaignId, entities, events, selected, activeMapId, panelEntityId, isVisibleToPlayers, isPlacing } = props;
@@ -123,8 +124,8 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             id="orc-details-search"
             className="input-field"
             value={query}
-            placeholder="Search creatures, people, locations"
-            aria-label="Search creatures, people, locations"
+            placeholder="Search creatures, people, locations, items"
+            aria-label="Search creatures, people, locations, items"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && matches.length > 0) {
@@ -155,7 +156,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             <div className="empty-state">
               <p className="empty-state-title">{entities.length === 0 ? "Nothing here yet" : "No match"}</p>
               <p className="empty-state-body">
-                {entities.length === 0 ? "Add a creature, person or location, or build them from your notes on the Prep tab." : "Try a different word."}
+                {entities.length === 0 ? "Add a creature, person, location or item, or build them from your notes on the Prep tab." : "Try a different word."}
               </p>
             </div>
           )}
@@ -233,6 +234,11 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             {selected.kind !== "place" && selected.map_id === activeMapId && activeMapId && (
               <Button className={selected.is_revealed ? "btn-green" : "btn-off"} onClick={() => props.onToggleRevealed(selected)} title={selected.is_revealed ? "Take it off the players' map again" : "Put it on the players' map"}>
                 {selected.is_revealed ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />} {selected.is_revealed ? "Revealed" : "Reveal to players"}
+              </Button>
+            )}
+            {(selected.kind === "creature" || selected.kind === "person") && (
+              <Button className={selected.is_down ? "btn-red" : "btn-off"} onClick={() => props.onToggleDown(selected)} title={selected.is_down ? "Back in the fight" : "Dead or out of the fight; stays on the map"}>
+                {selected.is_down ? <HeartPulse className="w-4 h-4" /> : <Skull className="w-4 h-4" />} {selected.is_down ? "Down" : "Mark down"}
               </Button>
             )}
             {selected.map_id === activeMapId && activeMapId ? (

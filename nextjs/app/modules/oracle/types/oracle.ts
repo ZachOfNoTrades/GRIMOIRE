@@ -98,6 +98,7 @@ export interface OracleEntity {
   map_y: number | null;
   image_id: string | null;
   is_revealed: boolean; // shown on the player map by hand, even outside the party's sight
+  is_down: boolean; // dead or out of the fight: stays on the map, no longer active
   source: string | null; // the book and page, the adventure, or "AI-generated"
   knowledge: Knowledge[];
 }
@@ -239,6 +240,7 @@ export interface DisplayToken {
   attitude: Attitude;
   details: string; // the public description
   revealed: boolean; // put on the map by the DM's hand, whatever the party sees
+  down: boolean; // dead or out of the fight
   image_id: string | null;
   knowledge: string[]; // facts already revealed
 

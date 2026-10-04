@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import MapCanvas, { type MapToken } from "@/app/modules/oracle/components/MapCanvas";
 import AutoScroll from "@/app/modules/oracle/components/AutoScroll";
 import type { DisplayPanel, DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
@@ -172,7 +172,7 @@ export default function DisplayClient({ code }: { code: string }) {
   }
 
   const map = snapshot.map;
-  const tokens: MapToken[] = map ? map.tokens.map((token) => ({ id: token.id, name: token.name, kind: token.kind, attitude: token.attitude, x: token.x, y: token.y })) : [];
+  const tokens: MapToken[] = map ? map.tokens.map((token) => ({ id: token.id, name: token.name, kind: token.kind, attitude: token.attitude, x: token.x, y: token.y, down: token.down })) : [];
   const imageUrl = (imageId: string) => `/api/oracle/${code}/images/${imageId}?v=${snapshot.version}`;
 
   return (
@@ -219,7 +219,7 @@ export default function DisplayClient({ code }: { code: string }) {
               {/* PORTRAIT */}
               {panel.image_id && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className="orc-display-photo" src={imageUrl(panel.image_id)} alt={panel.name} />
+                <PanelPicture key={panel.image_id} src={imageUrl(panel.image_id)} alt={panel.name} />
               )}
 
               {/* ENTRY */}
@@ -247,5 +247,25 @@ export default function DisplayClient({ code }: { code: string }) {
         </aside>
       )}
     </div>
+  );
+}
+
+// An entry's picture, shown whole at its own shape. It takes the height it needs up to a cap, and
+// a blurred copy of itself fills any space beside it. Keyed by picture, so a new one measures afresh.
+function PanelPicture({ src, alt }: { src: string; alt: string }) {
+  const [ratio, setRatio] = useState<number | null>(null);
+  return (
+    <figure className="orc-display-figure" style={{ "--photo": `url("${src}")`, aspectRatio: ratio ?? 4 / 3 } as CSSProperties}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="orc-display-figure-img"
+        src={src}
+        alt={alt}
+        onLoad={(event) => {
+          const image = event.currentTarget;
+          if (image.naturalWidth > 0 && image.naturalHeight > 0) setRatio(image.naturalWidth / image.naturalHeight);
+        }}
+      />
+    </figure>
   );
 }
