@@ -1,4 +1,4 @@
-import type { OracleImage } from "../types/oracle";
+import type { EntityKind, OracleImage } from "../types/oracle";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from "./constants";
 import type { TextModel } from "./constants";
 import { OracleError } from "./errors";
@@ -10,8 +10,9 @@ import { generateJson } from "./llm";
 //   search    look the subject up on Openverse (openly licensed photos and artwork) and keep one
 //   generate  have an image model draw it, through OpenRouter
 //
-// Search needs no account. Generation is paid per image, so it stays switched off until an
-// OPENROUTER_API_KEY is configured; the option is still shown, marked unavailable.
+// Search needs no account. Generation is paid per image through OpenRouter, with the key in
+// OPENROUTER_ORACLE_KEY (Infisical) or OPENROUTER_API_KEY; without one the option is shown,
+// marked unavailable.
 
 export interface ImageSourceInfo {
   key: "search" | "generate";
@@ -20,8 +21,12 @@ export interface ImageSourceInfo {
   note: string | null;
 }
 
+function openRouterKey(): string | undefined {
+  return process.env.OPENROUTER_ORACLE_KEY || process.env.OPENROUTER_API_KEY || undefined;
+}
+
 export function listImageSources(): ImageSourceInfo[] {
-  const canGenerate = !!process.env.OPENROUTER_API_KEY;
+  const canGenerate = !!openRouterKey();
   return [
     { key: "search", label: "Search the web", available: true, note: null },
     { key: "generate", label: "Generate", available: canGenerate, note: canGenerate ? null : "Needs an OpenRouter key" },
@@ -277,19 +282,22 @@ export async function importSearchImage(campaignId: string, sourceId: string, ca
 // ---------------------------------------------------------------------------------------------
 
 // The model is configurable because prices and quality move quickly.
-const IMAGE_MODEL = process.env.ORACLE_IMAGE_MODEL || "bytedance-seed/seedream-4.5";
+const IMAGE_MODEL = process.env.ORACLE_IMAGE_MODEL || "google/gemini-3.1-flash-image";
+const IMAGE_STYLE = "Painted fantasy illustration, inked linework, muted palette, tabletop RPG art. No text, no lettering, no border, no watermark.";
 
-export async function generateImage(campaignId: string, prompt: string, world: string, caption: string, detail = ""): Promise<OracleImage> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+// `kind` picks the framing: a portrait for a creature, person or item, a scene for a location.
+export async function generateImage(campaignId: string, prompt: string, world: string, caption: string, detail = "", kind: EntityKind | null = null): Promise<OracleImage> {
+  const apiKey = openRouterKey();
   if (!apiKey) throw new OracleError(409, "Image generation isn't set up yet. It needs an OpenRouter key.");
 
-  const fullPrompt = `${prompt}.${detail ? ` ${detail.slice(0, 500)}` : ""} Fantasy tabletop illustration, painterly, no text or lettering.${world ? ` Setting: ${world.slice(0, 400)}` : ""}`;
+  const framing = kind === "place" ? "A view of the place." : kind === "item" ? "A single object, centered." : kind ? "A portrait, the subject filling the frame." : "";
+  const fullPrompt = `${prompt}.${detail ? ` ${detail.slice(0, 500)}` : ""} ${framing} ${IMAGE_STYLE}${world ? ` Setting: ${world.slice(0, 400)}` : ""}`.replace(/\s+/g, " ");
   let response: Response;
   try {
     response = await fetch("https://openrouter.ai/api/v1/images", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: IMAGE_MODEL, prompt: fullPrompt, aspect_ratio: "4:3", resolution: "1K", n: 1, output_format: "jpeg" }),
+      body: JSON.stringify({ model: IMAGE_MODEL, prompt: fullPrompt, aspect_ratio: kind && kind !== "place" ? "1:1" : "4:3", n: 1, output_format: "jpeg" }),
       signal: AbortSignal.timeout(120_000),
     });
   } catch (error) {

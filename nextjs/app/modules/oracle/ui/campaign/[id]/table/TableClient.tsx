@@ -114,7 +114,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [pictureOpacity, setPictureOpacity] = useState(1); // how strongly the map's picture shows on this screen
   const [focus, setFocus] = useState<{ x: number; y: number; nonce: number } | null>(null); // a Zoom to request
   const [entityModal, setEntityModal] = useState<{ entity: OracleEntity | null; kind: EntityKind; at: { x: number; y: number } | null } | null>(null);
-  const [picker, setPicker] = useState<{ entityId: string | null; subject: string; detail: string } | null>(null);
+  const [picker, setPicker] = useState<{ entityId: string | null; subject: string; detail: string; kind?: EntityKind } | null>(null);
   const [openChip, setOpenChip] = useState<OracleChip | null>(null);
   const [adoptChip, setAdoptChip] = useState<OracleChip | null>(null);
   const [isAdopting, setIsAdopting] = useState(false);
@@ -1033,7 +1033,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             onAddNote={addNote}
             onReveal={revealFact}
             onRemoveFact={removeFact}
-            onPicture={(entity) => setPicker({ entityId: entity.id, subject: entity.name, detail: [entity.kind, entity.attitude, entity.details].filter(Boolean).join(". ") })}
+            onPicture={(entity) => setPicker({ entityId: entity.id, subject: entity.name, detail: [entity.kind, entity.attitude, entity.details].filter(Boolean).join(". "), kind: entity.kind })}
             onPlace={(entity) => {
               setPlacingId(entity.id);
               setTool("place");
@@ -1128,7 +1128,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       <EntityModal isOpen={!!entityModal} entity={entityModal?.entity ?? null} defaultKind={entityModal?.kind} onSave={submitEntity} onClose={() => setEntityModal(null)} onWrite={(request) => api<EntityWriteUp>(`${base}/entities/draft`, "POST", request)} />
 
       {/* PICTURE PICKER */}
-      <ImagePicker isOpen={!!picker} campaignId={campaignId} sources={imageSources} subject={picker?.subject ?? ""} detail={picker?.detail ?? ""} onAdded={pictureAdded} onClose={() => setPicker(null)} />
+      <ImagePicker isOpen={!!picker} campaignId={campaignId} sources={imageSources} subject={picker?.subject ?? ""} detail={picker?.detail ?? ""} kind={picker?.kind ?? null} onAdded={pictureAdded} onClose={() => setPicker(null)} />
 
       {/* GROUND MENU — right-click on bare ground */}
       {groundMenu && activeMap && (

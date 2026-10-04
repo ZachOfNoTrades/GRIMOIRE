@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import Modal from "@/components/Modal";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
-import type { OracleImage } from "../types/oracle";
+import type { EntityKind, OracleImage } from "../types/oracle";
 import { api, campaignApi, errorMessage } from "../lib/client";
 import { CAPTION_MAX } from "../lib/constants";
 
@@ -29,13 +29,14 @@ interface ImagePickerProps {
   sources: ImageSource[];
   subject: string; // what the picture is for; pre-fills the description
   detail?: string; // what is known about it (an entry's description), passed on to the search and the drawing
+  kind?: EntityKind | null; // the entry it is for, so a drawing is framed as a portrait or a scene
   onAdded: (image: OracleImage) => void;
   onClose: () => void;
 }
 
 // GET A PICTURE — one description, two ways to turn it into a picture, side by side:
 // search the web, or have an image model draw it. A file from this device can be uploaded too.
-export default function ImagePicker({ isOpen, campaignId, sources, subject, detail = "", onAdded, onClose }: ImagePickerProps) {
+export default function ImagePicker({ isOpen, campaignId, sources, subject, detail = "", kind = null, onAdded, onClose }: ImagePickerProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // DATA
@@ -92,7 +93,7 @@ export default function ImagePicker({ isOpen, campaignId, sources, subject, deta
     if (!trimmed || busy || !generate?.available) return;
     setBusy("generate");
     try {
-      finish(await api<OracleImage>(`${campaignApi(campaignId)}/images/generate`, "POST", { prompt: trimmed, caption: trimmed.slice(0, CAPTION_MAX), detail: detail || undefined }));
+      finish(await api<OracleImage>(`${campaignApi(campaignId)}/images/generate`, "POST", { prompt: trimmed, caption: trimmed.slice(0, CAPTION_MAX), detail: detail || undefined, kind: kind ?? undefined }));
     } catch (error) {
       toast.error(errorMessage(error, "The generator failed"));
       setBusy(null);

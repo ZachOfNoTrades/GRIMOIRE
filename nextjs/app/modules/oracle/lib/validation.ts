@@ -269,6 +269,7 @@ export const imageGenerateSchema = z.object({
   prompt: line(PROMPT_MAX, "a description"),
   detail: z.string().max(DETAILS_MAX).optional(),
   caption: line(CAPTION_MAX, "a caption"),
+  kind: z.enum(ENTITY_KINDS as [string, ...string[]]).optional(), // the entry it is for; picks the framing
 });
 
 export const generateWorldSchema = z.object({ seed: z.string().max(WORLD_MAX).default("") });
