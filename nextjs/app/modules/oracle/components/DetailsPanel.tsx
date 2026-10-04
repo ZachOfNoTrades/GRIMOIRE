@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, X, ZoomIn } from "lucide-react";
+import { ArrowLeft, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ interface DetailsPanelProps {
   onDelete: (entity: OracleEntity) => void;
   onShow: (entity: OracleEntity | null) => void;
   onToggleDown: (entity: OracleEntity) => void;
+  onJoinParty: (entity: OracleEntity) => void;
+  onLeaveParty: (entity: OracleEntity) => void;
+  partyGroups: { id: string; name: string }[];
   onToggleRevealed: (entity: OracleEntity) => void;
   onStats: (entity: OracleEntity, stats: StatBlock) => void;
   onAddNote: (entity: OracleEntity, body: string) => void;
@@ -211,11 +214,18 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             </div>
           </div>
 
+          {/* WITH THE PARTY */}
+          {selected.in_party && (
+            <div className="orc-badges">
+              <span className="badge badge-blue"><Users className="w-3 h-3" /> {props.partyGroups.find((group) => group.id === selected.party_group_id)?.name ?? "With the party"}</span>
+            </div>
+          )}
+
           {/* VISIBILITY — whether the players can see it on their map */}
           {selected.kind !== "place" && selected.map_id === activeMapId && (
             <div className="orc-badges">
-              <span className={`badge ${isVisibleToPlayers || selected.is_revealed ? "badge-green" : "badge-gray"}`}>
-                {isVisibleToPlayers || selected.is_revealed ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />} {selected.is_revealed ? "Revealed" : isVisibleToPlayers ? "In sight" : "Hidden"}
+              <span className={`badge ${selected.is_revealed ? "badge-green" : "badge-gray"}`}>
+                {selected.is_revealed ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />} {selected.is_revealed ? "Revealed" : isVisibleToPlayers ? "Hidden, in sight" : "Hidden"}
               </span>
             </div>
           )}
@@ -241,7 +251,16 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                 {selected.is_down ? <HeartPulse className="w-4 h-4" /> : <Skull className="w-4 h-4" />} {selected.is_down ? "Down" : "Mark down"}
               </Button>
             )}
-            {selected.map_id === activeMapId && activeMapId ? (
+            {selected.kind !== "place" && (selected.in_party ? (
+              <Button className="btn-off" onClick={() => props.onLeaveParty(selected)} title="Leave the party; it is put on the map where its group stands">
+                <UserMinus className="w-4 h-4" /> Leave party
+              </Button>
+            ) : (
+              <Button className="btn-off" onClick={() => props.onJoinParty(selected)} title="Travels with the party token instead of standing on the map">
+                <UserPlus className="w-4 h-4" /> Add to party
+              </Button>
+            ))}
+            {selected.in_party ? null : selected.map_id === activeMapId && activeMapId ? (
               <>
                 <Button className="btn-off" onClick={() => props.onZoomTo(selected)} title="Zoom the map in on this entry">
                   <ZoomIn className="w-4 h-4" /> Zoom to

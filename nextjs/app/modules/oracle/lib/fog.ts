@@ -28,6 +28,8 @@ export function isVisibleFrom(points: VisionPoint[], visionRadius: number, x: nu
 }
 
 // The party token plus every group standing on this map that has someone in it.
+// `members` are the characters, and may include companions mapped to { group_id } — a group with
+// anyone in it sees.
 export function visionPoints(
   map: { id: string; party_x: number; party_y: number },
   groups: { id: string; map_id: string | null; map_x: number | null; map_y: number | null }[],

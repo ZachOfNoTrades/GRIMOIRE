@@ -1,6 +1,6 @@
 "use client";
 
-import { Brush, ChevronDown, Eraser, Eye, EyeOff, HeartPulse, MapPin, Move, MonitorUp, PanelLeft, RotateCcw, Search, Skull, Trash2, X, ZoomIn } from "lucide-react";
+import { Brush, ChevronDown, Eraser, Eye, EyeOff, HeartPulse, MapPin, Move, MonitorUp, PanelLeft, RotateCcw, Search, Skull, Trash2, UserPlus, X, ZoomIn } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -309,6 +309,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   // -------------------------------------------------------------------------------------------
 
   // Groups standing on the active map, drawn as their own tokens.
+  const companions = useMemo(() => entities.filter((entity) => entity.in_party), [entities]);
   const apartGroups = useMemo(
     () => (activeMap ? partyGroups.filter((group) => group.map_id === activeMap.id && group.map_x !== null && group.map_y !== null).map((group) => ({ id: group.id, name: group.name, x: group.map_x as number, y: group.map_y as number })) : []),
     [partyGroups, activeMap]
@@ -343,11 +344,14 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     const previousParty = party;
     setPartyGroups((list) => list.filter((entry) => entry.id !== group.id));
     setParty((list) => list.map((member) => (member.group_id === group.id ? { ...member, group_id: null } : member)));
+    const previousEntities = entities;
+    setEntities((list) => list.map((entry) => (entry.party_group_id === group.id ? { ...entry, party_group_id: null } : entry)));
     try {
       await api(`${base}/party/groups/${group.id}`, "DELETE");
     } catch (error) {
       setPartyGroups(previousGroups);
       setParty(previousParty);
+      setEntities(previousEntities);
       toast.error(errorMessage(error, "Couldn't disband the group"));
     }
   }
@@ -462,7 +466,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   async function createEntity(draft: EntityDraft, at: { x: number; y: number } | null) {
     const id = generateUUID().toLowerCase();
     const placement = at && activeMap ? { map_id: activeMap.id, map_x: at.x, map_y: at.y } : { map_id: null, map_x: null, map_y: null };
-    const optimistic: OracleEntity = { id, ...draft, ...placement, image_id: null, is_revealed: false, is_down: false, source: draft.source, knowledge: [] };
+    const optimistic: OracleEntity = { id, ...draft, ...placement, image_id: null, is_revealed: false, is_down: false, in_party: false, party_group_id: null, source: draft.source, knowledge: [] };
     setEntities((list) => [...list, optimistic]);
     setSelectedId(id);
     setEntityModal(null);
@@ -505,6 +509,27 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   }
 
   // Put an entry on the players' map by hand even though the party cannot see it, or take it off again.
+  // COMPANIONS — a creature, person or item traveling with the party instead of standing on a map.
+  function joinParty(entity: OracleEntity) {
+    saveEntity(entity, { in_party: true, party_group_id: null, map_id: null, map_x: null, map_y: null }, "Couldn't add it to the party");
+  }
+
+  // Leaving puts it back on the active map one cell from where its group (or the party) stands.
+  function leaveParty(entity: OracleEntity) {
+    if (!activeMap) {
+      saveEntity(entity, { in_party: false, party_group_id: null }, "Couldn't take it out of the party");
+      return;
+    }
+    const group = partyGroups.find((entry) => entry.id === entity.party_group_id && entry.map_id === activeMap.id && entry.map_x !== null && entry.map_y !== null);
+    const from = group ? { x: group.map_x as number, y: group.map_y as number } : { x: activeMap.party_x, y: activeMap.party_y };
+    const cell = snapCell(Math.min(activeMap.data.width - MAP_GRID / 2, from.x + MAP_GRID), from.y);
+    saveEntity(entity, { in_party: false, party_group_id: null, map_id: activeMap.id, map_x: cell.x, map_y: cell.y }, "Couldn't take it out of the party");
+  }
+
+  function moveCompanionTo(entity: OracleEntity, groupId: string | null) {
+    saveEntity(entity, { party_group_id: groupId }, "Couldn't move it");
+  }
+
   function toggleDown(entity: OracleEntity) {
     saveEntity(entity, { is_down: !entity.is_down }, entity.is_down ? "Couldn't bring it back" : "Couldn't mark it down");
   }
@@ -933,6 +958,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 explored={activeMap.explored}
                 tokens={tokens}
                 members={apartGroups}
+                companions={companions.map((entity) => ({ id: entity.id, name: entity.name, kind: entity.kind, imageUrl: entity.image_id ? `${base}/images/${entity.image_id}` : null, groupId: entity.party_group_id }))}
                 backgroundUrl={activeMap.background_image_id ? `${base}/images/${activeMap.background_image_id}` : null}
                 pictureOpacity={pictureOpacity}
                 barExtras={barExtras}
@@ -973,7 +999,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
 
             {/* PARTY POPOVER — who is with the token and who stands apart */}
             {isPartyOpen && activeMap && (
-              <PartyPanel campaignId={campaignId} party={party} groups={partyGroups} onCreateGroup={createGroup} onRenameGroup={renameGroup} onDisbandGroup={disbandGroup} onMoveMember={moveMemberTo} onClose={() => setIsPartyOpen(false)} />
+              <PartyPanel campaignId={campaignId} party={party} groups={partyGroups} onCreateGroup={createGroup} onRenameGroup={renameGroup} onDisbandGroup={disbandGroup} onMoveMember={moveMemberTo} companions={companions} onMoveCompanion={moveCompanionTo} onSelectCompanion={(entity) => { setSelectedId(entity.id); setMobileTab("details"); }} onClose={() => setIsPartyOpen(false)} />
             )}
 
           </div>
@@ -990,7 +1016,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             panelEntityId={panelEntity?.id ?? null}
             isVisibleToPlayers={
               !!(selected && activeMap && selected.map_id === activeMap.id && selected.map_x !== null && selected.map_y !== null &&
-                isVisibleFrom(visionPoints(activeMap, partyGroups, party), activeMap.vision_radius, selected.map_x, selected.map_y))
+                isVisibleFrom(visionPoints(activeMap, partyGroups, [...party, ...companions.map((entry) => ({ group_id: entry.party_group_id }))]), activeMap.vision_radius, selected.map_x, selected.map_y))
             }
             isPlacing={!!selected && placingId === selected.id}
             onSelect={setSelectedId}
@@ -1000,6 +1026,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             onShow={showEntity}
             onToggleRevealed={toggleRevealed}
             onToggleDown={toggleDown}
+            onJoinParty={joinParty}
+            onLeaveParty={leaveParty}
+            partyGroups={partyGroups}
             onStats={(entity, stats: StatBlock) => saveEntity(entity, { stats }, "Couldn't save the stats")}
             onAddNote={addNote}
             onReveal={revealFact}
@@ -1131,6 +1160,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             onClose={() => setMenu(null)}
             items={[
               ...(entity.kind !== "place" ? [{ label: entity.is_revealed ? "Hide from players" : "Reveal to players", icon: entity.is_revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />, onSelect: () => toggleRevealed(entity) }] : []),
+              ...(entity.kind !== "place" ? [{ label: "Add to party", icon: <UserPlus className="w-4 h-4" />, onSelect: () => joinParty(entity) }] : []),
               ...(entity.kind === "creature" || entity.kind === "person" ? [{ label: entity.is_down ? "Bring back" : "Mark down", icon: entity.is_down ? <HeartPulse className="w-4 h-4" /> : <Skull className="w-4 h-4" />, onSelect: () => toggleDown(entity) }] : []),
               { label: panelEntity?.id === entity.id ? "Stop showing details" : "Show details to players", icon: <MonitorUp className="w-4 h-4" />, onSelect: () => showEntity(panelEntity?.id === entity.id ? null : entity) },
               ...(placedHere ? [{ label: "Zoom to", icon: <ZoomIn className="w-4 h-4" />, onSelect: () => setFocus({ x: entity.map_x as number, y: entity.map_y as number, nonce: Date.now() }) }] : []),

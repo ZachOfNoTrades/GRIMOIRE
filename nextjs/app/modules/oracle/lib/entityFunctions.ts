@@ -5,7 +5,7 @@ import { bumpVersion, normalizeId } from "./campaignFunctions";
 import { OracleError, isUniqueViolation } from "./errors";
 import { parseJson } from "./mapData";
 
-const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, is_revealed, is_down, source";
+const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, is_revealed, is_down, in_party, party_group_id, source";
 
 type EntityRow = {
   id: string;
@@ -21,6 +21,8 @@ type EntityRow = {
   image_id: string | null;
   is_revealed: boolean;
   is_down: boolean;
+  in_party: boolean;
+  party_group_id: string | null;
   source: string | null;
 };
 
@@ -52,6 +54,8 @@ function toEntity(row: EntityRow, knowledge: Knowledge[]): OracleEntity {
     image_id: normalizeId(row.image_id),
     is_revealed: !!row.is_revealed,
     is_down: !!row.is_down,
+    in_party: !!row.in_party,
+    party_group_id: row.party_group_id ? String(row.party_group_id).toLowerCase() : null,
     source: row.source ?? null,
     knowledge,
   };
@@ -175,6 +179,8 @@ export interface EntityPatch {
   image_id?: string | null;
   is_revealed?: boolean;
   is_down?: boolean;
+  in_party?: boolean; // joining clears the map position; placing on a map leaves the party
+  party_group_id?: string | null; // the group it travels with; null = with the party token
   source?: string | null;
 }
 
@@ -183,6 +189,30 @@ export async function updateEntity(campaignId: string, entityId: string, patch: 
   const request = pool.request().input("entityId", entityId).input("campaignId", campaignId);
   const updateFields: string[] = [];
 
+  // PARTY — a companion travels with the party (or a group) instead of standing on a map.
+  const joins = patch.in_party === true;
+  const placed = patch.map_id !== undefined && patch.map_id !== null;
+  if (joins && placed) throw new OracleError(400, "An entry is either with the party or on a map, not both");
+  if (joins) {
+    const current = await getEntity(campaignId, entityId);
+    if ((patch.kind ?? current.kind) === "place") throw new OracleError(400, "A location can't join the party");
+    if (patch.map_id === undefined) patch = { ...patch, map_id: null };
+  }
+  if (joins || patch.in_party === false || placed) {
+    updateFields.push("in_party = @inParty");
+    request.input("inParty", joins ? 1 : 0);
+    if (!joins) patch = { ...patch, party_group_id: null };
+  }
+  if (patch.party_group_id !== undefined) {
+    if (patch.party_group_id !== null) {
+      const group = await pool.request().input("id", patch.party_group_id).input("campaignId", campaignId).query(`
+        SELECT 1 AS found FROM oracle_party_groups WHERE id = @id AND campaign_id = @campaignId
+      `);
+      if (group.recordset.length === 0) throw new OracleError(404, "Group not found");
+    }
+    updateFields.push("party_group_id = @partyGroupId");
+    request.input("partyGroupId", patch.party_group_id);
+  }
   if (patch.kind !== undefined) {
     updateFields.push("kind = @kind");
     request.input("kind", patch.kind);

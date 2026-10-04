@@ -56,7 +56,7 @@ export async function getDisplayVersion(code: string): Promise<number> {
 // THE PLAYER VIEW. Built from the same rows as the DM's snapshot, with everything the players
 // must not see left out HERE, on the server — the display never receives it:
 //   - DM notes, stat blocks and the session list are never included
-//   - creatures and people appear only while inside the party's current vision
+//   - creatures, people and items appear only once the DM has revealed them
 //   - places are never drawn as tokens (the map already shows the building)
 //   - the panel carries only the entry's public details and the facts already revealed
 export async function getDisplaySnapshot(campaignId: string): Promise<DisplaySnapshot> {
@@ -78,10 +78,11 @@ export async function getDisplaySnapshot(campaignId: string): Promise<DisplaySna
   const locations: DisplayLocation[] = [];
   const apart = map ? partyGroups.filter((group) => group.map_id === map.id && group.map_x !== null && group.map_y !== null) : [];
   if (map) {
-    const points = visionPoints(map, partyGroups, party);
+    const companions = entities.filter((entity) => entity.in_party).map((entity) => ({ group_id: entity.party_group_id }));
+    const points = visionPoints(map, partyGroups, [...party, ...companions]);
     for (const entity of entities) {
       if (entity.kind === "place" || entity.map_id !== map.id || entity.map_x === null || entity.map_y === null) continue;
-      if (!entity.is_revealed && !isVisibleFrom(points, map.vision_radius, entity.map_x, entity.map_y)) continue;
+      if (!entity.is_revealed) continue;
       tokens.push({
         id: entity.id,
         name: entity.name,
@@ -151,6 +152,19 @@ export async function getDisplaySnapshot(campaignId: string): Promise<DisplaySna
           tokens,
           locations,
           groups: apart.map((group) => ({ id: group.id, name: group.name, x: group.map_x as number, y: group.map_y as number })),
+          companions: entities
+            .filter((entity) => entity.in_party)
+            .map((entity) => ({
+              id: entity.id,
+              name: entity.name,
+              kind: entity.kind,
+              attitude: entity.attitude,
+              details: entity.details,
+              down: entity.is_down,
+              image_id: entity.image_id && images.some((image) => image.id === entity.image_id) ? entity.image_id : null,
+              knowledge: entity.knowledge.map((fact) => fact.fact),
+              group_id: apart.some((group) => group.id === entity.party_group_id) ? entity.party_group_id : null,
+            })),
           background_image_id: map.background_image_id && images.some((image) => image.id === map.background_image_id) ? map.background_image_id : null,
         }
       : null,
@@ -168,5 +182,6 @@ export async function getDisplayImageIds(campaignId: string): Promise<Set<string
   if (snapshot.map?.background_image_id) allowed.add(snapshot.map.background_image_id);
   for (const token of snapshot.map?.tokens ?? []) if (token.image_id) allowed.add(token.image_id);
   for (const location of snapshot.map?.locations ?? []) if (location.image_id) allowed.add(location.image_id);
+  for (const companion of snapshot.map?.companions ?? []) if (companion.image_id) allowed.add(companion.image_id);
   return allowed;
 }

@@ -282,6 +282,7 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-token[data-attitude="neutral"] :is(circle, polygon),
 .orc-token[data-attitude="neutral"] text { fill: var(--color-secondary); }
 .orc-token[data-selected="true"] :is(circle, polygon) { stroke: var(--color-primary); stroke-width: 3; }
+.orc-token[data-hidden="true"] :is(circle, polygon) { fill-opacity: 0.55; stroke: var(--color-secondary); stroke-dasharray: 3 2; }
 .orc-token[data-down="true"] { opacity: 0.8; }
 .orc-token[data-down="true"] :is(circle, polygon) { fill: var(--color-gray); }
 .orc-token[data-down="true"] .orc-token-name { fill: var(--color-gray); text-decoration: line-through; }
@@ -1083,6 +1084,14 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-party-row[data-dragging="true"] { opacity: 0.4; }
 .orc-party-grip { color: var(--color-gray); flex: 0 0 auto; }
 .orc-party-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-companion { cursor: pointer; }
+.orc-companion-ring { fill: var(--solid-background); stroke: var(--orc-cool); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.orc-companion:hover .orc-companion-ring { stroke: var(--color-primary); stroke-width: 3; }
+.orc-companion-initial { fill: var(--orc-cool); font-weight: 700; pointer-events: none; }
+.orc-companion-more { cursor: default; }
+.orc-party-companion { display: inline-flex; align-items: center; gap: 0.35rem; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.orc-party-companion:hover { text-decoration: underline; }
+.orc-party-row[data-down="true"] .orc-party-companion { color: var(--color-gray); text-decoration: line-through; }
 .orc-party-ghost { position: fixed; z-index: 1100; padding: 0.2rem 0.5rem; font-size: 0.75rem; color: var(--color-primary); background: var(--card-bg); border: 1px solid var(--orc-good); pointer-events: none; }
 
 /* ---------- reveal: the entry's icon and nameplate arrive with a flourish ---------- */

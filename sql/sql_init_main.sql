@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610041800 (Oracle item entries, downed entries)
+-- Version: 202610042000 (Oracle item entries, downed entries, companions)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -432,6 +432,8 @@ BEGIN TRY
             image_id UNIQUEIDENTIFIER NULL, -- oracle_images.id, no FK
             is_revealed BIT NOT NULL DEFAULT 0, -- 1 = shown on the player map by hand, even outside the party sight
             is_down BIT NOT NULL DEFAULT 0, -- 1 = dead or out of the fight; stays on the map, no longer active
+            in_party BIT NOT NULL DEFAULT 0, -- 1 = travels with the party instead of standing on a map
+            party_group_id UNIQUEIDENTIFIER NULL, -- oracle_party_groups.id, no FK; NULL = with the party token
             source NVARCHAR(200) NULL, -- book and page, adventure, or AI-generated
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),

@@ -99,6 +99,8 @@ export interface OracleEntity {
   image_id: string | null;
   is_revealed: boolean; // shown on the player map by hand, even outside the party's sight
   is_down: boolean; // dead or out of the fight: stays on the map, no longer active
+  in_party: boolean; // travels with the party instead of standing on a map
+  party_group_id: string | null; // the group it travels with; null = with the party token
   source: string | null; // the book and page, the adventure, or "AI-generated"
   knowledge: Knowledge[];
 }
@@ -269,6 +271,19 @@ export interface DisplayLocation {
   knowledge: string[];
 }
 
+// A creature, person or item traveling with the party; the players know who is with them.
+export interface DisplayCompanion {
+  id: string;
+  name: string;
+  kind: EntityKind;
+  attitude: Attitude;
+  details: string;
+  down: boolean;
+  image_id: string | null;
+  knowledge: string[];
+  group_id: string | null; // a group standing apart, else with the party token
+}
+
 export interface DisplayMap {
   name: string;
   data: MapData;
@@ -278,6 +293,7 @@ export interface DisplayMap {
   explored: ExploredCircle[];
   tokens: DisplayToken[];
   groups: { id: string; name: string; x: number; y: number }[]; // groups standing apart from the party token
+  companions: DisplayCompanion[];
   locations: DisplayLocation[]; // seen buildings and landmarks that have a location entry
   background_image_id: string | null;
 }

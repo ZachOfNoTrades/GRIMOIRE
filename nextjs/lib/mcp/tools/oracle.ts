@@ -224,7 +224,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     {
       description:
         'Add a creature, person, place or item to the campaign cast. "details" is what the players may be shown; "dm_notes" is never shown to players. ' +
-        'Give creatures a stat block. To put it on a map pass map_id with map_x/map_y (players only see creatures, people and items inside the party\'s current vision).',
+        'Give creatures a stat block. To put it on a map pass map_id with map_x/map_y (players see it only after it is revealed: pass is_revealed=true with oracle_update_entity).',
       inputSchema: {
         campaign_id: Uuid,
         kind: Kind,
@@ -271,7 +271,10 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
         map_id: Uuid.nullable().optional(),
         map_x: z.number().nullable().optional(),
         map_y: z.number().nullable().optional(),
+        is_revealed: z.boolean().optional().describe('true: shown on the players\' map; placed entries stay hidden from them until revealed'),
         is_down: z.boolean().optional().describe('true: dead or out of the fight; it stays on the map, greyed out'),
+        in_party: z.boolean().optional().describe('true: travels with the party (takes it off the map); false or placing it on a map: leaves the party'),
+        party_group_id: Uuid.nullable().optional().describe('the party group it travels with; null = with the party token'),
       },
     },
     async ({ campaign_id, entity_id, ...patch }) => {
@@ -281,6 +284,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
           ...patch,
           attitude: patch.attitude as Attitude | undefined,
           map_id: patch.map_id === undefined ? undefined : patch.map_id ? patch.map_id.toLowerCase() : null,
+          party_group_id: patch.party_group_id === undefined ? undefined : patch.party_group_id ? patch.party_group_id.toLowerCase() : null,
         }),
       );
     },

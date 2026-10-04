@@ -166,6 +166,8 @@ export const updateEntitySchema = z
     image_id: nullableUuid.optional(),
     is_revealed: z.boolean().optional(),
     is_down: z.boolean().optional(),
+    in_party: z.boolean().optional(),
+    party_group_id: nullableUuid.optional(),
     source: z.string().trim().max(200).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "Nothing to change");

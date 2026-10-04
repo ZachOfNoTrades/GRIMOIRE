@@ -21,6 +21,7 @@ import { listSessions } from "./sessionFunctions";
 export interface GenerationContext {
   world: string;
   partyLevels: number[]; // the player characters' levels, empty when no party is set
+  companions: OracleEntity[]; // creatures and people traveling with the party, and what it carries
   aiCreatures: boolean; // may a creature be invented, or must every creature come from the campaign's own material
 
   session: { title: string; notes: string; recap: string } | null;
@@ -44,6 +45,7 @@ export async function buildContext(campaignId: string, userId: string): Promise<
   const map = maps.find((entry) => entry.id === campaign.active_map_id) ?? null;
 
   const ranked = entities
+    .filter((entity) => !entity.in_party)
     .map((entity) => {
       const placed = map && entity.map_id === map.id && entity.map_x !== null && entity.map_y !== null;
       const range = placed ? distance(map.party_x, map.party_y, entity.map_x as number, entity.map_y as number) : Number.MAX_SAFE_INTEGER;
@@ -56,6 +58,7 @@ export async function buildContext(campaignId: string, userId: string): Promise<
   return {
     world: campaign.world,
     partyLevels: party.map((member) => member.level),
+    companions: entities.filter((entity) => entity.in_party),
     aiCreatures: settings.ai_creatures,
     session: session ? { title: session.title, notes: session.notes, recap: session.recap } : null,
     nearby: ranked,
@@ -92,6 +95,10 @@ function contextBlock(context: GenerationContext): string {
   } else {
     lines.push("Tonight's session: (none set)");
   }
+  const travelers = context.companions.filter((entity) => entity.kind !== "item");
+  const carried = context.companions.filter((entity) => entity.kind === "item");
+  if (travelers.length > 0) lines.push(`Traveling with the party: ${quoteForPrompt(travelers.map((entity) => `${entity.name} (${entity.kind}${entity.is_down ? ", down" : ""})`).join(", "), 400)}`);
+  if (carried.length > 0) lines.push(`The party carries: ${quoteForPrompt(carried.map((entity) => entity.name).join(", "), 400)}`);
   if (context.nearby.length > 0) {
     lines.push("Nearby, closest first:");
     for (const entity of context.nearby) lines.push(`- ${describeEntity(entity)}`);

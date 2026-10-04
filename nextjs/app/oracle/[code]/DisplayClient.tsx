@@ -99,7 +99,7 @@ export default function DisplayClient({ code }: { code: string }) {
   // A fact that was not on the panel a moment ago animates in. The first load, and a switch to
   // another entry, only record what is there.
   const dmPanel = snapshot?.panel ?? null;
-  const localToken = localId ? snapshot?.map?.tokens.find((token) => token.id === localId) ?? null : null;
+  const localToken = localId ? snapshot?.map?.tokens.find((token) => token.id === localId) ?? snapshot?.map?.companions?.find((companion) => companion.id === localId) ?? null : null;
   const localLocation = localId && !localToken ? snapshot?.map?.locations.find((location) => location.feature_id === localId) ?? null : null;
   const panel: DisplayPanel | null = localToken
     ? { kind: "entity", name: localToken.name, entity_kind: localToken.kind, attitude: localToken.attitude, details: localToken.details, image_id: localToken.image_id, knowledge: localToken.knowledge }
@@ -183,7 +183,7 @@ export default function DisplayClient({ code }: { code: string }) {
       <div className="orc-display-map">
         {map ? (
           <>
-            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.groups ?? []} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id) : null} pictureOpacity={pictureOpacity} onPictureOpacity={changePictureOpacity} onTokenSelect={(id) => setLocalId((current) => (current === id ? null : id))} onFeatureSelect={(id) => setLocalId((current) => (current === id ? null : id))} linkedFeatures={map.locations.map((location) => location.feature_id)} revealFocus={revealFocus} mode="player" />
+            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.groups ?? []} companions={(map.companions ?? []).map((companion) => ({ id: companion.id, name: companion.name, kind: companion.kind, imageUrl: companion.image_id ? imageUrl(companion.image_id) : null, groupId: companion.group_id }))} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id) : null} pictureOpacity={pictureOpacity} onPictureOpacity={changePictureOpacity} onTokenSelect={(id) => setLocalId((current) => (current === id ? null : id))} onFeatureSelect={(id) => setLocalId((current) => (current === id ? null : id))} linkedFeatures={map.locations.map((location) => location.feature_id)} revealFocus={revealFocus} mode="player" />
 
             {/* MAP NAME */}
             <div className="orc-display-caption">{map.name}</div>

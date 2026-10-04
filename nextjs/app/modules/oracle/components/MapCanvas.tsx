@@ -17,7 +17,7 @@ export interface MapToken {
   x: number;
   y: number;
   pin?: number; // places are drawn as numbered pins on the DM's map
-  revealed?: boolean; // shown to the players by hand, whatever the party can see
+  revealed?: boolean; // shown to the players; nothing placed is shown until the DM reveals it
   down?: boolean; // dead or out of the fight: drawn faded and crossed out
 }
 
@@ -31,6 +31,19 @@ export interface MapMember {
   y: number;
 }
 
+// A creature, person or item traveling with the party: drawn as a small portrait trailing the
+// party token, or the token of the group it is with.
+export interface MapCompanion {
+  id: string;
+  name: string;
+  kind: EntityKind;
+  imageUrl: string | null;
+  groupId: string | null; // null = with the party token
+}
+
+const COMPANION_INITIALS: Record<EntityKind, string> = { creature: "C", person: "P", place: "L", item: "I" };
+const COMPANION_TRAIL_MAX = 5;
+
 interface MapCanvasProps {
   data: MapData;
   partyX: number;
@@ -39,6 +52,7 @@ interface MapCanvasProps {
   explored: ExploredCircle[];
   tokens: MapToken[];
   members?: MapMember[];
+  companions?: MapCompanion[];
   backgroundUrl?: string | null; // a picture drawn under the grid
   pictureOpacity?: number; // 0 to 1, how strongly the picture shows
   onPictureOpacity?: (opacity: number) => void; // present on the player display: its bar gets the slider
@@ -255,6 +269,7 @@ export default function MapCanvas({
   explored,
   tokens,
   members = [],
+  companions = [],
   backgroundUrl = null,
   pictureOpacity = 1,
   onPictureOpacity,
@@ -686,7 +701,8 @@ export default function MapCanvas({
 
   // LABEL PLACEMENT — one pass over everything that carries text
   const baseOf = (token: MapToken) => (drag?.kind === "token" && drag.id === token.id ? { x: drag.x, y: drag.y } : { x: token.x, y: token.y });
-  const isSeen = (token: MapToken) => !isDm || token.revealed || isVisibleFrom(sightPoints, visionRadius, baseOf(token).x, baseOf(token).y);
+  // Players see an entry only once the DM reveals it; the DM sees the rest drawn as hidden.
+  const isSeen = (token: MapToken) => !isDm || !!token.revealed;
 
   // STACKS — entries in the same grid cell are fanned out around the cell's middle, smaller, so
   // none hides another (or the party). Where they are drawn is a display matter only: dragging,
@@ -892,8 +908,8 @@ export default function MapCanvas({
             ))
         )}
 
-        {/* CREATURES, PEOPLE AND ITEMS THE PARTY CANNOT SEE (the DM's map only) — under the fog, so the
-            tint itself shows what is hidden */}
+        {/* CREATURES, PEOPLE AND ITEMS NOT YET REVEALED (the DM's map only) — under the fog, so out of
+            sight they take its tint, and drawn with a dashed outline */}
         {visibleTokens.filter((token) => !isSeen(token)).map((token) => {
           const position = positionOf(token);
           return (
@@ -914,8 +930,8 @@ export default function MapCanvas({
             >
               <TokenMark kind={token.kind} x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />
               {token.down && <DownMark x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />}
-              <text x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
-                {token.name} · hidden
+              <text className="orc-token-name" data-attitude={token.attitude} x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
+                {token.name}
               </text>
             </g>
           );
@@ -1045,6 +1061,69 @@ export default function MapCanvas({
             </text>
           </g>
         ))}
+
+        {/* COMPANIONS — small portraits trailing the token they travel with */}
+        {(() => {
+          const anchors = new Map<string, { x: number; y: number; r: number; list: MapCompanion[] }>();
+          for (const companion of companions) {
+            const group = companion.groupId ? memberPositions.find((member) => member.id === companion.groupId) : undefined;
+            const key = group ? group.id : "party";
+            const entry = anchors.get(key) ?? { x: group ? group.x : party.x, y: group ? group.y : party.y, r: labelSize * (group ? 0.8 : 1.1), list: [] };
+            entry.list.push(companion);
+            anchors.set(key, entry);
+          }
+          return [...anchors.entries()].map(([key, anchor]) => {
+            const size = labelSize * 0.78;
+            const shown = anchor.list.slice(0, COMPANION_TRAIL_MAX);
+            const extra = anchor.list.length - shown.length;
+            const slots = shown.length + (extra > 0 ? 1 : 0);
+            // fanned out to the left of the token, clear of its name below
+            const at = (index: number) => {
+              const angle = ([180, 145, 215, 110, 250, 180][index] * Math.PI) / 180;
+              const distance = anchor.r + size * (index === 5 ? 4.3 : 1.9);
+              return { x: anchor.x + Math.cos(angle) * distance, y: anchor.y + Math.sin(angle) * distance };
+            };
+            return (
+              <g key={key} className="orc-companions" aria-label="Traveling with the party">
+                {shown.map((companion, index) => {
+                  const point = at(index);
+                  const clip = `${maskId}-cmp-${companion.id}`;
+                  return (
+                    <g
+                      key={companion.id}
+                      className="orc-companion"
+                      data-companion-id={companion.id}
+                      data-kind={companion.kind}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => onTokenSelect?.(companion.id)}
+                    >
+                      <title>{companion.name}</title>
+                      <circle className="orc-companion-ring" cx={point.x} cy={point.y} r={size} />
+                      {companion.imageUrl ? (
+                        <>
+                          <clipPath id={clip}><circle cx={point.x} cy={point.y} r={size * 0.86} /></clipPath>
+                          <image href={companion.imageUrl} x={point.x - size} y={point.y - size} width={size * 2} height={size * 2} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clip})`} />
+                        </>
+                      ) : (
+                        <text className="orc-companion-initial" x={point.x} y={point.y + size * 0.36} fontSize={size} textAnchor="middle">{COMPANION_INITIALS[companion.kind]}</text>
+                      )}
+                    </g>
+                  );
+                })}
+                {extra > 0 && (() => {
+                  const point = at(slots - 1);
+                  return (
+                    <g className="orc-companion orc-companion-more">
+                      <title>{anchor.list.slice(COMPANION_TRAIL_MAX).map((companion) => companion.name).join(", ")}</title>
+                      <circle className="orc-companion-ring" cx={point.x} cy={point.y} r={size} />
+                      <text className="orc-companion-initial" x={point.x} y={point.y + size * 0.36} fontSize={size * 0.85} textAnchor="middle">+{extra}</text>
+                    </g>
+                  );
+                })()}
+              </g>
+            );
+          });
+        })()}
 
         {/* PARTY TOKEN */}
         <g

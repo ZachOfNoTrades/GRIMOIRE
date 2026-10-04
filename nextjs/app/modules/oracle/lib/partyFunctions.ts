@@ -188,6 +188,7 @@ export async function deletePartyGroup(campaignId: string, groupId: string): Pro
   const result = await pool.request().input("campaignId", campaignId).input("groupId", groupId).query(`
     DELETE FROM oracle_party_groups WHERE id = @groupId AND campaign_id = @campaignId;
     UPDATE oracle_party_members SET group_id = NULL WHERE campaign_id = @campaignId AND group_id = @groupId;
+    UPDATE oracle_entities SET party_group_id = NULL WHERE campaign_id = @campaignId AND party_group_id = @groupId;
     UPDATE oracle_campaigns SET version = version + 1 WHERE id = @campaignId;
   `);
   if (result.rowsAffected[0] === 0) throw new OracleError(404, "Group not found");

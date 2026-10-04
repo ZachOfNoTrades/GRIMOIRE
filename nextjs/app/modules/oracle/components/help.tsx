@@ -22,7 +22,7 @@ export const TABLE_HELP: HelpSection[] = [
     heading: "Map and fog",
     body: (
       <ul>
-        <li>Drag the party token to move it. Players see everything inside the circle around it.</li>
+        <li>Drag the party token to move it. Players see the ground inside the circle around it; creatures, people and items appear only once you reveal them.</li>
         <li>Where the party has been stays on their map, dimmed, showing buildings but never creatures. Where they have not been is black.</li>
         <li>Right-click bare ground to move the party there, reveal or hide a circle, paint fog by hand (the Brush slider or <kbd>[</kbd> and <kbd>]</kbd> sets the width) or add an entry.</li>
         <li>Scroll or pinch to zoom the map; drag the ground to look around. Shift+click the zoom buttons for small steps. Click the number beside Vision to type an exact value.</li>

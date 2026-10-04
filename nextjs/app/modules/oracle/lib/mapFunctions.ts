@@ -193,7 +193,11 @@ export async function replaceMapData(campaignId: string, mapId: string, data: Ma
 export async function resetMap(campaignId: string, mapId: string): Promise<OracleMap> {
   const map = await getMap(campaignId, mapId);
   const [groups, members] = await Promise.all([listPartyGroups(campaignId), listPartyMembers(campaignId)]);
-  const explored: ExploredCircle[] = visionPoints(map, groups, members).map((point) => ({ x: Math.round(point.x), y: Math.round(point.y), r: map.vision_radius }));
+  const companionRows = await (await getMainConnection()).request().input("campaignId", campaignId).query(`
+    SELECT party_group_id FROM oracle_entities WHERE campaign_id = @campaignId AND in_party = 1
+  `);
+  const companions = companionRows.recordset.map((row: { party_group_id: string | null }) => ({ group_id: row.party_group_id ? String(row.party_group_id).toLowerCase() : null }));
+  const explored: ExploredCircle[] = visionPoints(map, groups, [...members, ...companions]).map((point) => ({ x: Math.round(point.x), y: Math.round(point.y), r: map.vision_radius }));
 
   const pool = await getMainConnection();
   const transaction = pool.transaction();
