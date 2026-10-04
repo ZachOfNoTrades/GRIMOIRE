@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Pencil, Plus, Save, Sparkles, Trash2, Users } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Pencil, Plus, RotateCcw, Save, Sparkles, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -189,6 +189,17 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
     } catch (error) {
       setCampaign(previous);
       toast.error(errorMessage(error, "Couldn't switch maps"));
+    }
+  }
+
+  async function resetMap(map: OracleMap) {
+    if (!(await confirm({ title: `Reset ${map.name}?`, message: "The fog returns everywhere the party can't see right now, and entries revealed on this map are hidden again.", confirmLabel: "Reset", danger: true }))) return;
+    try {
+      const saved = await api<OracleMap>(`${base}/maps/${map.id}/reset`, "POST");
+      setMaps((list) => list.map((entry) => (entry.id === saved.id ? saved : entry)));
+      toast.success(`${map.name} reset`);
+    } catch (error) {
+      toast.error(errorMessage(error, "Couldn't reset the map"));
     }
   }
 
@@ -441,6 +452,9 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                         {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}
                         <Button className="btn-off" onClick={() => setMapModal({ map })} title="Edit map" aria-label={`Edit map ${map.name}`}>
                           <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button className="btn-off" onClick={() => resetMap(map)} title="Reset map" aria-label={`Reset map ${map.name}`}>
+                          <RotateCcw className="w-4 h-4" />
                         </Button>
                         <Button className="btn-link-red" onClick={() => deleteMap(map)} title="Delete map" aria-label={`Delete map ${map.name}`}>
                           <Trash2 className="w-4 h-4" />

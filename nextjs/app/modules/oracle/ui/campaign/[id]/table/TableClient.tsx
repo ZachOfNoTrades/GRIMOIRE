@@ -1,6 +1,6 @@
 "use client";
 
-import { Brush, ChevronDown, Eraser, Eye, EyeOff, MapPin, Move, MonitorUp, PanelLeft, Search, Trash2, X, ZoomIn } from "lucide-react";
+import { Brush, ChevronDown, Eraser, Eye, EyeOff, MapPin, Move, MonitorUp, PanelLeft, RotateCcw, Search, Trash2, X, ZoomIn } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -155,6 +155,18 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       revealed: entity.is_revealed,
     }));
   }, [entities, activeMap]);
+
+  // Start the active map's exploration over (fog and hand reveals), then reload.
+  async function resetActiveMap() {
+    if (!activeMap) return;
+    if (!(await confirm({ title: `Reset ${activeMap.name}?`, message: "The fog returns everywhere the party can't see right now, and entries revealed on this map are hidden again.", confirmLabel: "Reset", danger: true }))) return;
+    try {
+      await api(`${base}/maps/${activeMap.id}/reset`, "POST");
+      await refresh();
+    } catch (error) {
+      toast.error(errorMessage(error, "Couldn't reset the map"));
+    }
+  }
 
   // Reload everything from the server. Used after a failed write, when local state can no longer
   // be trusted to match the database.
@@ -1077,6 +1089,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             { label: "Paint reveal", icon: <Brush className="w-4 h-4" />, onSelect: () => setTool("reveal") },
             { label: "Paint hide", icon: <Eraser className="w-4 h-4" />, onSelect: () => setTool("hide") },
             { label: "Add entry here", icon: <MapPin className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "place", at: cell }); } },
+            { label: "Reset map", icon: <RotateCcw className="w-4 h-4" />, danger: true, onSelect: () => { void resetActiveMap(); } },
           ]}
         />
       )}

@@ -2,6 +2,8 @@ import { getMainConnection } from "@/lib/db";
 import type { ExploredCircle, MapData, OracleMap, PictureRect } from "../types/oracle";
 import { MAX_MAPS, VISION_DEFAULT, type ScaleUnit } from "./constants";
 import { bumpVersion } from "./campaignFunctions";
+import { visionPoints } from "./fog";
+import { listPartyGroups, listPartyMembers } from "./partyFunctions";
 import { OracleError } from "./errors";
 import { blankMapData, coerceExplored, coerceMapData, parseJson } from "./mapData";
 
@@ -183,6 +185,37 @@ export async function replaceMapData(campaignId: string, mapId: string, data: Ma
   if (result.recordset.length === 0) throw new OracleError(404, "Map not found");
   await bumpVersion(campaignId);
   return toMap(result.recordset[0]);
+}
+
+// Start the map's exploration over: the explored area shrinks back to what the party (and any
+// split-off groups on this map) can see right now, and entries on it that were revealed by hand
+// are hidden again. Features, picture, positions and notes are kept.
+export async function resetMap(campaignId: string, mapId: string): Promise<OracleMap> {
+  const map = await getMap(campaignId, mapId);
+  const [groups, members] = await Promise.all([listPartyGroups(campaignId), listPartyMembers(campaignId)]);
+  const explored: ExploredCircle[] = visionPoints(map, groups, members).map((point) => ({ x: Math.round(point.x), y: Math.round(point.y), r: map.vision_radius }));
+
+  const pool = await getMainConnection();
+  const transaction = pool.transaction();
+  await transaction.begin();
+  try {
+    const result = await transaction.request().input("mapId", mapId).input("campaignId", campaignId).input("explored", JSON.stringify(explored)).query(`
+      UPDATE oracle_maps
+      SET explored = @explored, ts_updated = GETDATE()
+      OUTPUT ${MAP_COLUMNS.split(",").map((column) => `INSERTED.${column.trim()}`).join(", ")}
+      WHERE id = @mapId AND campaign_id = @campaignId
+    `);
+    if (result.recordset.length === 0) throw new OracleError(404, "Map not found");
+    await transaction.request().input("mapId", mapId).input("campaignId", campaignId).query(`
+      UPDATE oracle_entities SET is_revealed = 0 WHERE map_id = @mapId AND campaign_id = @campaignId AND is_revealed = 1
+    `);
+    await transaction.commit();
+    await bumpVersion(campaignId);
+    return toMap(result.recordset[0]);
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 }
 
 // Entities placed on the deleted map are unplaced, and if it was the active map the oldest
