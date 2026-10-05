@@ -203,8 +203,9 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
           {/* CANCEL */}
           <Button className="btn-off" onClick={onClose}>Cancel</Button>
 
-          {/* SAVE */}
-          <Button className="btn-blue" onClick={save}>{isEdit ? "Save" : "Add"}</Button>
+          {/* SAVE — nothing to add until something has been picked, written or typed, so the button
+              does not sit there offering to save an empty entry. */}
+          <Button className="btn-blue" onClick={save} disabled={!isEdit && !name.trim()}>{isEdit ? "Save" : "Add"}</Button>
         </div>
       }
     >
@@ -238,8 +239,8 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
         {/* SEARCH — the creature library: the SRD, and anything saved before. Picking one fills
             the form, so it can be renamed or annotated before it goes on the map. */}
         {!isEdit && way === "search" && (
-          <div className="orc-library">
-            <div className="orc-library-search">
+          <div className="orc-creatures">
+            <div className="orc-creatures-search">
               <div className="bottom-action-bar-pill" style={{ maxWidth: "none" }}>
                 <Search className="bottom-action-bar-pill-icon w-4 h-4" aria-hidden />
                 <input
@@ -260,21 +261,21 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
                 )}
               </div>
             </div>
-            <div className="orc-library-list">
+            <div className="orc-creatures-list">
               {found.length === 0 && !isLooking && (
                 <div className="empty-state">
-                  <p className="empty-state-title">{lookup.trim() ? "No match" : "Nothing yet"}</p>
-                  <p className="empty-state-body">{lookup.trim() ? "Try another name, or describe it instead." : "Type a name to search the published creatures."}</p>
+                  <p className="empty-state-title">No match</p>
+                  <p className="empty-state-body">Try another name, or describe it instead.</p>
                 </div>
               )}
               {found.map((creature) => (
-                <button key={creature.id} type="button" className="orc-library-row" onClick={() => take(creature)}>
-                  <span className="orc-library-name">{creature.name}</span>
-                  <span className="orc-library-meta">
+                <button key={creature.id} type="button" className="orc-creatures-row" onClick={() => take(creature)}>
+                  <span className="orc-creatures-name">{creature.name}</span>
+                  <span className="orc-creatures-meta">
                     {[creature.size, creature.creature_type].filter(Boolean).join(" ")}
                     {creature.cr ? ` · CR ${creature.cr}` : ""}
                   </span>
-                  <span className="orc-library-source">
+                  <span className="orc-creatures-source">
                     {creature.official_source ? <><BookOpen className="w-3 h-3" aria-hidden /> {creature.official_source}</> : "Homebrew"}
                   </span>
                 </button>
@@ -341,8 +342,8 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
           <>
           {/* KIND */}
           <div className="orc-field">
-            <span className="orc-field-label">Kind</span>
-            <div className="orc-segments" role="radiogroup" aria-label="Kind">
+            <span className="orc-field-label">Type</span>
+            <div className="orc-segments" role="radiogroup" aria-label="Type">
               {ENTITY_KINDS.map((entry) => (
                 <button key={entry} type="button" role="radio" aria-checked={kind === entry} className="orc-segment" onClick={() => setKind(entry)}>
                   {KIND_LABELS[entry]}

@@ -1,6 +1,7 @@
 "use client";
 
 import ListControls from "./ListControls";
+import { makeSearchMatcher } from "@/lib/searchMatch";
 import Picture from "./Picture";
 import { applyListFilters, countListFilters, toggleListFilter, type ListFilterDef, type ListSortDef } from "../lib/listFilters";
 import { ArrowLeft, ChevronDown, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
@@ -71,10 +72,10 @@ const ENTITY_FILTERS: readonly ListFilterDef<OracleEntity, EntityListContext>[] 
   { id: "party", section: "Location", group: "place", label: "In party", icon: <Users className="w-3.5 h-3.5" />, test: (entity) => entity.in_party },
   { id: "hidden", section: "State", label: "Hidden", icon: <EyeOff className="w-3.5 h-3.5" />, test: (entity) => entity.visibility === "hidden" },
   { id: "down", section: "State", label: "Down", icon: <Skull className="w-3.5 h-3.5" />, test: (entity) => entity.is_down },
-  { id: "kind-creature", section: "Kind", group: "kind", label: "Creatures", icon: <PawPrint className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "creature" },
-  { id: "kind-person", section: "Kind", group: "kind", label: "People", icon: <User className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "person" },
-  { id: "kind-place", section: "Kind", group: "kind", label: "Locations", icon: <Landmark className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "place" },
-  { id: "kind-item", section: "Kind", group: "kind", label: "Items", icon: <Gem className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "item" },
+  { id: "kind-creature", section: "Type", group: "kind", label: "Creatures", icon: <PawPrint className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "creature" },
+  { id: "kind-person", section: "Type", group: "kind", label: "People", icon: <User className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "person" },
+  { id: "kind-place", section: "Type", group: "kind", label: "Locations", icon: <Landmark className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "place" },
+  { id: "kind-item", section: "Type", group: "kind", label: "Items", icon: <Gem className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "item" },
 ];
 
 const KIND_ORDER: Record<string, number> = { creature: 0, person: 1, place: 2, item: 3 };
@@ -82,7 +83,7 @@ const KIND_ORDER: Record<string, number> = { creature: 0, person: 1, place: 2, i
 // SORTS — every one falls back to the name, so the order is never arbitrary.
 const ENTITY_SORTS: readonly ListSortDef<OracleEntity, EntityListContext>[] = [
   { value: "name", label: "Name (A-Z)", compare: () => 0 },
-  { value: "kind", label: "Kind", compare: (a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) },
+  { value: "kind", label: "Type", compare: (a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) },
   { value: "map", label: "On this map first", compare: (a, b, context) => (context.activeMapId ? Number(b.map_id === context.activeMapId) - Number(a.map_id === context.activeMapId) : 0) },
   { value: "distance", label: "Nearest", compare: (a, b, context) => distanceFromParty(a, context) - distanceFromParty(b, context) },
 ];
@@ -152,9 +153,12 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const baseCounts = useMemo(() => countListFilters(entities, ENTITY_FILTERS, [], listContext), [entities, listContext]);
 
   const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    // Matched the way every other list in the app is: each word must appear somewhere, in any
+    // order, so "crab giant" finds the Giant crab.
+    const needle = query.trim();
+    const hit = makeSearchMatcher(needle);
     const pool = applyListFilters(entities, ENTITY_FILTERS, activeFilters, listContext);
-    const list = needle ? pool.filter((entity) => `${entity.name} ${entity.details}`.toLowerCase().includes(needle)) : pool;
+    const list = needle ? pool.filter((entity) => hit(`${entity.name} ${entity.details}`)) : pool;
     const sort = ENTITY_SORTS.find((entry) => entry.value === sortValue) ?? ENTITY_SORTS[0];
     return [...list].sort((a, b) => sort.compare(a, b, listContext) || byName(a, b));
   }, [entities, query, activeFilters, listContext, sortValue]);

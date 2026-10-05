@@ -1264,16 +1264,18 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
    does not resize it under the pointer. */
 .orc-form:has(.orc-ways) { min-height: min(46rem, 74vh); }
 .orc-ways .tab-button { flex: 1 1 0; justify-content: center; }
-.orc-library { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
-.orc-library .bottom-action-bar-pill { border: 1px solid var(--input-border); }
-.orc-library-search { flex: 0 0 auto; }
-.orc-library-list { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
-.orc-library-row { display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 0.75rem; padding: 0.5rem 0.75rem; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--card-border); cursor: pointer; }
-.orc-library-row:last-child { border-bottom: 0; }
-.orc-library-row:hover, .orc-library-row:focus-visible { background: var(--hover-bg); outline: none; }
-.orc-library-name { font-weight: 600; color: var(--color-primary); }
-.orc-library-meta { grid-column: 1; font-size: 0.75rem; color: var(--color-secondary); }
-.orc-library-source { grid-row: 1 / span 2; grid-column: 2; display: inline-flex; align-items: center; gap: 0.25rem; align-self: center; font-size: 0.6875rem; color: var(--color-gray); white-space: nowrap; }
+/* Named apart from the image picker's .orc-library grid: sharing the class gave this list
+   that one's 14rem cap and its border. */
+.orc-creatures { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+.orc-creatures .bottom-action-bar-pill { border: 1px solid var(--input-border); }
+.orc-creatures-search { flex: 0 0 auto; }
+.orc-creatures-list { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.orc-creatures-row { display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 0.75rem; padding: 0.5rem 0.75rem; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--card-border); cursor: pointer; }
+.orc-creatures-row:last-child { border-bottom: 0; }
+.orc-creatures-row:hover, .orc-creatures-row:focus-visible { background: var(--hover-bg); outline: none; }
+.orc-creatures-name { font-weight: 600; color: var(--color-primary); }
+.orc-creatures-meta { grid-column: 1; font-size: 0.75rem; color: var(--color-secondary); }
+.orc-creatures-source { grid-row: 1 / span 2; grid-column: 2; display: inline-flex; align-items: center; gap: 0.25rem; align-self: center; font-size: 0.6875rem; color: var(--color-gray); white-space: nowrap; }
 
 /* WHAT THE PLAYERS SEE — one control for the three levels, in the details pane. It replaced a
    badge and a button that said the same thing twice. */

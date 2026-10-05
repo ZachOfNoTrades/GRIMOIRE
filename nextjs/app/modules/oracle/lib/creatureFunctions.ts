@@ -1,6 +1,7 @@
 import { getMainConnection } from "@/lib/db";
 import type { StatBlock } from "../types/oracle";
 import { parseJson } from "./mapData";
+import { makeSearchMatcher, normalizeSearchText } from "@/lib/searchMatch";
 
 // THE CREATURE LIBRARY — creatures a DM can bring into a campaign, kept once for everyone rather
 // than per campaign.
@@ -58,26 +59,34 @@ const toCreature = (row: Row): LibraryCreature => ({
 });
 
 /**
- * Creatures whose name matches `query`, the DM's own alongside the shared library. A name that
- * starts with the query comes first, so typing "gi" offers Giant crab before Hill giant.
+ * Creatures matching `query`, the DM's own alongside the shared library.
+ *
+ * Matched the way every other list in the app is: each word must appear somewhere, in any order,
+ * with punctuation and unit spellings normalized, so "crab giant" finds the Giant Crab. The
+ * library is a few hundred rows, so it is read once and matched here rather than with a SQL LIKE,
+ * which could only do a literal phrase.
+ *
+ * A name that begins with what was typed comes first, so "gi" offers Giant Crab before Hill Giant.
  */
 export async function searchCreatures(userId: string, query: string, limit = 30): Promise<LibraryCreature[]> {
-  const needle = query.trim().slice(0, 60);
   const pool = await getMainConnection();
-  const result = await pool
-    .request()
-    .input("userId", userId)
-    .input("like", `%${needle.replace(/[%_[]/g, (match) => `[${match}]`)}%`)
-    .input("starts", `${needle.replace(/[%_[]/g, (match) => `[${match}]`)}%`)
-    .input("limit", limit)
-    .query(`
-      SELECT TOP (@limit) ${COLUMNS}
-      FROM oracle_creatures
-      WHERE (user_id IS NULL OR user_id = @userId)
-        AND (@like = '%%' OR name LIKE @like)
-      ORDER BY CASE WHEN name LIKE @starts THEN 0 ELSE 1 END, name
-    `);
-  return result.recordset.map(toCreature);
+  const result = await pool.request().input("userId", userId).query(`
+    SELECT ${COLUMNS} FROM oracle_creatures WHERE user_id IS NULL OR user_id = @userId ORDER BY name
+  `);
+  const creatures = result.recordset.map(toCreature);
+
+  const needle = query.trim();
+  if (!needle) return creatures.slice(0, limit);
+
+  const matches = makeSearchMatcher(needle);
+  const starts = normalizeSearchText(needle);
+  return creatures
+    .filter((creature) => matches(`${creature.name} ${creature.creature_type ?? ""} ${creature.size ?? ""}`))
+    .sort((a, b) => {
+      const lead = Number(!normalizeSearchText(a.name).startsWith(starts)) - Number(!normalizeSearchText(b.name).startsWith(starts));
+      return lead !== 0 ? lead : a.name.localeCompare(b.name);
+    })
+    .slice(0, limit);
 }
 
 export async function getCreature(userId: string, id: string): Promise<LibraryCreature | null> {
