@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { blurOnEnter } from "@/lib/inputBehavior";
 import type { EntityKind, EntityVisibility, Knowledge, KnowledgeTier, OracleEntity, OracleEvent, StatBlock } from "../types/oracle";
 import { api, campaignApi, errorMessage } from "../lib/client";
-import { ENTITY_VISIBILITIES, EVENT_MAX, KNOWLEDGE_SKILLS, KNOWLEDGE_TIERS, VISIBILITY_HINTS, VISIBILITY_LABELS } from "../lib/constants";
+import { ENTITY_VISIBILITIES, EVENT_MAX, KNOWLEDGE_SKILLS, KNOWLEDGE_TIERS, VISIBILITY_LABELS } from "../lib/constants";
 
 interface DetailsPanelProps {
   campaignId: string;
@@ -329,7 +329,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
           {/* WHAT THE PLAYERS SEE — the three levels in one control, so the state and the way to
               change it are the same thing. Only for something standing on the open map. */}
           {selected.kind !== "place" && selected.map_id === activeMapId && activeMapId && (
-            <label className="orc-visibility">
+            <div className="orc-visibility">
               <span className="orc-visibility-label">Players see</span>
               <span className="erow-filter-select-wrap">
                 <select
@@ -344,8 +344,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                 </select>
                 <ChevronDown className="erow-filter-select-chev w-4 h-4" aria-hidden />
               </span>
-              <span className="orc-visibility-hint">{VISIBILITY_HINTS[selected.visibility]}</span>
-            </label>
+            </div>
           )}
 
           {/* DISPLAY AND MAP ACTIONS */}

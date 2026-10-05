@@ -1211,8 +1211,14 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-list-button[data-on="true"] { color: var(--badge-blue-text); }
 .orc-list-button[aria-expanded="true"] { color: var(--color-primary); border-color: var(--card-border); }
 .orc-list-button-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The menu hangs off the whole block, not off its own button, so it drops below the row. */
-.orc-list-anchor { position: static; display: flex; flex-wrap: nowrap; align-items: center; min-width: 0; }
+/* A menu opens under the control that owns it. It hung off the whole row while a chip row sat
+   underneath and would have covered it; with that row gone it belongs under its own button. */
+.orc-list-anchor { position: relative; display: flex; flex-wrap: nowrap; align-items: center; min-width: 0; }
+/* Under the button that owns it, aligned to that button's near edge: the sort sits at the left of
+   the row so its menu grows rightward, the filter sits at the right so its menu grows leftward and
+   stays inside the panel. `position` overrides .orc-context, which is fixed for the map's menu. */
+.orc-list-menu { position: absolute; top: calc(100% + 0.25rem); left: 0; right: auto; z-index: 30; min-width: 12.5rem; max-width: min(18rem, calc(100vw - 2rem)); max-height: 60vh; overflow-y: auto; }
+.orc-list-bar > .orc-list-anchor + .orc-list-anchor .orc-list-menu { left: auto; right: 0; }
 .orc-list-drop { display: inline-flex; align-items: center; padding: 0.2rem 0.15rem; color: var(--badge-blue-text); background: none; border: 0; cursor: pointer; }
 .orc-list-drop:hover { color: var(--color-primary); }
 
@@ -1271,11 +1277,13 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 
 /* WHAT THE PLAYERS SEE — one control for the three levels, in the details pane. It replaced a
    badge and a button that said the same thing twice. */
-.orc-visibility { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; align-items: center; margin-top: 0.5rem; }
-.orc-visibility-label { font-size: 0.75rem; color: var(--color-secondary); }
+/* The words are a label to read, not part of the control: clicking them used to reach through and
+   highlight the dropdown. */
+.orc-visibility { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+.orc-visibility-label { flex: 0 0 auto; font-size: 0.75rem; color: var(--color-secondary); }
+.orc-visibility .erow-filter-select-wrap { flex: 1 1 auto; min-width: 0; }
 .orc-visibility .erow-filter-select-wrap { position: relative; display: flex; }
 .orc-visibility .erow-filter-select { font-size: 0.8125rem; padding-top: 0.25rem; padding-bottom: 0.25rem; }
-.orc-visibility-hint { grid-column: 2; font-size: 0.6875rem; color: var(--color-gray); }
 
 /* The same three levels in the map's right-click menu, as one row rather than a button whose
    meaning depends on the state it is already in. */

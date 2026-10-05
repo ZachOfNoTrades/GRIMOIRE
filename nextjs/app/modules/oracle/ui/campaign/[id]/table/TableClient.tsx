@@ -29,7 +29,7 @@ import { useIsActiveTab } from "../../../campaignTabs";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, ENTITY_VISIBILITIES, MAP_GRID, VISIBILITY_HINTS, VISIBILITY_LABELS, VISION_MAX, VISION_MIN, VISION_SLIDER_MAX, VISION_STEP } from "../../../../lib/constants";
+import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, ENTITY_VISIBILITIES, MAP_GRID, VISIBILITY_LABELS, VISION_MAX, VISION_MIN, VISION_SLIDER_MAX, VISION_STEP } from "../../../../lib/constants";
 import { addExplored, addExploredPath, eraseExplored, isVisibleFrom, visionPoints } from "../../../../lib/fog";
 import type { ChipOption, EntityKind, EntityVisibility, Knowledge, KnowledgeTier, OracleCampaign, OracleChip, OracleEntity, OracleEvent, OracleImage, OracleMap, OraclePartyGroup, OraclePartyMember, OracleSession, StatBlock, TableSnapshot } from "../../../../types/oracle";
 
@@ -1216,7 +1216,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               ...(entity.kind !== "place"
                 ? [{
                     label: "Players see",
-                    choices: ENTITY_VISIBILITIES.map((level) => ({ key: level, label: VISIBILITY_LABELS[level], title: VISIBILITY_HINTS[level], icon: VISIBILITY_ICONS[level] })),
+                    choices: ENTITY_VISIBILITIES.map((level) => ({ key: level, label: VISIBILITY_LABELS[level], icon: VISIBILITY_ICONS[level] })),
                     chosen: entity.visibility,
                     onChoose: (level: string) => setVisibility(entity, level as EntityVisibility),
                   }]
