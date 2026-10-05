@@ -190,7 +190,10 @@ export async function replaceMapData(campaignId: string, mapId: string, data: Ma
 // Start the map's exploration over: the explored area shrinks back to what the party (and any
 // split-off groups on this map) can see right now, and entries on it that were revealed by hand
 // are hidden again. Features, picture, positions and notes are kept.
-export async function resetMap(campaignId: string, mapId: string): Promise<OracleMap> {
+/** What a reset puts back: the fog alone, or the fog and every entry revealed by hand. */
+export type MapResetScope = "fog" | "all";
+
+export async function resetMap(campaignId: string, mapId: string, scope: MapResetScope = "all"): Promise<OracleMap> {
   const map = await getMap(campaignId, mapId);
   const [groups, members] = await Promise.all([listPartyGroups(campaignId), listPartyMembers(campaignId)]);
   const companionRows = await (await getMainConnection()).request().input("campaignId", campaignId).query(`
@@ -210,9 +213,13 @@ export async function resetMap(campaignId: string, mapId: string): Promise<Oracl
       WHERE id = @mapId AND campaign_id = @campaignId
     `);
     if (result.recordset.length === 0) throw new OracleError(404, "Map not found");
-    await transaction.request().input("mapId", mapId).input("campaignId", campaignId).query(`
-      UPDATE oracle_entities SET is_revealed = 0 WHERE map_id = @mapId AND campaign_id = @campaignId AND is_revealed = 1
-    `);
+    // Resetting the fog alone leaves what the DM has shown the players on their map: closing the
+    // map back up is a different job from taking back what they have already been told about.
+    if (scope === "all") {
+      await transaction.request().input("mapId", mapId).input("campaignId", campaignId).query(`
+        UPDATE oracle_entities SET is_revealed = 0 WHERE map_id = @mapId AND campaign_id = @campaignId AND is_revealed = 1
+      `);
+    }
     await transaction.commit();
     await bumpVersion(campaignId);
     return toMap(result.recordset[0]);

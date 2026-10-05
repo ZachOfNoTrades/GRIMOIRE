@@ -395,6 +395,11 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-details-buttons .btn > span, .orc-details-buttons .btn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orc-details-buttons .btn > svg { flex: 0 0 auto; }
 .orc-details-image { display: block; width: 100%; max-height: 14rem; object-fit: cover; border: 1px solid var(--card-border); }
+/* The same box before the picture is there, so nothing below it moves when it arrives. */
+.orc-picture-waiting { display: flex; align-items: center; justify-content: center; width: 100%; height: 14rem; color: var(--color-gray); background: var(--hover-bg); border: 1px solid var(--card-border); }
+.orc-picture-waiting.orc-details-image { height: 14rem; }
+.orc-picture-spinner { display: inline-block; width: 1.75rem; height: 1.75rem; border: 3px solid var(--card-border); border-top-color: var(--color-primary); border-radius: 9999px; animation: orc-picture-spin 0.7s linear infinite; }
+@keyframes orc-picture-spin { to { transform: rotate(360deg); } }
 
 .orc-sections { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; margin-top: 0.9rem; }
 @media (min-width: 1600px) {
@@ -1044,7 +1049,30 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-map-switch-item[aria-selected="true"] { color: var(--color-primary); font-weight: 700; }
 .orc-map-switch-check { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--orc-good); flex: 0 0 auto; }
 .orc-gen-row[data-active="true"] { border-left: 3px solid var(--orc-good); }
-.orc-tool-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--btn-blue-text); background: var(--btn-blue-bg); border: 1px solid var(--color-primary); cursor: pointer; }
+/* STOP PAINTING — a quiet cross in the map's top right. The DM's own map controls run along the
+   bottom, so nothing is under it. It stays faint until wanted: while painting, the brush cursor is
+   what names the tool, and this is only the way out of it. */
+.orc-paint-stop {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--card-bg) 82%, transparent);
+  border: 1px solid var(--card-border);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.orc-paint-stop:hover,
+.orc-paint-stop:focus-visible { opacity: 1; }
+.orc-map[data-ground="black"] .orc-paint-stop { background: #000; border-color: #3a3f47; }
 
 .orc-map[data-mode="dm"][data-tool="move"] .orc-feature[data-link="true"] { cursor: pointer; }
 .orc-map[data-mode="dm"] .orc-token text { cursor: pointer; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Brush, ChevronDown, Eraser, Eye, EyeOff, HeartPulse, MapPin, MonitorUp, Move, PanelLeft, RotateCcw, Search, Skull, Trash2, UserPlus, X, ZoomIn } from "lucide-react";
+import { Brush, ChevronDown, CloudFog, Eraser, Eye, EyeOff, HeartPulse, MapPin, MonitorUp, Move, PanelLeft, RotateCcw, Search, Skull, Trash2, UserPlus, X, ZoomIn } from "lucide-react";
 import TabLink from "../../../../components/TabLink";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +23,7 @@ import PartyPanel from "../../../../components/PartyPanel";
 import ResultModal from "../../../../components/ResultModal";
 import SessionsPanel from "../../../../components/SessionsPanel";
 import SessionBar from "../../../../components/SessionBar";
+import { loadPictures, useWhenPictureReady } from "../../../../lib/imagePreload";
 import { useIsActiveTab } from "../../../campaignTabs";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
@@ -122,7 +123,11 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [isAdopting, setIsAdopting] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
 
-  const activeMap = maps.find((map) => map.id === campaign.active_map_id) ?? maps[0] ?? null;
+  const chosenMap = maps.find((map) => map.id === campaign.active_map_id) ?? maps[0] ?? null;
+  // The map is not drawn until its background is in the browser's cache: the features are SVG and
+  // paint at once, so without this a map change shows the new layout over the old picture.
+  const mapBackground = useCallback((map: OracleMap) => (map.background_image_id ? `${base}/images/${map.background_image_id}?w=1600` : null), [base]);
+  const activeMap = useWhenPictureReady(chosenMap, mapBackground);
   const selected = entities.find((entity) => entity.id === selectedId) ?? null;
   const panelEntity = campaign.panel_kind === "entity" ? entities.find((entity) => entity.id === campaign.panel_entity_id) ?? null : null;
   const panelImage = campaign.panel_kind === "image" ? images.find((image) => image.id === campaign.panel_image_id) ?? null : null;
@@ -168,17 +173,29 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     }));
   }, [entities, activeMap]);
 
-  // Start the active map's exploration over (fog and hand reveals), then reload.
-  async function resetActiveMap() {
+  // Start the active map's exploration over. "fog" closes the map back up and leaves what the
+  // players have been shown; "all" also takes back the entries revealed on it.
+  async function resetActiveMap(scope: "fog" | "all" = "all") {
     if (!activeMap) return;
-    if (!(await confirm({ title: `Reset ${activeMap.name}?`, message: "The fog returns everywhere the party can't see right now, and entries revealed on this map are hidden again.", confirmLabel: "Reset", danger: true }))) return;
+    const asking = scope === "fog"
+      ? { title: `Reset the fog on ${activeMap.name}?`, message: "The fog returns everywhere the party can't see right now. Entries you have revealed stay on the players' map." }
+      : { title: `Reset ${activeMap.name}?`, message: "The fog returns everywhere the party can't see right now, and entries revealed on this map are hidden again." };
+    if (!(await confirm({ ...asking, confirmLabel: "Reset", danger: true }))) return;
     try {
-      await api(`${base}/maps/${activeMap.id}/reset`, "POST");
+      await api(`${base}/maps/${activeMap.id}/reset${scope === "fog" ? "?scope=fog" : ""}`, "POST");
       await refresh();
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't reset the map"));
     }
   }
+
+  // Everything standing on this map is a click away from being shown to the players, so its
+  // picture is fetched quietly as soon as the map is up rather than when it is first opened.
+  // Entries on other maps are left until they are asked for.
+  useEffect(() => {
+    if (!activeMap) return;
+    loadPictures(entities.filter((entry) => entry.image_id && (entry.map_id === activeMap.id || entry.in_party)).map((entry) => `${base}/images/${entry.image_id}?w=480`));
+  }, [entities, activeMap, base]);
 
   // Reload everything from the server. Used after a failed write, when local state can no longer
   // be trusted to match the database.
@@ -437,11 +454,6 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   }
 
   // One brush-sized circle revealed or hidden at a point, from the right-click menu.
-  function brushAt(x: number, y: number, how: "reveal" | "hide") {
-    if (!activeMap) return;
-    patchMap(activeMap.id, (map) => ({ ...map, explored: how === "hide" ? eraseExplored(map.explored, x, y, brushRadius) : addExplored(map.explored, x, y, brushRadius) }));
-  }
-
   // A tap on the map with the Pin tool: place the entry that is waiting, or start a new one there.
   // Placed entries snap to the center of the grid cell that was tapped.
   function placeAt(rawX: number, rawY: number) {
@@ -961,20 +973,28 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               </div>
             </div>
 
-            {/* FOG TOOL — while painting fog, a chip names it and ends it */}
-            {(tool === "reveal" || tool === "hide") && (
-              <div className="orc-toolbar-group orc-sliders">
-              {(tool === "reveal" || tool === "hide") && (
-                <button type="button" className="orc-tool-chip" onClick={() => setTool("move")} title="Stop painting (Esc or right-click)">
-                  {tool === "reveal" ? <Brush className="w-4 h-4" /> : <Eraser className="w-4 h-4" />} {tool === "reveal" ? "Revealing" : "Hiding"} <X className="w-3 h-3" />
-                </button>
-              )}
-              </div>
-            )}
           </div>
 
           {/* MAP */}
           <div className="orc-map-frame">
+
+            {/* STOP PAINTING — the brush cursor already says which tool is in hand, so this is
+                only the way out of it. Top right, where the DM's map has nothing: its own
+                controls sit along the bottom. */}
+            {(tool === "reveal" || tool === "hide") && (
+              <button
+                type="button"
+                className="orc-paint-stop"
+                onClick={() => setTool("move")}
+                title={`Stop ${tool === "reveal" ? "revealing" : "hiding"} (Esc or right-click)`}
+                aria-label={`Stop ${tool === "reveal" ? "revealing" : "hiding"}`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+
+
+
             {activeMap ? (
               <MapCanvas
                 data={activeMap.data}
@@ -1166,11 +1186,10 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
           onClose={() => setGroundMenu(null)}
           items={[
             { label: "Move party here", icon: <Move className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); moveParty(cell.x, cell.y, activeMap.party_x, activeMap.party_y); } },
-            { label: "Reveal here", icon: <Brush className="w-4 h-4" />, onSelect: () => { brushAt(groundMenu.x, groundMenu.y, "reveal"); } },
-            { label: "Hide here", icon: <Eraser className="w-4 h-4" />, onSelect: () => { brushAt(groundMenu.x, groundMenu.y, "hide"); } },
             { label: "Paint reveal", icon: <Brush className="w-4 h-4" />, onSelect: () => setTool("reveal") },
             { label: "Paint hide", icon: <Eraser className="w-4 h-4" />, onSelect: () => setTool("hide") },
             { label: "Add entry here", icon: <MapPin className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "place", at: cell }); } },
+            { label: "Reset fog of war", icon: <CloudFog className="w-4 h-4" />, danger: true, onSelect: () => { void resetActiveMap("fog"); } },
             { label: "Reset map", icon: <RotateCcw className="w-4 h-4" />, danger: true, onSelect: () => { void resetActiveMap(); } },
           ]}
         />
