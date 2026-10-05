@@ -10,7 +10,7 @@ import { api, errorMessage } from "../../lib/client";
 import { CHIP_POOL_MAX, CHIP_SECONDS_MAX, CHIP_SECONDS_MIN, GENERATION_TASKS, TEXT_MODELS, type TextModel } from "../../lib/constants";
 import type { OracleSettings } from "../../types/oracle";
 
-export default function SettingsClient({ settings: initialSettings }: { settings: OracleSettings }) {
+export default function SettingsClient({ settings: initialSettings, cameFrom }: { settings: OracleSettings; cameFrom?: { label: string; href: string } | null }) {
   // DATA
   const [settings, setSettings] = useState<OracleSettings>(initialSettings);
 
@@ -56,7 +56,7 @@ export default function SettingsClient({ settings: initialSettings }: { settings
       <div className="page-container">
 
         {/* BREADCRUMBS */}
-        <Breadcrumbs />
+        <Breadcrumbs parent={cameFrom} />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">

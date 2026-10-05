@@ -92,7 +92,7 @@ export default function SessionBar({ campaignId, campaignName, active, help, ses
         )}
 
         {/* SETTINGS LINK */}
-        <Link className="btn btn-link" href="/modules/oracle/ui/settings" aria-label="Oracle settings" title="Settings">
+        <Link className="btn btn-link" href={`/modules/oracle/ui/settings?campaign=${campaignId}`} aria-label="Oracle settings" title="Settings">
           <Settings className="w-5 h-5" />
         </Link>
 
