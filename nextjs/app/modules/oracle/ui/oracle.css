@@ -977,7 +977,7 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-bar-toggle { box-sizing: border-box; width: 2.25rem; height: 2.25rem; border: 1px solid var(--card-border); background: color-mix(in srgb, var(--card-bg) 82%, transparent); opacity: 0.55; transition: opacity 0.15s; }
 .orc-bar-float[data-open="true"] .orc-bar-toggle, .orc-bar-toggle:hover, .orc-bar-toggle:focus-visible { opacity: 1; }
 .orc-bar-panel { box-sizing: border-box; display: flex; align-items: center; gap: 0.15rem; height: 2.25rem; padding: 0 0.2rem; border: 1px solid var(--card-border); background: color-mix(in srgb, var(--card-bg) 88%, transparent); backdrop-filter: blur(6px); }
-.orc-bar-slider { display: flex; align-items: center; gap: 0.4rem; margin-left: 0.4rem; padding-left: 0.5rem; border-left: 1px solid var(--card-border); }
+.orc-bar-slider { display: flex; align-items: center; gap: 0.4rem; margin-left: 0.4rem; }
 .orc-bar-slider input[type="range"] { width: 5rem; accent-color: var(--color-primary); }
 
 /* ---------- difficulty icons on the banner ---------- */
@@ -1121,8 +1121,7 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 /* the DM's bar sits bottom-right and opens leftward; sliders and groups are separated by a rule */
 .orc-bar-float[data-mode="dm"] { top: auto; bottom: 0.5rem; }
 .orc-bar-panel > * + * { margin-left: 0.15rem; }
-.orc-bar-slider { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.5rem; border-right: 1px solid var(--card-border); height: 100%; }
-.orc-bar-panel .orc-bar-slider:last-child { border-right: 0; }
+.orc-bar-slider { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.5rem; height: 100%; }
 .orc-bar-float[data-mode="dm"] .orc-bar-panel[data-open="true"] { max-width: min(46rem, calc(100vw - 4rem)); }
 
 /* icon-only buttons in list rows stay compact instead of taking a text button's padding */
