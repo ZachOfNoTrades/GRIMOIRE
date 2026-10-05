@@ -108,6 +108,27 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [sortValue, setSortValue] = useState("name");
   const [view, setView] = useState<"rows" | "pictures">("rows");
+  // A line each says only the name, so resting on one shows the picture and what it is. Held back
+  // half a second, or it would flash past every row the pointer crosses on its way somewhere.
+  const [preview, setPreview] = useState<{ entity: OracleEntity; top: number; right: number } | null>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const holdPreview = (entity: OracleEntity, element: HTMLElement) => {
+    if (view !== "rows" || !window.matchMedia("(hover: hover)").matches) return;
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+    const box = element.getBoundingClientRect();
+    // Measured from the panel's own edge, not the row's: the row sits inside the panel's padding,
+    // so hanging the card off it left the card overlapping the list it describes.
+    const panel = element.closest(".orc-details")?.getBoundingClientRect();
+    const right = window.innerWidth - (panel?.left ?? box.left) + 8;
+    previewTimer.current = setTimeout(() => setPreview({ entity, top: Math.min(box.top, window.innerHeight - 320), right }), 500);
+  };
+  const dropPreview = () => {
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+    setPreview(null);
+  };
+  useEffect(() => dropPreview, []);
+  useEffect(() => { dropPreview(); }, [view, query]);
   const listLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -287,9 +308,14 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                 className="orc-details-row"
                 data-view={view}
                 disabled={entity.id.startsWith("tmp-")}
+                onPointerEnter={(event) => holdPreview(entity, event.currentTarget)}
+                onPointerLeave={dropPreview}
+                onFocus={(event) => holdPreview(entity, event.currentTarget)}
+                onBlur={dropPreview}
                 onClick={() => {
                   props.onSelect(entity.id);
                   setQuery("");
+                  dropPreview();
                 }}
               >
                 {view === "pictures" ? (
@@ -297,7 +323,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                   // corner instead — the same icon, just quieter.
                   <span className="orc-row-face">
                     {entity.image_id ? (
-                      <img className="orc-row-photo" src={`${campaignApi(campaignId)}/images/${entity.image_id}?w=160`} alt="" loading="lazy" />
+                      <img className="orc-row-photo" src={`${campaignApi(campaignId)}/images/${entity.image_id}?w=240`} alt="" decoding="sync" />
                     ) : (
                       <span className="orc-row-photo orc-row-photo-none"><Icon className="w-5 h-5" aria-hidden /></span>
                     )}
@@ -308,10 +334,28 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                 ) : (
                   <Icon className="w-4 h-4 orc-attitude" data-attitude={entity.attitude} aria-label={KIND_LABELS[entity.kind]} role="img" />
                 )}
-                <span className="orc-details-row-name">{entity.name}</span>
+                {view === "pictures" ? (
+                  <span className="orc-row-text">
+                    <span className="orc-details-row-name">{entity.name}</span>
+                    {entity.details && <span className="orc-row-detail">{entity.details}</span>}
+                  </span>
+                ) : (
+                  <span className="orc-details-row-name">{entity.name}</span>
+                )}
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* WHAT THE POINTER IS RESTING ON — only where the row shows a name and nothing else. */}
+      {preview && (
+        <div className="orc-row-preview" style={{ top: preview.top, right: preview.right }} role="tooltip">
+          {preview.entity.image_id && (
+            <img className="orc-row-preview-photo" src={`${campaignApi(campaignId)}/images/${preview.entity.image_id}?w=480`} alt="" />
+          )}
+          <p className="orc-row-preview-name">{preview.entity.name}</p>
+          <p className="orc-row-preview-detail">{preview.entity.details || "Nothing written yet."}</p>
         </div>
       )}
 
