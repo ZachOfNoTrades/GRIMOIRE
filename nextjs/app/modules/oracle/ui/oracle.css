@@ -1141,3 +1141,9 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 }
 .orc-gen-row:has(.orc-map-preview) .orc-gen-body { flex: 1 1 auto; min-width: 0; text-align: left; }
 .orc-bar-panel:not([data-open="true"]) { padding: 0; }
+/* The panel owns the only scroll, so the controls row is pinned under the search field
+   with the list padding rather than the card margins erow-filter-row assumes. */
+.orc-list-controls { flex: 0 0 auto; margin: 0; padding: 0.5rem 1rem; border-bottom: 1px solid var(--card-border); }
+.orc-list-controls .erow-filter-select { font-size: 0.8125rem; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.orc-list-controls .erow-filter-select-wrap { flex: 1 1 8rem; }
+.orc-list-controls .filter-chip { padding: 0.25rem 0.625rem; font-size: 0.75rem; }

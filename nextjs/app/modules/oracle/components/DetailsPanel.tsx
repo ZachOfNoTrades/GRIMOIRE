@@ -1,5 +1,6 @@
 "use client";
 
+import ListControls, { type ListSortOption } from "./ListControls";
 import { ArrowLeft, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/Toaster";
@@ -42,6 +43,16 @@ const KIND_ICONS: Record<EntityKind, typeof User> = { creature: PawPrint, person
 const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
 
 // THE DETAILS PANEL — everything about one creature, person, location or item. It is filled by
+type ListSortKey = "name" | "kind" | "map";
+
+const SORT_OPTIONS: readonly ListSortOption<ListSortKey>[] = [
+  { value: "name", label: "Name (A-Z)" },
+  { value: "kind", label: "Kind" },
+  { value: "map", label: "On this map first" },
+];
+
+const KIND_ORDER: Record<string, number> = { creature: 0, person: 1, place: 2, item: 3 };
+
 // tapping something on the map or by picking a search result at the top.
 export default function DetailsPanel(props: DetailsPanelProps) {
   const { campaignId, entities, events, selected, activeMapId, panelEntityId, isVisibleToPlayers, isPlacing } = props;
@@ -55,6 +66,8 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const [tier, setTier] = useState<KnowledgeTier | null>(null);
   const [draftFact, setDraftFact] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [sortKey, setSortKey] = useState<ListSortKey>("name");
 
   // A different entry starts a fresh knowledge check.
   useEffect(() => {
@@ -64,11 +77,31 @@ export default function DetailsPanel(props: DetailsPanelProps) {
     setNote("");
   }, [selected?.id]);
 
+  // How many entries sit on the map the DM is looking at: the chip's count, and what
+  // decides whether the chip is offered at all.
+  const onMapCount = useMemo(
+    () => (activeMapId ? entities.filter((entity) => entity.map_id === activeMapId).length : 0),
+    [entities, activeMapId],
+  );
+
+  const byName = (a: OracleEntity, b: OracleEntity) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const list = needle ? entities.filter((entity) => `${entity.name} ${entity.details}`.toLowerCase().includes(needle)) : entities;
-    return [...list].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
-  }, [entities, query]);
+    const pool = activeFilters.includes("map") ? entities.filter((entity) => !!activeMapId && entity.map_id === activeMapId) : entities;
+    const list = needle ? pool.filter((entity) => `${entity.name} ${entity.details}`.toLowerCase().includes(needle)) : pool;
+    return [...list].sort((a, b) => {
+      if (sortKey === "kind") {
+        const kinds = (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9);
+        if (kinds !== 0) return kinds;
+      }
+      if (sortKey === "map" && activeMapId) {
+        const here = Number(b.map_id === activeMapId) - Number(a.map_id === activeMapId);
+        if (here !== 0) return here;
+      }
+      return byName(a, b);
+    });
+  }, [entities, query, activeFilters, activeMapId, sortKey]);
 
   const history = selected ? events.filter((event) => event.entity_id === selected.id).slice(0, 8) : [];
   const showList = query.trim() !== "" || !selected;
@@ -150,6 +183,19 @@ export default function DetailsPanel(props: DetailsPanelProps) {
         </Button>
       </div>
 
+      {/* LIST CONTROLS */}
+      {showList && entities.length > 0 && (
+        <ListControls
+          sortOptions={SORT_OPTIONS}
+          sortKey={sortKey}
+          onSortChange={setSortKey}
+          sortLabel="Sort the list"
+          filters={[{ id: "map", label: "On this map", icon: <MapPin className="w-3.5 h-3.5" />, count: onMapCount }]}
+          active={activeFilters}
+          onToggle={(id) => setActiveFilters((list) => (list.includes(id) ? list.filter((entry) => entry !== id) : [...list, id]))}
+        />
+      )}
+
       {/* RESULT LIST */}
       {showList && (
         <div className="orc-details-list">
@@ -157,7 +203,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
           {/* EMPTY PLACEHOLDER */}
           {matches.length === 0 && (
             <div className="empty-state">
-              <p className="empty-state-title">{entities.length === 0 ? "Nothing here yet" : "No match"}</p>
+              <p className="empty-state-title">{entities.length === 0 ? "Nothing here yet" : activeFilters.length > 0 && !query.trim() ? "Nothing on this map" : "No match"}</p>
               <p className="empty-state-body">
                 {entities.length === 0 ? "Add a creature, person, location or item, or build them from your notes on the Prep tab." : "Try a different word."}
               </p>
