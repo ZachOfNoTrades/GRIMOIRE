@@ -90,6 +90,7 @@ import {
 } from '@/app/modules/golem/lib/locationFunctions';
 import { generateSessionTargetsWithEngine } from '@/app/modules/golem/lib/engine/generationService';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '@/app/modules/golem/lib/segmentFunctions';
+import type { GeneratedSegment } from '@/app/modules/golem/types/segment';
 import { logGeneration } from '@/lib/generationLimit';
 
 // A single primary/secondary muscle mapping on an exercise. muscleGroupId comes from
@@ -271,17 +272,17 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
   server.registerTool(
     'golem_get_session',
     {
-      description: 'Full detail for one workout session: planned segments, sets logged (reps, weight, RPE), completion state.',
+      description: 'Full detail for one workout session: the planned exercises/sets (`planned_exercises` — the targets from golem_generate_session_with_engine or golem_set_session_plan), sets logged (`logged_exercises` — reps, weight, RPE), completion state.',
       inputSchema: { sessionId: z.string().describe('Workout session UUID') },
     },
     async ({ sessionId }) => {
       // getWorkoutSessionById returns the session row + the day-archetype SLOT TEMPLATE only
       // (built for the app's empty-session plan preview). The app loads the actual LOGGED
-      // exercises/sets from a separate endpoint (getSegmentsAndTargets), so over MCP the logged
-      // data was silently missing. Merge it in here so the tool's contract ("sets logged") holds.
+      // exercises/sets and the planned TARGETS from a separate endpoint (getSegmentsAndTargets),
+      // so over MCP both were silently missing. Merge them in so the tool's contract holds.
       const session = await getWorkoutSessionById(userId, sessionId);
-      const { exercises } = await getSegmentsAndTargets(userId, sessionId);
-      return json({ ...session, logged_exercises: exercises });
+      const { exercises, targets } = await getSegmentsAndTargets(userId, sessionId);
+      return json({ ...session, planned_exercises: targets, logged_exercises: exercises });
     },
   );
 
@@ -483,7 +484,7 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
     'golem_create_session',
     {
       description:
-        "Create a new workout session. Pass weekId to add it INSIDE a program (attached to that program week — find the id in golem_get_program / golem_get_current_program at program.blocks[].weeks[].id); omit weekId for a STANDALONE one-off session. Optionally assign a day archetype so the engine can generate exercises into it. Returns the new session id. Edit afterward with golem_apply_plan_change (name/description/day_archetype_id); remove with golem_delete_session.",
+        "Create a new workout session. Pass weekId to add it INSIDE a program (attached to that program week — find the id in golem_get_program / golem_get_current_program at program.blocks[].weeks[].id); omit weekId for a STANDALONE one-off session. Optionally assign a day archetype so the engine can generate exercises into it, or fill it by hand with golem_set_session_plan. Returns the new session id. Edit afterward with golem_apply_plan_change (name/description/day_archetype_id); remove with golem_delete_session.",
       inputSchema: {
         name: z.string().min(1).describe('Session name, e.g. "Lower (low-axial)", "Conditioning".'),
         description: z.string().nullable().default(null).describe('Optional notes.'),
@@ -569,6 +570,121 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
         // equipment at the location, or substituted. Report these — never treat the plan as clean.
         warnings,
       });
+    },
+  );
+
+  // -----------------------------
+  // MANUAL SESSION PLAN (no engine)
+  // Writes caller-chosen exercises/sets straight into a session's targets — the non-engine
+  // counterpart to golem_generate_session_with_engine, for standalone and program sessions alike.
+  // Same persistence path (createGeneratedTargets) as the engine and the in-app generate routes,
+  // so logged segments on an in-progress session are re-adopted by exercise the same way.
+  // -----------------------------
+
+  server.registerTool(
+    'golem_set_session_plan',
+    {
+      description:
+        "Manually set an EXISTING workout session's planned exercises and sets (targets) — no engine, no day archetype needed. Works on standalone sessions and program sessions (create one first with golem_create_session, with or without weekId). mode 'replace' (default) wipes the session's current targets and writes these; mode 'append' adds these after the existing targets. Already-logged sets are never deleted: on replace, a logged exercise is relinked to the new target for the same exercise. Refuses completed sessions. Exercise ids come from golem_list_exercises. Each set needs reps (rep-based) or timeSeconds (timed); weight is in the user's weight unit (0 = bodyweight). Returns the resulting plan; golem_get_session shows it as planned_exercises.",
+      inputSchema: {
+        sessionId: z.uuid().describe('Workout session UUID (golem_list_sessions / golem_get_program / golem_create_session).'),
+        mode: z
+          .enum(['replace', 'append'])
+          .default('replace')
+          .describe("replace = discard the session's existing targets first; append = keep them and add these after."),
+        exercises: z
+          .array(
+            z.object({
+              exerciseId: z.uuid().describe('Exercise UUID from golem_list_exercises.'),
+              isWarmup: z
+                .boolean()
+                .default(false)
+                .describe('true = a warmup exercise (shown before the working exercises; its sets never count as working volume).'),
+              sets: z
+                .array(
+                  z.object({
+                    reps: z.number().int().min(1).max(1000).nullable().default(null).describe('Target reps, or null for a timed set.'),
+                    weight: z.number().min(0).max(99999.9).default(0).describe("Target load in the user's weight unit; 0 = bodyweight."),
+                    rpe: z.number().min(5).max(10).nullable().default(null).describe('Target RPE 5-10, or null.'),
+                    timeSeconds: z.number().int().min(1).max(86400).nullable().default(null).describe('Target duration in seconds for timed exercises, or null.'),
+                    isWarmup: z
+                      .boolean()
+                      .default(false)
+                      .describe('Warmup ramp set on a working exercise. Ignored (always true) on a warmup exercise.'),
+                  }),
+                )
+                .min(1)
+                .max(30),
+            }),
+          )
+          .min(1)
+          .max(40)
+          .describe('Exercises in the order they should be performed.'),
+      },
+    },
+    async ({ sessionId, mode, exercises }) => {
+      // Ownership + state check (throws when the session is not the user's).
+      const session = await getWorkoutSessionById(userId, sessionId);
+      if (session.is_completed) {
+        return json({ success: false, error: 'Session is completed — its plan is locked. Reset it first (golem_reset_session) to re-plan it.' });
+      }
+
+      // Every set must prescribe something to do.
+      for (const [i, exercise] of exercises.entries()) {
+        const badSet = exercise.sets.findIndex((s) => s.reps === null && s.timeSeconds === null);
+        if (badSet !== -1) {
+          return json({ success: false, error: `exercises[${i}].sets[${badSet}] needs reps or timeSeconds.` });
+        }
+      }
+
+      // Resolve every exercise up front so an unknown id fails before anything is written.
+      const uniqueIds = [...new Set(exercises.map((e) => e.exerciseId))];
+      const missing: string[] = [];
+      await Promise.all(
+        uniqueIds.map((id) => getExerciseById(userId, id).catch(() => missing.push(id))),
+      );
+      if (missing.length > 0) {
+        return json({ success: false, error: `Unknown exercise id(s): ${missing.join(', ')} — look them up with golem_list_exercises.` });
+      }
+
+      // Append continues after the current targets; replace starts over at 1.
+      let startIndex = 1;
+      if (mode === 'append') {
+        const { targets } = await getSegmentsAndTargets(userId, sessionId);
+        startIndex = targets.reduce((max, t) => Math.max(max, t.order_index), 0) + 1;
+      }
+
+      // Set numbers increment independently within the warmup and working groups (schema rule,
+      // mirrors engine/toSegments.ts). Every set of a warmup exercise is a warmup set.
+      const segments: GeneratedSegment[] = exercises.map((exercise, index) => {
+        let warmupNumber = 1;
+        let workingNumber = 1;
+        return {
+          exercise_id: exercise.exerciseId,
+          modifier_id: null,
+          order_index: startIndex + index,
+          is_warmup: exercise.isWarmup,
+          sets: exercise.sets.map((s) => {
+            const isWarmup = exercise.isWarmup || s.isWarmup;
+            return {
+              set_number: isWarmup ? warmupNumber++ : workingNumber++,
+              is_warmup: isWarmup,
+              reps: s.reps,
+              weight: Math.round(s.weight * 10) / 10,
+              rpe: s.rpe,
+              time_seconds: s.timeSeconds,
+            };
+          }),
+        };
+      });
+
+      if (mode === 'replace') {
+        await deleteAllTargetsForSession(userId, sessionId);
+      }
+      await createGeneratedTargets(userId, sessionId, segments);
+
+      const { targets } = await getSegmentsAndTargets(userId, sessionId);
+      return json({ success: true, sessionId, mode, planned_exercises: targets });
     },
   );
 
