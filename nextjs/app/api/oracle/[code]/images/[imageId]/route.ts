@@ -1,5 +1,5 @@
 import { OracleError } from "@/app/modules/oracle/lib/errors";
-import { readImage } from "@/app/modules/oracle/lib/imageFunctions";
+import { parseImageWidth, readImage, readImageVariant } from "@/app/modules/oracle/lib/imageFunctions";
 import { withViewer } from "@/app/modules/oracle/lib/routeHandlers";
 import { findCampaignIdByCode, getDisplayImageIds } from "@/app/modules/oracle/lib/snapshotFunctions";
 import { requireDisplayCode, requireUuid } from "@/app/modules/oracle/lib/validation";
@@ -16,9 +16,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     const campaignId = await findCampaignIdByCode(requireDisplayCode(code));
     const wanted = requireUuid(imageId, "Image");
     if (!(await getDisplayImageIds(campaignId)).has(wanted)) throw new OracleError(404, "Image not found");
-    const image = await readImage(campaignId, wanted);
+    const width = parseImageWidth(new URL(request.url).searchParams.get("w"));
+    const image = width ? await readImageVariant(campaignId, wanted, width) : await readImage(campaignId, wanted);
+    // The bytes behind an id never change, so the players' screen keeps them: it used to carry
+    // the snapshot version in the URL, which threw the whole picture away on any campaign edit.
     return new Response(new Uint8Array(image.bytes), {
-      headers: { "Content-Type": image.contentType, "Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff" },
+      headers: { "Content-Type": image.contentType, "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" },
     });
   });
 }

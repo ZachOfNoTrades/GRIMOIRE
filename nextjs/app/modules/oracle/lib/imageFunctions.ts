@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
+import sharp from "sharp";
 import { getMainConnection } from "@/lib/db";
 import type { OracleImage } from "../types/oracle";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGES, MAX_IMAGE_BYTES } from "./constants";
@@ -62,6 +63,9 @@ export async function saveImage(campaignId: string, caption: string, contentType
     await pool.request().input("id", id).query(`DELETE FROM oracle_images WHERE id = @id`);
     throw error;
   }
+  // Built here rather than on the first view: resizing a 2 MB picture is most of the wait when
+  // an entry is first opened, and at the table that wait lands mid-session.
+  await warmImageVariants(campaignId, id, bytes);
   return toImage(result.recordset[0]);
 }
 
@@ -96,6 +100,50 @@ export async function readImage(campaignId: string, imageId: string): Promise<{ 
   }
 }
 
+/** The widths a picture is served at. Anything else is refused, so the cache cannot be grown
+ *  by asking for arbitrary sizes. */
+export const IMAGE_WIDTHS = [160, 480, 960, 1600] as const;
+export type ImageWidth = (typeof IMAGE_WIDTHS)[number];
+
+export function parseImageWidth(value: string | null): ImageWidth | null {
+  const width = Number(value);
+  return (IMAGE_WIDTHS as readonly number[]).includes(width) ? (width as ImageWidth) : null;
+}
+
+/**
+ * The picture at one of the sizes it is actually drawn at, as WebP, written to disk the first
+ * time it is asked for and read back after that.
+ *
+ * The originals are what the generator returned: around 2 MB of PNG each. Sending that to fill a
+ * 480 px panel is most of the wait when an entry is opened, and the players' screen pays it over
+ * the tunnel. A variant is a tenth of the size and the bytes never change, so it is cached hard
+ * at both ends.
+ */
+export async function readImageVariant(campaignId: string, imageId: string, width: ImageWidth): Promise<{ bytes: Buffer; contentType: string }> {
+  const cacheDir = path.join(UPLOAD_ROOT, campaignId, "variants");
+  const cached = path.join(cacheDir, `${imageId}-${width}.webp`);
+  try {
+    return { bytes: await readFile(cached), contentType: "image/webp" };
+  } catch {
+    // Not built yet.
+  }
+  const original = await readImage(campaignId, imageId);
+  return buildImageVariant(campaignId, imageId, width, original.bytes);
+}
+
+async function buildImageVariant(campaignId: string, imageId: string, width: ImageWidth, source: Buffer): Promise<{ bytes: Buffer; contentType: string }> {
+  // `withoutEnlargement` keeps a small source at its own size rather than upscaling it.
+  const bytes = await sharp(source).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+  await mkdir(path.join(UPLOAD_ROOT, campaignId, "variants"), { recursive: true });
+  await writeFile(path.join(UPLOAD_ROOT, campaignId, "variants", `${imageId}-${width}.webp`), new Uint8Array(bytes)).catch(() => undefined);
+  return { bytes, contentType: "image/webp" };
+}
+
+/** Build every size up front, so the first time a picture is opened it is already on disk. */
+export async function warmImageVariants(campaignId: string, imageId: string, source: Buffer): Promise<void> {
+  await Promise.all(IMAGE_WIDTHS.map((width) => buildImageVariant(campaignId, imageId, width, source).catch(() => undefined)));
+}
+
 // Pointers to the image (entity portraits, the display panel) have no foreign key, so they are
 // cleared here.
 export async function deleteImage(campaignId: string, imageId: string): Promise<void> {
@@ -126,4 +174,6 @@ export async function deleteImage(campaignId: string, imageId: string): Promise<
     throw error;
   }
   await unlink(path.join(UPLOAD_ROOT, campaignId, fileName)).catch(() => undefined);
+  // The sizes built from it go too, or a reused id would serve the old picture.
+  await Promise.all(IMAGE_WIDTHS.map((width) => unlink(path.join(UPLOAD_ROOT, campaignId, "variants", `${imageId}-${width}.webp`)).catch(() => undefined)));
 }

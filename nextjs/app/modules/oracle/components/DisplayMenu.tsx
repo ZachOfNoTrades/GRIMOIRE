@@ -72,7 +72,7 @@ export default function DisplayMenu({ campaignId, displayCode, label, isBlank, i
                 <span className="orc-tile-art">
                   {panelEntity.image_id ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`${campaignApi(campaignId)}/images/${panelEntity.image_id}`} alt="" />
+                    <img src={`${campaignApi(campaignId)}/images/${panelEntity.image_id}?w=480`} alt="" />
                   ) : (
                     <ImageIcon className="w-5 h-5" aria-hidden />
                   )}
@@ -86,7 +86,7 @@ export default function DisplayMenu({ campaignId, displayCode, label, isBlank, i
               <button key={image.id} type="button" className="orc-tile" data-active={panelImageId === image.id ? "true" : undefined} onClick={() => onShowImage(image)} title={image.caption}>
                 <span className="orc-tile-art">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`${campaignApi(campaignId)}/images/${image.id}`} alt="" loading="lazy" />
+                  <img src={`${campaignApi(campaignId)}/images/${image.id}?w=160`} alt="" loading="lazy" />
                 </span>
                 <span className="orc-tile-caption">{image.caption}</span>
               </button>

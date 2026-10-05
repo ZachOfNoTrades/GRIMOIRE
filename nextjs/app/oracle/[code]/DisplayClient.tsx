@@ -173,7 +173,10 @@ export default function DisplayClient({ code }: { code: string }) {
 
   const map = snapshot.map;
   const tokens: MapToken[] = map ? map.tokens.map((token) => ({ id: token.id, name: token.name, kind: token.kind, attitude: token.attitude, x: token.x, y: token.y, down: token.down })) : [];
-  const imageUrl = (imageId: string) => `/api/oracle/${code}/images/${imageId}?v=${snapshot.version}`;
+  // No version in the URL: the bytes behind an image id never change, so carrying the snapshot
+  // version here threw every picture out of the browser cache on any campaign edit and made the
+  // players wait for a fresh download each time. `w` picks the size this screen actually draws.
+  const imageUrl = (imageId: string, width = 960) => `/api/oracle/${code}/images/${imageId}?w=${width}`;
 
   return (
     // DISPLAY

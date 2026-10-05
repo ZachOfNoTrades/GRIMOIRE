@@ -194,7 +194,7 @@ export default function MapModal({ isOpen, campaignId, map, images, imageSources
                 {images.map((image) => (
                   <button key={image.id} type="button" role="option" aria-selected={image.id === pictureId} className="orc-library-item" onClick={() => choose(image)} title={image.caption}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`${base}/images/${image.id}`} alt="" loading="lazy" />
+                    <img src={`${base}/images/${image.id}?w=160`} alt="" loading="lazy" />
                     <span>{image.caption}</span>
                   </button>
                 ))}
