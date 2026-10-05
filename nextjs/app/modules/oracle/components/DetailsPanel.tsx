@@ -1,9 +1,10 @@
 "use client";
 
 import ListControls from "./ListControls";
+import Picture from "./Picture";
 import { applyListFilters, countListFilters, toggleListFilter, type ListFilterDef, type ListSortDef } from "../lib/listFilters";
 import { ArrowLeft, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { blurOnEnter } from "@/lib/inputBehavior";
@@ -83,7 +84,7 @@ const ENTITY_SORTS: readonly ListSortDef<OracleEntity, EntityListContext>[] = [
   { value: "name", label: "Name (A-Z)", compare: () => 0 },
   { value: "kind", label: "Kind", compare: (a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) },
   { value: "map", label: "On this map first", compare: (a, b, context) => (context.activeMapId ? Number(b.map_id === context.activeMapId) - Number(a.map_id === context.activeMapId) : 0) },
-  { value: "distance", label: "Nearest the party", compare: (a, b, context) => distanceFromParty(a, context) - distanceFromParty(b, context) },
+  { value: "distance", label: "Nearest", compare: (a, b, context) => distanceFromParty(a, context) - distanceFromParty(b, context) },
 ];
 
 // THE DETAILS PANEL — everything about one creature, person, location or item. It is filled by
@@ -100,8 +101,38 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const [tier, setTier] = useState<KnowledgeTier | null>(null);
   const [draftFact, setDraftFact] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  // The DM's choice of order and filters is kept per campaign, so it survives a reload and is
+  // still there at the next session rather than resetting to A-Z every time.
+  const listStoreKey = `orc-list-${campaignId}`;
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [sortValue, setSortValue] = useState("name");
+  const listLoadedRef = useRef(false);
+
+  useEffect(() => {
+    listLoadedRef.current = false;
+    let saved: { sort?: unknown; filters?: unknown } = {};
+    try {
+      saved = JSON.parse(window.localStorage.getItem(listStoreKey) ?? "{}");
+    } catch {
+      // Storage can be blocked or hold something stale; the defaults stand.
+    }
+    const sort = typeof saved.sort === "string" && ENTITY_SORTS.some((entry) => entry.value === saved.sort) ? saved.sort : "name";
+    const known = new Set(ENTITY_FILTERS.map((filter) => filter.id));
+    const filters = Array.isArray(saved.filters) ? saved.filters.filter((id): id is string => typeof id === "string" && known.has(id)) : [];
+    setSortValue(sort);
+    setActiveFilters(filters);
+    listLoadedRef.current = true;
+  }, [listStoreKey]);
+
+  useEffect(() => {
+    // Only once what was stored has been read, or the first render would overwrite it.
+    if (!listLoadedRef.current) return;
+    try {
+      window.localStorage.setItem(listStoreKey, JSON.stringify({ sort: sortValue, filters: activeFilters }));
+    } catch {
+      // Storage can be blocked; the choice still applies for this visit.
+    }
+  }, [listStoreKey, sortValue, activeFilters]);
 
   // A different entry starts a fresh knowledge check.
   useEffect(() => {
@@ -356,11 +387,12 @@ export default function DetailsPanel(props: DetailsPanelProps) {
           {/* SECTIONS */}
           <div className="orc-sections">
 
-            {/* PICTURE */}
+            {/* PICTURE — a box of the same height holds the place while it loads, so opening an
+                entry never shifts the notes below it. For anything on the open map it is already
+                in the browser's cache and appears at once. */}
             {selected.image_id && (
               <section className="orc-section">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="orc-details-image" src={`${campaignApi(campaignId)}/images/${selected.image_id}?w=480`} alt={selected.name} />
+                <Picture className="orc-details-image" src={`${campaignApi(campaignId)}/images/${selected.image_id}?w=480`} alt={selected.name} />
               </section>
             )}
 
