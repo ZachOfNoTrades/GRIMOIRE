@@ -1303,3 +1303,21 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-context-choice-item { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.35rem 0.2rem; font-size: 0.6875rem; color: var(--color-secondary); background: transparent; border: 1px solid var(--card-border); cursor: pointer; }
 .orc-context-choice-item:hover { color: var(--color-primary); background: var(--hover-bg); }
 .orc-context-choice-item[aria-checked="true"] { color: var(--badge-blue-text); background: var(--badge-blue-bg); border-color: var(--badge-blue-border); }
+
+/* DESCRIBE — an exchange, not a single box. The first line says what to make; every line after it
+   asks for a change to what is written, so the DM can keep talking instead of starting again. */
+.orc-talk { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+.orc-talk-said { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.4rem; min-height: 0; overflow-y: auto; padding-right: 0.25rem; }
+.orc-talk-turn { max-width: 85%; margin: 0; padding: 0.4rem 0.6rem; font-size: 0.8125rem; line-height: 1.45; }
+.orc-talk-turn[data-who="dm"] { align-self: flex-end; color: var(--badge-blue-text); background: var(--badge-blue-bg); border: 1px solid var(--badge-blue-border); }
+.orc-talk-turn[data-who="oracle"] { align-self: flex-start; color: var(--color-primary); background: var(--hover-bg); border: 1px solid var(--card-border); }
+.orc-talk-turn[data-waiting="true"] { color: var(--color-secondary); font-style: italic; }
+.orc-talk-ask { flex: 0 0 auto; display: flex; align-items: center; gap: 0.4rem; }
+.orc-talk-ask .bottom-action-bar-pill { flex: 1 1 auto; border: 1px solid var(--input-border); }
+
+/* The fields fold away while the exchange is going and open as soon as it has written something. */
+.orc-talk-fields { display: flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0; font-size: 0.75rem; color: var(--color-secondary); background: none; border: 0; cursor: pointer; }
+.orc-talk-fields:hover { color: var(--color-primary); }
+.orc-talk-fields svg { transition: transform 0.15s; }
+.orc-talk-fields svg[data-open="true"] { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .orc-talk-fields svg { transition: none; } }

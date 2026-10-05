@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
-import { BookOpen, PenLine, Search, Sparkles, X } from "lucide-react";
+import { BookOpen, ChevronDown, PenLine, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Attitude, EntityKind, OracleEntity, StatBlock } from "../types/oracle";
 import { ATTITUDES, DETAILS_MAX, ENTITY_IDEA_MAX, ENTITY_KINDS, NAME_MAX, NOTES_MAX } from "../lib/constants";
@@ -37,7 +37,7 @@ interface EntityModalProps {
   defaultKind?: EntityKind;
   onSave: (draft: EntityDraft) => void;
   onClose: () => void;
-  onWrite?: (request: { kind: EntityKind; name: string; idea: string }) => Promise<EntityWriteUp>; // new entries only
+  onWrite?: (request: { kind: EntityKind; name: string; idea: string; draft?: { name: string; details: string; dm_notes: string } }) => Promise<EntityWriteUp>; // new entries only
 }
 
 const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
@@ -66,6 +66,11 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
   // INPUT
   const [way, setWay] = useState<NewEntryWay>("search");
   const [lookup, setLookup] = useState("");
+  // What has been said while writing this entry. The DM's turns are instructions; Oracle's are
+  // what it wrote back, so a change can be asked for without starting again.
+  const [said, setSaid] = useState<{ who: "dm" | "oracle"; text: string }[]>([]);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [showFields, setShowFields] = useState(false);
   const [found, setFound] = useState<LibraryCreature[]>([]);
   const [isLooking, setIsLooking] = useState(false);
   const [kind, setKind] = useState<EntityKind>(defaultKind);
@@ -110,15 +115,25 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
   // WRITE WITH AI — fills the form from the idea (and the name, if one is typed); a typed name is kept.
   async function write() {
     if (!onWrite || isWriting) return;
-    if (!name.trim() && !idea.trim()) {
+    const asked = idea.trim();
+    if (!asked && !name.trim()) {
       setError("Say what it is, or give it a name");
       return;
     }
     setError(null);
     setIsWriting(true);
+    if (asked) setSaid((turns) => [...turns, { who: "dm", text: asked }]);
+    setIdea("");
     try {
-      const written = await onWrite({ kind, name: name.trim(), idea: idea.trim() });
-      if (!name.trim()) setName(written.name);
+      // After the first reply the exchange carries what is on the page, so "add a secret tunnel"
+      // adds one rather than writing a different cave.
+      const written = await onWrite({
+        kind,
+        name: hasDraft ? "" : name.trim(),
+        idea: asked,
+        draft: hasDraft ? { name, details, dm_notes: notes } : undefined,
+      });
+      setName(written.name);
       setDetails(written.details);
       setNotes(written.dm_notes);
       setAttitude(written.attitude);
@@ -126,7 +141,11 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
         setSource(written.source ?? "");
         setStats(written.stats);
       }
+      setSaid((turns) => [...turns, { who: "oracle", text: `${written.name} — ${written.details}` }]);
+      setHasDraft(true);
+      setShowFields(true);
     } catch (writeError) {
+      setSaid((turns) => [...turns, { who: "oracle", text: writeError instanceof Error ? writeError.message : "Couldn't write it" }]);
       setError(writeError instanceof Error ? writeError.message : "Couldn't write it");
     } finally {
       setIsWriting(false);
@@ -264,9 +283,61 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
           </div>
         )}
 
+          {/* DESCRIBE IT — an exchange rather than one box: the first line says what to make, and
+            every line after it asks for a change to what is already written. */}
+        {!isEdit && onWrite && way === "describe" && (
+          <div className="orc-talk">
+            <div className="orc-talk-said" aria-live="polite">
+              {said.length === 0 && (
+                <div className="empty-state">
+                  <p className="empty-state-title">Say what to make</p>
+                  <p className="empty-state-body">{IDEA_PLACEHOLDERS[kind]}. Then keep going: ask for a change and it is rewritten.</p>
+                </div>
+              )}
+              {said.map((turn, index) => (
+                <p key={index} className="orc-talk-turn" data-who={turn.who}>{turn.text}</p>
+              ))}
+              {isWriting && <p className="orc-talk-turn" data-who="oracle" data-waiting="true">Writing…</p>}
+            </div>
+            <div className="orc-talk-ask">
+              <div className="bottom-action-bar-pill" style={{ maxWidth: "none" }}>
+                <input
+                  type="text"
+                  autoFocus
+                  value={idea}
+                  maxLength={ENTITY_IDEA_MAX}
+                  placeholder={said.length === 0 ? IDEA_PLACEHOLDERS[kind] : "Ask for a change"}
+                  aria-label={said.length === 0 ? "What to make" : "What to change"}
+                  className="bottom-action-bar-pill-text"
+                  style={{ background: "transparent", border: "none", outline: "none", padding: 0 }}
+                  disabled={isWriting}
+                  onChange={(event) => setIdea(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void write();
+                    }
+                  }}
+                />
+              </div>
+              <Button className="btn-off" onClick={() => void write()} disabled={isWriting}>
+                <Sparkles className="w-4 h-4" aria-hidden /> {isWriting ? "Writing…" : said.length === 0 ? "Write" : "Change"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* THE FIELDS — folded away while the exchange is still going, opened as soon as it has
+            written something, so the DM can correct a word without leaving the conversation. */}
+        {!isEdit && way === "describe" && (
+          <button type="button" className="orc-talk-fields" aria-expanded={showFields} onClick={() => setShowFields((open) => !open)}>
+            <ChevronDown className="w-4 h-4" aria-hidden data-open={showFields ? "true" : undefined} /> Fields
+          </button>
+        )}
+
         {/* THE ENTRY ITSELF — hidden while the library is being searched, since picking something
             there fills this in. */}
-        {(isEdit || way !== "search") && (
+        {(isEdit || way !== "search") && (isEdit || way !== "describe" || showFields) && (
           <>
           {/* KIND */}
           <div className="orc-field">
@@ -280,34 +351,8 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
             </div>
           </div>
 
-          {/* DESCRIBE IT — the AI writes the entry from an idea */}
-          {!isEdit && onWrite && way === "describe" && (
-            <div className="orc-field">
-              <span className="orc-field-label">Write with AI</span>
-              <div className="orc-write-row">
-                <input
-                  className="input-field"
-                  aria-label="What it is"
-                  value={idea}
-                  maxLength={ENTITY_IDEA_MAX}
-                  placeholder={IDEA_PLACEHOLDERS[kind]}
-                  disabled={isWriting}
-                  onChange={(event) => setIdea(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void write();
-                    }
-                  }}
-                />
-                <Button className="btn-off" onClick={() => void write()} disabled={isWriting}>
-                  <Sparkles className="w-4 h-4" aria-hidden /> {isWriting ? "Writing…" : "Write"}
-                </Button>
-              </div>
-            </div>
-          )}
 
-          {/* NAME FIELD — autofocused on create (typing a name is the first step); not on edit,
+        {/* NAME FIELD — autofocused on create (typing a name is the first step); not on edit,
               where the DM came to change some field and it is not necessarily this one. */}
           <label className="orc-field">
             <span className="orc-field-label">Name</span>

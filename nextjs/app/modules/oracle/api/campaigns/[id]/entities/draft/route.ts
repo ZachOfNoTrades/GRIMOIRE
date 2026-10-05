@@ -7,7 +7,8 @@ import { draftEntitySchema, parseBody } from "@/app/modules/oracle/lib/validatio
 
 // POST /modules/oracle/api/campaigns/[id]/entities/draft — write up a new entry from a name, a
 // short idea ("a shopkeeper in Vincha"), or both, so it fits the campaign and the live session.
-// Body: { kind, name?, idea? }. Nothing is saved; the DM reviews it in the entry editor.
+// Body: { kind, name?, idea?, draft? }. Passing `draft` asks for a change to what is already
+// written ("add a secret tunnel") rather than a fresh one. Nothing is saved; the DM reviews it.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return withOwner(request, id, "POST /oracle/api/campaigns/[id]/entities/draft", async (owner) => {
@@ -15,7 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const kind = body.kind as EntityKind;
     await spendGeneration(owner.user, "oracle/outline");
     const context = await buildContext(owner.campaignId, owner.user.id);
-    const outline = await outlineEntity(context, kind, body.name, await modelFor(owner.user.id, "outline"), body.idea);
+    const outline = await outlineEntity(context, kind, body.name, await modelFor(owner.user.id, "outline"), body.idea, body.draft);
     const row = kind === "creature" ? findChallengeRow(outline.cr ?? "1/4") : null;
     return ok({
       name: outline.name,

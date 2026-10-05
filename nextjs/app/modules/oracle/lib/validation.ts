@@ -183,6 +183,14 @@ export const draftEntitySchema = z
     kind: z.enum(ENTITY_KINDS as [string, ...string[]]),
     name: z.string().trim().max(NAME_MAX).default(""),
     idea: z.string().trim().max(ENTITY_IDEA_MAX).default(""),
+    // What is on the page already, when the DM is asking for a change rather than a first draft.
+    draft: z
+      .object({
+        name: z.string().trim().max(NAME_MAX).default(""),
+        details: z.string().trim().max(DETAILS_MAX).default(""),
+        dm_notes: z.string().trim().max(NOTES_MAX).default(""),
+      })
+      .optional(),
   })
   .refine((body) => body.name.length > 0 || body.idea.length > 0, { message: "Give it a name or say what it is" });
 
