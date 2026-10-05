@@ -1,6 +1,7 @@
 "use client";
 
 import { Dices, Minus, Plus, Swords } from "lucide-react";
+import TabLink from "../../../../components/TabLink";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -178,9 +179,9 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
                   {/* PARTY LINE */}
                   <div className="orc-enc-party">
                     {levels.length === 0 ? (
-                      <span className="orc-small text-secondary">No party. <Link href={`/modules/oracle/ui/campaign/${campaign.id}/prep`}>Add characters on Prep</Link></span>
+                      <span className="orc-small text-secondary">No party. <TabLink campaignId={campaign.id} tab="prep" className="orc-inline-link">Add characters on Prep</TabLink></span>
                     ) : (
-                      <span className="orc-small text-secondary">{levels.length} {levels.length === 1 ? "character" : "characters"}, level {levels.join(", ")}. <Link href={`/modules/oracle/ui/campaign/${campaign.id}/prep`}>Edit on Prep</Link></span>
+                      <span className="orc-small text-secondary">{levels.length} {levels.length === 1 ? "character" : "characters"}, level {levels.join(", ")}. <TabLink campaignId={campaign.id} tab="prep" className="orc-inline-link">Edit on Prep</TabLink></span>
                     )}
                     <div className="orc-enc-thresholds" aria-label="Party thresholds">
                       {(["easy", "medium", "hard", "deadly"] as const).map((key) => (

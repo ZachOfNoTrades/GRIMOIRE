@@ -1,6 +1,7 @@
 "use client";
 
 import { Gem, GripVertical, PawPrint, Plus, Trash2, User, X } from "lucide-react";
+import TabLink from "./TabLink";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -165,7 +166,7 @@ export default function PartyPanel({ campaignId, party, groups, onCreateGroup, o
       </div>
 
       {!hasAnyone && (
-        <p className="orc-small text-secondary"><Link href={`/modules/oracle/ui/campaign/${campaignId}/prep`}>Add the party on Prep</Link></p>
+        <p className="orc-small text-secondary"><TabLink campaignId={campaignId} tab="prep" className="orc-inline-link">Add the party on Prep</TabLink></p>
       )}
 
       {/* MAIN PARTY */}

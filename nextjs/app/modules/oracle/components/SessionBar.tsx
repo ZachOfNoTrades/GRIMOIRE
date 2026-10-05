@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import HelpButton, { type HelpSection } from "@/components/ui/HelpButton";
+import { useCampaignTabs } from "../ui/campaignTabs";
 
 export type CampaignTab = "table" | "reference" | "prep" | "log";
 
@@ -31,6 +32,7 @@ const TABS: { key: CampaignTab; label: string; icon: typeof MapIcon }[] = [
 // The strip under the navbar on every campaign page: which campaign, the four tabs, and — on the
 // Table tab — the live session and what the players are looking at.
 export default function SessionBar({ campaignId, campaignName, active, help, sessionLabel, onOpenSessions, displayControl, isBlank, onToggleBlank }: SessionBarProps) {
+  const tabs = useCampaignTabs();
   return (
     // SESSION BAR
     <div className="orc-bar">
@@ -53,14 +55,24 @@ export default function SessionBar({ campaignId, campaignName, active, help, ses
         )}
       </div>
 
-      {/* TABS */}
+      {/* TABS — switched in place when the four live on one page, else plain links. */}
       <nav className="orc-tabs" aria-label="Campaign pages">
         {TABS.map((tab) => {
           const Icon = tab.icon;
-          return (
-            <Link key={tab.key} href={`/modules/oracle/ui/campaign/${campaignId}/${tab.key}`} className="orc-tab" aria-current={active === tab.key ? "page" : undefined}>
+          const current = active === tab.key ? "page" : undefined;
+          const face = (
+            <>
               <Icon className="w-4 h-4" aria-hidden />
               <span>{tab.label}</span>
+            </>
+          );
+          return tabs ? (
+            <button key={tab.key} type="button" className="orc-tab" aria-current={current} onClick={() => tabs.setTab(tab.key)}>
+              {face}
+            </button>
+          ) : (
+            <Link key={tab.key} href={`/modules/oracle/ui/campaign/${campaignId}/${tab.key}`} className="orc-tab" aria-current={current}>
+              {face}
             </Link>
           );
         })}

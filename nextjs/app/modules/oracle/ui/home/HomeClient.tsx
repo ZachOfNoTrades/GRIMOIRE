@@ -46,7 +46,7 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
       const created = await api<OracleCampaign>("/modules/oracle/api/campaigns", "POST", { name: trimmed });
       setCampaigns((list) => list.map((campaign) => (campaign.id === tempId ? { id: created.id, name: created.name, display_code: created.display_code, session_count: 0, ts_updated: new Date().toISOString() } : campaign)));
       // A new campaign starts on Prep: the world, the first session and a map are made there.
-      router.push(`/modules/oracle/ui/campaign/${created.id}/prep`);
+      router.push(`/modules/oracle/ui/campaign/${created.id}?tab=prep`);
     } catch (createError) {
       setCampaigns((list) => list.filter((campaign) => campaign.id !== tempId));
       toast.error(errorMessage(createError, "Couldn't create the campaign"));
@@ -173,7 +173,7 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
 
                 {/* CAMPAIGN ACTIONS */}
                 <div className="orc-campaign-actions">
-                  <a className="btn btn-blue" style={{ textDecoration: "none" }} href={isPending ? undefined : `/modules/oracle/ui/campaign/${campaign.id}/table`} aria-disabled={isPending}>
+                  <a className="btn btn-blue" style={{ textDecoration: "none" }} href={isPending ? undefined : `/modules/oracle/ui/campaign/${campaign.id}?tab=table`} aria-disabled={isPending}>
                     <Dices className="w-4 h-4" /> Open DM Screen
                   </a>
                   <a className="btn btn-blue" style={{ textDecoration: "none" }} href={isPending ? undefined : `/oracle/${campaign.display_code}`} target="_blank" rel="noopener" aria-disabled={isPending}>

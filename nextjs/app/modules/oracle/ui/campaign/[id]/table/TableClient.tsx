@@ -1,6 +1,7 @@
 "use client";
 
-import { Brush, ChevronDown, Eraser, Eye, EyeOff, HeartPulse, MapPin, Move, MonitorUp, PanelLeft, RotateCcw, Search, Skull, Trash2, UserPlus, X, ZoomIn } from "lucide-react";
+import { Brush, ChevronDown, Eraser, Eye, EyeOff, HeartPulse, MapPin, MonitorUp, Move, PanelLeft, RotateCcw, Search, Skull, Trash2, UserPlus, X, ZoomIn } from "lucide-react";
+import TabLink from "../../../../components/TabLink";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
@@ -22,6 +23,7 @@ import PartyPanel from "../../../../components/PartyPanel";
 import ResultModal from "../../../../components/ResultModal";
 import SessionsPanel from "../../../../components/SessionsPanel";
 import SessionBar from "../../../../components/SessionBar";
+import { useIsActiveTab } from "../../../campaignTabs";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
@@ -231,12 +233,17 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   // display's cheap version check (public, one number) is polled while the tab is visible; when
   // the version moves and nothing is mid-save here, the whole snapshot is reloaded.
   const knownVersionRef = useRef(snapshot.campaign.version);
+  // The four tabs share a page, so this one stays mounted while another is on screen. It picks
+  // the campaign back up when it is shown again rather than polling behind the DM's back.
+  const isActiveTab = useIsActiveTab();
+  const isActiveRef = useRef(isActiveTab);
+  isActiveRef.current = isActiveTab;
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   useEffect(() => {
     let stopped = false;
     const tick = async () => {
-      if (stopped || document.visibilityState !== "visible" || saveTimerRef.current) return;
+      if (stopped || !isActiveRef.current || document.visibilityState !== "visible" || saveTimerRef.current) return;
       try {
         const response = await fetch(`/api/oracle/${campaign.display_code}/state?v=${knownVersionRef.current}`, { cache: "no-store" });
         if (!response.ok) return;
@@ -251,7 +258,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     const onVisible = () => {
       if (document.visibilityState === "visible") void tick();
     };
-    void tick();
+    if (isActiveTab) void tick();
     const timer = setInterval(tick, 4000);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
@@ -259,7 +266,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [campaign.display_code]);
+  }, [campaign.display_code, isActiveTab]);
 
   // Remember the map in use, for when the Table is shown again from the browser's history.
   useEffect(() => {
@@ -947,7 +954,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                           {map.id === activeMap?.id && <span className="orc-map-switch-check" aria-hidden />}
                         </button>
                       ))}
-                      <Link className="orc-map-switch-item orc-map-switch-manage" href={`/modules/oracle/ui/campaign/${campaignId}/prep`}>Add or edit maps</Link>
+                      <TabLink campaignId={campaignId} tab="prep" className="orc-map-switch-item orc-map-switch-manage">Add or edit maps</TabLink>
                     </div>
                   </>
                 )}
@@ -1012,7 +1019,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               /* NO MAP PLACEHOLDER */
               <div className="empty-state">
                 <p className="empty-state-title">No map</p>
-                <p className="empty-state-body"><Link href={`/modules/oracle/ui/campaign/${campaignId}/prep`}>Make one on the Prep tab.</Link></p>
+                <p className="empty-state-body"><TabLink campaignId={campaignId} tab="prep" className="orc-inline-link">Make one on the Prep tab.</TabLink></p>
               </div>
             )}
 

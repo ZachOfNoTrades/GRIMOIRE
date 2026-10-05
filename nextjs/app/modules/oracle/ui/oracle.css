@@ -126,6 +126,8 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-tabs { flex: 0 0 auto; display: flex; align-items: center; gap: 0.25rem; }
 .orc-tab {
   display: flex;
+  background: none;
+  cursor: pointer;
   align-items: center;
   gap: 0.4rem;
   padding: 0.35rem 0.75rem;
@@ -1148,16 +1150,18 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-bar-panel:not([data-open="true"]) { padding: 0; }
 /* The panel owns the only scroll, so the controls row is pinned under the search field
    with the list padding rather than the card margins erow-filter-row assumes. */
+/* The menu hangs off the whole block, not off the controls row: the chips sit on their own
+   row underneath, and a menu anchored to the row covered them and the Clear beside them. */
 /* ENTRY LIST CONTROLS — sort and filter under the search field.
    At rest this is one line of two quiet buttons: at the table the DM is looking at the map,
    so the controls stay out of the way until they are used. Picking a filter adds a chip here,
    which is what keeps "why is the list short" answerable without opening anything. */
-.orc-list-bar { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem 0.5rem; }
+.orc-list-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem 0.5rem; }
 /* What is narrowing the list, on its own row so the controls above never move. Equal columns
    rather than a wrapping row: three chips of different lengths would otherwise sit 2-then-1. */
 .orc-list-active { flex: 0 0 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; padding: 0 1rem 0.5rem; }
 .orc-list-active .orc-list-clear { grid-column: 1 / -1; justify-self: start; }
-.orc-list-wrap { flex: 0 0 auto; border-bottom: 1px solid var(--card-border); }
+.orc-list-wrap { position: relative; flex: 0 0 auto; border-bottom: 1px solid var(--card-border); }
 /* The menu hangs off the bar, not off its own button: once a chip or two wraps the row onto a
    second line, a menu anchored to the button would cover the chips underneath it. */
 .orc-list-anchor { display: flex; }
@@ -1196,3 +1200,19 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
   .orc-list-menu { animation: orc-list-open 90ms ease-out; }
 }
 @keyframes orc-list-open { from { opacity: 0; transform: translateY(-2px); } }
+
+/* One campaign page holds all four tabs. The wrapper has to disappear into the layout: the shell
+   takes its height from a rule on body's direct child, so a plain wrapper left the shell at its
+   content height and the map a couple of hundred pixels tall. The ones off screen keep their
+   state but take no room. */
+body:has(.page-with-bottom-bar) > .orc-tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.orc-tab-panel > .page-with-bottom-bar { flex: 1 1 auto; min-height: 0; }
+.orc-tab-panel > .page.orc-shell:not(.orc-plain) { overflow: hidden; scrollbar-gutter: auto; }
+body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
+.orc-tab-panel[hidden] { display: none; }
+.orc-inline-link { padding: 0; font: inherit; color: var(--link-color, var(--badge-blue-text)); background: none; border: 0; text-decoration: underline; cursor: pointer; }
