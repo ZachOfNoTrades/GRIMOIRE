@@ -307,7 +307,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
                   value={idea}
                   maxLength={ENTITY_IDEA_MAX}
                   placeholder={said.length === 0 ? IDEA_PLACEHOLDERS[kind] : "Ask for a change"}
-                  aria-label={said.length === 0 ? "What to make" : "What to change"}
+                  aria-label={said.length === 0 ? "Idea" : "Change"}
                   className="bottom-action-bar-pill-text"
                   style={{ background: "transparent", border: "none", outline: "none", padding: 0 }}
                   disabled={isWriting}

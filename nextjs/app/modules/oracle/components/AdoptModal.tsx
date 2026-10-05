@@ -73,7 +73,7 @@ export default function AdoptModal({ chip, isBusy, onAdopt, onDismiss, onClose }
         {content.credit && <p className="orc-small text-secondary">{content.credit}</p>}
 
         {/* KIND CHOICE */}
-        <div className="orc-kind-row" role="radiogroup" aria-label="What it is">
+        <div className="orc-kind-row" role="radiogroup" aria-label="Kind">
           {KINDS.map((entry) => {
             const Icon = entry.icon;
             return (

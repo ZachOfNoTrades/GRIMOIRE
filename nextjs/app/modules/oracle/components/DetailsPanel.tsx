@@ -67,8 +67,8 @@ const byName = (a: OracleEntity, b: OracleEntity) => a.name.localeCompare(b.name
 // FILTERS — one entry each. `group` makes a set of alternatives: the four kinds widen the list
 // together, while a kind and a state narrow it together.
 const ENTITY_FILTERS: readonly ListFilterDef<OracleEntity, EntityListContext>[] = [
-  { id: "map", section: "Where it is", group: "place", label: "On this map", icon: <MapPin className="w-3.5 h-3.5" />, unavailable: (context) => !context.activeMapId, test: (entity, context) => entity.map_id === context.activeMapId },
-  { id: "party", section: "Where it is", group: "place", label: "In party", icon: <Users className="w-3.5 h-3.5" />, test: (entity) => entity.in_party },
+  { id: "map", section: "Location", group: "place", label: "On this map", icon: <MapPin className="w-3.5 h-3.5" />, unavailable: (context) => !context.activeMapId, test: (entity, context) => entity.map_id === context.activeMapId },
+  { id: "party", section: "Location", group: "place", label: "In party", icon: <Users className="w-3.5 h-3.5" />, test: (entity) => entity.in_party },
   { id: "hidden", section: "State", label: "Hidden", icon: <EyeOff className="w-3.5 h-3.5" />, test: (entity) => entity.visibility === "hidden" },
   { id: "down", section: "State", label: "Down", icon: <Skull className="w-3.5 h-3.5" />, test: (entity) => entity.is_down },
   { id: "kind-creature", section: "Kind", group: "kind", label: "Creatures", icon: <PawPrint className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "creature" },
