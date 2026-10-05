@@ -1198,8 +1198,12 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-list-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem 0.5rem; }
 /* What is narrowing the list, on its own row so the controls above never move. Equal columns
    rather than a wrapping row: three chips of different lengths would otherwise sit 2-then-1. */
-.orc-list-active { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.3rem; padding: 0 1rem 0.5rem; }
-.orc-list-active .orc-list-clear { margin-left: auto; }
+/* Always exactly one row. Wrapping gave ragged rows that moved as filters changed, and an equal
+   grid left a gap before each cross and cut the longer labels. The chips keep the width of their
+   own words until the row runs out, then give it up a letter at a time; Clear is pinned outside
+   the run so it never moves. */
+.orc-list-active { flex: 0 0 auto; display: flex; flex-wrap: nowrap; align-items: center; gap: 0.3rem; padding: 0 1rem 0.5rem; }
+.orc-list-active .orc-list-clear { flex: 0 0 auto; margin-left: auto; padding-left: 0.25rem; }
 .orc-list-wrap { position: relative; flex: 0 0 auto; border-bottom: 1px solid var(--card-border); }
 /* The menu hangs off the bar, not off its own button: once a chip or two wraps the row onto a
    second line, a menu anchored to the button would cover the chips underneath it. */
@@ -1226,8 +1230,8 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-list-group-name { pointer-events: none; margin: 0; padding: 0.3rem 0.6rem 0.15rem; font-size: 0.6875rem; color: var(--color-gray); }
 
 /* Active filters, each one click away from being dropped. */
-.orc-list-chip { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; gap: 0.35rem; padding: 0.15rem 0.5rem; font-size: 0.75rem; color: var(--badge-blue-text); background: var(--badge-blue-bg); border: 1px solid var(--badge-blue-border); border-radius: 999px; cursor: pointer; }
-.orc-list-chip > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-list-chip { flex: 0 1 auto; display: inline-flex; align-items: center; min-width: 3.5rem; gap: 0.35rem; overflow: hidden; padding: 0.15rem 0.5rem; font-size: 0.75rem; color: var(--badge-blue-text); background: var(--badge-blue-bg); border: 1px solid var(--badge-blue-border); border-radius: 999px; cursor: pointer; }
+.orc-list-chip > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orc-list-chip .orc-list-count, .orc-list-chip > svg { flex: 0 0 auto; }
 .orc-list-chip .orc-list-count { color: inherit; opacity: 0.75; }
 .orc-list-chip:hover { border-color: var(--badge-blue-text); }
