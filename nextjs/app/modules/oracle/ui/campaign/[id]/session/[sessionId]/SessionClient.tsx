@@ -1,12 +1,14 @@
 "use client";
 
-import { ArrowLeft, Check, FileText, Play, Plus, Save, ScrollText, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, Check, FileText, Play, Plus, Save, ScrollText, Search, Sparkles, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useAppHeight } from "@/lib/useAppHeight";
+import EntityRows, { EntityViewToggle, rankEntities, type EntityView } from "../../../../../components/EntityRows";
 import SessionBar from "../../../../../components/SessionBar";
 import { SESSION_HELP } from "../../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../../lib/client";
@@ -34,6 +36,11 @@ export default function SessionClient({ campaign: initialCampaign, session: init
   const [campaign, setCampaign] = useState<OracleCampaign>(initialCampaign);
   const [session, setSession] = useState<OracleSession>(initialSession);
   const [entities, setEntities] = useState<OracleEntity[]>(initialEntities);
+  const router = useRouter();
+  const [view, setView] = useState<EntityView>("rows");
+  const [entityQuery, setEntityQuery] = useState("");
+  const byName = (a: OracleEntity, b: OracleEntity) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+  const shownEntities = rankEntities(entities, entityQuery, byName);
   const [proposal, setProposal] = useState<BuiltEntities | null>(null);
 
   // INPUT — the text fields keep what is typed until focus leaves them
@@ -246,24 +253,42 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                 </div>
               )}
 
-              {/* ENTITIES CARD — the whole campaign's entities; entries are shared across sessions */}
-              <div className="card">
+              {/* ENTITIES CARD — the whole campaign's entities; entries are shared across sessions.
+                  The same list the Table tab draws, drawn either way, so one list is learned once. */}
+              <div className="card orc-details">
                 <div className="card-header">
                   <h2 className="text-card-title"><Users className="w-5 h-5" /> Entities</h2>
+                  <EntityViewToggle view={view} onChange={setView} />
                 </div>
                 <div className="card-content orc-stack">
-                  {entities.length === 0 && (
-                    <div className="empty-state">
-                      <p className="empty-state-title">No entities yet</p>
-                      <p className="empty-state-body">Build it from the notes, or add entities from the Table tab.</p>
-                    </div>
-                  )}
-                  {[...entities].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })).map((entity) => (
-                    <div key={entity.id} className="orc-proposal">
-                      <span className="orc-proposal-title"><span>{entity.name}</span><span className="orc-muted">{KIND_LABELS[entity.kind]}</span></span>
-                      {entity.details && <span className="orc-section-text">{entity.details}</span>}
-                    </div>
-                  ))}
+
+                  {/* SEARCH FIELD — the same search the Table tab's list has, so a long campaign's
+                      entities can be found here too. */}
+                  <div className="input-with-icon">
+                    <Search className="input-with-icon-leading w-4 h-4" aria-hidden />
+                    <input
+                      className="input-field"
+                      value={entityQuery}
+                      placeholder="Search creatures, people, locations, items"
+                      aria-label="Search creatures, people, locations, items"
+                      onChange={(event) => setEntityQuery(event.target.value)}
+                      onKeyDown={(event) => { if (event.key === "Escape") setEntityQuery(""); }}
+                    />
+                  </div>
+
+                  <EntityRows
+                    entities={shownEntities}
+                    campaignId={campaign.id}
+                    view={view}
+                    // Entities are managed on the Table tab; this list is the same one, for reference.
+                    onSelect={() => router.push(`/modules/oracle/ui/campaign/${campaign.id}?tab=table`)}
+                    empty={(
+                      <div className="empty-state">
+                        <p className="empty-state-title">{entityQuery.trim() ? "No match" : "No entities yet"}</p>
+                        <p className="empty-state-body">{entityQuery.trim() ? "Try a different word." : "Build it from the notes, or add entities from the Table tab."}</p>
+                      </div>
+                    )}
+                  />
                 </div>
               </div>
             </div>

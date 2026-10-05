@@ -1,7 +1,7 @@
 "use client";
 
 import ListControls from "./ListControls";
-import { makeSearchRanker } from "@/lib/searchMatch";
+import EntityRows, { KIND_LABELS, rankEntities } from "./EntityRows";
 import Picture from "./Picture";
 import { applyListFilters, countListFilters, toggleListFilter, type ListFilterDef, type ListSortDef } from "../lib/listFilters";
 import { ArrowLeft, ChevronDown, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
@@ -44,8 +44,6 @@ interface DetailsPanelProps {
   onZoomTo: (entity: OracleEntity) => void;
 }
 
-const KIND_ICONS: Record<EntityKind, typeof User> = { creature: PawPrint, person: User, place: Landmark, item: Gem };
-const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
 
 /** What the entry list's filters and sorts are measured against. */
 interface EntityListContext {
@@ -111,25 +109,6 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   // A row says a name, so resting on one shows the picture and what it is, whichever way the rows
   // are drawn. Held back half a second, or it would flash past every row the pointer crosses on
   // its way somewhere else.
-  const [preview, setPreview] = useState<{ entity: OracleEntity; top: number; right: number } | null>(null);
-  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const holdPreview = (entity: OracleEntity, element: HTMLElement) => {
-    if (!window.matchMedia("(hover: hover)").matches) return;
-    if (previewTimer.current) clearTimeout(previewTimer.current);
-    const box = element.getBoundingClientRect();
-    // Measured from the panel's own edge, not the row's: the row sits inside the panel's padding,
-    // so hanging the card off it left the card overlapping the list it describes.
-    const panel = element.closest(".orc-details")?.getBoundingClientRect();
-    const right = window.innerWidth - (panel?.left ?? box.left) + 8;
-    previewTimer.current = setTimeout(() => setPreview({ entity, top: Math.min(box.top, window.innerHeight - 320), right }), 500);
-  };
-  const dropPreview = () => {
-    if (previewTimer.current) clearTimeout(previewTimer.current);
-    setPreview(null);
-  };
-  useEffect(() => dropPreview, []);
-  useEffect(() => { dropPreview(); }, [view, query]);
   const listLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -179,24 +158,10 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const matches = useMemo(() => {
     // Matched the way every other list in the app is: each word must appear somewhere, in any
     // order, so "crab giant" finds the Giant crab, and a near miss still lands ("Orin" finds
-    // "Orrin").
-    const needle = query.trim();
+    // "Orrin"). While searching, closeness decides the order and the chosen sort only breaks ties.
     const pool = applyListFilters(entities, ENTITY_FILTERS, activeFilters, listContext);
     const sort = ENTITY_SORTS.find((entry) => entry.value === sortValue) ?? ENTITY_SORTS[0];
-    if (!needle) return [...pool].sort((a, b) => sort.compare(a, b, listContext) || byName(a, b));
-    // While searching, closeness to the query decides the order and the chosen sort only breaks
-    // ties — a list the search put in a useful order should not be reshuffled alphabetically. A
-    // hit on the name always outranks one buried in the details.
-    const rank = makeSearchRanker(needle);
-    const score = (entity: OracleEntity) => {
-      const onName = rank(entity.name);
-      return onName > 0 ? onName * 2 : rank(entity.details);
-    };
-    return pool
-      .map((entity) => ({ entity, score: score(entity) }))
-      .filter((row) => row.score > 0)
-      .sort((a, b) => b.score - a.score || sort.compare(a.entity, b.entity, listContext) || byName(a.entity, b.entity))
-      .map((row) => row.entity);
+    return rankEntities(pool, query, (a, b) => sort.compare(a, b, listContext) || byName(a, b));
   }, [entities, query, activeFilters, listContext, sortValue]);
 
   const history = selected ? events.filter((event) => event.entity_id === selected.id).slice(0, 8) : [];
@@ -299,7 +264,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
 
       {/* RESULT LIST */}
       {showList && (
-        <div className="orc-details-list">
+        <div className="orc-details-results">
 
           {/* EMPTY PLACEHOLDER */}
           {matches.length === 0 && (
@@ -311,57 +276,8 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             </div>
           )}
 
-          {/* RESULT ROWS */}
-          {matches.map((entity) => {
-            const Icon = KIND_ICONS[entity.kind];
-            return (
-              <button
-                key={entity.id}
-                type="button"
-                className="orc-details-row"
-                data-view={view}
-                disabled={entity.id.startsWith("tmp-")}
-                onPointerEnter={(event) => holdPreview(entity, event.currentTarget)}
-                onPointerLeave={dropPreview}
-                onFocus={(event) => holdPreview(entity, event.currentTarget)}
-                onBlur={dropPreview}
-                onClick={() => {
-                  props.onSelect(entity.id);
-                  setQuery("");
-                  dropPreview();
-                }}
-              >
-                {view === "pictures" ? (
-                  // The picture stands in for the icon, so the type is said by a small mark in its
-                  // corner instead — the same icon, just quieter.
-                  <span className="orc-row-face">
-                    {entity.image_id ? (
-                      <img className="orc-row-photo" src={`${campaignApi(campaignId)}/images/${entity.image_id}?w=240`} alt="" decoding="sync" />
-                    ) : (
-                      <span className="orc-row-photo orc-row-photo-none"><Icon className="w-5 h-5" aria-hidden /></span>
-                    )}
-                    <span className="orc-row-type" aria-label={KIND_LABELS[entity.kind]} role="img">
-                      <Icon className="w-3.5 h-3.5" aria-hidden />
-                    </span>
-                  </span>
-                ) : (
-                  <Icon className="w-4 h-4 orc-attitude" data-attitude={entity.attitude} aria-label={KIND_LABELS[entity.kind]} role="img" />
-                )}
-                <span className="orc-details-row-name">{entity.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* WHAT THE POINTER IS RESTING ON — only where the row shows a name and nothing else. */}
-      {preview && (
-        <div className="orc-row-preview" style={{ top: preview.top, right: preview.right }} role="tooltip">
-          {preview.entity.image_id && (
-            <img className="orc-row-preview-photo" src={`${campaignApi(campaignId)}/images/${preview.entity.image_id}?w=480`} alt="" />
-          )}
-          <p className="orc-row-preview-name">{preview.entity.name}</p>
-          <p className="orc-row-preview-detail">{preview.entity.details || "Nothing written yet."}</p>
+          {/* RESULT ROWS — the same list the session page shows, drawn either way */}
+          <EntityRows entities={matches} campaignId={campaignId} view={view} onSelect={(entity) => { props.onSelect(entity.id); setQuery(""); }} />
         </div>
       )}
 
@@ -372,23 +288,25 @@ export default function DetailsPanel(props: DetailsPanelProps) {
           {/* HEADER */}
           <div className="orc-details-head">
 
+            {/* BACK — a crumb above the name rather than in front of it, so the name itself is
+                the first thing at the panel's top left */}
+            <Button className="btn-link orc-details-back" onClick={() => props.onSelect(null)} aria-label="Back to the list">
+              <ArrowLeft className="w-3.5 h-3.5" aria-hidden /> Entities
+            </Button>
+
             {/* TITLE */}
             <div className="orc-details-title">
-              {/* BACK — first thing in the header, where a way out is looked for */}
-              <Button className="btn-link orc-details-back" onClick={() => props.onSelect(null)} title="Back to the list" aria-label="Back to the list">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
               <h2 className="orc-details-name">{selected.name}</h2>
-            </div>
 
-            {/* HEADER ACTIONS */}
-            <div className="orc-details-actions">
-              <Button className="btn-link" onClick={() => props.onEdit(selected)} title="Edit" aria-label={`Edit ${selected.name}`}>
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button className="btn-link-red" onClick={() => props.onDelete(selected)} title="Delete" aria-label={`Delete ${selected.name}`}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {/* HEADER ACTIONS */}
+              <div className="orc-details-actions">
+                <Button className="btn-link" onClick={() => props.onEdit(selected)} title="Edit" aria-label={`Edit ${selected.name}`}>
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button className="btn-link-red" onClick={() => props.onDelete(selected)} title="Delete" aria-label={`Delete ${selected.name}`}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -88,6 +88,23 @@ interface MapCanvasProps {
 
 const FOCUS_ZOOM = 2.5;
 
+// A closed eye on the corner of a marker the players cannot see yet. The DM's map only: the
+// dashed outline alone was easy to miss at a glance, and this is the one state the player screen
+// does not draw at all, so it is the one worth marking plainly.
+function HiddenMark({ x, y, r }: { x: number; y: number; r: number }) {
+  const s = r * 0.8;
+  return (
+    <g className="orc-token-unseen" transform={`translate(${x + r * 0.95} ${y - r * 0.95})`}>
+      <circle className="orc-token-unseen-disc" r={s} />
+      <path className="orc-token-unseen-lid" d={`M${-s * 0.55},${-s * 0.12} Q0,${s * 0.45} ${s * 0.55},${-s * 0.12}`} />
+      <path
+        className="orc-token-unseen-lash"
+        d={`M${-s * 0.46},${s * 0.2}L${-s * 0.6},${s * 0.44}M0,${s * 0.32}L0,${s * 0.58}M${s * 0.46},${s * 0.2}L${s * 0.6},${s * 0.44}`}
+      />
+    </g>
+  );
+}
+
 // A cross over a downed entry's marker.
 function DownMark({ x, y, r }: { x: number; y: number; r: number }) {
   const d = r * 0.75;
@@ -1042,6 +1059,7 @@ export default function MapCanvas({
             >
               <TokenMark kind={token.kind} x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />
               {token.down && <DownMark x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />}
+              {isDm && <HiddenMark x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />}
               <text className="orc-token-name" data-attitude={token.attitude} x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
                 {token.name}
               </text>

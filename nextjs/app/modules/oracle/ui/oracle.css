@@ -284,11 +284,14 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-token[data-attitude="neutral"] :is(circle, polygon),
 .orc-token[data-attitude="neutral"] text { fill: var(--color-secondary); }
 .orc-token[data-selected="true"] :is(circle, polygon) { stroke: var(--color-primary); stroke-width: 3; }
-.orc-token[data-hidden="true"] :is(circle, polygon) { fill-opacity: 0.55; stroke: var(--color-secondary); stroke-dasharray: 3 2; }
+.orc-token[data-hidden="true"] :is(circle, polygon) { fill-opacity: 0.75; stroke: var(--color-secondary); stroke-dasharray: 3 2; }
 .orc-token[data-down="true"] { opacity: 0.8; }
 .orc-token[data-down="true"] :is(circle, polygon) { fill: var(--color-gray); }
 .orc-token[data-down="true"] .orc-token-name { fill: var(--color-gray); text-decoration: line-through; }
 .orc-token-down { fill: none; stroke: var(--solid-background); stroke-width: 2.5; stroke-linecap: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.orc-token-unseen { pointer-events: none; }
+.orc-token-unseen-disc { fill: var(--solid-background); stroke: var(--color-secondary); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.orc-token-unseen-lid, .orc-token-unseen-lash { fill: none; stroke: var(--color-primary); stroke-width: 1.5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 
 .orc-pin rect { fill: var(--orc-warn); stroke: var(--solid-background); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .orc-pin text { fill: var(--solid-background); font-weight: 700; pointer-events: none; }
@@ -354,9 +357,9 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 
 .orc-details { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .orc-details-search { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--card-border); }
-.orc-details-list,
+.orc-details-results,
 .orc-details-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.orc-details-list { padding: 0.5rem 1rem 1rem; }
+.orc-details-results { padding: 0.5rem 1rem 1rem; }
 .orc-details-body { padding: 0.75rem 1rem 1rem; }
 .orc-details-row {
   display: flex;
@@ -379,8 +382,9 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-attitude[data-attitude="neutral"] { color: var(--color-secondary); }
 .orc-dot { flex: 0 0 auto; width: 0.7rem; height: 0.7rem; border-radius: 50%; background: currentColor; }
 
-.orc-details-head { display: flex; flex-wrap: nowrap; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
-.orc-details-title { display: flex; align-items: center; gap: 0.6rem; min-width: 0; padding-top: 0.35rem; }
+/* the name owns the panel's top left; the way back is a crumb on the line above it */
+.orc-details-head { display: flex; flex-direction: column; align-items: stretch; gap: 0.1rem; }
+.orc-details-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; min-width: 0; }
 .orc-details-name { font-size: 1.1rem; font-weight: 700; line-height: 1.25; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-details-actions { flex: 0 0 auto; display: flex; align-items: center; }
 .orc-details-footer { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--card-border); font-size: 0.6875rem; color: var(--color-secondary); }
@@ -959,6 +963,19 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-map[data-tone="dark"] .orc-token-name[data-attitude="neutral"] { fill: #e6e9ee; }
 .orc-map[data-tone="dark"] .orc-token[data-hidden] text { fill: #e6e9ee; }
 .orc-map[data-tone="light"] .orc-token[data-hidden] text { fill: #1d2229; }
+
+/* A name on the DM's map is read over whatever art is beneath it, so it carries its own halo in
+   the page's background color. Something hidden from the players is what the DM most needs to
+   pick out — it is the only mark for a thing the player screen does not draw at all — so it gets
+   the heavier weight and the thicker halo rather than the fainter treatment its token has. */
+.orc-map[data-mode="dm"] .orc-token-name {
+  paint-order: stroke fill;
+  stroke: var(--solid-background);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  stroke-opacity: 0.85;
+}
+.orc-map[data-mode="dm"] .orc-token[data-hidden="true"] .orc-token-name { font-weight: 700; stroke-width: 4px; stroke-opacity: 1; }
 .orc-place-cell { fill: color-mix(in srgb, var(--orc-warn) 28%, transparent); stroke: var(--orc-warn); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 
 /* ---------- typed slider values ---------- */
@@ -1294,7 +1311,7 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 }
 
 /* The way back out of an entry, at the start of its header. */
-.orc-details-back { flex: 0 0 auto; padding: 0 0.25rem 0 0; }
+.orc-details-back { align-self: flex-start; gap: 0.3rem; padding: 0; font-size: 0.75rem; line-height: 1.2; color: var(--color-secondary); }
 
 /* NEW ENTRY — the three ways to start one, and the creature library behind the first. Laid out
    the way the food logger's picker is: the tabs and the search stay put at the top and only the
@@ -1380,4 +1397,8 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 /* The rows scroll as one piece: without this the picture and the name could be painted a frame
    apart, which read as the two sliding out of step. */
 .orc-details-list { transform: translateZ(0); }
+/* the same list inside a card: the card already pads, and the view switch sits in its header */
+.card.orc-details { display: block; }
+.card.orc-details .card-header { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.card.orc-details .card-content { max-height: 26rem; overflow-y: auto; overscroll-behavior: contain; }
 .orc-details-row { contain: layout paint; }
