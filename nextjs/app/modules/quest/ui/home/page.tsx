@@ -63,6 +63,7 @@ import QuestTaskModal from "../../components/QuestTaskModal";
 import PopoverMenu from "@/components/PopoverMenu";
 import QuestCalendarMenu from "../../components/QuestCalendarMenu";
 import { CALENDAR_PREF_DEFAULTS, CalendarView, readCalendarPrefs, writeCalendarPrefs } from "../../lib/calendarPrefs";
+import { REWARD_OVERRIDE_MAX, TITLE_MAX_LENGTH } from "../../lib/valueLimits";
 import {
   DIFF_LABELS,
   FREQ_LABELS,
@@ -3542,6 +3543,7 @@ export default function QuestHomePage() {
                 <input
                   type="text"
                   autoFocus
+                  maxLength={TITLE_MAX_LENGTH}
                   value={habitTitle}
                   onChange={(e) => setHabitTitle(e.target.value)}
                   className="mt-1 w-full px-3 py-2 rounded border quest-control bg-transparent"
@@ -3607,6 +3609,7 @@ export default function QuestHomePage() {
                       <input
                         type="number"
                         min={0}
+                        max={REWARD_OVERRIDE_MAX}
                         step="0.01"
                         value={habitRewardOverride}
                         onChange={(e) => setHabitRewardOverride(e.target.value)}

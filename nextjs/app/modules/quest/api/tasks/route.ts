@@ -2,19 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { listTasks, createTask } from '../../lib/taskFunctions';
 import { Difficulty, DIFFICULTY_ORDER, TaskKind, TASK_KINDS } from '../../types/task';
+import { parseRewardOverride, validateTitle } from '../../lib/valueLimits';
 
 // Coerce a request value into a grace-window length in days (>=1), defaulting to 1.
 function parseWindowDays(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
-}
-
-// Coerce a request value into a manual reward override: null/undefined/empty/invalid -> null (no
-// override); a finite, non-negative number -> that number.
-function parseManualReward(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 export async function GET(request: Request) {
@@ -34,13 +27,16 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const body = await request.json();
-    const title = (body.title ?? '').trim();
+    const titleResult = validateTitle(body.title, 'Title');
+    if ('error' in titleResult) {
+      return NextResponse.json({ error: titleResult.error }, { status: 400 });
+    }
+    const title = titleResult.title;
     const difficulty = body.difficulty as Difficulty;
     const kind = (body.kind ?? 'todo') as TaskKind;
     const subtaskTitles: string[] = Array.isArray(body.subtasks)
       ? body.subtasks.filter((s: unknown) => typeof s === 'string')
       : [];
-    if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     if (!DIFFICULTY_ORDER.includes(difficulty)) {
       return NextResponse.json({ error: 'Invalid difficulty' }, { status: 400 });
     }
@@ -56,8 +52,13 @@ export async function POST(request: NextRequest) {
     const daysOfWeek = body.days_of_week ?? null;
     const startDate = body.start_date ?? null;
     const reminders = Array.isArray(body.reminders) ? body.reminders : undefined;
-    // Manual reward override: null/absent/empty/invalid -> no override; a finite >=0 number sets it.
-    const manualReward = parseManualReward(body.manual_reward_override);
+    // Manual reward override: null/absent/empty/invalid -> no override; a finite >=0 number sets it;
+    // one too large for the DECIMAL(10,2) column is a 400, not a driver-level 500.
+    const rewardResult = parseRewardOverride(body.manual_reward_override);
+    if ('error' in rewardResult) {
+      return NextResponse.json({ error: rewardResult.error }, { status: 400 });
+    }
+    const manualReward = rewardResult.value;
     // Optional free-text description/notes; empty/absent -> no description.
     const description = typeof body.description === 'string' ? body.description : null;
     const task = await createTask(session.user.id!, title, difficulty, kind, subtaskTitles, {

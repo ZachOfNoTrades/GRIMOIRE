@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { deleteTask, updateTask } from '../../../lib/taskFunctions';
 import { Difficulty, DIFFICULTY_ORDER, TaskKind, TASK_KINDS, Frequency, RepeatMode, REPEAT_MODES } from '../../../types/task';
+import { parseRewardOverride, validateTitle } from '../../../lib/valueLimits';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getAuthorizedUser(request);
@@ -10,7 +11,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const body = await request.json();
     const patch: Parameters<typeof updateTask>[2] = {};
-    if (body.title !== undefined) patch.title = String(body.title);
+    if (body.title !== undefined) {
+      const titleResult = validateTitle(body.title, 'Title');
+      if ('error' in titleResult) {
+        return NextResponse.json({ error: titleResult.error }, { status: 400 });
+      }
+      patch.title = titleResult.title;
+    }
     // Description: explicit null/empty clears it; a string sets it; omitting leaves it unchanged.
     if (body.description !== undefined) {
       patch.description = body.description === null || body.description === '' ? null : String(body.description);
@@ -68,15 +75,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       patch.reminders = body.reminders;
     }
     // Manual reward override: explicit null/empty/invalid clears it; a finite >=0 number sets it;
-    // omitting the key leaves it unchanged (partial update).
+    // omitting the key leaves it unchanged (partial update). A number too large for the
+    // DECIMAL(10,2) column is a 400, not a driver-level 500.
     if (body.manual_reward_override !== undefined) {
-      const raw = body.manual_reward_override;
-      if (raw === null || raw === '') {
-        patch.manual_reward_override = null;
-      } else {
-        const n = Number(raw);
-        patch.manual_reward_override = Number.isFinite(n) && n >= 0 ? n : null;
+      const rewardResult = parseRewardOverride(body.manual_reward_override);
+      if ('error' in rewardResult) {
+        return NextResponse.json({ error: rewardResult.error }, { status: 400 });
       }
+      patch.manual_reward_override = rewardResult.value;
     }
     const task = await updateTask(session.user.id!, id, patch);
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });

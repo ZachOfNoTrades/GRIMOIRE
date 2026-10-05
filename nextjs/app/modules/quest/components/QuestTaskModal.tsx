@@ -35,6 +35,7 @@ import {
   localTodayYMD,
   normalizeCoinInput,
 } from "../types/taskForm";
+import { REWARD_OVERRIDE_MAX, TITLE_MAX_LENGTH } from "../lib/valueLimits";
 
 // The task create/edit modal, shared by the quest home page and the calendar page so both open the
 // SAME editor. It is presentational: it owns the draft-manipulation the form needs (day-of-week
@@ -284,6 +285,7 @@ export default function QuestTaskModal({
               <input
                 type="text"
                 autoFocus={!editingTaskId}
+                maxLength={TITLE_MAX_LENGTH}
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 className="mt-1 w-full px-3 py-2 rounded border border-gray-600 bg-transparent"
@@ -368,6 +370,7 @@ export default function QuestTaskModal({
                     <input
                       type="number"
                       min={0}
+                      max={REWARD_OVERRIDE_MAX}
                       step="0.01"
                       value={form.reward_override}
                       onChange={(e) => setForm({ ...form, reward_override: e.target.value })}
