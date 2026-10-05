@@ -7690,7 +7690,6 @@ body:has(.quest-cal-page) > .page {
   padding: 0.875rem 1rem;
   background: transparent;
   border: none;
-  cursor: pointer;
   color: inherit;
   text-align: left;
 }
@@ -7731,7 +7730,7 @@ body:has(.quest-cal-page) > .page {
   flex: 0 0 auto;
   width: 44px;
   height: 26px;
-  border-radius: 9999px;
+  border-radius: 9999px !important;
   background: var(--color-secondary);
   position: relative;
   transition: background-color 140ms ease;
