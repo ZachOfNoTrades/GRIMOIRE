@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
-import { ArrowLeft, Eye, EyeOff, Layers, Plus, Star } from "lucide-react";
+import { Eye, EyeOff, Layers, Plus, Star } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { SearchField, SMART_MATCH_HINT } from "@/components/SearchField";
@@ -12,6 +11,7 @@ import { DeckSummary } from "../../types/deck";
 import { formatRelativePast } from "@/lib/format";
 import { makeSearchMatcher } from "@/lib/searchMatch";
 import AddDeckModal from "./AddDeckModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // Sort options for the deck list. "favorites" mirrors the server default
 // (pinned decks first, then alphabetical); the rest are single-key re-sorts.
@@ -138,14 +138,8 @@ export default function DecksPage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/rune/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <div>

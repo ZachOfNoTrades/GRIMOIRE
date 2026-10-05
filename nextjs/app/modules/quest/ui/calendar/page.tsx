@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { BackLink } from "@/components/BackLink";
 import toast, { Toaster } from "@/components/Toaster";
 import {
   CalendarDays,
@@ -29,6 +28,8 @@ import QuestTaskModal from "../../components/QuestTaskModal";
 import { TaskFormState, taskToForm } from "../../types/taskForm";
 import { useChipFit } from "../../lib/useChipFit";
 import { assignSpanLanes, layoutByLane, RowSpan, spanKey } from "../../lib/spanLanes";
+import Breadcrumbs from "@/components/Breadcrumbs";
+import UpLink from "@/components/UpLink";
 import {
   ScheduleShape,
   ymd,
@@ -876,14 +877,15 @@ export default function QuestCalendarPage() {
             view options. The phone has no room for the toggle + filter alongside the date nav. */}
         <div className="lg:hidden mb-3 px-3 shrink-0 flex items-center justify-between gap-2">
 
-          {/* BACK TO QUEST */}
-          <BackLink
-            fallback="/modules/quest/ui/home"
-            title="Back to Quest"
+          {/* UP TO QUEST */}
+          <UpLink
+            href="/modules/quest/ui/home"
+            title="Quest"
+            aria-label="Quest"
             className="btn btn-pill !px-2.5 !py-1.5 shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
-          </BackLink>
+          </UpLink>
 
           {/* DATE NAV — the label jumps back to today. */}
           <div className="flex items-center gap-1 min-w-0">
@@ -922,13 +924,7 @@ export default function QuestCalendarPage() {
         {/* TOOLBAR (DESKTOP) — just the way back. The calendar card's own header carries the range
             stepper and the ⋮ view menu, for both the month and week views. */}
         <div className="hidden lg:flex mb-3 px-4 shrink-0 items-center">
-          <BackLink
-            fallback="/modules/quest/ui/home"
-            title="Back to Quest"
-            className="btn btn-pill !px-2.5 !py-1.5 shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </BackLink>
+          <Breadcrumbs className="breadcrumbs-inline" />
         </div>
 
         {/* CALENDAR GRID */}

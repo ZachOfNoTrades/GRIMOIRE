@@ -1,15 +1,15 @@
 "use client";
 
-import { ArrowLeft, History, Monitor, Settings, Skull } from "lucide-react";
+import { History, Monitor, Settings, Skull } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
-import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import { HOST_HELP } from "../../components/help";
 import type { SessionSummary } from "../../types/damnation";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function DamnationHomePage() {
   const router = useRouter();
@@ -62,10 +62,8 @@ export default function DamnationHomePage() {
         {/* HEADER ROW */}
         <div className="flex items-center justify-between mb-6">
 
-          {/* BACK TO DASHBOARD */}
-          <BackLink className="btn btn-link !pl-0" fallback="/dashboard" aria-label="Back to dashboard">
-            <ArrowLeft className="w-5 h-5" />
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs className="breadcrumbs-inline" />
 
           {/* HEADER ACTIONS */}
           <div className="flex items-center gap-1">

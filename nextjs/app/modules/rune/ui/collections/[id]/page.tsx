@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo, use } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
-import { ArrowLeft, Layers, Pencil, Trash2 } from "lucide-react";
+import { Layers, Pencil, Trash2 } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { CardWithProgress } from "../../../types/card";
@@ -14,6 +13,7 @@ import { formatRelativePast } from "@/lib/format";
 import StudySession, { StudyPreferences } from "../../../components/StudySession";
 import ManageCollectionModal from "../ManageCollectionModal";
 import DeleteCollectionModal from "./DeleteCollectionModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function CollectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -188,14 +188,8 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
     return (
       <div className="page">
         <main className="page-container">
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/rune/ui/collections"
-            className="btn btn-link !pl-0 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* NOT FOUND MESSAGE */}
           <div className="card">
@@ -215,15 +209,9 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
 
             {/* HEADER */}
             <div className="flex items-center justify-between mb-4">
-              <div>
-                {/* BACK BUTTON */}
-                <BackLink
-                  fallback="/modules/rune/ui/collections"
-                  className="btn btn-link !pl-0"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back</span>
-                </BackLink>
+              <div className="min-w-0">
+                {/* BREADCRUMBS */}
+                <Breadcrumbs label={collection.name} />
 
                 {/* TITLE */}
                 <h1 className="text-page-title">{collection.name}</h1>

@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef, use } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload, Download, Share2, LogOut } from "lucide-react";
+import { Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload, Download, Share2, LogOut } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import ExpandableRowList from "@/components/ExpandableRowList";
@@ -30,6 +29,7 @@ import DeleteDeckModal from "./DeleteDeckModal";
 import DeckHistorySection from "./DeckHistorySection";
 import ShareDeckModal from "./ShareDeckModal";
 import { buildCardsCsv, csvFileName, downloadCsv } from "../../../utils/exportUtils";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // Sort options for a deck's card list. "category" is the historical default —
 // category runs in manual order_index — and is the only mode that can be grouped
@@ -878,14 +878,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="page">
         <main className="page-container">
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/rune/ui/decks"
-            className="btn btn-link !pl-0 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* NOT FOUND MESSAGE */}
           <div className="card">
@@ -907,15 +901,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
             {/* HEADER */}
             <div className="flex items-center justify-between mb-4">
-              <div>
-                {/* BACK BUTTON */}
-                <BackLink
-                  fallback="/modules/rune/ui/decks"
-                  className="btn btn-link !pl-0"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back</span>
-                </BackLink>
+              <div className="min-w-0">
+                {/* BREADCRUMBS */}
+                <Breadcrumbs label={deck?.name} />
 
                 {/* TITLE */}
                 <h1 className="text-page-title flex items-center gap-2 flex-wrap">
@@ -1309,7 +1297,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     detailEmptyMessage="Select a card to view its back"
                     renderDetailHeader={(card) => (
                       <>
-                        <h3 className="text-card-title flex-1 min-w-0">{card.front}</h3>
+                        <h3 className="text-card-title rune-card-detail-title flex-1 min-w-0">{card.front}</h3>
                         <div className="flex items-center gap-1 shrink-0">
                           <Button className="btn-link" aria-label="Rating history" title="Rating history" onClick={() => setHistoryCard(card)}>
                             <History className="w-4 h-4" />

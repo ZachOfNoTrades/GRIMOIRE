@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRowNav } from "@/lib/useRowNav";
-import { ArrowLeft, FileText, Plus } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import { SearchField } from "@/components/SearchField";
 import { Button } from "@/components/ui/button";
 import { ProgramTemplateSummary } from "../../types/programTemplate";
 import AddTemplateModal from "./AddTemplateModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function TemplatesPage() {
 
@@ -61,14 +61,8 @@ export default function TemplatesPage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/golem/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <div>

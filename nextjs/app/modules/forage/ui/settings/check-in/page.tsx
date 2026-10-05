@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
-import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function ForageCheckinRemindersPage() {
 
@@ -83,8 +84,8 @@ export default function ForageCheckinRemindersPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Check-in reminders</h1>

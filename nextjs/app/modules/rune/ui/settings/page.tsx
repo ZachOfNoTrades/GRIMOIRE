@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { Bell, Send, Sparkles, GraduationCap } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
-import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import {
   DEFAULT_DIGEST_ENABLED,
   DEFAULT_DIGEST_TIME,
@@ -270,8 +271,8 @@ export default function RuneSettingsPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Home" fallback="/modules/rune/ui/home" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">

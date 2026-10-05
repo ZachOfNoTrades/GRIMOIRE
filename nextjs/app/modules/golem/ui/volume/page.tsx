@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useState, useEffect, useMemo } from "react";
-import { BackLink } from "@/components/BackLink";
-import { ArrowLeft, BarChart3 } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Program, ProgramBlock, ProgramWeek } from "../../types/program";
 import { WeeklyMuscleGroupVolume } from "../../types/volumeLandmark";
 import { useWindowCache } from "@/lib/useWindowCache";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 interface WeekOption {
   weekId: string;
@@ -157,14 +157,8 @@ export default function VolumePage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/golem/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <h1 className="text-page-title">

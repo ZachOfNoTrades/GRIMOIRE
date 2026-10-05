@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Zap } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useGenerationJob } from "@/lib/useGenerationJob";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function GenerateCardsPage() {
 
@@ -90,14 +90,8 @@ export default function GenerateCardsPage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/rune/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <div>

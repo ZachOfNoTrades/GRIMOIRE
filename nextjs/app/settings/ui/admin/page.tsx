@@ -5,8 +5,8 @@ import { useRowNav } from "@/lib/useRowNav";
 import { Plus, ShieldCheck } from "lucide-react";
 import { User } from "@/types/user";
 import { Button } from "@/components/ui/button";
-import { SettingsBackLink } from "@/components/settings/SettingsList";
 import AddUserModal from "./AddUserModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function AdminSettingsPage() {
   // DATA
@@ -54,8 +54,8 @@ export default function AdminSettingsPage() {
     <div className="page">
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Settings" fallback="/settings/ui/home" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE HEADER */}
         <div className="flex items-center justify-between">

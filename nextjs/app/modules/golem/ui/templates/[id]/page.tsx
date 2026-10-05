@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Pencil } from "lucide-react";
+import { FileText, Pencil } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { ProgramTemplate } from "../../../types/programTemplate";
 import DeleteTemplateModal from "./DeleteTemplateModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 type PromptTab = "program" | "week" | "session" | "analysis";
 
@@ -184,6 +184,9 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="page">
         <main className="page-container">
+          {/* BREADCRUMBS — the trail comes from the URL, so it still works with no record. */}
+          <Breadcrumbs />
+
           <p className="text-page-subtitle text-center py-8">Template not found</p>
         </main>
       </div>
@@ -202,14 +205,8 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/golem/ui/templates"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs label={template.name} />
 
           {/* TITLE */}
           <div className="flex items-center gap-3">

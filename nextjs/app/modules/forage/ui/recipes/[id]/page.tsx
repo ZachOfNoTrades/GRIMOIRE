@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "@/components/Toaster";
 import { ArrowLeft, Camera, ChefHat, Plus, Trash2, Save, RotateCcw, Pencil, ChevronRight } from "lucide-react";
@@ -18,6 +17,7 @@ import { AmountField } from "../../../components/AmountField";
 import { expandVirtualServings, resolveServingForSave } from "../../../lib/virtualUnits";
 import { ServingUnitOptions } from "../../../components/ServingUnitOptions";
 import { AddEntryModal, FoodNutrientBreakdown, RecipeUsageList, useNutrients, prefetchNutrientTargets } from "../../_diary";
+import UpLink from "@/components/UpLink";
 
 interface DraftIngredient extends RecipeIngredient {
   __clientId: string;
@@ -450,15 +450,15 @@ export default function ForageRecipeDetailPage() {
 
           {/* NAV GROUP */}
           <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
-            <BackLink
+            <UpLink
               className="btn btn-link"
-              fallback="/modules/forage/ui/recipes"
+              href="/modules/forage/ui/recipes"
               onNavigate={goBack}
-              aria-label="Back to recipes"
+              aria-label="Recipes"
               style={{ paddingLeft: 0 }}
             >
               <ArrowLeft className="w-5 h-5" />
-            </BackLink>
+            </UpLink>
           </div>
 
           {/* TITLE — centered, takes remaining space, truncates rather than wraps */}
@@ -812,17 +812,13 @@ export default function ForageRecipeDetailPage() {
                               className="input-field fg-ing-unit"
                               value={row.serving_id ?? ""}
                               onChange={(e) => {
+                                // Unit switch keeps the typed amount verbatim — no conversion.
                                 const next = row.food_servings?.find((s) => s.id === e.target.value);
                                 if (!next) return;
-                                const prevUps = Number(row.units_per_serving) || 1;
-                                const nextUps = Number(next.units_per_serving) || 1;
-                                const prevServings = row.quantity / prevUps;
-                                const newQty = Math.round(prevServings * nextUps * 1000) / 1000;
                                 updateRow(row.__clientId, {
                                   serving_id: next.id,
                                   serving_unit: next.unit,
                                   units_per_serving: next.units_per_serving,
-                                  quantity: newQty,
                                 });
                               }}
                             >

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
-import { ArrowLeft, Boxes, Plus } from "lucide-react";
+import { Boxes, Plus } from "lucide-react";
 import { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { SearchField, SMART_MATCH_HINT } from "@/components/SearchField";
@@ -12,6 +11,7 @@ import { CollectionSummary } from "../../types/collection";
 import { formatRelativePast } from "@/lib/format";
 import { makeSearchMatcher } from "@/lib/searchMatch";
 import ManageCollectionModal from "./ManageCollectionModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function CollectionsPage() {
 
@@ -70,14 +70,8 @@ export default function CollectionsPage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/rune/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <div>

@@ -1,9 +1,9 @@
 'use client';
 
-import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, CalendarDays } from 'lucide-react';
 import DayArchetypeConfig from '../../../components/DayArchetypeConfig';
 import '../../settings/settings.css';
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // Day-archetype / slot configuration surface for the deterministic generation engine.
 export default function DayArchetypeConfigPage() {
@@ -18,11 +18,8 @@ export default function DayArchetypeConfigPage() {
         {/* HEADER */}
         <div>
 
-          {/* BACK — Day Archetypes now lives under Settings → Programming */}
-          <BackLink fallback="/modules/golem/ui/settings" className="btn btn-link !pl-0">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Settings</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <h1 className="text-page-title gs-title">

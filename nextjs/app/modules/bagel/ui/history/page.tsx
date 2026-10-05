@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { BackLink } from "@/components/BackLink";
-import { ArrowLeft, History } from "lucide-react";
+import { History } from "lucide-react";
 import Modal from "@/components/Modal";
 import { BagelGame, BagelGameHistoryItem } from "../../types/bagel";
 import PaginatedTable from "../../components/PaginatedTable";
 import GuessHistory from "../../components/GuessHistory";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // "2026-03-03 3:45 PM"
 function formatDateTimeShort(date: string): string {
@@ -73,14 +73,8 @@ export default function BagelHistoryPage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/bagel/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <h1 className="text-page-title">

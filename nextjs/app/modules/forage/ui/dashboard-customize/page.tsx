@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { Toaster, toast } from "@/components/Toaster";
 import { ChevronLeft, ChevronUp, ChevronDown, X, Check, Plus } from "lucide-react";
@@ -9,6 +8,7 @@ import { Nutrient } from "../../types/food";
 import { DEFAULT_NUTRITION_CARDS } from "../../types/dashboard";
 import { buildCardCatalog, CardCatalogEntry } from "../home/nutritionCards";
 import "./customize.css";
+import UpLink from "@/components/UpLink";
 
 export default function CustomizeDashboardPage() {
   const router = useRouter();
@@ -119,10 +119,10 @@ export default function CustomizeDashboardPage() {
       {/* HEADER */}
       <div className="fg-customize-header">
 
-        {/* BACK */}
-        <BackLink fallback="/modules/forage/ui/home" aria-label="Back" className="fg-customize-iconbtn">
+        {/* BREADCRUMBS */}
+        <UpLink href="/modules/forage/ui/home" aria-label="Forage dashboard" className="fg-customize-iconbtn">
           <ChevronLeft size={24} />
-        </BackLink>
+        </UpLink>
 
         {/* TITLE */}
         <div className="fg-customize-title">Customize Dashboard</div>

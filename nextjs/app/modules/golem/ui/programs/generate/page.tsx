@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { useGoBack } from "@/lib/useGoBack";
 import { ArrowLeft, Loader2, Zap, Sparkles, ListChecks, Plus, Trash2, LayoutTemplate, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/linkButton";
@@ -12,6 +10,7 @@ import { useGenerationJob } from "@/lib/useGenerationJob";
 import ArchetypeBuilder from "@/app/modules/golem/components/ArchetypeBuilder";
 import type { DayArchetype } from "@/app/modules/golem/types/dayArchetype";
 import type { ProgramTemplateSummary } from "@/app/modules/golem/types/programTemplate";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // A manual block while editing: name, week count, and one archetype id per training day ("" = unassigned).
 interface ManualBlock {
@@ -30,7 +29,6 @@ function normalizeDays(days: string[], count: number): string[] {
 export default function GenerateProgramWizardPage() {
 
   const router = useRouter();
-  const goBack = useGoBack();
 
   // DATA — fetched libraries used by the AI-template and manual branches
   const [templates, setTemplates] = useState<ProgramTemplateSummary[]>([]);
@@ -181,7 +179,7 @@ export default function GenerateProgramWizardPage() {
 
   const handleBack = () => {
     if (step === 0) {
-      goBack("/modules/golem/ui/home");
+      router.push("/modules/golem/ui/home");
       return;
     }
     setStep(step - 1);
@@ -286,15 +284,12 @@ export default function GenerateProgramWizardPage() {
         {/* HEADER */}
         <div className="mb-6">
 
-          {/* BACK BUTTON — on the first step this leaves the page, so it's a real
-              <BackLink> that middle-click can open in a new tab. Later steps only
-              rewind the wizard, which has no URL of its own to link to. */}
-          {step === 0 && !isSubmitting ? (
-            <BackLink fallback="/modules/golem/ui/home" className="btn btn-link !pl-0">
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </BackLink>
-          ) : (
+          {/* BREADCRUMBS — leaving the page is the trail's job now. */}
+          <Breadcrumbs />
+
+          {/* REWIND — later steps step the wizard back one screen. A screen has no
+              URL of its own, so this stays a button rather than a link. */}
+          {step > 0 && (
             <Button onClick={handleBack} className="btn-link !pl-0" disabled={isSubmitting}>
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>

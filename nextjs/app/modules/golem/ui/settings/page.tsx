@@ -1,6 +1,5 @@
 'use client';
 
-import { BackLink } from "@/components/BackLink";
 import {
   ArrowLeft,
   Settings,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import GolemMenu, { type GolemMenuSection } from '../../components/GolemMenu';
 import './settings.css';
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // Golem settings hub — every configuration / library / insight surface, grouped
 // into a categorized terminal-console menu (mirrors the forage & quest pattern).
@@ -57,11 +57,8 @@ export default function GolemSettingsPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <BackLink fallback="/modules/golem/ui/home" className="btn btn-link !pl-0">
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back</span>
-        </BackLink>
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* HEADER */}
         <div className="gs-header">

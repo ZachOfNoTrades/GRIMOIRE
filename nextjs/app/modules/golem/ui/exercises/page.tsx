@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRowNav } from "@/lib/useRowNav";
-import { ArrowLeft, Dumbbell, Plus, MapPin } from "lucide-react";
+import { Dumbbell, Plus, MapPin } from "lucide-react";
 import { SearchField } from "@/components/SearchField";
 import { Button } from "@/components/ui/button";
 import { Exercise } from "../../types/exercise";
 import { Location } from "../../types/location";
 import PaginatedTable, { PaginatedTableHandle } from "../../components/PaginatedTable";
 import AddExerciseModal from "./AddExerciseModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function ExercisesPage() {
 
@@ -68,14 +68,8 @@ export default function ExercisesPage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/golem/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE/SUBTITLE */}
           <div>

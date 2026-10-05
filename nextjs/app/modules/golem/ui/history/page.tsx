@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
-import { ArrowLeft, History, LayoutList, Upload } from "lucide-react";
+import { History, LayoutList, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkoutSessionHistoryItem } from "../../types/workoutSession";
 import { ProgramSummary } from "../../types/program";
 import { formatDateTimeShort } from "../../utils/format";
 import PaginatedTable, { PaginatedTableHandle } from "../../components/PaginatedTable";
 import ImportHistoryModal from "./ImportHistoryModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function HistoryPage() {
 
@@ -32,14 +32,8 @@ export default function HistoryPage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/golem/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE ROW */}
           <div className="flex items-center justify-between">

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "@/components/Toaster";
-import { SettingsBackLink, SettingsRadioGroup } from "@/components/settings/SettingsList";
+import { SettingsRadioGroup } from "@/components/settings/SettingsList";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // History windows offered for the picker's hourly "favorites" suggestions. `days`
 // is what gets persisted; default is 30 (~one month).
@@ -66,8 +67,8 @@ export default function ForageFavoritesSettingsPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Favorites</h1>

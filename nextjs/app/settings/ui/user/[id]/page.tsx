@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Edit2, Plus, Save, Trash2 } from "lucide-react";
+import { Edit2, Plus, Save, Trash2 } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { User, UserDetail } from "@/types/user";
 import { Module } from "@/types/module";
@@ -14,6 +13,7 @@ import DeleteUserModal from "./DeleteUserModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import RenameApiKeyModal from "./RenameApiKeyModal";
 import RevokeApiKeyModal from "./RevokeApiKeyModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function UserDetailPage() {
   const params = useParams();
@@ -26,6 +26,7 @@ export default function UserDetailPage() {
   const [modules, setModules] = useState<Module[]>([]);
   const [grantedModuleIds, setGrantedModuleIds] = useState<string[]>([]);
   const [hasFullAccess, setHasFullAccess] = useState(true);
+  const [viewerId, setViewerId] = useState<string | null>(null);
 
   // INPUT
   const [editingUser, setEditingUser] = useState<Partial<User>>({});
@@ -47,14 +48,23 @@ export default function UserDetailPage() {
   const [isRevokingKey, setIsRevokingKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The API key endpoints act on the signed-in user, so the keys card only belongs on their own page
+  const isOwnProfile = !!viewerId && viewerId.toLowerCase() === userId?.toLowerCase();
+
   // Fetch user
   useEffect(() => {
     if (userId) {
       fetchUser();
-      fetchApiKeys();
       fetchModuleAccess();
     }
   }, [userId]);
+
+  // Fetch API keys once the viewer is known to be this user
+  useEffect(() => {
+    if (isOwnProfile) {
+      fetchApiKeys();
+    }
+  }, [isOwnProfile]);
 
   async function fetchModuleAccess() {
     try {
@@ -91,7 +101,15 @@ export default function UserDetailPage() {
     try {
       setError(null);
       setIsLoading(true);
-      const response = await fetch(`/api/users/${userId}`);
+      const [response, viewerResponse] = await Promise.all([
+        fetch(`/api/users/${userId}`),
+        fetch("/api/users/me"),
+      ]);
+
+      if (viewerResponse.ok) {
+        const viewer = await viewerResponse.json();
+        setViewerId(viewer.id ?? null);
+      }
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -285,14 +303,8 @@ export default function UserDetailPage() {
       <div className="page">
         <div className="page-container">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/settings/ui/admin"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* ERROR CARD */}
           <div className="card mt-4">
@@ -314,15 +326,9 @@ export default function UserDetailPage() {
 
         {/* HEADER */}
         <div className="flex items-center justify-between mb-4">
-          <div>
-            {/* BACK BUTTON */}
-            <BackLink
-              fallback="/settings/ui/admin"
-              className="btn btn-link !pl-0"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </BackLink>
+          <div className="min-w-0">
+            {/* BREADCRUMBS */}
+            <Breadcrumbs label={user.name || user.email} />
 
             {/* TITLE */}
             <h1 className="text-page-title">User Details</h1>
@@ -603,91 +609,93 @@ export default function UserDetailPage() {
         </div>
 
         {/* API KEYS CARD */}
-        <div className="card mt-6">
+        {isOwnProfile && (
+          <div className="card mt-6">
 
-          {/* HEADER */}
-          <div className="card-header flex items-center justify-between">
-            <h3 className="text-card-title">API Keys</h3>
+            {/* HEADER */}
+            <div className="card-header flex items-center justify-between">
+              <h3 className="text-card-title">API Keys</h3>
 
-            {/* ADD KEY BUTTON */}
-            <Button
-              className="btn-blue"
-              onClick={() => setIsAddKeyModalOpen(true)}
-            >
-              <Plus className="w-4 h-4" />
-              New Key
-            </Button>
+              {/* ADD KEY BUTTON */}
+              <Button
+                className="btn-blue"
+                onClick={() => setIsAddKeyModalOpen(true)}
+              >
+                <Plus className="w-4 h-4" />
+                New Key
+              </Button>
+            </div>
+
+            {/* API KEYS TABLE */}
+            <div className="table-container" style={{ border: "none" }}>
+              <table className="table">
+                <thead className="table-header">
+                  <tr className="table-header-row">
+                    <th className="table-header-cell">Name</th>
+                    <th className="table-header-cell">Prefix</th>
+                    <th className="table-header-cell">Created</th>
+                    <th className="table-header-cell">Last Used</th>
+                    <th className="table-header-cell"></th>
+                  </tr>
+                </thead>
+                <tbody className="table-body">
+
+                  {/* LOADING PLACEHOLDER */}
+                  {isApiKeysLoading && (
+                    <tr className="table-row">
+                      <td className="table-cell" colSpan={5}>
+                        <div className="loading-container">
+                          <div className="loading-spinner" />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* EMPTY PLACEHOLDER */}
+                  {!isApiKeysLoading && apiKeys.length === 0 && (
+                    <tr className="table-row">
+                      <td className="table-empty" colSpan={5}>No API keys found</td>
+                    </tr>
+                  )}
+
+                  {/* API KEY ROWS */}
+                  {!isApiKeysLoading && apiKeys.map((key) => (
+                    <tr key={key.id} className="table-row">
+                      <td className="table-cell">{key.name}</td>
+                      <td className="table-cell font-mono">{key.key_prefix}</td>
+                      <td className="table-cell">{new Date(key.ts_created).toLocaleString()}</td>
+                      <td className="table-cell">
+                        {key.ts_last_used ? new Date(key.ts_last_used).toLocaleString() : "Never"}
+                      </td>
+                      <td className="table-cell">
+                        <div className="flex items-center justify-end gap-2">
+
+                          {/* RENAME BUTTON */}
+                          <Button
+                            className="btn-blue !p-2"
+                            onClick={() => setRenameKeyTarget(key)}
+                            title="Rename"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+
+                          {/* REVOKE BUTTON */}
+                          <Button
+                            className="btn-red !p-2"
+                            onClick={() => setRevokeKeyTarget(key)}
+                            title="Revoke"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-
-          {/* API KEYS TABLE */}
-          <div className="table-container" style={{ border: "none" }}>
-            <table className="table">
-              <thead className="table-header">
-                <tr className="table-header-row">
-                  <th className="table-header-cell">Name</th>
-                  <th className="table-header-cell">Prefix</th>
-                  <th className="table-header-cell">Created</th>
-                  <th className="table-header-cell">Last Used</th>
-                  <th className="table-header-cell"></th>
-                </tr>
-              </thead>
-              <tbody className="table-body">
-
-                {/* LOADING PLACEHOLDER */}
-                {isApiKeysLoading && (
-                  <tr className="table-row">
-                    <td className="table-cell" colSpan={5}>
-                      <div className="loading-container">
-                        <div className="loading-spinner" />
-                      </div>
-                    </td>
-                  </tr>
-                )}
-
-                {/* EMPTY PLACEHOLDER */}
-                {!isApiKeysLoading && apiKeys.length === 0 && (
-                  <tr className="table-row">
-                    <td className="table-empty" colSpan={5}>No API keys found</td>
-                  </tr>
-                )}
-
-                {/* API KEY ROWS */}
-                {!isApiKeysLoading && apiKeys.map((key) => (
-                  <tr key={key.id} className="table-row">
-                    <td className="table-cell">{key.name}</td>
-                    <td className="table-cell font-mono">{key.key_prefix}</td>
-                    <td className="table-cell">{new Date(key.ts_created).toLocaleString()}</td>
-                    <td className="table-cell">
-                      {key.ts_last_used ? new Date(key.ts_last_used).toLocaleString() : "Never"}
-                    </td>
-                    <td className="table-cell">
-                      <div className="flex items-center justify-end gap-2">
-
-                        {/* RENAME BUTTON */}
-                        <Button
-                          className="btn-blue !p-2"
-                          onClick={() => setRenameKeyTarget(key)}
-                          title="Rename"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-
-                        {/* REVOKE BUTTON */}
-                        <Button
-                          className="btn-red !p-2"
-                          onClick={() => setRevokeKeyTarget(key)}
-                          title="Revoke"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* DELETE USER MODAL */}

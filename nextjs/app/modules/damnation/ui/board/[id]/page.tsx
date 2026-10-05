@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   BookOpen,
   EllipsisVertical,
   HelpCircle,
@@ -18,7 +17,6 @@ import PopoverMenu from "@/components/PopoverMenu";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
-import { BackLink } from "@/components/BackLink";
 import ConfirmModal from "@/components/ConfirmModal";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { Button } from "@/components/ui/button";
@@ -44,6 +42,7 @@ import { useSessionStream } from "../../../lib/useSessionStream";
 import { useTableCommands } from "../../../lib/useTableCommands";
 import { useWakeLock } from "../../../lib/useWakeLock";
 import type { HostSnapshot } from "../../../types/damnation";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 type PendingConfirm =
   | { kind: "delete" }
@@ -169,10 +168,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
       <div className="page">
         <div className="page-container">
 
-          {/* BACK LINK */}
-          <BackLink className="btn btn-link mb-4 !pl-0" fallback="/modules/damnation/ui/home">
-            <ArrowLeft className="w-5 h-5" /> Damnation
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* NOT FOUND STATE */}
           <div className="alert-red">
@@ -192,10 +189,8 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
         {/* HEADER ROW — kept short so the board gets the height */}
         <div className="dmn-board-header flex flex-wrap items-center justify-between gap-2 mb-2">
 
-          {/* BACK TO DAMNATION HOME */}
-          <BackLink className="btn btn-link !pl-0" fallback="/modules/damnation/ui/home" aria-label="Back to Damnation">
-            <ArrowLeft className="w-5 h-5" />
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs className="breadcrumbs-inline" />
 
           {/* BOARD MENU — every board action except the table layout, which sits with the game setup */}
           <div className="flex items-center">

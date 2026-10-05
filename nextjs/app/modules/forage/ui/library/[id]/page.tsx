@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "@/components/Toaster";
 import { ArrowLeft, Pencil, Trash2, RefreshCw } from "lucide-react";
@@ -9,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/lib/useConfirm";
 import { FoodWithIngredients } from "../../../types/recipe";
 import { FoodForm, FoodDetailContent, useNutrients, prefetchNutrientTargets, sourceUrlHost } from "../../_diary";
+import UpLink from "@/components/UpLink";
 
 export default function ForageFoodDetailPage() {
   const router = useRouter();
@@ -27,8 +27,11 @@ export default function ForageFoodDetailPage() {
   const [isFaving, setIsFaving] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
 
-  async function loadFood() {
+  // `honorEditParam` is set only for the initial load: ?edit=1 is a one-shot
+  // "open in the editor" request, so the post-save reload must not re-enter it.
+  async function loadFood({ honorEditParam = false }: { honorEditParam?: boolean } = {}) {
     setIsLoading(true);
+    let redirecting = false;
     try {
       const r = await fetch(`/modules/forage/api/foods/${foodId}`);
       if (!r.ok) {
@@ -37,22 +40,39 @@ export default function ForageFoodDetailPage() {
         return;
       }
       const data: FoodWithIngredients = await r.json();
-      setFood(data);
       // Explicit edit deep-link (?edit=1, used by the food logger's row ⋮ "Edit
       // food" action so it lands straight in the editor — same contract as the
       // recipe page). Opened any other way the page stays read-only.
       const editParams =
         typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-      if (editParams?.get("edit") === "1") setIsEditing(true);
+      const wantsEdit = honorEditParam && editParams?.get("edit") === "1";
+      // RECIPES LIVE ON THEIR OWN PAGE — this page's editor only edits nutrients,
+      // and a recipe's nutrition is derived from its ingredients. Hand any link
+      // that lands here (library list, nutrient detail, old bookmarks) to the
+      // recipe page, keeping the edit intent; stay in the loading state meanwhile.
+      if (data.source === "recipe") {
+        redirecting = true;
+        router.replace(`/modules/forage/ui/recipes/${foodId}${wantsEdit ? "?edit=1" : ""}`);
+        return;
+      }
+      setFood(data);
+      if (wantsEdit) {
+        setIsEditing(true);
+        // CONSUME THE DEEP-LINK — drop ?edit=1 from the URL so a refresh or a
+        // back-navigation to this entry after saving lands in the read-only view.
+        editParams!.delete("edit");
+        const qs = editParams!.toString();
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+      }
     } catch {
       toast.error("Failed to load food");
     } finally {
-      setIsLoading(false);
+      if (!redirecting) setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    if (foodId) loadFood();
+    if (foodId) loadFood({ honorEditParam: true });
   }, [foodId]);
 
   // Warm the resolved nutrient-target cache on mount so the breakdown bars have
@@ -154,17 +174,16 @@ export default function ForageFoodDetailPage() {
           style={{ marginBottom: "1rem", gap: "0.5rem", flexWrap: "nowrap" }}
         >
 
-          {/* BACK — return to wherever the user came from (library list, the
-              diary timeline's "View food", search results, etc.). Falls back to
-              the library list when there's no in-app history to pop. */}
-          <BackLink
-            fallback="/modules/forage/ui/library"
+          {/* UP — the library list. Always up one level, never wherever the user
+              happened to come from, so it can't cycle. */}
+          <UpLink
+            href="/modules/forage/ui/library"
             className="btn btn-link"
-            aria-label="Back"
+            aria-label="Food library"
             style={{ paddingLeft: 0, flexShrink: 0 }}
           >
             <ArrowLeft className="w-5 h-5" />
-          </BackLink>
+          </UpLink>
 
           {/* TITLE */}
           <h1

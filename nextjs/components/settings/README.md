@@ -29,7 +29,6 @@ pane). The two are intentionally not merged.
   a section heading: a lone unframed control reads as unfinished on a wide screen.
   Stacks label-above-control under 480px. Reference: the Theme page
   (`app/settings/ui/theme`).
-- `SettingsBackLink` — the chevron + label "back to X" link used above a sub-page's title.
 
 All of the above are meant to sit inside a `.settings-group` card (except
 `SettingsGroup`, which renders its own). Use `.settings-section-title` for a

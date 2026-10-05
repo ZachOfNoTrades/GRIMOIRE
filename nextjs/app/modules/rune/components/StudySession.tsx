@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, Pencil, Layers, History } from "lucide-react";
+import { ChevronLeft, ChevronRight, Volume2, CircleStop, Mic, Square, BrainCircuit, Pencil, Layers, History } from "lucide-react";
 import { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
-import { BackLink } from "@/components/BackLink";
 import HelpButton from "@/components/ui/HelpButton";
 import { generateUUID } from "@/lib/uuid";
 import { CardWithProgress, CardReview } from "../types/card";
@@ -17,6 +16,7 @@ import { preloadCardImages } from "../lib/imagePreload";
 import CardContent from "./CardContent";
 import CardHistoryPanel from "./CardHistoryPanel";
 import ManageCardModal from "../ui/decks/[id]/cards/ManageCardModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // The one study engine, shared by single-deck study and collection study. Everything
 // deck-specific is a prop: the caller supplies the due cards and the API base the
@@ -247,6 +247,16 @@ export default function StudySession({
   // Refs for duration tracking
   const sessionStartRef = useRef<number>(0);
   const sessionDurationRef = useRef<number>(0);
+
+  // The DB session id, mirrored off the state so completeSession can read it at CALL
+  // time rather than at render time. The row is created lazily on the first rated card,
+  // and handleRate schedules its auto-complete in a setTimeout closed over the render
+  // that ran BEFORE that id existed — so a session whose first rated card is also its
+  // last (one card due, the ordinary SRS case) read null here and never sent its
+  // completion PUT, leaving completed_at and duration NULL on a session the user had
+  // just watched finish. A ref is current in every closure; null still means "no row
+  // was ever created", which is the case the guard is actually for.
+  const studySessionIdRef = useRef<string | null>(null);
 
   // Wake Lock ref for hands-free mode
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -902,13 +912,16 @@ export default function StudySession({
     };
   }, [disposeEvalWorker]);
 
-  // Get the current study session ID, creating the DB row on first use.
+  // Get the current study session ID, creating the DB row on first use. Reads and
+  // writes the ref as well as the state: the ref is what the completion path reads,
+  // and it also stops two closely-spaced first ratings from each creating a row.
   const ensureStudySession = useCallback(async (): Promise<string | null> => {
-    if (studySessionId) return studySessionId;
+    if (studySessionIdRef.current) return studySessionIdRef.current;
     try {
       const response = await fetch(`${studyApiBase}/study`, { method: "POST" });
       if (response.ok) {
         const data = await response.json();
+        studySessionIdRef.current = data.sessionId;
         setStudySessionId(data.sessionId);
         return data.sessionId;
       }
@@ -916,7 +929,7 @@ export default function StudySession({
       console.error("Error starting study session:", error);
     }
     return null;
-  }, [studySessionId, studyApiBase]);
+  }, [studyApiBase]);
 
   // Complete the study session
   const completeSession = async () => {
@@ -925,13 +938,16 @@ export default function StudySession({
     // shows a stale "0s" on the Session Complete screen regardless of time spent.
     sessionDurationRef.current = Date.now() - sessionStartRef.current;
     disposeEvalWorker(); // done grading — release the persistent worker
-    if (!studySessionId) return;
+    // The REF, not the state: this runs from closures created before the lazily-created
+    // row's id reached React (see studySessionIdRef).
+    const sessionId = studySessionIdRef.current;
+    if (!sessionId) return;
     const durationSeconds = Math.floor(sessionDurationRef.current / 1000);
     try {
       await fetch(`${studyApiBase}/study/review`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studySessionId, durationSeconds }),
+        body: JSON.stringify({ studySessionId: sessionId, durationSeconds }),
       });
     } catch (error) {
       console.error("Error completing session:", error);
@@ -1183,12 +1199,13 @@ export default function StudySession({
     stopSpeakingTracked();
     cancelRecording();
     await completeSession();
+    studySessionIdRef.current = null;
     setStudySessionId(null);
     setSessionComplete(false);
     setCurrentIndex(0);
     setIsFlipped(false);
     onQuit();
-  }, [studySessionId, onQuit]);
+  }, [onQuit]);
 
   // Reset session
   const handleReset = useCallback(() => {
@@ -1196,6 +1213,7 @@ export default function StudySession({
     setCurrentIndex(0);
     setIsFlipped(false);
     setSessionComplete(false);
+    studySessionIdRef.current = null;
     setStudySessionId(null);
     startSession();
   }, []);
@@ -1356,21 +1374,18 @@ export default function StudySession({
 
       <main ref={studyColumnRef} className="page-container rune-study-container">
 
-        {/* BACK BUTTON — leaving the session is a navigation, so it reads as one:
-            same Back control as every other page instead of an X tucked into the
-            session panel. Quitting is in-page state (the host page swaps back to
-            its landing screen), so the click is intercepted — but it is still a
-            real link to the source page, so middle/cmd-click opens it in a new tab
-            like Back everywhere else. */}
+        {/* BREADCRUMBS — leaving the session is a navigation, so it reads as one:
+            the same trail as every other page instead of an X tucked into the
+            session panel. Quitting is in-page state, so the click is intercepted
+            and the session is ended before the crumb is followed — but the crumbs
+            are still real links, so middle/cmd-click opens them in a new tab. */}
         <div className="rune-study-back">
-          <BackLink
-            fallback={cardUrlBase}
-            onNavigate={handleQuit}
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          <Breadcrumbs
+            onNavigate={async (href) => {
+              await handleQuit();
+              router.push(href);
+            }}
+          />
         </div>
 
         {/* HIDDEN AUDIO ELEMENT FOR TTS */}

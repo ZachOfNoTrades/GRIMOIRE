@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
-import { Archive, ArchiveRestore, ArrowLeft, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Loader2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Loader2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PopoverMenu from "@/components/PopoverMenu";
 import toast from "react-hot-toast";
@@ -12,6 +11,7 @@ import { Program, getStatusLabel, getStatusBadge } from "../../../types/program"
 import SessionTimer from "../../../components/SessionTimer";
 import { formatDateShort } from "../../../utils/format";
 import { useGenerationJob } from "@/lib/useGenerationJob";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function ProgramPage({ params }: { params: Promise<{ id: string }> }) {
 
@@ -180,6 +180,9 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
     // NOT FOUND PLACEHOLDER
     <div className="page">
       <main className="page-container">
+        {/* BREADCRUMBS — the trail comes from the URL, so it still works with no record. */}
+        <Breadcrumbs />
+
         <p className="text-page-subtitle text-center py-8">Program not found</p>
       </main>
     </div>
@@ -201,14 +204,8 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/golem/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs label={program.name} />
 
           {/* TITLE ROW */}
           <div className="flex items-center justify-between">

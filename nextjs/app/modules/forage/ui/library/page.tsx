@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import toast, { Toaster } from "@/components/Toaster";
-import { ArrowLeft, ChevronRight, Plus, Apple } from "lucide-react";
+import { ChevronRight, Plus, Apple } from "lucide-react";
 import { SearchField } from "@/components/SearchField";
 import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/linkButton";
 import { Food } from "../../types/food";
 import { FoodAvatar } from "../../components/FoodAvatar";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function ForageLibraryPage() {
 
@@ -64,14 +64,14 @@ export default function ForageLibraryPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
+
         {/* HEADER ROW */}
         <div className="card-header" style={{ marginBottom: "1rem" }}>
 
           {/* TITLE GROUP */}
           <div className="flex items-center gap-2">
-            <BackLink fallback="/modules/forage/ui/settings" className="btn btn-link" aria-label="Back">
-              <ArrowLeft className="w-5 h-5" />
-            </BackLink>
             <h1 className="text-page-title"><Apple className="w-6 h-6" /> Food library</h1>
           </div>
 

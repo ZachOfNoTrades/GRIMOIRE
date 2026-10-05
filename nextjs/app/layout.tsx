@@ -3,7 +3,6 @@ import { JetBrains_Mono } from "next/font/google";
 import Providers from "@/components/Providers";
 import Navbar from "@/components/Navbar";
 import DocumentTitleSync from "@/components/DocumentTitleSync";
-import NavHistoryTracker from "@/components/NavHistoryTracker";
 import ThemeSync from "@/components/ThemeSync";
 import "./globals.css";
 // Side-effect import: starts the in-process digest schedulers on first render.
@@ -59,10 +58,6 @@ export default function RootLayout({
           {/* DOCUMENT TITLE SYNC — keeps the browser tab title as "Module · Page"
               for every route (client pages can't export server metadata). */}
           <DocumentTitleSync />
-
-          {/* NAV HISTORY TRACKER — records the visited-route stack so back buttons
-              can pop history only within a module (see lib/useGoBack). */}
-          <NavHistoryTracker />
 
           {/* THEME SYNC — reconciles the painted theme with the preference saved
               for this user (another device may have changed it). */}

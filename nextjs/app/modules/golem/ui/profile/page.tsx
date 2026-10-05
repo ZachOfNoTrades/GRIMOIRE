@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BackLink } from "@/components/BackLink";
-import { ArrowLeft, User, Pencil } from "lucide-react";
+import { User, Pencil } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { SettingsToggleRow } from "@/components/settings/SettingsList";
 import { UserProfile } from "../../types/userProfile";
 import { DEFAULT_SHORT_UNIT, DEFAULT_LONG_UNIT } from "../../utils/units";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 interface CalculatedLandmark {
   muscle_group_name: string;
@@ -198,14 +198,8 @@ export default function ProfilePage() {
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/golem/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <h1 className="text-page-title">

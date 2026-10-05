@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
 import { Toaster, toast } from "@/components/Toaster";
-import { ArrowLeft, Donut, HelpCircle, History, Trophy } from "lucide-react";
+import { Donut, HelpCircle, History, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppHeight } from "@/lib/useAppHeight";
 import ConfirmModal from "@/components/ConfirmModal";
 import { SettingsGroup } from "@/components/settings/SettingsList";
 import GuessHistory from "../../components/GuessHistory";
 import { BagelGame, BagelStats } from "../../types/bagel";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 /* Difficulty options — must stay within DIGIT_RANGE on the server (3-5). */
 const DIFFICULTIES = [
@@ -230,14 +230,8 @@ export default function BagelHomePage() {
         {/* HEADER ROW */}
         <div className="flex items-center justify-between mb-6">
 
-          {/* BACK TO DASHBOARD */}
-          <BackLink
-            className="btn btn-link !pl-0"
-            fallback="/dashboard"
-            aria-label="Back to dashboard"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs className="breadcrumbs-inline" />
 
           {/* RULES TOGGLE */}
           <Button

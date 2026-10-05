@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
 import { Nutrient, ResolvedNutrientTarget, FoodNutrientRanking, NutrientDailyPoint } from "../../../types/food";
 import { NutritionRange, NUTRITION_RANGE_OPTIONS, getNutritionRangeParams, windowKeyFor, parseWindowKey, presetWindowKeys } from "../../../utils/dateRange";
 import DateRangeSelector from "@/components/DateRangeSelector";
@@ -11,6 +9,7 @@ import NutrientTrendChart from "./NutrientTrendChart";
 import { useWindowCache } from "@/lib/useWindowCache";
 import SegmentedToggle, { SegmentedOption } from "@/components/ui/SegmentedToggle";
 import "./detail.css";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // How the foods list is ranked / valued:
 //   serving — each food's per-serving density (static, per backing reference)
@@ -195,10 +194,8 @@ export default function NutrientDetailClient({ nutrient }: { nutrient: Nutrient 
       {/* PAGE CONTAINER */}
       <div className="page-container nutr-detail">
 
-        {/* BACK */}
-        <BackLink fallback="/modules/forage/ui/nutrition" className="units-back">
-          <ChevronLeft className="w-5 h-5" /> Nutrition
-        </BackLink>
+        {/* BREADCRUMBS */}
+        <Breadcrumbs label={nutrient.name} />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">{nutrient.name}</h1>

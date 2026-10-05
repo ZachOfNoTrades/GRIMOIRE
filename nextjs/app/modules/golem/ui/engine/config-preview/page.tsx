@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BackLink } from "@/components/BackLink";
 import { ArrowLeft, CalendarDays, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { DayArchetype, DayArchetypeWithSlots, DaySlot } from '../../../types/dayArchetype';
 import '../../settings/settings.css';
 import '../../../components/rowDesignPreview.css';
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // Read-only design-exploration surface for the unified expandable-row
 // component. Three structural concepts, same live archetype/slot data as
@@ -95,10 +95,7 @@ export default function ConfigDesignPreviewPage() {
     <div className="page">
       <div className="page-container rdp-page">
         <div>
-          <BackLink fallback="/modules/golem/ui/archetypes" className="btn btn-link !pl-0">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Day Archetypes</span>
-          </BackLink>
+          <Breadcrumbs />
           <h1 className="text-page-title gs-title">
             <CalendarDays className="w-6 h-6" />
             Expandable Row — Design Preview

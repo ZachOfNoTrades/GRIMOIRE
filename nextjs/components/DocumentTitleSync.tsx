@@ -2,25 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
+import { isIdSegment, slugToLabel } from "@/lib/routeLabels";
 
-// Turn a route slug ("pre-workout", "data_input") into a tab-friendly label
-// ("Pre Workout", "Data Input"). Dashes and underscores become spaces and each
-// word is capitalized.
-function slugToLabel(slug: string): string {
-  return slug
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-// A path segment is an entity id (GUID or numeric primary key) rather than a
-// named route folder. We drop these from the title — "Golem · Session" reads
-// better than "Golem · Session · 90c27ba2-…" and we don't have the entity's
-// name on the client anyway.
-function isIdSegment(segment: string): boolean {
-  return /^[0-9a-fA-F]{8}-[0-9a-fA-F-]+$/.test(segment) || /^\d+$/.test(segment);
-}
+// `slugToLabel` titleizes a route slug and `isIdSegment` spots an entity id, both
+// from @/lib/routeLabels — shared with the breadcrumb trail so the tab title and the
+// trail can never disagree about what a segment is called. Id segments are dropped
+// from the title ("Golem · Session" reads better than "Golem · Session · 90c27ba2-…"),
+// which is why a detail page registers its record name below instead.
 
 // ENTITY TITLE OVERRIDE — a detail route showing one record ("…/decks/<id>") wants
 // its tab to name that record ("Rune · Anatomy 101") rather than the route folder

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Settings, Coins, Heart, History, Flame, Repeat, Skull, Sparkles, Bell, Send, CalendarClock, Trophy, Quote, Plus, Pencil, Trash2, Check, X, Dices } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
-import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
 import { Difficulty, DIFFICULTY_ORDER } from "../../types/task";
 import {
@@ -761,11 +762,7 @@ export default function QuestSettingsPage() {
 
         {/* HEADER */}
         <div className="mb-8">
-          <SettingsBackLink
-            label="Home"
-            fallback="/modules/quest/ui/home"
-            onNavigate={() => attemptNavigate("/modules/quest/ui/home")}
-          />
+          <Breadcrumbs onNavigate={attemptNavigate} />
           <h1 className="text-page-title settings-title">
             <Settings className="w-6 h-6" />
             Settings

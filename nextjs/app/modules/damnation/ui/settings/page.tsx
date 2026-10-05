@@ -3,8 +3,9 @@
 import { Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
-import { SettingsBackLink, SettingsToggleRow } from "@/components/settings/SettingsList";
+import { SettingsToggleRow } from "@/components/settings/SettingsList";
 import type { DamnationSettings } from "../../types/damnation";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function DamnationSettingsPage() {
   // DATA
@@ -76,8 +77,8 @@ export default function DamnationSettingsPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Damnation" fallback="/modules/damnation/ui/home" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">

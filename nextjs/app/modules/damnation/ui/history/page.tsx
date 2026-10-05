@@ -4,9 +4,9 @@ import { History, Monitor } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
-import { SettingsBackLink } from "@/components/settings/SettingsList";
 import { Button } from "@/components/ui/button";
 import type { SessionSummary } from "../../types/damnation";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // Games that are over, newest first. Each board still shows its final totals and activity; a game
 // that is over stays that way.
@@ -47,8 +47,8 @@ export default function DamnationHistoryPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Damnation" fallback="/modules/damnation/ui/home" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">

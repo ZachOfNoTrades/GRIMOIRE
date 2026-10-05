@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BarChart3, Dumbbell, History, Pencil } from "lucide-react";
+import { BarChart3, Dumbbell, History, Pencil } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
@@ -15,6 +14,7 @@ import { calculateEstimatedOneRepMax } from "../../../utils/calc";
 import HistoryTab from "../../session/[id]/HistoryTab";
 import DisableExerciseModal from "./DisableExerciseModal";
 import EnableExerciseModal from "./EnableExerciseModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function ExerciseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -324,6 +324,9 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="page">
         <main className="page-container">
+          {/* BREADCRUMBS — the trail comes from the URL, so it still works with no record. */}
+          <Breadcrumbs />
+
           <p className="text-page-subtitle text-center py-8">Exercise not found</p>
         </main>
       </div>
@@ -342,14 +345,8 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
         {/* HEADER */}
         <div className="mb-8">
 
-          {/* BACK BUTTON */}
-          <BackLink
-            fallback="/modules/golem/ui/exercises"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs label={exercise.name} />
 
           {/* TITLE */}
           <div className="flex items-center gap-3">

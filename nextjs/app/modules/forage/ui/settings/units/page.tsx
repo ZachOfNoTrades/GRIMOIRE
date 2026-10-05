@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { SettingsBackLink, SettingsRadioGroup } from "@/components/settings/SettingsList";
+import { SettingsRadioGroup } from "@/components/settings/SettingsList";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import HelpButton from "@/components/ui/HelpButton";
@@ -13,6 +13,7 @@ import { setUnitsCache } from "../../../utils/useUnits";
 import { UNIT_TYPE_LABELS, UNIT_TYPES } from "../../../lib/unitFamilies";
 import type { FoodUnit, UnitType } from "../../../types/unit";
 import { CUSTOM_UNIT_MAX_LEN } from "../../../types/unit";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 interface UnitOption {
   value: WeightUnit;
@@ -114,8 +115,8 @@ export default function ForageUnitsPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE + HELP */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>

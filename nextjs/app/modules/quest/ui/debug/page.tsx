@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BackLink } from "@/components/BackLink";
-import { ArrowLeft, Flame } from "lucide-react";
+import { Flame } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Frequency } from "../../types/task";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 interface StreakTaskSummary {
   id: string;
@@ -128,13 +128,7 @@ export default function QuestDebugPage() {
 
       {/* HEADER */}
       <div className="mb-6 flex items-center justify-between gap-2">
-        <BackLink
-          fallback="/modules/quest/ui/settings"
-          className="flex items-center gap-1 text-secondary hover:text-primary cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span className="text-sm">Settings</span>
-        </BackLink>
+        <Breadcrumbs />
         <h1 className="text-page-title flex items-center gap-2">
           <Flame className="w-6 h-6 text-orange-400" />
           Streak Debug

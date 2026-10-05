@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, use } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, ArrowLeft, Edit2, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, Edit2, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { WorkoutSession } from "../../../types/workoutSession";
@@ -27,6 +26,7 @@ import { formatDuration, formatDateLong, formatLastUsed, secondsToHHMMSS, hhmmss
 import { generateUUID } from "../../../utils/id";
 import { useGenerationJob } from "@/lib/useGenerationJob";
 import { useConfirm } from "@/lib/useConfirm";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // A generated plan is a snapshot: the engine picked its exercises and prescribed its loads from the
 // training history as it stood the moment it ran. Once that snapshot is this many days old the picture
@@ -999,6 +999,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     return (
       <div className="page">
         <main className="page-container">
+          {/* BREADCRUMBS — the trail comes from the URL, so it still works with no record. */}
+          <Breadcrumbs />
+
           <p className="text-page-subtitle text-center py-8">Session not found</p>
         </main>
       </div>
@@ -1030,11 +1033,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         {/* HEADER */}
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
 
-          {/* BACK BUTTON */}
-          <BackLink fallback="/modules/golem/ui/home" className="btn btn-link self-start sm:self-auto mb-2 sm:mb-0">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs label={session.name} className="min-w-0" />
 
           {/* TITLE */}
           <h1 className="text-page-title !mb-0">{session.name}</h1>

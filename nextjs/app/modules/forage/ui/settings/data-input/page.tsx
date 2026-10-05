@@ -1,6 +1,6 @@
 "use client";
 
-import { SettingsBackLink } from "@/components/settings/SettingsList";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function ForageDataInputPage() {
 
@@ -11,8 +11,8 @@ export default function ForageDataInputPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Data Input</h1>

@@ -2,8 +2,6 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
-import { BackLink } from "@/components/BackLink";
 import DateRangeSelector from "@/components/DateRangeSelector";
 import SegmentedToggle, { SegmentedOption } from "@/components/ui/SegmentedToggle";
 import { useWindowCache } from "@/lib/useWindowCache";
@@ -16,6 +14,7 @@ import InsightLineChart, { ChartPoint, shortDate } from "./InsightLineChart";
 import BalanceBarChart from "./BalanceBarChart";
 import "../../nutrition/[code]/detail.css";
 import "./insights.css";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // Color tokens — the same hues the dashboard's insight cards use for each metric.
 const C = {
@@ -157,10 +156,8 @@ export default function InsightDetailClient({ metric }: { metric: InsightMetric 
       {/* PAGE CONTAINER */}
       <div className="page-container nutr-detail insight-detail">
 
-        {/* BACK */}
-        <BackLink fallback="/modules/forage/ui/home" className="units-back">
-          <ChevronLeft className="w-5 h-5" /> Dashboard
-        </BackLink>
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">{title}</h1>

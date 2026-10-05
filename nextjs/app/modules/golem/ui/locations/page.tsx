@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BackLink } from "@/components/BackLink";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast, { Toaster } from "@/components/Toaster";
-import { ArrowLeft, MapPin, Plus, Trash2, Edit3, Check, Dumbbell, Star, Flame } from "lucide-react";
+import { MapPin, Plus, Trash2, Edit3, Check, Dumbbell, Star, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/linkButton";
 import { useConfirm } from "@/lib/useConfirm";
@@ -16,6 +15,7 @@ import type {
   LocationWithEquipment,
 } from "../../types/location";
 import LocationEquipmentModal from "./LocationEquipmentModal";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function GolemLocationsPage() {
   const router = useRouter();
@@ -231,14 +231,8 @@ export default function GolemLocationsPage() {
         {/* HEADER */}
         <div className="mb-6">
 
-          {/* BACK */}
-          <BackLink
-            fallback="/modules/golem/ui/home"
-            className="btn btn-link !pl-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </BackLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs />
 
           {/* TITLE */}
           <h1 className="text-page-title">

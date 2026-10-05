@@ -2,11 +2,12 @@
 
 import { SunMoon } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
-import { SettingsBackLink, SettingsControlRow } from "@/components/settings/SettingsList";
+import { SettingsControlRow } from "@/components/settings/SettingsList";
 import SegmentedToggle, { type SegmentedOption } from "@/components/ui/SegmentedToggle";
 import HelpButton from "@/components/ui/HelpButton";
 import { useTheme } from "@/lib/useTheme";
 import { ThemeMode } from "@/types/preferences";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 // Automatic first (it's the default), then light → dark so the pills read as a
 // progression rather than an arbitrary list.
@@ -36,8 +37,8 @@ export default function ThemeSettingsPage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Settings" fallback="/settings/ui/home" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE + HELP */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>

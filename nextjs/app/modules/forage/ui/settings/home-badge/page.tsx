@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "@/components/Toaster";
-import { SettingsBackLink, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default function ForageHomeBadgePage() {
 
@@ -60,8 +61,8 @@ export default function ForageHomeBadgePage() {
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* BACK */}
-        <SettingsBackLink label="Settings" fallback="/modules/forage/ui/settings" />
+        {/* BREADCRUMBS */}
+        <Breadcrumbs />
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title">Home badge</h1>
