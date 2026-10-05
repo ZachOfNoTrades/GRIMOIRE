@@ -3,14 +3,14 @@
 import ListControls from "./ListControls";
 import Picture from "./Picture";
 import { applyListFilters, countListFilters, toggleListFilter, type ListFilterDef, type ListSortDef } from "../lib/listFilters";
-import { ArrowLeft, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
+import { ArrowLeft, ChevronDown, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { blurOnEnter } from "@/lib/inputBehavior";
-import type { EntityKind, Knowledge, KnowledgeTier, OracleEntity, OracleEvent, StatBlock } from "../types/oracle";
+import type { EntityKind, EntityVisibility, Knowledge, KnowledgeTier, OracleEntity, OracleEvent, StatBlock } from "../types/oracle";
 import { api, campaignApi, errorMessage } from "../lib/client";
-import { EVENT_MAX, KNOWLEDGE_SKILLS, KNOWLEDGE_TIERS } from "../lib/constants";
+import { ENTITY_VISIBILITIES, EVENT_MAX, KNOWLEDGE_SKILLS, KNOWLEDGE_TIERS, VISIBILITY_HINTS, VISIBILITY_LABELS } from "../lib/constants";
 
 interface DetailsPanelProps {
   campaignId: string;
@@ -32,7 +32,7 @@ interface DetailsPanelProps {
   onJoinParty: (entity: OracleEntity) => void;
   onLeaveParty: (entity: OracleEntity) => void;
   partyGroups: { id: string; name: string }[];
-  onToggleRevealed: (entity: OracleEntity) => void;
+  onSetVisibility: (entity: OracleEntity, visibility: EntityVisibility) => void;
   onStats: (entity: OracleEntity, stats: StatBlock) => void;
   onAddNote: (entity: OracleEntity, body: string) => void;
   onReveal: (entity: OracleEntity, fact: string, skill: string | null, tier: KnowledgeTier | null) => void;
@@ -68,8 +68,8 @@ const byName = (a: OracleEntity, b: OracleEntity) => a.name.localeCompare(b.name
 // together, while a kind and a state narrow it together.
 const ENTITY_FILTERS: readonly ListFilterDef<OracleEntity, EntityListContext>[] = [
   { id: "map", section: "Where it is", group: "place", label: "On this map", icon: <MapPin className="w-3.5 h-3.5" />, unavailable: (context) => !context.activeMapId, test: (entity, context) => entity.map_id === context.activeMapId },
-  { id: "party", section: "Where it is", group: "place", label: "With the party", icon: <Users className="w-3.5 h-3.5" />, test: (entity) => entity.in_party },
-  { id: "hidden", section: "State", label: "Hidden from players", icon: <EyeOff className="w-3.5 h-3.5" />, test: (entity) => !entity.is_revealed },
+  { id: "party", section: "Where it is", group: "place", label: "In party", icon: <Users className="w-3.5 h-3.5" />, test: (entity) => entity.in_party },
+  { id: "hidden", section: "State", label: "Hidden", icon: <EyeOff className="w-3.5 h-3.5" />, test: (entity) => entity.visibility === "hidden" },
   { id: "down", section: "State", label: "Down", icon: <Skull className="w-3.5 h-3.5" />, test: (entity) => entity.is_down },
   { id: "kind-creature", section: "Kind", group: "kind", label: "Creatures", icon: <PawPrint className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "creature" },
   { id: "kind-person", section: "Kind", group: "kind", label: "People", icon: <User className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "person" },
@@ -283,9 +283,8 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                   setQuery("");
                 }}
               >
-                <Icon className="w-4 h-4 orc-attitude" data-attitude={entity.attitude} aria-hidden />
+                <Icon className="w-4 h-4 orc-attitude" data-attitude={entity.attitude} aria-label={KIND_LABELS[entity.kind]} role="img" />
                 <span className="orc-details-row-name">{entity.name}</span>
-                <span className="orc-details-row-kind">{KIND_LABELS[entity.kind]}</span>
               </button>
             );
           })}
@@ -327,13 +326,26 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             </div>
           )}
 
-          {/* VISIBILITY — whether the players can see it on their map */}
-          {selected.kind !== "place" && selected.map_id === activeMapId && (
-            <div className="orc-badges">
-              <span className={`badge ${selected.is_revealed ? "badge-green" : "badge-gray"}`}>
-                {selected.is_revealed ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />} {selected.is_revealed ? "Revealed" : isVisibleToPlayers ? "Hidden, in sight" : "Hidden"}
+          {/* WHAT THE PLAYERS SEE — the three levels in one control, so the state and the way to
+              change it are the same thing. Only for something standing on the open map. */}
+          {selected.kind !== "place" && selected.map_id === activeMapId && activeMapId && (
+            <label className="orc-visibility">
+              <span className="orc-visibility-label">Players see</span>
+              <span className="erow-filter-select-wrap">
+                <select
+                  className="input-field erow-filter-select"
+                  value={selected.visibility}
+                  aria-label="What the players see of this"
+                  onChange={(event) => props.onSetVisibility(selected, event.target.value as EntityVisibility)}
+                >
+                  {ENTITY_VISIBILITIES.map((level) => (
+                    <option key={level} value={level}>{VISIBILITY_LABELS[level]}</option>
+                  ))}
+                </select>
+                <ChevronDown className="erow-filter-select-chev w-4 h-4" aria-hidden />
               </span>
-            </div>
+              <span className="orc-visibility-hint">{VISIBILITY_HINTS[selected.visibility]}</span>
+            </label>
           )}
 
           {/* DISPLAY AND MAP ACTIONS */}
@@ -347,11 +359,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                 <MonitorUp className="w-4 h-4" /> Show details to players
               </Button>
             )}
-            {selected.kind !== "place" && selected.map_id === activeMapId && activeMapId && (
-              <Button className={selected.is_revealed ? "btn-green" : "btn-off"} onClick={() => props.onToggleRevealed(selected)} title={selected.is_revealed ? "Take it off the players' map again" : "Put it on the players' map"}>
-                {selected.is_revealed ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />} {selected.is_revealed ? "Revealed" : "Reveal to players"}
-              </Button>
-            )}
+
             {(selected.kind === "creature" || selected.kind === "person") && (
               <Button className={selected.is_down ? "btn-red" : "btn-off"} onClick={() => props.onToggleDown(selected)} title={selected.is_down ? "Back in the fight" : "Dead or out of the fight; stays on the map"}>
                 {selected.is_down ? <HeartPulse className="w-4 h-4" /> : <Skull className="w-4 h-4" />} {selected.is_down ? "Down" : "Mark down"}

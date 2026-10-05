@@ -82,14 +82,17 @@ export async function getDisplaySnapshot(campaignId: string): Promise<DisplaySna
     const points = visionPoints(map, partyGroups, [...party, ...companions]);
     for (const entity of entities) {
       if (entity.kind === "place" || entity.map_id !== map.id || entity.map_x === null || entity.map_y === null) continue;
-      if (!entity.is_revealed) continue;
+      // Hidden is never drawn; revealed is always drawn; in-sight is drawn once the party can
+      // see where it stands.
+      if (entity.visibility === "hidden") continue;
+      if (entity.visibility === "sight" && !isVisibleFrom(points, map.vision_radius, entity.map_x, entity.map_y)) continue;
       tokens.push({
         id: entity.id,
         name: entity.name,
         kind: entity.kind,
         attitude: entity.attitude,
         details: entity.details,
-        revealed: entity.is_revealed,
+        revealed: entity.visibility === "revealed",
         down: entity.is_down,
         image_id: entity.image_id && images.some((image) => image.id === entity.image_id) ? entity.image_id : null,
         knowledge: entity.knowledge.map((fact) => fact.fact),

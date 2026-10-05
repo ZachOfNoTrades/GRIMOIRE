@@ -1,11 +1,11 @@
 import { getMainConnection } from "@/lib/db";
-import type { Attitude, EntityKind, Knowledge, KnowledgeTier, OracleEntity, StatBlock } from "../types/oracle";
+import type { EntityVisibility, Attitude, EntityKind, Knowledge, KnowledgeTier, OracleEntity, StatBlock } from "../types/oracle";
 import { MAX_ENTITIES } from "./constants";
 import { bumpVersion, normalizeId } from "./campaignFunctions";
 import { OracleError, isUniqueViolation } from "./errors";
 import { parseJson } from "./mapData";
 
-const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, is_revealed, is_down, in_party, party_group_id, source";
+const ENTITY_COLUMNS = "id, kind, name, details, attitude, stats, dm_notes, map_id, map_x, map_y, image_id, visibility, is_down, in_party, party_group_id, source";
 
 type EntityRow = {
   id: string;
@@ -19,7 +19,7 @@ type EntityRow = {
   map_x: number | null;
   map_y: number | null;
   image_id: string | null;
-  is_revealed: boolean;
+  visibility: string;
   is_down: boolean;
   in_party: boolean;
   party_group_id: string | null;
@@ -52,7 +52,7 @@ function toEntity(row: EntityRow, knowledge: Knowledge[]): OracleEntity {
     map_x: row.map_x,
     map_y: row.map_y,
     image_id: normalizeId(row.image_id),
-    is_revealed: !!row.is_revealed,
+    visibility: (row.visibility === "sight" || row.visibility === "revealed" ? row.visibility : "hidden") as EntityVisibility,
     is_down: !!row.is_down,
     in_party: !!row.in_party,
     party_group_id: row.party_group_id ? String(row.party_group_id).toLowerCase() : null,
@@ -177,7 +177,7 @@ export interface EntityPatch {
   map_x?: number | null;
   map_y?: number | null;
   image_id?: string | null;
-  is_revealed?: boolean;
+  visibility?: EntityVisibility;
   is_down?: boolean;
   in_party?: boolean; // joining clears the map position; placing on a map leaves the party
   party_group_id?: string | null; // the group it travels with; null = with the party token
@@ -259,9 +259,9 @@ export async function updateEntity(campaignId: string, entityId: string, patch: 
     updateFields.push("is_down = @isDown");
     request.input("isDown", patch.is_down ? 1 : 0);
   }
-  if (patch.is_revealed !== undefined) {
-    updateFields.push("is_revealed = @isRevealed");
-    request.input("isRevealed", patch.is_revealed ? 1 : 0);
+  if (patch.visibility !== undefined) {
+    updateFields.push("visibility = @visibility");
+    request.input("visibility", patch.visibility);
   }
   if (patch.image_id !== undefined) {
     if (patch.image_id !== null) {

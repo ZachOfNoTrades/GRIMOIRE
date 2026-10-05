@@ -164,7 +164,7 @@ export const updateEntitySchema = z
     map_x: coordinate.nullable().optional(),
     map_y: coordinate.nullable().optional(),
     image_id: nullableUuid.optional(),
-    is_revealed: z.boolean().optional(),
+    visibility: z.enum(["hidden", "sight", "revealed"]).optional(),
     is_down: z.boolean().optional(),
     in_party: z.boolean().optional(),
     party_group_id: nullableUuid.optional(),

@@ -217,7 +217,7 @@ export async function resetMap(campaignId: string, mapId: string, scope: MapRese
     // map back up is a different job from taking back what they have already been told about.
     if (scope === "all") {
       await transaction.request().input("mapId", mapId).input("campaignId", campaignId).query(`
-        UPDATE oracle_entities SET is_revealed = 0 WHERE map_id = @mapId AND campaign_id = @campaignId AND is_revealed = 1
+        UPDATE oracle_entities SET visibility = 'hidden' WHERE map_id = @mapId AND campaign_id = @campaignId AND visibility <> 'hidden'
       `);
     }
     await transaction.commit();

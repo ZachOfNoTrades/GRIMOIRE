@@ -23,30 +23,15 @@ import PartyPanel from "../../../../components/PartyPanel";
 import ResultModal from "../../../../components/ResultModal";
 import SessionsPanel from "../../../../components/SessionsPanel";
 import SessionBar from "../../../../components/SessionBar";
+import { VISIBILITY_ICONS } from "../../../../components/visibility";
 import { loadPictures, useWhenPictureReady } from "../../../../lib/imagePreload";
 import { useIsActiveTab } from "../../../campaignTabs";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
-import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, MAP_GRID, VISION_MAX, VISION_MIN, VISION_SLIDER_MAX, VISION_STEP } from "../../../../lib/constants";
+import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, ENTITY_VISIBILITIES, MAP_GRID, VISIBILITY_HINTS, VISIBILITY_LABELS, VISION_MAX, VISION_MIN, VISION_SLIDER_MAX, VISION_STEP } from "../../../../lib/constants";
 import { addExplored, addExploredPath, eraseExplored, isVisibleFrom, visionPoints } from "../../../../lib/fog";
-import type {
-  ChipOption,
-  EntityKind,
-  Knowledge,
-  KnowledgeTier,
-  OracleCampaign,
-  OracleChip,
-  OracleEntity,
-  OracleEvent,
-  OraclePartyGroup,
-  OraclePartyMember,
-  OracleImage,
-  OracleMap,
-  OracleSession,
-  StatBlock,
-  TableSnapshot,
-  } from "../../../../types/oracle";
+import type { ChipOption, EntityKind, EntityVisibility, Knowledge, KnowledgeTier, OracleCampaign, OracleChip, OracleEntity, OracleEvent, OracleImage, OracleMap, OraclePartyGroup, OraclePartyMember, OracleSession, StatBlock, TableSnapshot } from "../../../../types/oracle";
 
 interface TableClientProps {
   snapshot: TableSnapshot;
@@ -168,7 +153,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       x: entity.map_x as number,
       y: entity.map_y as number,
       pin: entity.kind === "place" ? places.findIndex((place) => place.id === entity.id) + 1 : undefined,
-      revealed: entity.is_revealed,
+      revealed: entity.visibility === "revealed",
       down: entity.is_down,
     }));
   }, [entities, activeMap]);
@@ -519,7 +504,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   async function createEntity(draft: EntityDraft, at: { x: number; y: number } | null) {
     const id = generateUUID().toLowerCase();
     const placement = at && activeMap ? { map_id: activeMap.id, map_x: at.x, map_y: at.y } : { map_id: null, map_x: null, map_y: null };
-    const optimistic: OracleEntity = { id, ...draft, ...placement, image_id: null, is_revealed: false, is_down: false, in_party: false, party_group_id: null, source: draft.source, knowledge: [] };
+    const optimistic: OracleEntity = { id, ...draft, ...placement, image_id: null, visibility: "hidden", is_down: false, in_party: false, party_group_id: null, source: draft.source, knowledge: [] };
     setEntities((list) => [...list, optimistic]);
     setSelectedId(id);
     setEntityModal(null);
@@ -587,8 +572,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     saveEntity(entity, { is_down: !entity.is_down }, entity.is_down ? "Couldn't bring it back" : "Couldn't mark it down");
   }
 
-  function toggleRevealed(entity: OracleEntity) {
-    saveEntity(entity, { is_revealed: !entity.is_revealed }, "Couldn't change what the players see");
+  function setVisibility(entity: OracleEntity, visibility: EntityVisibility) {
+    saveEntity(entity, { visibility }, "Couldn't change what the players see");
   }
 
   async function addNote(entity: OracleEntity | null, body: string) {
@@ -1093,7 +1078,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             onEdit={(entity) => setEntityModal({ entity, kind: entity.kind, at: null })}
             onDelete={deleteEntity}
             onShow={showEntity}
-            onToggleRevealed={toggleRevealed}
+            onSetVisibility={setVisibility}
             onToggleDown={toggleDown}
             onJoinParty={joinParty}
             onLeaveParty={leaveParty}
@@ -1228,7 +1213,14 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             y={menu.y}
             onClose={() => setMenu(null)}
             items={[
-              ...(entity.kind !== "place" ? [{ label: entity.is_revealed ? "Hide from players" : "Reveal to players", icon: entity.is_revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />, onSelect: () => toggleRevealed(entity) }] : []),
+              ...(entity.kind !== "place"
+                ? [{
+                    label: "Players see",
+                    choices: ENTITY_VISIBILITIES.map((level) => ({ key: level, label: VISIBILITY_LABELS[level], title: VISIBILITY_HINTS[level], icon: VISIBILITY_ICONS[level] })),
+                    chosen: entity.visibility,
+                    onChoose: (level: string) => setVisibility(entity, level as EntityVisibility),
+                  }]
+                : []),
               ...(entity.kind !== "place" ? [{ label: "Add to party", icon: <UserPlus className="w-4 h-4" />, onSelect: () => joinParty(entity) }] : []),
               ...(entity.kind === "creature" || entity.kind === "person" ? [{ label: entity.is_down ? "Bring back" : "Mark down", icon: entity.is_down ? <HeartPulse className="w-4 h-4" /> : <Skull className="w-4 h-4" />, onSelect: () => toggleDown(entity) }] : []),
               { label: panelEntity?.id === entity.id ? "Stop showing details" : "Show details to players", icon: <MonitorUp className="w-4 h-4" />, onSelect: () => showEntity(panelEntity?.id === entity.id ? null : entity) },

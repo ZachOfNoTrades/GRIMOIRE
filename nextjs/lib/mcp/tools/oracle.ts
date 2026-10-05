@@ -224,7 +224,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     {
       description:
         'Add a creature, person, place or item to the campaign cast. "details" is what the players may be shown; "dm_notes" is never shown to players. ' +
-        'Give creatures a stat block. To put it on a map pass map_id with map_x/map_y (players see it only after it is revealed: pass is_revealed=true with oracle_update_entity).',
+        'Give creatures a stat block. To put it on a map pass map_id with map_x/map_y; a placed entry starts hidden from the players, and oracle_update_entity sets how much they see of it.',
       inputSchema: {
         campaign_id: Uuid,
         kind: Kind,
@@ -271,7 +271,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
         map_id: Uuid.nullable().optional(),
         map_x: z.number().nullable().optional(),
         map_y: z.number().nullable().optional(),
-        is_revealed: z.boolean().optional().describe('true: shown on the players\' map; placed entries stay hidden from them until revealed'),
+        visibility: z.enum(['hidden', 'sight', 'revealed']).optional().describe("how much the players' screen shows: hidden = never; sight = once the party can see where it stands; revealed = always. A placed entry starts hidden."),
         is_down: z.boolean().optional().describe('true: dead or out of the fight; it stays on the map, greyed out'),
         in_party: z.boolean().optional().describe('true: travels with the party (takes it off the map); false or placing it on a map: leaves the party'),
         party_group_id: Uuid.nullable().optional().describe('the party group it travels with; null = with the party token'),

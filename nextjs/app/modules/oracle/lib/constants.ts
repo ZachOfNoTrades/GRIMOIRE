@@ -129,3 +129,12 @@ export const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/gif": "gif",
   "image/webp": "webp",
 };
+
+// What the players' screen shows of an entry, in the order the controls offer them.
+export const ENTITY_VISIBILITIES = ["hidden", "sight", "revealed"] as const;
+export const VISIBILITY_LABELS: Record<string, string> = { hidden: "Hidden", sight: "In sight", revealed: "Revealed" };
+export const VISIBILITY_HINTS: Record<string, string> = {
+  hidden: "Never on the players' map",
+  sight: "On the players' map once the party can see it",
+  revealed: "Always on the players' map",
+};

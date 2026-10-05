@@ -89,6 +89,14 @@ export interface Knowledge {
   ts_created: string;
 }
 
+/**
+ * How much of an entry the players' screen shows:
+ *   hidden   — never drawn, even with the party standing on it
+ *   sight    — drawn once it is inside what the party can see
+ *   revealed — always drawn, wherever the party is
+ */
+export type EntityVisibility = "hidden" | "sight" | "revealed";
+
 export interface OracleEntity {
   id: string;
   kind: EntityKind;
@@ -101,7 +109,7 @@ export interface OracleEntity {
   map_x: number | null;
   map_y: number | null;
   image_id: string | null;
-  is_revealed: boolean; // shown on the player map by hand, even outside the party's sight
+  visibility: EntityVisibility;
   is_down: boolean; // dead or out of the fight: stays on the map, no longer active
   in_party: boolean; // travels with the party instead of standing on a map
   party_group_id: string | null; // the group it travels with; null = with the party token
