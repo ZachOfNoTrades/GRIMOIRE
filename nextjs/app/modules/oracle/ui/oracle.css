@@ -284,14 +284,13 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-token[data-attitude="neutral"] :is(circle, polygon),
 .orc-token[data-attitude="neutral"] text { fill: var(--color-secondary); }
 .orc-token[data-selected="true"] :is(circle, polygon) { stroke: var(--color-primary); stroke-width: 3; }
-.orc-token[data-hidden="true"] :is(circle, polygon) { fill-opacity: 0.75; stroke: var(--color-secondary); stroke-dasharray: 3 2; }
+.orc-token[data-hidden="true"] :is(circle, polygon) { fill-opacity: 0.55; stroke: var(--color-secondary); stroke-dasharray: 3 2; }
 .orc-token[data-down="true"] { opacity: 0.8; }
 .orc-token[data-down="true"] :is(circle, polygon) { fill: var(--color-gray); }
 .orc-token[data-down="true"] .orc-token-name { fill: var(--color-gray); text-decoration: line-through; }
 .orc-token-down { fill: none; stroke: var(--solid-background); stroke-width: 2.5; stroke-linecap: round; vector-effect: non-scaling-stroke; pointer-events: none; }
-.orc-token-unseen { pointer-events: none; }
-.orc-token-unseen-disc { fill: var(--solid-background); stroke: var(--color-secondary); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.orc-token-unseen-lid, .orc-token-unseen-lash { fill: none; stroke: var(--color-primary); stroke-width: 1.5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+/* the eye reads against the marker's own fill, so it is stroked in the page's background color */
+.orc-token-unseen-lid, .orc-token-unseen-lash { fill: none; stroke: var(--solid-background); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 
 .orc-pin rect { fill: var(--orc-warn); stroke: var(--solid-background); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .orc-pin text { fill: var(--solid-background); font-weight: 700; pointer-events: none; }
@@ -964,18 +963,6 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-map[data-tone="dark"] .orc-token[data-hidden] text { fill: #e6e9ee; }
 .orc-map[data-tone="light"] .orc-token[data-hidden] text { fill: #1d2229; }
 
-/* A name on the DM's map is read over whatever art is beneath it, so it carries its own halo in
-   the page's background color. Something hidden from the players is what the DM most needs to
-   pick out — it is the only mark for a thing the player screen does not draw at all — so it gets
-   the heavier weight and the thicker halo rather than the fainter treatment its token has. */
-.orc-map[data-mode="dm"] .orc-token-name {
-  paint-order: stroke fill;
-  stroke: var(--solid-background);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-  stroke-opacity: 0.85;
-}
-.orc-map[data-mode="dm"] .orc-token[data-hidden="true"] .orc-token-name { font-weight: 700; stroke-width: 4px; stroke-opacity: 1; }
 .orc-place-cell { fill: color-mix(in srgb, var(--orc-warn) 28%, transparent); stroke: var(--orc-warn); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 
 /* ---------- typed slider values ---------- */

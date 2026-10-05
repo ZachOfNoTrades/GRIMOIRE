@@ -88,18 +88,17 @@ interface MapCanvasProps {
 
 const FOCUS_ZOOM = 2.5;
 
-// A closed eye on the corner of a marker the players cannot see yet. The DM's map only: the
-// dashed outline alone was easy to miss at a glance, and this is the one state the player screen
-// does not draw at all, so it is the one worth marking plainly.
+// A closed eye over the marker of something the players cannot see yet — the DM's map only.
+// Drawn on the dot itself rather than beside it: a second mark next to the first reads as another
+// thing on the map, while this reads as a state of the one that is there.
 function HiddenMark({ x, y, r }: { x: number; y: number; r: number }) {
-  const s = r * 0.8;
+  const s = r * 0.95;
   return (
-    <g className="orc-token-unseen" transform={`translate(${x + r * 0.95} ${y - r * 0.95})`}>
-      <circle className="orc-token-unseen-disc" r={s} />
-      <path className="orc-token-unseen-lid" d={`M${-s * 0.55},${-s * 0.12} Q0,${s * 0.45} ${s * 0.55},${-s * 0.12}`} />
+    <g className="orc-token-unseen" transform={`translate(${x} ${y})`} pointerEvents="none">
+      <path className="orc-token-unseen-lid" d={`M${-s * 0.62},${-s * 0.16} Q0,${s * 0.46} ${s * 0.62},${-s * 0.16}`} />
       <path
         className="orc-token-unseen-lash"
-        d={`M${-s * 0.46},${s * 0.2}L${-s * 0.6},${s * 0.44}M0,${s * 0.32}L0,${s * 0.58}M${s * 0.46},${s * 0.2}L${s * 0.6},${s * 0.44}`}
+        d={`M${-s * 0.52},${s * 0.18}L${-s * 0.68},${s * 0.46}M0,${s * 0.3}L0,${s * 0.62}M${s * 0.52},${s * 0.18}L${s * 0.68},${s * 0.46}`}
       />
     </g>
   );
@@ -1037,9 +1036,13 @@ export default function MapCanvas({
             ))
         )}
 
-        {/* CREATURES, PEOPLE AND ITEMS NOT YET REVEALED (the DM's map only) — under the fog, so out of
-            sight they take its tint, and drawn with a dashed outline */}
-        {visibleTokens.filter((token) => !isSeen(token)).map((token) => {
+        {/* FOG — out of sight (dim), then never seen (solid on the player display) */}
+        <rect className="orc-fog-dim" {...cover} mask={`url(#${maskId}-dim)`} />
+        <rect className="orc-fog-unexplored" {...cover} mask={`url(#${maskId}-unexplored)`} />
+
+        {/* NOT YET REVEALED (the DM's map only) — above the fog, so they keep their own color
+            instead of taking its tint, with a dashed outline and a closed eye over the marker */}
+        {isDm && visibleTokens.filter((token) => !isSeen(token)).map((token) => {
           const position = positionOf(token);
           return (
             <g
@@ -1067,9 +1070,6 @@ export default function MapCanvas({
           );
         })}
 
-        {/* FOG — out of sight (dim), then never seen (solid on the player display) */}
-        <rect className="orc-fog-dim" {...cover} mask={`url(#${maskId}-dim)`} />
-        <rect className="orc-fog-unexplored" {...cover} mask={`url(#${maskId}-unexplored)`} />
 
         {/* NAMEPLATES — every name of something the party has seen or can see is drawn above the fog,
             in full (the DM sees them all). Something placed on top of a name hides it, so the one
