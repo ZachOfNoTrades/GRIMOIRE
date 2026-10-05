@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { ArrowDownUp, Check, ListFilter, X } from "lucide-react";
+import { ArrowDownUp, Check, LayoutList, ListFilter, Rows3, X } from "lucide-react";
 import type { ListFilterDef, ListSortDef } from "../lib/listFilters";
 
 interface ListControlsProps<T, C> {
@@ -17,6 +17,9 @@ interface ListControlsProps<T, C> {
   onToggle: (id: string) => void;
   onClear: () => void;
   context: C;
+  /** How the rows are drawn: a compact line each, or a tall row with its picture. */
+  view: "rows" | "pictures";
+  onViewChange: (view: "rows" | "pictures") => void;
 }
 
 /** A menu anchored under its button. Escape or a press outside closes it and hands focus back. */
@@ -80,7 +83,7 @@ function MenuButton({ label, icon, isOn, children, title, after }: { label: stri
 // At rest the row is a single line of two quiet buttons: the DM is looking at the map, not at
 // this. Picking a filter adds a chip to the row, so what is narrowing the list is always on
 // screen rather than hidden inside a closed menu.
-export default function ListControls<T, C>({ sorts, sortValue, onSortChange, filters, counts, baseCounts, active, onToggle, onClear, context }: ListControlsProps<T, C>) {
+export default function ListControls<T, C>({ sorts, sortValue, onSortChange, filters, counts, baseCounts, active, onToggle, onClear, context, view, onViewChange }: ListControlsProps<T, C>) {
   const sort = sorts.find((entry) => entry.value === sortValue) ?? sorts[0];
 
   // A filter is offered when it could ever match something, measured on its own rather than
@@ -123,6 +126,16 @@ export default function ListControls<T, C>({ sorts, sortValue, onSortChange, fil
           </button>
         ))}
       </MenuButton>
+
+      {/* HOW THE ROWS ARE DRAWN */}
+      <div className="erow-view-toggle orc-list-view">
+        <button type="button" className={`erow-view-option ${view === "rows" ? "is-active" : ""}`} aria-pressed={view === "rows"} title="A line each" aria-label="A line each" onClick={() => onViewChange("rows")}>
+          <Rows3 className="w-4 h-4" aria-hidden />
+        </button>
+        <button type="button" className={`erow-view-option ${view === "pictures" ? "is-active" : ""}`} aria-pressed={view === "pictures"} title="With pictures" aria-label="With pictures" onClick={() => onViewChange("pictures")}>
+          <LayoutList className="w-4 h-4" aria-hidden />
+        </button>
+      </div>
 
       {/* FILTERS */}
       {offered.length > 0 && (

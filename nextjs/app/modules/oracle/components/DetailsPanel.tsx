@@ -107,17 +107,19 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const listStoreKey = `orc-list-${campaignId}`;
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [sortValue, setSortValue] = useState("name");
+  const [view, setView] = useState<"rows" | "pictures">("rows");
   const listLoadedRef = useRef(false);
 
   useEffect(() => {
     listLoadedRef.current = false;
-    let saved: { sort?: unknown; filters?: unknown } = {};
+    let saved: { sort?: unknown; filters?: unknown; view?: unknown } = {};
     try {
       saved = JSON.parse(window.localStorage.getItem(listStoreKey) ?? "{}");
     } catch {
       // Storage can be blocked or hold something stale; the defaults stand.
     }
     const sort = typeof saved.sort === "string" && ENTITY_SORTS.some((entry) => entry.value === saved.sort) ? saved.sort : "name";
+    setView(saved.view === "pictures" ? "pictures" : "rows");
     const known = new Set(ENTITY_FILTERS.map((filter) => filter.id));
     const filters = Array.isArray(saved.filters) ? saved.filters.filter((id): id is string => typeof id === "string" && known.has(id)) : [];
     setSortValue(sort);
@@ -129,11 +131,11 @@ export default function DetailsPanel(props: DetailsPanelProps) {
     // Only once what was stored has been read, or the first render would overwrite it.
     if (!listLoadedRef.current) return;
     try {
-      window.localStorage.setItem(listStoreKey, JSON.stringify({ sort: sortValue, filters: activeFilters }));
+      window.localStorage.setItem(listStoreKey, JSON.stringify({ sort: sortValue, filters: activeFilters, view }));
     } catch {
       // Storage can be blocked; the choice still applies for this visit.
     }
-  }, [listStoreKey, sortValue, activeFilters]);
+  }, [listStoreKey, sortValue, activeFilters, view]);
 
   // A different entry starts a fresh knowledge check.
   useEffect(() => {
@@ -254,6 +256,8 @@ export default function DetailsPanel(props: DetailsPanelProps) {
           baseCounts={baseCounts}
           active={activeFilters}
           onToggle={(id) => setActiveFilters((list) => toggleListFilter(list, id))}
+          view={view}
+          onViewChange={setView}
           onClear={() => setActiveFilters([])}
           context={listContext}
         />
@@ -281,13 +285,29 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                 key={entity.id}
                 type="button"
                 className="orc-details-row"
+                data-view={view}
                 disabled={entity.id.startsWith("tmp-")}
                 onClick={() => {
                   props.onSelect(entity.id);
                   setQuery("");
                 }}
               >
-                <Icon className="w-4 h-4 orc-attitude" data-attitude={entity.attitude} aria-label={KIND_LABELS[entity.kind]} role="img" />
+                {view === "pictures" ? (
+                  // The picture stands in for the icon, so the type is said by a small mark in its
+                  // corner instead — the same icon, just quieter.
+                  <span className="orc-row-face">
+                    {entity.image_id ? (
+                      <img className="orc-row-photo" src={`${campaignApi(campaignId)}/images/${entity.image_id}?w=160`} alt="" loading="lazy" />
+                    ) : (
+                      <span className="orc-row-photo orc-row-photo-none"><Icon className="w-5 h-5" aria-hidden /></span>
+                    )}
+                    <span className="orc-row-type" aria-label={KIND_LABELS[entity.kind]} role="img">
+                      <Icon className="w-3 h-3" aria-hidden />
+                    </span>
+                  </span>
+                ) : (
+                  <Icon className="w-4 h-4 orc-attitude" data-attitude={entity.attitude} aria-label={KIND_LABELS[entity.kind]} role="img" />
+                )}
                 <span className="orc-details-row-name">{entity.name}</span>
               </button>
             );
