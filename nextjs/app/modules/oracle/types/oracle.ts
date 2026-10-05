@@ -18,6 +18,10 @@ export interface MapFeature {
   w: number;
   h: number;
   state: FeatureState;
+  // Where the DM dragged the label, in map units from where it would otherwise sit. A location's
+  // label stays where it is put: it is not nudged around by the label layout as other things move.
+  label_dx?: number;
+  label_dy?: number;
 }
 
 // What one tile stands for is `scale_value` of `scale_unit` (default 5 feet). `scale_label` is the

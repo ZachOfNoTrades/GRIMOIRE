@@ -313,6 +313,32 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   );
 
   // A tap inside a building or landmark opens the location it stands for.
+  // A location's name on the map opens it, and dragging the name moves it to where it reads best.
+  // The place it is put is kept with the feature, so the label stays there rather than being
+  // shuffled about by the label layout whenever something else on the map moves.
+  function openFeature(featureId: string) {
+    if (!activeMap) return;
+    const feature = activeMap.data.features.find((entry) => entry.id === featureId);
+    const found = feature ? placeForFeature(feature) : undefined;
+    if (!found) return;
+    setSelectedId(found.id);
+    setMobileTab("details");
+  }
+
+  async function moveFeatureLabel(featureId: string, dx: number, dy: number) {
+    if (!activeMap) return;
+    const data = { ...activeMap.data, features: activeMap.data.features.map((feature) => (feature.id === featureId ? { ...feature, label_dx: dx, label_dy: dy } : feature)) };
+    setMaps((list) => list.map((map) => (map.id === activeMap.id ? { ...map, data } : map)));
+    try {
+      // Written on its own rather than through the map's own save, which only carries the party,
+      // the fog and the vision: this is a change to the map's features.
+      await api(`${base}/maps/${activeMap.id}`, "PUT", { data });
+    } catch (error) {
+      toast.error(errorMessage(error, "Couldn't move the label"));
+      await refresh();
+    }
+  }
+
   function openLocationAt(x: number, y: number) {
     if (!activeMap) return;
     const inside = activeMap.data.features
@@ -945,38 +971,31 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
         {/* MAP COLUMN */}
         <section className="orc-map-column" aria-label="Map">
 
-          {/* MAP TOOLBAR */}
-          <div className="orc-toolbar">
-
-            {/* MAP NAME / SWITCHER */}
-            <div className="orc-toolbar-group">
-              {/* MAP SWITCHER — the active map's name; opens the list of maps */}
-              <div className="orc-map-switch" ref={mapSwitchRef}>
-                <button type="button" id="orc-map-switch" className="orc-map-switch-button" aria-expanded={isMapListOpen} aria-haspopup="listbox" title="Change map" onClick={() => setIsMapListOpen((open) => !open)}>
-                  <span className="orc-map-name">{activeMap?.name ?? "No map"}</span>
-                  <ChevronDown className="w-4 h-4" aria-hidden />
-                </button>
-                {isMapListOpen && (
-                  <>
-                    <div className="orc-map-switch-backdrop" onClick={() => setIsMapListOpen(false)} />
-                    <div className="orc-map-switch-list" role="listbox" aria-label="Maps" style={mapListStyle}>
-                      {maps.map((map) => (
-                        <button key={map.id} type="button" role="option" aria-selected={map.id === activeMap?.id} className="orc-map-switch-item" onClick={() => { setIsMapListOpen(false); if (map.id !== activeMap?.id) switchMap(map.id); }}>
-                          <span>{map.name}</span>
-                          {map.id === activeMap?.id && <span className="orc-map-switch-check" aria-hidden />}
-                        </button>
-                      ))}
-                      <TabLink campaignId={campaignId} tab="prep" className="orc-map-switch-item orc-map-switch-manage">Add or edit maps</TabLink>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-          </div>
-
           {/* MAP */}
           <div className="orc-map-frame">
+
+            {/* MAP SWITCHER — on the map's top left rather than a strip above it, so the map has
+                the whole column to grow into. */}
+            <div className="orc-map-switch orc-map-switch-float" ref={mapSwitchRef}>
+              <button type="button" id="orc-map-switch" className="orc-map-switch-button" aria-expanded={isMapListOpen} aria-haspopup="listbox" title="Change map" onClick={() => setIsMapListOpen((open) => !open)}>
+                <span className="orc-map-name">{activeMap?.name ?? "No map"}</span>
+                <ChevronDown className="w-4 h-4" aria-hidden />
+              </button>
+              {isMapListOpen && (
+                <>
+                  <div className="orc-map-switch-backdrop" onClick={() => setIsMapListOpen(false)} />
+                  <div className="orc-map-switch-list" role="listbox" aria-label="Maps" style={mapListStyle}>
+                    {maps.map((map) => (
+                      <button key={map.id} type="button" role="option" aria-selected={map.id === activeMap?.id} className="orc-map-switch-item" onClick={() => { setIsMapListOpen(false); if (map.id !== activeMap?.id) switchMap(map.id); }}>
+                        <span>{map.name}</span>
+                        {map.id === activeMap?.id && <span className="orc-map-switch-check" aria-hidden />}
+                      </button>
+                    ))}
+                    <TabLink campaignId={campaignId} tab="prep" className="orc-map-switch-item orc-map-switch-manage">Add or edit maps</TabLink>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* STOP PAINTING — the brush cursor already says which tool is in hand, so this is
                 only the way out of it. Top right, where the DM's map has nothing: its own
@@ -1024,6 +1043,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 onCancelTool={() => { setPlacingId(null); setTool("move"); }}
                 onGroundContext={(x, y, clientX, clientY) => setGroundMenu({ x, y, clientX, clientY })}
                 linkedFeatures={linkedFeatures}
+                onFeatureSelect={openFeature}
+                onFeatureLabelMove={moveFeatureLabel}
                 onTokenContext={(id, x, y) => setMenu({ id, x, y })}
                 onTokenSelect={(id) => {
                   setSelectedId(id);

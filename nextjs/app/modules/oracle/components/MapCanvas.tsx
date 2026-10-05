@@ -2,7 +2,7 @@
 
 import { Contrast, Crosshair, Maximize2, Minus, Plus, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { Attitude, EntityKind, ExploredCircle, MapData } from "../types/oracle";
+import type { MapFeature, Attitude, EntityKind, ExploredCircle, MapData } from "../types/oracle";
 import { MAP_GRID } from "../lib/constants";
 import { isVisibleFrom } from "../lib/fog";
 import RangeValue from "./RangeValue";
@@ -75,7 +75,8 @@ interface MapCanvasProps {
   onMemberDrop?: (id: string, x: number, y: number, fromX: number, fromY: number) => void;
   onPartySelect?: () => void; // a tap on the party token (no drag)
   linkedFeatures?: string[]; // buildings and landmarks that open a location when tapped
-  onFeatureSelect?: (featureId: string) => void; // a tap on a linked building or landmark on the player display
+  onFeatureSelect?: (featureId: string) => void; // a tap on a linked building or landmark, or its label
+  onFeatureLabelMove?: (featureId: string, dx: number, dy: number) => void; // the DM dragged a location's label
   onGroundClick?: (x: number, y: number) => void; // a tap on bare ground with the move tool
   // Zoom in on a point. A new `nonce` repeats the request for the same point.
   focus?: { x: number; y: number; nonce: number } | null;
@@ -132,6 +133,10 @@ interface LabelRequest {
   centered?: boolean;
   priority: number;
   canHide: boolean;
+  // A label the DM has placed: it reserves its space so the others move around it, and is never
+  // moved itself.
+  fixed?: boolean;
+  dy?: number;
 }
 function placeLabels(requests: LabelRequest[]): Map<string, { dy: number; hidden: boolean }> {
   const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
@@ -142,7 +147,13 @@ function placeLabels(requests: LabelRequest[]): Map<string, { dy: number; hidden
     return { x0, y0: request.y + dy - request.size, x1: x0 + width, y1: request.y + dy + request.size * 0.25 };
   };
   const overlaps = (a: { x0: number; y0: number; x1: number; y1: number }) => placed.some((b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0);
-  for (const request of [...requests].sort((a, b) => a.priority - b.priority)) {
+  // Fixed labels claim their space first, so everything else is laid out around them.
+  for (const request of requests.filter((entry) => entry.fixed)) {
+    const dy = request.dy ?? 0;
+    placed.push(box(request, dy));
+    result.set(request.key, { dy, hidden: false });
+  }
+  for (const request of [...requests].filter((entry) => !entry.fixed).sort((a, b) => a.priority - b.priority)) {
     const step = request.size * 1.25;
     let chosen: number | null = null;
     for (const dy of [0, step, -step, step * 2]) {
@@ -305,6 +316,7 @@ export default function MapCanvas({
   onPartySelect,
   onGroundClick,
   onFeatureSelect,
+  onFeatureLabelMove,
   linkedFeatures = [],
   focus = null,
   revealFocus = null,
@@ -346,6 +358,9 @@ export default function MapCanvas({
   const [revealing, setRevealing] = useState<{ id: string; phase: "pending" | "show"; x: number; y: number } | null>(null);
   const latestRef = useRef<{ party: { x: number; y: number }; view: View; isFollowing: boolean }>({ party: { x: partyX, y: partyY }, view: { zoom: 1, cx: 0, cy: 0 }, isFollowing: true });
   const panRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null);
+  // A location's label being dragged: where the pointer started, and where the label started.
+  const labelDragRef = useRef<{ pointerId: number; id: string; x: number; y: number; dx: number; dy: number; moved: boolean } | null>(null);
+  const [labelDrag, setLabelDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const pinchRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const didPanRef = useRef(false); // the pointer travelled, so the release is not a tap
   const tapRef = useRef<{ pointerId: number; x: number; y: number; px: number; py: number } | null>(null);
@@ -628,6 +643,38 @@ export default function MapCanvas({
     }
   }
 
+  // LABEL GESTURES — the DM drags a location's name to where it reads best, and a press that does
+  // not travel opens what it names. Dragging a label never pans the map.
+  function labelDown(event: React.PointerEvent, feature: MapFeature) {
+    if (!isDm || event.button !== 0) return;
+    event.stopPropagation();
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    labelDragRef.current = { pointerId: event.pointerId, id: feature.id, x: event.clientX, y: event.clientY, dx: feature.label_dx ?? 0, dy: feature.label_dy ?? 0, moved: false };
+  }
+
+  function labelMove(event: React.PointerEvent) {
+    const drag = labelDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    const unit = mapUnitsPerPixel();
+    const dx = drag.dx + (event.clientX - drag.x) * unit;
+    const dy = drag.dy + (event.clientY - drag.y) * unit;
+    if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 4) return;
+    labelDragRef.current = { ...drag, moved: true };
+    setLabelDrag({ id: drag.id, dx, dy });
+  }
+
+  function labelUp(event: React.PointerEvent, feature: MapFeature) {
+    const drag = labelDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    labelDragRef.current = null;
+    const moved = labelDrag && labelDrag.id === drag.id ? labelDrag : null;
+    setLabelDrag(null);
+    if (drag.moved && moved) onFeatureLabelMove?.(feature.id, Math.round(moved.dx), Math.round(moved.dy));
+    else onFeatureSelect?.(feature.id);
+  }
+
   function pinchDistance(): number {
     const [a, b] = Array.from(pinchRef.current.values());
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
@@ -766,6 +813,10 @@ export default function MapCanvas({
   // Whether a point is inside the explored area or in sight right now.
   const isRevealedAt = (x: number, y: number) =>
     explored.some((circle) => Math.hypot(circle.x - x, circle.y - y) <= circle.r) || isVisibleFrom(sightPoints, visionRadius, x, y);
+  // A location's label sits beside its shape, plus wherever the DM dragged it to.
+  const featureLabelX = (feature: MapFeature) => feature.x + 5 + (labelDrag?.id === feature.id ? labelDrag.dx : feature.label_dx ?? 0);
+  const featureLabelY = (feature: MapFeature) => (feature.type === "landmark" ? feature.y - 5 : feature.y + labelSize + 3) + (labelDrag?.id === feature.id ? labelDrag.dy : feature.label_dy ?? 0);
+
   const labelRequests: LabelRequest[] = [
     { key: "party", x: party.x, y: party.y + labelSize * 2.4, text: "PARTY", size: labelSize, centered: true, priority: 0, canHide: false },
     ...memberPositions.map((member) => ({ key: `m:${member.id}`, x: member.x, y: member.y + labelSize * 2, text: member.name, size: labelSize * 0.85, centered: true, priority: 0, canHide: false })),
@@ -779,12 +830,13 @@ export default function MapCanvas({
       .filter((feature) => feature.name && (feature.type === "building" || feature.type === "landmark"))
       .map((feature) => ({
         key: `f:${feature.id}`,
-        x: feature.x + 5,
-        y: feature.type === "landmark" ? feature.y - 5 : feature.y + labelSize + 3,
+        x: featureLabelX(feature),
+        y: featureLabelY(feature),
         text: feature.name.toUpperCase(),
         size: labelSize,
         priority: 3,
-        canHide: true,
+        canHide: false,
+        fixed: true,
       })),
   ];
   const labels = placeLabels(labelRequests);
@@ -973,19 +1025,34 @@ export default function MapCanvas({
           {data.features
             .filter((feature) => feature.name && (feature.type === "building" || feature.type === "landmark") && !labelAt(`f:${feature.id}`).hidden)
             .filter((feature) => isDm || isRevealedAt(feature.x + feature.w / 2, feature.y + feature.h / 2))
-            .map((feature) => (
-              <text
-                key={feature.id}
-                className="orc-feature-label"
-                data-type={feature.type}
-                data-state={feature.state}
-                x={feature.x + 5}
-                y={(feature.type === "landmark" ? feature.y - 5 : feature.y + labelSize + 3) + labelAt(`f:${feature.id}`).dy}
-                fontSize={labelSize}
-              >
-                {feature.name.toUpperCase()}
-              </text>
-            ))}
+            .map((feature) => {
+              const text = feature.name.toUpperCase();
+              const x = featureLabelX(feature);
+              const y = featureLabelY(feature);
+              // SVG text is only hit where its glyphs are painted, so a press in the gap between
+              // two letters would fall through to whatever is under the label. A clear rectangle
+              // behind it, sized the way the label layout measures text, is what takes the
+              // gestures.
+              const width = text.length * labelSize * 0.62;
+              return (
+                <g
+                  key={feature.id}
+                  className="orc-feature-label-group"
+                  data-draggable={isDm && onFeatureLabelMove ? "true" : undefined}
+                  data-dragging={labelDrag?.id === feature.id ? "true" : undefined}
+                  pointerEvents={isDm ? "auto" : "none"}
+                  onPointerDown={isDm ? (event) => labelDown(event, feature) : undefined}
+                  onPointerMove={isDm ? labelMove : undefined}
+                  onPointerUp={isDm ? (event) => labelUp(event, feature) : undefined}
+                  onPointerCancel={isDm ? () => { labelDragRef.current = null; setLabelDrag(null); } : undefined}
+                >
+                  {isDm && <rect className="orc-feature-label-grip" x={x - 2} y={y - labelSize} width={width + 4} height={labelSize * 1.35} />}
+                  <text className="orc-feature-label" data-type={feature.type} data-state={feature.state} x={x} y={y} fontSize={labelSize}>
+                    {text}
+                  </text>
+                </g>
+              );
+            })}
         </g>
 
         {/* WHAT THE PARTY SEES — above the fog, name in full */}

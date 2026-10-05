@@ -301,6 +301,10 @@ export default function DetailsPanel(props: DetailsPanelProps) {
 
             {/* TITLE */}
             <div className="orc-details-title">
+              {/* BACK — first thing in the header, where a way out is looked for */}
+              <Button className="btn-link orc-details-back" onClick={() => props.onSelect(null)} title="Back to the list" aria-label="Back to the list">
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
               <span className="orc-dot orc-attitude" data-attitude={selected.attitude} aria-hidden />
               <h2 className="orc-details-name">{selected.name}</h2>
             </div>
@@ -312,9 +316,6 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               </Button>
               <Button className="btn-link-red" onClick={() => props.onDelete(selected)} title="Delete" aria-label={`Delete ${selected.name}`}>
                 <Trash2 className="w-4 h-4" />
-              </Button>
-              <Button className="btn-link" onClick={() => props.onSelect(null)} title="Back to the list" aria-label="Back to the list">
-                <ArrowLeft className="w-4 h-4" />
               </Button>
             </div>
           </div>

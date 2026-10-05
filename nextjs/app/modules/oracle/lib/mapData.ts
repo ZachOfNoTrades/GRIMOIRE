@@ -115,6 +115,9 @@ export function coerceMapData(raw: unknown): MapData {
       w,
       h,
       state: FEATURE_STATES.includes(item.state as FeatureState) ? (item.state as FeatureState) : "intact",
+      // Where the DM dragged the label, kept only when it has actually been moved.
+      ...(Number.isFinite(Number(item.label_dx)) && Number(item.label_dx) !== 0 ? { label_dx: clampNumber(item.label_dx, -width, width, 0) } : {}),
+      ...(Number.isFinite(Number(item.label_dy)) && Number(item.label_dy) !== 0 ? { label_dy: clampNumber(item.label_dy, -height, height, 0) } : {}),
     });
   });
 
