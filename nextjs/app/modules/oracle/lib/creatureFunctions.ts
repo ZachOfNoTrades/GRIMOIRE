@@ -1,7 +1,7 @@
 import { getMainConnection } from "@/lib/db";
 import type { StatBlock } from "../types/oracle";
 import { parseJson } from "./mapData";
-import { makeSearchMatcher, normalizeSearchText } from "@/lib/searchMatch";
+import { makeSearchRanker } from "@/lib/searchMatch";
 
 // THE CREATURE LIBRARY — creatures a DM can bring into a campaign, kept once for everyone rather
 // than per campaign.
@@ -78,15 +78,19 @@ export async function searchCreatures(userId: string, query: string, limit = 30)
   const needle = query.trim();
   if (!needle) return creatures.slice(0, limit);
 
-  const matches = makeSearchMatcher(needle);
-  const starts = normalizeSearchText(needle);
+  // Closeness to the query sets the order: an exact name first, then names that begin with it,
+  // and only then a match on the type or size or a near miss ("orin" finding "Orrin").
+  const rank = makeSearchRanker(needle);
+  const score = (creature: LibraryCreature) => {
+    const onName = rank(creature.name);
+    return onName > 0 ? onName * 2 : rank(`${creature.creature_type ?? ""} ${creature.size ?? ""}`);
+  };
   return creatures
-    .filter((creature) => matches(`${creature.name} ${creature.creature_type ?? ""} ${creature.size ?? ""}`))
-    .sort((a, b) => {
-      const lead = Number(!normalizeSearchText(a.name).startsWith(starts)) - Number(!normalizeSearchText(b.name).startsWith(starts));
-      return lead !== 0 ? lead : a.name.localeCompare(b.name);
-    })
-    .slice(0, limit);
+    .map((creature) => ({ creature, score: score(creature) }))
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score || a.creature.name.localeCompare(b.creature.name))
+    .slice(0, limit)
+    .map((row) => row.creature);
 }
 
 export async function getCreature(userId: string, id: string): Promise<LibraryCreature | null> {

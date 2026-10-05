@@ -138,20 +138,100 @@ export function normalizeSearchText(value: string): string {
     .join(' ');
 }
 
-// Build a reusable predicate for one query. Preferred over searchMatches() when
-// filtering a list — the query is normalized once, not once per row.
-export function makeSearchMatcher(query: string): (value: string) => boolean {
+// HOW WELL a token matched, best first. The caller sorts on these, so a query
+// that matches several rows puts the closest one at the top instead of leaving
+// the order to the underlying list: searching "Or" should lead with "Orrin",
+// not bury it among everything else containing those two letters.
+export const SEARCH_RANK = {
+  exact: 6, // the whole value is the query
+  prefix: 5, // the value begins with the query
+  wordPrefix: 4, // some word in the value begins with it
+  substring: 3, // it appears somewhere inside
+  fuzzyPrefix: 2, // a word begins with something a typo away from it
+  fuzzyWord: 1, // a whole word is a typo away from it
+} as const;
+
+// A misspelling is only worth guessing at once there is enough of the word to
+// guess from: one edit from three letters, two from seven. Below that, almost
+// everything is one edit from everything.
+function editBudget(token: string): number {
+  if (token.length >= 7) return 2;
+  if (token.length >= 3) return 1;
+  return 0;
+}
+
+// Levenshtein distance, abandoned as soon as every path through the row costs
+// more than the budget — so a long word is rejected after a row or two rather
+// than filling the whole table.
+function withinEdits(token: string, word: string, limit: number): boolean {
+  if (limit <= 0) return token === word;
+  if (Math.abs(token.length - word.length) > limit) return false;
+  let previous = Array.from({ length: word.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= token.length; i += 1) {
+    const row = [i];
+    let best = i;
+    for (let j = 1; j <= word.length; j += 1) {
+      const cost = token[i - 1] === word[j - 1] ? 0 : 1;
+      const value = Math.min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + cost);
+      row.push(value);
+      if (value < best) best = value;
+    }
+    if (best > limit) return false;
+    previous = row;
+  }
+  return previous[word.length] <= limit;
+}
+
+// The best tier this one token reaches against an already-normalized value, or
+// 0 for no match at all. Fuzzy matching is the last resort, tried only once the
+// literal ones have failed, so a typo can never outrank a real match.
+function rankToken(token: string, haystack: string, words: string[]): number {
+  if (haystack === token) return SEARCH_RANK.exact;
+  if (haystack.startsWith(token)) return SEARCH_RANK.prefix;
+  if (words.some((word) => word.startsWith(token))) return SEARCH_RANK.wordPrefix;
+  if (haystack.includes(token)) return SEARCH_RANK.substring;
+  const limit = editBudget(token);
+  if (limit > 0) {
+    // "orin" -> "orrin": a whole word a typo away.
+    if (words.some((word) => withinEdits(token, word, limit))) return SEARCH_RANK.fuzzyWord;
+    // "orin" -> "orrinson": the start of a longer word, a typo away.
+    if (words.some((word) => word.length > token.length && withinEdits(token, word.slice(0, token.length + limit), limit))) {
+      return SEARCH_RANK.fuzzyPrefix;
+    }
+  }
+  return 0;
+}
+
+// Build a reusable scorer for one query: higher is a closer match, 0 is no
+// match. Preferred over searchMatches() when filtering a list — the query is
+// normalized once, not once per row.
+export function makeSearchRanker(query: string): (value: string) => number {
   const tokens = normalizeSearchText(query).split(' ').filter(Boolean);
-  // An empty/punctuation-only query matches everything; callers generally skip
-  // filtering entirely in that case, but this keeps the predicate total.
-  if (tokens.length === 0) return () => true;
+  // An empty/punctuation-only query matches everything equally; callers
+  // generally skip filtering entirely in that case, but this keeps it total.
+  if (tokens.length === 0) return () => SEARCH_RANK.exact;
   return (value: string) => {
     const haystack = normalizeSearchText(value);
-    // EVERY token must appear, in any order and not necessarily adjacent —
+    const words = haystack.split(' ').filter(Boolean);
+    // EVERY token must match, in any order and not necessarily adjacent —
     // "diameter pipe" finds "pipe diameter", matching how forage's food search
-    // already behaves ("turkey heb" -> "Reserve Turkey Breast ... H-E-B").
-    return tokens.every((token) => haystack.includes(token));
+    // already behaves ("turkey heb" -> "Reserve Turkey Breast ... H-E-B"). The
+    // row is only as good as its weakest token, so one fuzzy token drops the
+    // whole row below anything that matched literally throughout.
+    let worst: number = SEARCH_RANK.exact;
+    for (const token of tokens) {
+      const rank = rankToken(token, haystack, words);
+      if (rank === 0) return 0;
+      if (rank < worst) worst = rank;
+    }
+    return worst;
   };
+}
+
+// Build a reusable predicate for one query.
+export function makeSearchMatcher(query: string): (value: string) => boolean {
+  const rank = makeSearchRanker(query);
+  return (value: string) => rank(value) > 0;
 }
 
 // One-off convenience for a single comparison.

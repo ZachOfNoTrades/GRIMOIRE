@@ -58,6 +58,10 @@ const committedDate = gitDirty ? "" : readGit('git log -1 --format=%cd --date=fo
 const buildNumber = committedDate || localDate(new Date());
 
 const nextConfig: NextConfig = {
+  // The dev server is reached through the public hostname, not localhost, so it has to be named
+  // here or every /_next/* request is warned about (and refused in a later major version).
+  allowedDevOrigins: ["grimoire.zsmith.io", "192.168.0.116", "localhost", "127.0.0.1"],
+
   // Exposed to the client (NEXT_PUBLIC_ prefix) so the nav-drawer footer can
   // render without a round trip. Explicit env vars still win, which is how a
   // deploy pins a channel name that isn't the one baked in here.

@@ -29,6 +29,9 @@ import { useIsActiveTab } from "../../../campaignTabs";
 import Ticker from "../../../../components/Ticker";
 import { TABLE_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
+import { normalizeCr } from "../../../../lib/encounter";
+import { findChallengeRow, statBlockFromChallenge } from "../../../../lib/reference";
+import type { LibraryCreature } from "../../../../lib/creatureFunctions";
 import { BRUSH_DEFAULT, BRUSH_MAX, BRUSH_MIN, BRUSH_STEP, ENTITY_VISIBILITIES, MAP_GRID, VISIBILITY_LABELS, VISION_MAX, VISION_MIN, VISION_SLIDER_MAX, VISION_STEP } from "../../../../lib/constants";
 import { addExplored, addExploredPath, eraseExplored, isVisibleFrom, visionPoints } from "../../../../lib/fog";
 import type { ChipOption, EntityKind, EntityVisibility, Knowledge, KnowledgeTier, OracleCampaign, OracleChip, OracleEntity, OracleEvent, OracleImage, OracleMap, OraclePartyGroup, OraclePartyMember, OracleSession, StatBlock, TableSnapshot } from "../../../../types/oracle";
@@ -91,6 +94,10 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [tool, setTool] = useState<MapTool>("move");
   const [brushRadius, setBrushRadius] = useState(BRUSH_DEFAULT);
   const [placingId, setPlacingId] = useState<string | null>(null); // an existing entry waiting for a tap on the map
+  // More than one creature can be waiting at once: an encounter chosen on the banner queues all
+  // of its creatures, and each tap on the map places the next one.
+  const [placingQueue, setPlacingQueue] = useState<string[]>([]);
+  const [isBuilding, setIsBuilding] = useState(false); // an encounter from the banner is being created
   const [mobileTab, setMobileTab] = useState<"map" | "details">("map");
   const [isSessionsOpen, setIsSessionsOpen] = useState(false);
   const [isPartyOpen, setIsPartyOpen] = useState(false); // the party popover over the map
@@ -464,6 +471,21 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     return { x: snap(rawX, activeMap.data.width), y: snap(rawY, activeMap.data.height) };
   }
 
+  // Hand the Pin tool to the next creature waiting to be placed, or put it away when none is.
+  function advancePlacing() {
+    const [next, ...rest] = placingQueue;
+    setPlacingQueue(rest);
+    setPlacingId(next ?? null);
+    setTool(next ? "place" : "move");
+    if (next) setSelectedId(next);
+  }
+
+  function stopPlacing() {
+    setPlacingQueue([]);
+    setPlacingId(null);
+    setTool("move");
+  }
+
   // One brush-sized circle revealed or hidden at a point, from the right-click menu.
   // A tap on the map with the Pin tool: place the entry that is waiting, or start a new one there.
   // Placed entries snap to the center of the grid cell that was tapped.
@@ -474,8 +496,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     const y = snap(rawY, activeMap.data.height);
     if (placingId) {
       const entity = entities.find((entry) => entry.id === placingId);
-      setPlacingId(null);
-      setTool("move");
+      advancePlacing();
       if (entity) saveEntity(entity, { map_id: activeMap.id, map_x: x, map_y: y }, "Couldn't place it");
       return;
     }
@@ -799,10 +820,76 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   }
 
   // Choosing an answer writes it to the log, so what was improvised is on record.
-  function chooseOption(option: ChipOption, title: string) {
+  // A banner answer goes in the log. When the answer brings creatures with it, they also become
+  // real entities and the Table goes straight into placing them, so choosing an encounter sets up
+  // the fight rather than only recording that it happened.
+  async function chooseOption(option: ChipOption, title: string) {
     addNote(null, `${title}: ${option.text}`.slice(0, 1000));
-    if (openChip) removeChip(openChip);
+    const chip = openChip;
     setOpenChip(null);
+    const lines = option.encounter ?? [];
+    if (lines.length > 0) await buildEncounter(lines);
+    if (chip) removeChip(chip);
+  }
+
+  // The library's own stat block for a creature the library knows, otherwise one built from the
+  // challenge-rating table — the same fallback the encounter builder uses.
+  async function encounterStats(line: { name: string; cr: string }): Promise<Pick<EntityDraft, "stats" | "source" | "details">> {
+    try {
+      const found = await api<{ creatures: LibraryCreature[] }>(`/modules/oracle/api/creatures?q=${encodeURIComponent(line.name)}`);
+      const wanted = line.name.trim().toLowerCase();
+      const match = found.creatures.find((creature) => creature.name.toLowerCase() === wanted);
+      if (match?.stats) return { stats: match.stats, source: match.official_source ?? null, details: match.details ?? "" };
+    } catch {
+      // The library is a convenience here; the challenge-rating table always works.
+    }
+    const row = findChallengeRow(normalizeCr(line.cr) ?? line.cr);
+    return { stats: row ? statBlockFromChallenge(row) : null, source: "Challenge rating table", details: "" };
+  }
+
+  // Create one hostile creature per head, off the map, then queue them all for placing.
+  async function buildEncounter(lines: NonNullable<ChipOption["encounter"]>) {
+    if (isBuilding) return;
+    setIsBuilding(true);
+    const made: OracleEntity[] = [];
+    try {
+      for (const line of lines) {
+        const block = await encounterStats(line);
+        const count = Math.min(30, Math.max(1, Math.round(line.count)));
+        for (let index = 0; index < count; index += 1) {
+          const id = generateUUID().toLowerCase();
+          made.push(
+            await api<OracleEntity>(`${base}/entities`, "POST", {
+              id,
+              kind: "creature",
+              name: count > 1 ? `${line.name} ${index + 1}` : line.name,
+              attitude: "hostile",
+              dm_notes: "",
+              ...block,
+              map_id: null,
+              map_x: null,
+              map_y: null,
+            })
+          );
+        }
+      }
+    } catch (error) {
+      toast.error(errorMessage(error, "Couldn't add the creatures"));
+    } finally {
+      setIsBuilding(false);
+    }
+    if (made.length === 0) return;
+    setEntities((list) => [...list, ...made.filter((entity) => !list.some((entry) => entry.id === entity.id))]);
+    setSelectedId(made[0].id);
+    api<OracleEvent[]>(`${base}/events`).then(setEvents).catch(() => undefined);
+    if (!activeMap) {
+      setMobileTab("details");
+      return;
+    }
+    setPlacingId(made[0].id);
+    setPlacingQueue(made.slice(1).map((entity) => entity.id));
+    setTool("place");
+    setMobileTab("map");
   }
 
   // A banner picture becomes a creature, person, location or item. It arrives off the map and the
@@ -844,8 +931,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     const onPress = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (target?.closest(".orc-map, .orc-toolbar, .orc-context")) return;
-      setPlacingId(null);
-      setTool("move");
+      stopPlacing();
     };
     window.addEventListener("pointerdown", onPress, true);
     return () => window.removeEventListener("pointerdown", onPress, true);
@@ -873,8 +959,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
         setMobileTab("details");
         document.getElementById("orc-details-search")?.focus();
       } else if (key === "escape") {
-        setPlacingId(null);
-        setTool("move");
+        stopPlacing();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -997,6 +1082,18 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
               </button>
             )}
 
+            {/* WAITING TO BE PLACED — which creature the next tap puts down, and how many follow.
+                An encounter chosen on the banner queues all of its creatures at once. */}
+            {placingId && (
+              <div className="orc-place-waiting">
+                <span className="orc-place-waiting-name">{entities.find((entry) => entry.id === placingId)?.name ?? "Placing"}</span>
+                {placingQueue.length > 0 && <span className="orc-place-waiting-rest">+{placingQueue.length}</span>}
+                <button type="button" onClick={stopPlacing} title="Stop placing (Esc or right-click)" aria-label="Stop placing">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
 
 
             {activeMap ? (
@@ -1025,7 +1122,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 onBrush={brush}
                 onBrushEnd={() => scheduleMapSave(activeMap.id)}
                 onPlace={placeAt}
-                onCancelTool={() => { setPlacingId(null); setTool("move"); }}
+                onCancelTool={stopPlacing}
                 onGroundContext={(x, y, clientX, clientY) => setGroundMenu({ x, y, clientX, clientY })}
                 linkedFeatures={linkedFeatures}
                 onFeatureSelect={openFeature}

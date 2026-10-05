@@ -1,7 +1,7 @@
 "use client";
 
 import ListControls from "./ListControls";
-import { makeSearchMatcher } from "@/lib/searchMatch";
+import { makeSearchRanker } from "@/lib/searchMatch";
 import Picture from "./Picture";
 import { applyListFilters, countListFilters, toggleListFilter, type ListFilterDef, type ListSortDef } from "../lib/listFilters";
 import { ArrowLeft, ChevronDown, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
@@ -178,13 +178,25 @@ export default function DetailsPanel(props: DetailsPanelProps) {
 
   const matches = useMemo(() => {
     // Matched the way every other list in the app is: each word must appear somewhere, in any
-    // order, so "crab giant" finds the Giant crab.
+    // order, so "crab giant" finds the Giant crab, and a near miss still lands ("Orin" finds
+    // "Orrin").
     const needle = query.trim();
-    const hit = makeSearchMatcher(needle);
     const pool = applyListFilters(entities, ENTITY_FILTERS, activeFilters, listContext);
-    const list = needle ? pool.filter((entity) => hit(`${entity.name} ${entity.details}`)) : pool;
     const sort = ENTITY_SORTS.find((entry) => entry.value === sortValue) ?? ENTITY_SORTS[0];
-    return [...list].sort((a, b) => sort.compare(a, b, listContext) || byName(a, b));
+    if (!needle) return [...pool].sort((a, b) => sort.compare(a, b, listContext) || byName(a, b));
+    // While searching, closeness to the query decides the order and the chosen sort only breaks
+    // ties — a list the search put in a useful order should not be reshuffled alphabetically. A
+    // hit on the name always outranks one buried in the details.
+    const rank = makeSearchRanker(needle);
+    const score = (entity: OracleEntity) => {
+      const onName = rank(entity.name);
+      return onName > 0 ? onName * 2 : rank(entity.details);
+    };
+    return pool
+      .map((entity) => ({ entity, score: score(entity) }))
+      .filter((row) => row.score > 0)
+      .sort((a, b) => b.score - a.score || sort.compare(a.entity, b.entity, listContext) || byName(a.entity, b.entity))
+      .map((row) => row.entity);
   }, [entities, query, activeFilters, listContext, sortValue]);
 
   const history = selected ? events.filter((event) => event.entity_id === selected.id).slice(0, 8) : [];
@@ -366,7 +378,6 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               <Button className="btn-link orc-details-back" onClick={() => props.onSelect(null)} title="Back to the list" aria-label="Back to the list">
                 <ArrowLeft className="w-4 h-4" />
               </Button>
-              <span className="orc-dot orc-attitude" data-attitude={selected.attitude} aria-hidden />
               <h2 className="orc-details-name">{selected.name}</h2>
             </div>
 
@@ -385,27 +396,6 @@ export default function DetailsPanel(props: DetailsPanelProps) {
           {selected.in_party && (
             <div className="orc-badges">
               <span className="badge badge-blue"><Users className="w-3 h-3" /> {props.partyGroups.find((group) => group.id === selected.party_group_id)?.name ?? "With the party"}</span>
-            </div>
-          )}
-
-          {/* WHAT THE PLAYERS SEE — the three levels in one control, so the state and the way to
-              change it are the same thing. Only for something standing on the open map. */}
-          {selected.kind !== "place" && selected.map_id === activeMapId && activeMapId && (
-            <div className="orc-visibility">
-              <span className="orc-visibility-label">Players see</span>
-              <span className="erow-filter-select-wrap">
-                <select
-                  className="input-field erow-filter-select"
-                  value={selected.visibility}
-                  aria-label="What the players see of this"
-                  onChange={(event) => props.onSetVisibility(selected, event.target.value as EntityVisibility)}
-                >
-                  {ENTITY_VISIBILITIES.map((level) => (
-                    <option key={level} value={level}>{VISIBILITY_LABELS[level]}</option>
-                  ))}
-                </select>
-                <ChevronDown className="erow-filter-select-chev w-4 h-4" aria-hidden />
-              </span>
             </div>
           )}
 
@@ -453,6 +443,28 @@ export default function DetailsPanel(props: DetailsPanelProps) {
               <Sparkles className="w-4 h-4" /> Generate image
             </Button>
           </div>
+
+          {/* WHAT THE PLAYERS SEE — the three levels in one control, so the state and the way to
+              change it are the same thing. Only for something standing on the open map. */}
+          {selected.kind !== "place" && selected.map_id === activeMapId && activeMapId && (
+            <div className="orc-visibility">
+              <span className="orc-visibility-label">Players see</span>
+              <span className="erow-filter-select-wrap">
+                <select
+                  className="input-field erow-filter-select"
+                  value={selected.visibility}
+                  aria-label="What the players see of this"
+                  onChange={(event) => props.onSetVisibility(selected, event.target.value as EntityVisibility)}
+                >
+                  {ENTITY_VISIBILITIES.map((level) => (
+                    <option key={level} value={level}>{VISIBILITY_LABELS[level]}</option>
+                  ))}
+                </select>
+                <ChevronDown className="erow-filter-select-chev w-4 h-4" aria-hidden />
+              </span>
+            </div>
+          )}
+
 
           {/* SECTIONS */}
           <div className="orc-sections">
