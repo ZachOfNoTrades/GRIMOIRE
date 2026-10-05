@@ -104,7 +104,21 @@ type Drag = { kind: "party" | "token" | "member"; id: string | null; x: number; 
 
 // How far past the map's edge the view may be dragged, as a share of the view: the edge can be
 // brought three quarters of the way across the screen.
-const PAN_BLEED = 0.75;
+// How far past the map's edge the view may be dragged, as a fraction of the view. A margin helps
+// when putting something near a corner; most of a screenful of nothing, which 0.75 gave, just
+// loses the map off the top.
+const PAN_BLEED = 0.4;
+
+// Where the top-left of the view may sit, given how much of the map the view covers. When the
+// view is wider than the map has room for, the map is centered instead of pinned to an edge.
+function clampOrigin(center: number, viewSpan: number, mapSpan: number): number {
+  const lowest = -viewSpan * PAN_BLEED;
+  const highest = mapSpan - viewSpan * (1 - PAN_BLEED);
+  if (highest < lowest) return (mapSpan - viewSpan) / 2;
+  return Math.min(Math.max(center - viewSpan / 2, lowest), highest);
+}
+
+const clampCenter = (center: number, viewSpan: number, mapSpan: number) => clampOrigin(center, viewSpan, mapSpan) + viewSpan / 2;
 
 // LABELS — every label on the map, placed so none sit on top of each other. Party and members
 // go first, then creatures, pins, and finally the map's own feature names, which are dropped when
@@ -389,12 +403,24 @@ export default function MapCanvas({
       if (next === current.zoom) return current;
       if (isFollowing || !about) return { ...current, zoom: next };
       const ratio = current.zoom / next;
-      return { zoom: next, cx: about.x + (current.cx - about.x) * ratio, cy: about.y + (current.cy - about.y) * ratio };
+      return {
+        zoom: next,
+        cx: clampCenter(about.x + (current.cx - about.x) * ratio, data.width / next, data.width),
+        cy: clampCenter(about.y + (current.cy - about.y) * ratio, data.height / next, data.height),
+      };
     });
   }
 
+  // The center is clamped as it moves, not only where the view is drawn. Clamping the drawn
+  // origin alone let the center run on past the edge while the map stood still, and every unit of
+  // that overshoot had to be dragged back before the map moved again — which read as the map
+  // panning freely one way and refusing to come back the other.
   function panBy(dx: number, dy: number) {
-    setView((current) => ({ ...current, cx: current.cx + dx, cy: current.cy + dy }));
+    setView((current) => ({
+      ...current,
+      cx: clampCenter(current.cx + dx, data.width / current.zoom, data.width),
+      cy: clampCenter(current.cy + dy, data.height / current.zoom, data.height),
+    }));
   }
 
   // On the player display the first pan lets go of the party, starting from where the view was.
@@ -519,8 +545,8 @@ export default function MapCanvas({
     originX = party.x - viewWidth / 2;
     originY = party.y - viewHeight / 2;
   } else {
-    originX = Math.min(Math.max(view.cx - viewWidth / 2, -viewWidth * PAN_BLEED), data.width - viewWidth * (1 - PAN_BLEED));
-    originY = Math.min(Math.max(view.cy - viewHeight / 2, -viewHeight * PAN_BLEED), data.height - viewHeight * (1 - PAN_BLEED));
+    originX = clampOrigin(view.cx, viewWidth, data.width);
+    originY = clampOrigin(view.cy, viewHeight, data.height);
   }
   const viewBox = `${originX} ${originY} ${viewWidth} ${viewHeight}`;
   const isWindowed = view.zoom !== 1 || isFree;
