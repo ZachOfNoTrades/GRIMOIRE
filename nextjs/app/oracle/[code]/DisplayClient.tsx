@@ -5,7 +5,7 @@ import MapCanvas, { type MapToken } from "@/app/modules/oracle/components/MapCan
 import AutoScroll from "@/app/modules/oracle/components/AutoScroll";
 import type { DisplayMap, DisplayPanel, DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
 import { X } from "lucide-react";
-import { loadPictures, useWhenPictureReady } from "@/app/modules/oracle/lib/imagePreload";
+import { loadPictures, usePictureSize, useWhenPictureReady } from "@/app/modules/oracle/lib/imagePreload";
 
 const POLL_MS = 1000;
 const KIND_LABELS = { creature: "You see", person: "You meet", place: "Location", item: "You find" } as const;
@@ -276,21 +276,20 @@ export default function DisplayClient({ code }: { code: string }) {
 }
 
 // An entry's picture, shown whole at its own shape. It takes the height it needs up to a cap, and
-// a blurred copy of itself fills any space beside it. Keyed by picture, so a new one measures afresh.
+// a blurred copy of itself fills any space beside it.
+//
+// The shape comes from the shared cache, which usually already holds it: the pictures for what is
+// on the map are fetched as soon as the map is up. Until it is known the figure holds a 4:3 box
+// and the picture is not drawn, so the players never watch one resize or appear in pieces.
 function PanelPicture({ src, alt }: { src: string; alt: string }) {
-  const [ratio, setRatio] = useState<number | null>(null);
+  const size = usePictureSize(src);
+  const ratio = size ? size.width / size.height : 4 / 3;
   return (
-    <figure className="orc-display-figure" style={{ "--photo": `url("${src}")`, aspectRatio: ratio ?? 4 / 3 } as CSSProperties}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className="orc-display-figure-img"
-        src={src}
-        alt={alt}
-        onLoad={(event) => {
-          const image = event.currentTarget;
-          if (image.naturalWidth > 0 && image.naturalHeight > 0) setRatio(image.naturalWidth / image.naturalHeight);
-        }}
-      />
+    <figure className="orc-display-figure" style={{ "--photo": size ? `url("${src}")` : "none", aspectRatio: ratio } as CSSProperties}>
+      {size && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="orc-display-figure-img" src={src} alt={alt} width={size.width} height={size.height} />
+      )}
     </figure>
   );
 }
