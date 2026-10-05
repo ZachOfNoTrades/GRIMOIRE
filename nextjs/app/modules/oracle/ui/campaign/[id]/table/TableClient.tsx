@@ -395,12 +395,20 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     );
   }
 
+  // Dragging the vision slider only moves this: the DM sees the radius change under the pointer,
+  // while the map is written (and so the players' screen redrawn) once on release. Saving on
+  // every step redrew the players' fog continuously as the DM hunted for a value.
+  const [visionDraft, setVisionDraft] = useState<number | null>(null);
+  const visionShown = visionDraft ?? activeMap?.vision_radius ?? 0;
+  const commitVision = () => { if (visionDraft !== null) changeVision(visionDraft); };
+
   function changeBrush(value: number) {
     setBrushRadius(Math.min(BRUSH_MAX, Math.max(BRUSH_MIN, Math.round(value))));
   }
 
   function changeVision(value: number) {
     if (!activeMap) return;
+    setVisionDraft(null);
     patchMap(activeMap.id, (map) => ({ ...map, vision_radius: Math.min(VISION_MAX, Math.max(VISION_MIN, value)) }));
   }
 
@@ -855,8 +863,19 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       )}
       <div className="orc-bar-slider orc-vision" title="How far the party sees">
         <span className="orc-label">Vision</span>
-        <input type="range" min={VISION_MIN} max={VISION_SLIDER_MAX} step={VISION_STEP} value={Math.min(VISION_SLIDER_MAX, activeMap.vision_radius)} aria-label="Vision radius" onChange={(event) => changeVision(Number(event.target.value))} />
-        <RangeValue value={Math.round(activeMap.vision_radius)} min={VISION_MIN} max={VISION_MAX} label="Vision radius" onCommit={changeVision} />
+        <input
+          type="range"
+          min={VISION_MIN}
+          max={VISION_SLIDER_MAX}
+          step={VISION_STEP}
+          value={Math.min(VISION_SLIDER_MAX, visionShown)}
+          aria-label="Vision radius"
+          onChange={(event) => setVisionDraft(Number(event.target.value))}
+          onPointerUp={commitVision}
+          onKeyUp={commitVision}
+          onBlur={commitVision}
+        />
+        <RangeValue value={Math.round(visionShown)} min={VISION_MIN} max={VISION_MAX} label="Vision radius" onCommit={changeVision} />
       </div>
       {activeMap.background_image_id && (
         <div className="orc-bar-slider orc-vision" title="How strongly the map's background shows on this screen">
@@ -954,12 +973,12 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 data={activeMap.data}
                 partyX={activeMap.party_x}
                 partyY={activeMap.party_y}
-                visionRadius={activeMap.vision_radius}
+                visionRadius={visionShown}
                 explored={activeMap.explored}
                 tokens={tokens}
                 members={apartGroups}
-                companions={companions.map((entity) => ({ id: entity.id, name: entity.name, kind: entity.kind, imageUrl: entity.image_id ? `${base}/images/${entity.image_id}` : null, groupId: entity.party_group_id }))}
-                backgroundUrl={activeMap.background_image_id ? `${base}/images/${activeMap.background_image_id}` : null}
+                companions={companions.map((entity) => ({ id: entity.id, name: entity.name, kind: entity.kind, imageUrl: entity.image_id ? `${base}/images/${entity.image_id}?w=160` : null, groupId: entity.party_group_id }))}
+                backgroundUrl={activeMap.background_image_id ? `${base}/images/${activeMap.background_image_id}?w=1600` : null}
                 pictureOpacity={pictureOpacity}
                 barExtras={barExtras}
                 mode="dm"
