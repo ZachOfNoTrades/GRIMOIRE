@@ -6,6 +6,15 @@ import { listBodyFatEntries, listWeights, upsertWeight } from '../../lib/weightF
 const BODY_FAT_LIMIT_MAX = 90;
 const BODY_FAT_LIMIT_DEFAULT = 7;
 
+// Plausible bodyweight window, in pounds. The ceiling is load-bearing, not cosmetic:
+// weight_log.weight_lb is DECIMAL(6,2) and upsertWeight binds sql.Decimal(6, 2), so
+// anything >= 10000 is rejected by the driver as an invalid decimal and surfaces as a
+// 500 rather than a validation error. 2000 lb sits well clear of that and well clear of
+// the heaviest human on record, so a fat-fingered 99999 (or a kg-unit entry that
+// converts past the limit) gets a message instead of a failed save.
+const MIN_WEIGHT_LB = 1;
+const MAX_WEIGHT_LB = 2000;
+
 export async function GET(request: NextRequest) {
   const session = await getAuthorizedUser(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -38,6 +47,11 @@ export async function POST(request: NextRequest) {
     if (!log_date) return NextResponse.json({ error: 'log_date required' }, { status: 400 });
     if (!Number.isFinite(weight_lb) || weight_lb <= 0)
       return NextResponse.json({ error: 'weight_lb > 0 required' }, { status: 400 });
+    if (weight_lb < MIN_WEIGHT_LB || weight_lb > MAX_WEIGHT_LB)
+      return NextResponse.json(
+        { error: `weight_lb must be between ${MIN_WEIGHT_LB} and ${MAX_WEIGHT_LB} lb` },
+        { status: 400 },
+      );
     let body_fat_pct: number | null = null;
     if (body.body_fat_pct != null && body.body_fat_pct !== '') {
       const bf = Number(body.body_fat_pct);

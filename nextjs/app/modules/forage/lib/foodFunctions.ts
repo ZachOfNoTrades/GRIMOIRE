@@ -42,6 +42,35 @@ export class DuplicateBarcodeError extends Error {
   }
 }
 
+// The GTIN lengths a retail barcode is written in. One product's code appears
+// with different leading-zero padding depending on who read it: a UPC-A label
+// decodes as 12 digits in the live scanner, zbar and Open Food Facts report the
+// same code as 13-digit EAN ("0" + UPC-A), and GTIN-14 pads further.
+const GTIN_LENGTHS = [8, 12, 13, 14];
+
+// Every stored form that denotes the same product as `raw`, for an
+// `barcode_upc IN (...)` match. Non-numeric input matches only itself.
+function barcodeVariants(raw: string): string[] {
+  const trimmed = raw.trim();
+  const variants = new Set<string>([trimmed]);
+  if (/^\d+$/.test(trimmed)) {
+    const core = trimmed.replace(/^0+/, '');
+    for (const length of GTIN_LENGTHS) {
+      if (core.length <= length) variants.add(core.padStart(length, '0'));
+    }
+  }
+  return [...variants];
+}
+
+// Bind each barcode variant as its own parameter and return the SQL predicate.
+function bindBarcodeMatch(req: sql.Request, raw: string): string {
+  const params = barcodeVariants(raw).map((variant, index) => {
+    req.input(`barcode${index}`, sql.NVarChar(32), variant);
+    return `@barcode${index}`;
+  });
+  return `barcode_upc IN (${params.join(', ')})`;
+}
+
 // Build the final list of servings to persist for a food. By default guarantees
 // the canonical {'serving', 1} row exists so the food's natural unit is
 // selectable. When omitDefault is set (per-100g / per-100ml foods, whose base
@@ -308,8 +337,7 @@ export async function listFoods(
       });
     }
     if (barcode) {
-      req.input('barcode', sql.NVarChar(32), barcode);
-      where += ' AND barcode_upc = @barcode';
+      where += ` AND ${bindBarcodeMatch(req, barcode)}`;
     }
     const foodsResult = await req.query<any>(
       // Join each food's most-recent log ENTRY so search results (a) surface
@@ -675,13 +703,11 @@ export async function createFood(userId: string, input: CreateFoodInput): Promis
     // global food) would create a second copy of the same product. Refuse instead.
     // Scope mirrors the logger's barcode lookup: own foods OR globals, not archived.
     if (input.barcode_upc) {
-      const dup = await pool
-        .request()
-        .input('userId', sql.UniqueIdentifier, userId)
-        .input('barcode', sql.NVarChar(32), input.barcode_upc)
+      const dupReq = pool.request().input('userId', sql.UniqueIdentifier, userId);
+      const dup = await dupReq
         .query<{ id: string; name: string }>(
           `SELECT TOP 1 id, name FROM foods
-           WHERE barcode_upc = @barcode AND is_archived = 0
+           WHERE ${bindBarcodeMatch(dupReq, input.barcode_upc)} AND is_archived = 0
              AND (user_id = @userId OR user_id IS NULL)`
         );
       if (dup.recordset.length > 0) {

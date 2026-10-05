@@ -64,7 +64,8 @@ function rowToFoodEntry(r: any, microsRaw: Record<string, number> = {}): FoodEnt
     quantity: Number(r.quantity),
     quick_add_name: r.quick_add_name,
     serving_unit: r.serving_unit ?? null,
-    display_name: r.food_id ? r.food_name : r.quick_add_name,
+    // A food_id whose foods row was hard-deleted (no FK) leaves food_name null — show a placeholder, not a blank title.
+    display_name: r.food_id ? (r.food_name ?? 'Deleted food') : r.quick_add_name,
     brand: r.food_id ? (r.food_brand ?? null) : null,
     food_source: r.food_id ? (r.food_source ?? null) : null,
     kcal: macros.kcal,

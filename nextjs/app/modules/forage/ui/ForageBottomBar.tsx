@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Modal from "@/components/Modal";
 import { AddEntryModal, nowHHMM, todayIso } from "./_diary";
+import { clearCreateFoodDraft, isResumableDraft, readCreateFoodDraft } from "./createFoodDraft";
 import { FoodEntry } from "../types/entry";
 import LogWeighInModal from "./strategy/LogWeighInModal";
 import ForageTabBar, { type ForageTab } from "./ForageTabBar";
@@ -70,7 +71,10 @@ export default function ForageBottomBar({
   // STATE — the quick-add surfaces, owned here so every page shares them.
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [weighInOpen, setWeighInOpen] = useState(false);
-  const [addPicker, setAddPicker] = useState<"search" | "scan" | "quick" | null>(null);
+  const [addPicker, setAddPicker] = useState<"search" | "scan" | "quick" | "add" | null>(null);
+  // Set alongside addPicker="add" when the logger is being reopened onto a
+  // Create-Food draft a previous page load left behind (see createFoodDraft.ts).
+  const [resumingCreateDraft, setResumingCreateDraft] = useState(false);
   // Recipe creation — shared with the Recipes page and the food logger's Recipes
   // tab so every entry point offers the identical build-method flow.
   const recipeBuilder = useRecipeBuilder();
@@ -83,6 +87,20 @@ export default function ForageBottomBar({
   const searchHiddenRef = useRef(false);
   const searchSlotRef = useRef<HTMLDivElement>(null);
   const [searchSlotHeight, setSearchSlotHeight] = useState(0);
+
+  // RESUME AN INTERRUPTED CREATE-FOOD — tapping a scan tile hands the phone to
+  // the system camera, and Android may reclaim the backgrounded browser while
+  // it's up there; Firefox brings the tab back by reloading it, which used to
+  // land the user on a bare food log with the whole half-written food gone.
+  // A draft parked in localStorage survives that, so reopen the logger on it.
+  useEffect(() => {
+    if (!isResumableDraft(readCreateFoodDraft("logger"))) return;
+    setResumingCreateDraft(true);
+    setAddPicker("add");
+    toast.success("Picked up your unfinished food");
+    // Mount-only: this reads what the PREVIOUS page load left behind.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Refresh the Strategy check-in due-dot on mount (and when the active tab
   // changes — navigating to/from Strategy can clear it once the recompute runs),
@@ -277,8 +295,17 @@ export default function ForageBottomBar({
           defaultTime={nowHHMM()}
           initialPicker={addPicker}
           editingEntry={null}
-          onClose={() => setAddPicker(null)}
+          resumeCreateDraft={resumingCreateDraft}
+          onClose={() => {
+            // Closing the logger deliberately discards any create-food draft —
+            // only an abnormal teardown should leave one behind to resume.
+            clearCreateFoodDraft();
+            setResumingCreateDraft(false);
+            setAddPicker(null);
+          }}
           onSaved={(created) => {
+            clearCreateFoodDraft();
+            setResumingCreateDraft(false);
             setAddPicker(null);
             // After logging food from any screen, land the user on the food log
             // timeline (on the day the entry was logged) so they see what they

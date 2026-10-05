@@ -6,6 +6,40 @@ export function fmtAmount(n: number): string {
   return String(Math.round(n * 1000) / 1000);
 }
 
+// Metric units are read as decimals on a label ("55 g", "2.5 ml") — never as
+// kitchen fractions — so fmtServingAmount leaves their amounts alone.
+const DECIMAL_UNITS = new Set(["g", "kg", "mg", "mcg", "ml", "l"]);
+
+// Kitchen denominators, smallest first so 0.5 reads "1/2", not "2/4" or "4/8".
+const KITCHEN_DENOMINATORS = [2, 3, 4, 8];
+
+// A label's "2/3 cup" arrives from the parsers as a rounded decimal (0.667, or
+// 0.6667 once stored at decimal(10,4)). Snap anything within this distance of a
+// kitchen fraction back to it. The closest pair of kitchen fractions (1/3 vs 3/8)
+// is ~0.04 apart, so this can't pick the wrong one.
+const FRACTION_TOLERANCE = 0.005;
+
+// Format a serving-size amount for the food editor's serving rows: kitchen
+// fractions stay fractions the way the label printed them ("2/3", "1 1/2") instead
+// of "0.667" / "1.5". Metric units and amounts that aren't near a kitchen fraction
+// fall through to fmtAmount. The output always round-trips through parseAmount.
+export function fmtServingAmount(n: number, unit: string): string {
+  if (!Number.isFinite(n) || n <= 0) return fmtAmount(n);
+  if (DECIMAL_UNITS.has(unit.trim().toLowerCase())) return fmtAmount(n);
+
+  const whole = Math.floor(n + FRACTION_TOLERANCE);
+  const frac = n - whole;
+  if (Math.abs(frac) < FRACTION_TOLERANCE) return String(whole);
+
+  for (const den of KITCHEN_DENOMINATORS) {
+    const num = Math.round(frac * den);
+    if (num > 0 && num < den && Math.abs(frac - num / den) < FRACTION_TOLERANCE) {
+      return whole > 0 ? `${whole} ${num}/${den}` : `${num}/${den}`;
+    }
+  }
+  return fmtAmount(n);
+}
+
 // Single-character vulgar fractions, so a pasted "⅛ cup" or a keyboard that offers
 // ½/¼ works the same as typing "1/8".
 const VULGAR_FRACTIONS: Record<string, number> = {

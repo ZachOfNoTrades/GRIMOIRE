@@ -11,6 +11,12 @@ import { WeightEntry } from "../../types/weight";
 import { lbInUnit, toLb, unitLabel } from "../../utils/units";
 import { useWeightUnit } from "../../utils/useWeightUnit";
 
+// Plausible bodyweight window, mirroring the API's own bounds (see the weight route).
+// Kept client-side too so the field carries min/max and the user is told before the
+// round-trip; the API is still the authority and rejects independently.
+const MIN_WEIGHT_LB = 1;
+const MAX_WEIGHT_LB = 2000;
+
 function todayIso(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
@@ -44,9 +50,21 @@ export default function LogWeighInModal({
   // STATE
   const [isSaving, setIsSaving] = useState(false);
 
+  // BOUNDS IN THE DISPLAYED UNIT — the stored value is always lbs, so a kg user's
+  // field has to be checked against the converted window, not the raw lb numbers.
+  // Rounded inward so the whole-number bounds shown to the user stay inside the range
+  // the API will actually accept.
+  const minDisplay = Math.ceil(lbInUnit(MIN_WEIGHT_LB, weightUnit));
+  const maxDisplay = Math.floor(lbInUnit(MAX_WEIGHT_LB, weightUnit));
+
   async function handleSave() {
     if (!weightDisplay || Number(weightDisplay) <= 0) {
       toast.error("Enter a weight");
+      return;
+    }
+    const weightEntered = Number(weightDisplay);
+    if (weightEntered < minDisplay || weightEntered > maxDisplay) {
+      toast.error(`Weight must be between ${minDisplay} and ${maxDisplay} ${unitLabel(weightUnit)}`);
       return;
     }
     setIsSaving(true);
@@ -72,7 +90,12 @@ export default function LogWeighInModal({
         toast.success("Logged");
         onSaved(entry);
         onClose();
-      } else toast.error("Failed");
+      } else {
+        // SURFACE THE SERVER'S REASON — a bare "Failed" gives the user nothing to act
+        // on when the value itself is what was rejected.
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error ?? "Failed");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -127,7 +150,7 @@ export default function LogWeighInModal({
             appending to it. */}
         <div className="flex flex-col gap-1">
           <label className="text-label" htmlFor="weigh-value">Weight ({unitLabel(weightUnit)})</label>
-          <input id="weigh-value" autoFocus type="number" inputMode="decimal" step="0.1" className="input-field" value={weightDisplay} onChange={(e) => setWeightDisplay(e.target.value)} onFocus={selectOnFocus} onKeyDown={blurOnEnter} placeholder="0.0" />
+          <input id="weigh-value" autoFocus type="number" inputMode="decimal" step="0.1" min={minDisplay} max={maxDisplay} className="input-field" value={weightDisplay} onChange={(e) => setWeightDisplay(e.target.value)} onFocus={selectOnFocus} onKeyDown={blurOnEnter} placeholder="0.0" />
         </div>
 
         {/* BODY FAT */}

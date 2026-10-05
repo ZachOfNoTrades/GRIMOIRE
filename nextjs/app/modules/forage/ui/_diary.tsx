@@ -61,6 +61,13 @@ import {
 import { LabelOcrDraft } from "../types/labelOcr";
 import RecipeBuildPicker from "./recipes/RecipeBuildPicker";
 import { useRecipeBuilder } from "./recipes/useRecipeBuilder";
+import {
+  clearCreateFoodDraft,
+  isResumableDraft,
+  readCreateFoodDraft,
+  writeCreateFoodDraft,
+  type CreateFoodDraftHost,
+} from "./createFoodDraft";
 
 // One Open Food Facts search suggestion, as returned by the module's
 // /api/foods/openfoodfacts lane (mirrors OpenFoodFactsSuggestion server-side).
@@ -106,7 +113,7 @@ import { CUSTOM_UNIT_MAX_LEN } from "../types/unit";
 import { UNIT_TYPE_LABELS, UNIT_TYPES, convert, familyOf } from "../lib/unitFamilies";
 import { useUnits, prefetchUnits, setUnitsCache, unitTypeByName, optionGroups } from "../utils/useUnits";
 import { selectOnFocus, blurOnEnter, focusOnEnter, useBlurActiveInputOnScroll } from "@/lib/inputBehavior";
-import { fmtAmount, parseAmount } from "../lib/format";
+import { fmtAmount, fmtServingAmount, parseAmount } from "../lib/format";
 import "./foodDetail.css";
 
 // Ephemeral "quick add" food (id prefixed `quick:`) built from raw macros so it can
@@ -867,6 +874,7 @@ export function DiaryTimeline({
                 onEditFood={(foodId) => setEditFoodId(foodId)}
                 onEditRecipe={(foodId) => router.push(`/modules/forage/ui/recipes/${foodId}?edit=1`)}
                 onViewFood={(foodId) => router.push(`/modules/forage/ui/library/${foodId}`)}
+                onViewRecipe={(foodId) => router.push(`/modules/forage/ui/recipes/${foodId}`)}
                 onExplode={(entry) => handleExplode(entry)}
                 onMove={(entry) => setMoveEntry(entry)}
                 onCopy={(entry) => setCopyEntry(entry)}
@@ -1290,6 +1298,7 @@ function HourGroup({
   onEditFood,
   onEditRecipe,
   onViewFood,
+  onViewRecipe,
   onExplode,
   onMove,
   onCopy,
@@ -1308,6 +1317,8 @@ function HourGroup({
   onEditRecipe: (foodId: string) => void;
   // Navigate to the food's library detail page (real, non-quick-add entries only).
   onViewFood: (foodId: string) => void;
+  // Navigate to the recipe's own page (read-only) for a recipe-backed entry.
+  onViewRecipe: (foodId: string) => void;
   // Break a recipe entry into its component ingredient entries (recipe entries only).
   onExplode: (entry: FoodEntry) => void;
   // Open the move-to-date/time modal for this entry.
@@ -1325,11 +1336,6 @@ function HourGroup({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draftQuantity, setDraftQuantity] = useState<string>("");
   const [draftServingId, setDraftServingId] = useState<string | null>(null);
-  // True once the user has typed into the amount input; when set, switching
-  // the unit dropdown will NOT proportionally convert (their hand-entered
-  // value sticks). Reset on every UOM change so subsequent UOM changes
-  // (with no further typing) convert again.
-  const [draftQuantityDirty, setDraftQuantityDirty] = useState(false);
   const [availableServings, setAvailableServings] = useState<FoodServing[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   // The chip currently in edit mode — used to scroll its inputs above the keyboard.
@@ -1391,7 +1397,6 @@ function HourGroup({
     }
     setExpandedId(e.id);
     setDraftQuantity(String(e.quantity));
-    setDraftQuantityDirty(false);
     if (!e.food_id) {
       setDraftServingId(e.serving_id ?? null);
       setAvailableServings([]);
@@ -1426,33 +1431,9 @@ function HourGroup({
       .catch(() => {});
   }
 
-  // Serving-preserving conversion: keep the # of servings constant when switching
-  // units — UNLESS the user has manually edited the amount since the last UOM
-  // change. In that case, respect their hand-entered number and just swap the
-  // unit. After any UOM change, reset the dirty flag so the next unit swap
-  // converts cleanly again (assuming they don't retype the amount).
+  // Unit switch keeps the typed amount verbatim (25 cup → 25 fl oz) — no conversion.
   function changeDraftServing(nextServingId: string | null) {
-    if (draftQuantityDirty) {
-      setDraftServingId(nextServingId);
-      setDraftQuantityDirty(false);
-      return;
-    }
-    const prevServ = availableServings.find((s) => s.id === draftServingId) || null;
-    const nextServ = availableServings.find((s) => s.id === nextServingId) || null;
-    if (!prevServ || !nextServ) {
-      setDraftServingId(nextServingId);
-      return;
-    }
-    const qNum = parseAmount(draftQuantity);
-    const prevUPS = Number(prevServ.units_per_serving);
-    const nextUPS = Number(nextServ.units_per_serving);
-    if (!Number.isFinite(qNum) || qNum <= 0 || prevUPS <= 0 || nextUPS <= 0) {
-      setDraftServingId(nextServingId);
-      return;
-    }
-    const converted = (qNum / prevUPS) * nextUPS;
     setDraftServingId(nextServingId);
-    setDraftQuantity(String(Math.round(converted * 1000) / 1000));
   }
 
   // Live macros for the entry currently being edited — scales the saved macros by
@@ -1631,10 +1612,7 @@ function HourGroup({
                     <AmountField
                       className="input-field fg-inline-amt"
                       value={draftQuantity}
-                      onValueChange={(next) => {
-                        setDraftQuantity(next);
-                        setDraftQuantityDirty(true);
-                      }}
+                      onValueChange={setDraftQuantity}
                       onFocus={selectOnFocus}
                       onKeyDown={(ev) => {
                         if (ev.key === "Enter") {
@@ -1787,12 +1765,15 @@ function HourGroup({
                   padding: "0.25rem",
                 }}
               >
+                {/* VIEW — recipes open their own page (ingredients); the food
+                    detail page would lead to the nutrients-only food editor. */}
                 {e.food_id && (
                   <button
                     type="button"
                     onClick={() => {
                       setMenuFor(null);
-                      onViewFood(e.food_id!);
+                      if (e.food_source === "recipe") onViewRecipe(e.food_id!);
+                      else onViewFood(e.food_id!);
                     }}
                     style={{
                       width: "100%",
@@ -1809,7 +1790,7 @@ function HourGroup({
                       cursor: "pointer",
                     }}
                   >
-                    <Info size={14} /> View food
+                    <Info size={14} /> {e.food_source === "recipe" ? "View recipe" : "View food"}
                   </button>
                 )}
                 {/* EDIT — recipes jump to the recipe editor (FoodModal can't edit
@@ -2579,15 +2560,8 @@ function FoodDetailsSheet({
   const serving = food.servings.find((s) => s.id === servingId) ?? null;
   const qNum = parseAmount(quantity);
 
-  // Serving-preserving unit switch (mirrors updateCollectionUnit): keep the same
-  // real amount eaten when swapping units.
+  // Unit switch keeps the typed amount verbatim (mirrors updateCollectionUnit).
   function changeUnit(nextServingId: string | null) {
-    const nextServ = food.servings.find((s) => s.id === nextServingId) ?? null;
-    const prevUPS = serving ? Number(serving.units_per_serving) : 0;
-    const nextUPS = nextServ ? Number(nextServ.units_per_serving) : 0;
-    if (nextServ && serving && Number.isFinite(qNum) && qNum > 0 && prevUPS > 0 && nextUPS > 0) {
-      setQuantity(fmtAmount((qNum / prevUPS) * nextUPS));
-    }
     setServingId(nextServingId);
   }
 
@@ -2666,7 +2640,7 @@ function FoodDetailsSheet({
    Nutrition section with a Plate / Day toggle and 4 macro cards.
    ============================================================ */
 
-type PlateEntry = { food: Food; servingId: string | null; quantity: string; dirty?: boolean };
+type PlateEntry = { food: Food; servingId: string | null; quantity: string };
 
 function PlateOverlay({
   collection,
@@ -2998,6 +2972,7 @@ export function AddEntryModal({
   initialFood,
   editingEntry,
   replaceEntry,
+  resumeCreateDraft = false,
   onClose,
   onSaved,
   hideTabs,
@@ -3019,6 +2994,10 @@ export function AddEntryModal({
   // date/time). Everything else (search/scan/recipes/quick/create, details sheet)
   // is the identical food-logger experience.
   replaceEntry?: FoodEntry | null;
+  // Open straight into the Create-Food wizard on the draft a previous page load
+  // left behind (see createFoodDraft.ts). Only the bottom bar sets this — the
+  // edit/replace hosts must never pop the create wizard on the user.
+  resumeCreateDraft?: boolean;
   onClose: () => void;
   // Receives the freshly-logged, fully-hydrated entries so the host can paint
   // them optimistically; may be empty if the route fell back to a bare id.
@@ -3087,10 +3066,7 @@ export function AddEntryModal({
       : "last_used";
   });
   // Staged items to log together. Each entry has its own unit + amount.
-  // `dirty` tracks whether the user has typed into the amount since the last
-  // UOM change — when set, switching unit preserves the typed value instead
-  // of converting it. Reset on every UOM swap.
-  const [collection, setCollection] = useState<{ food: Food; servingId: string | null; quantity: string; dirty?: boolean }[]>([]);
+  const [collection, setCollection] = useState<{ food: Food; servingId: string | null; quantity: string }[]>([]);
   const [quantity, setQuantity] = useState<string>(String(editingEntry?.quantity ?? "1"));
   const [entryTime, setEntryTime] = useState<string>(editingEntry?.entry_time?.slice(0, 5) || defaultTime);
   // Clock hour the entry is being logged AT — what the "Frequent" suggestions key off.
@@ -3129,7 +3105,7 @@ export function AddEntryModal({
   // the new food is staged straight onto the plate (handleFoodCreated).
   const [createDraft, setCreateDraft] = useState<
     { name?: string; barcode?: string; draft?: LabelOcrDraft; sourceUrl?: string; imageUrl?: string | null } | null
-  >(null);
+  >(resumeCreateDraft ? {} : null);
   // OPEN FOOD FACTS FALLBACK — suggestions shown only when the library search
   // comes up empty, so "nothing found" offers a pick instead of a from-scratch
   // create. `offPickingCode` marks the row whose draft is being fetched.
@@ -3341,7 +3317,7 @@ export function AddEntryModal({
     const food = withVirtualUnits(previewFood);
     setCollection((prev) => {
       if (prev.find((c) => c.food.id === food.id)) {
-        return prev.map((c) => (c.food.id === food.id ? { ...c, servingId, quantity, dirty: true } : c));
+        return prev.map((c) => (c.food.id === food.id ? { ...c, servingId, quantity } : c));
       }
       return [...prev, { food, servingId, quantity }];
     });
@@ -3359,39 +3335,15 @@ export function AddEntryModal({
     });
   }
 
-  // Serving-preserving unit switch. Each row is "1 serving = units_per_serving of this unit",
-  // so servings_eaten = quantity / prevUPS; converted_qty = servings_eaten × nextUPS.
-  // If the user dirtied the amount since the last UOM change, skip conversion and keep
-  // their typed value verbatim — only swap the unit. Reset dirty after either path.
+  // Unit switch keeps the typed amount verbatim (25 cup → 25 fl oz) — no conversion.
   function updateCollectionUnit(foodId: string, nextServingId: string | null) {
     setCollection((prev) =>
-      prev.map((c) => {
-        if (c.food.id !== foodId) return c;
-        if (c.dirty) {
-          return { ...c, servingId: nextServingId, dirty: false };
-        }
-        const prevServ = c.food.servings.find((s) => s.id === c.servingId) || null;
-        const nextServ = c.food.servings.find((s) => s.id === nextServingId) || null;
-        if (!nextServ) return { ...c, servingId: nextServingId, dirty: false };
-        const qNum = parseAmount(c.quantity);
-        const prevUPS = prevServ ? Number(prevServ.units_per_serving) : 0;
-        const nextUPS = Number(nextServ.units_per_serving);
-        if (!prevServ || !Number.isFinite(qNum) || qNum <= 0 || prevUPS <= 0 || nextUPS <= 0) {
-          return { ...c, servingId: nextServingId, quantity: "1", dirty: false };
-        }
-        const converted = (qNum / prevUPS) * nextUPS;
-        return {
-          ...c,
-          servingId: nextServingId,
-          quantity: String(Math.round(converted * 1000) / 1000),
-          dirty: false,
-        };
-      })
+      prev.map((c) => (c.food.id === foodId ? { ...c, servingId: nextServingId } : c))
     );
   }
 
   function updateCollectionQuantity(foodId: string, q: string) {
-    setCollection((prev) => prev.map((c) => (c.food.id === foodId ? { ...c, quantity: q, dirty: true } : c)));
+    setCollection((prev) => prev.map((c) => (c.food.id === foodId ? { ...c, quantity: q } : c)));
   }
 
   // Commit a staged amount on blur: if the user left it at an explicit 0 (or
@@ -4956,6 +4908,7 @@ export function AddEntryModal({
       {createDraft !== null && (
         <CreateFoodWizard
           overlay
+          draftHost="logger"
           initialName={createDraft.name}
           initialBarcode={createDraft.barcode}
           initialDraft={createDraft.draft}
@@ -5662,6 +5615,7 @@ export function CreateFoodWizard({
   initialSourceUrl,
   initialImageUrl,
   overlay = false,
+  draftHost = "page",
   onCreated,
   onCancel,
 }: {
@@ -5680,6 +5634,10 @@ export function CreateFoodWizard({
   // When true, renders as a fixed fullscreen overlay (used over the logger
   // modal); otherwise fills its container as a page (used on /library/new).
   overlay?: boolean;
+  // Which instance this is, for the persisted draft (see
+  // createFoodDraft.ts). The logger overlay and the /library/new page keep
+  // separate drafts so one never resumes into the other.
+  draftHost?: CreateFoodDraftHost;
   // Called with the saved food after a successful POST. The wizard does NOT
   // navigate — the caller routes or stages as appropriate.
   onCreated: (food: Food) => void;
@@ -5723,6 +5681,11 @@ export function CreateFoodWizard({
   // STATE
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  // In-flight guard for the create POST. `isSaving` disables the button, but a
+  // state update only lands on the NEXT render — taps delivered in the same task
+  // (a fast double-tap) all see the button still enabled and each fire a POST,
+  // creating duplicate library foods. A ref flips synchronously, so it holds.
+  const savingRef = useRef(false);
   const [isScanningBarcode, setIsScanningBarcode] = useState(false);
   // Existing food that already owns the current barcode (own library or a global),
   // looked up live as the UPC changes. Non-null → block the create as a duplicate.
@@ -5862,7 +5825,7 @@ export function CreateFoodWizard({
     // empty result leaves the existing draft rows untouched.
     const draftServings = draft.servings
       .filter((s) => Number.isFinite(s.units_per_serving) && s.units_per_serving > 0 && s.unit)
-      .map((s) => ({ unit: s.unit, ups: String(s.units_per_serving) }));
+      .map((s) => ({ unit: s.unit, ups: fmtServingAmount(s.units_per_serving, s.unit) }));
     if (basis === "serving" && draftServings.length > 0) {
       setServings(draftServings);
     }
@@ -5887,6 +5850,80 @@ export function CreateFoodWizard({
     appliedInitialDraftRef.current = true;
     applyFoodDraft(initialDraft);
   }, [initialDraft, nutrients.length]);
+
+  // RESUME A STRANDED DRAFT — a scan tile hands the phone to the system camera,
+  // and Android may reclaim the backgrounded browser while it's up there;
+  // Firefox brings the tab back by reloading it, which used to drop the whole
+  // half-written food silently (see createFoodDraft.ts). Refill from the stored
+  // snapshot instead. Restoring in an effect rather than in the state
+  // initializers keeps the server-rendered first paint (the /library/new page
+  // variant) identical to the client's, so hydration still matches.
+  const [draftRestored, setDraftRestored] = useState(false);
+  useEffect(() => {
+    const saved = readCreateFoodDraft(draftHost);
+    if (isResumableDraft(saved)) {
+      // A resumed draft IS the user's work, so it wins over the initial* props,
+      // which only ever seed a fresh wizard.
+      appliedInitialDraftRef.current = true;
+      setName(saved.name);
+      setBrand(saved.brand);
+      setBarcodeUpc(saved.barcodeUpc);
+      setSourceUrl(saved.sourceUrl);
+      setImageSourceUrl(saved.imageSourceUrl);
+      setIsGlobal(saved.isGlobal);
+      setKcal(saved.kcal);
+      setP(saved.p);
+      setC(saved.c);
+      setF(saved.f);
+      setServings(saved.servings);
+      setBasis(saved.basis);
+      setPortionAmount(saved.portionAmount);
+      setPortionQty(saved.portionQty);
+      setPortionName(saved.portionName);
+      setNutrientAmounts(saved.nutrientAmounts);
+      setIcon(saved.icon);
+      setServingSizeStated(saved.servingSizeStated);
+      setStep(saved.step);
+    }
+    setDraftRestored(true);
+    // Mount-only: this reads the snapshot the PREVIOUS page load left behind.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // PERSIST THE DRAFT — every edit re-snapshots the form, so whatever is on
+  // screen is what comes back after a teardown. Gated on the restore above
+  // having run, or this first-render write would overwrite the saved draft with
+  // the pristine form before it could be read.
+  useEffect(() => {
+    if (!draftRestored) return;
+    writeCreateFoodDraft({
+      host: draftHost,
+      savedAt: Date.now(),
+      step,
+      name,
+      brand,
+      barcodeUpc,
+      sourceUrl,
+      imageSourceUrl,
+      isGlobal,
+      kcal,
+      p,
+      c,
+      f,
+      servings,
+      basis,
+      portionAmount,
+      portionQty,
+      portionName,
+      nutrientAmounts,
+      icon,
+      servingSizeStated,
+    });
+  }, [
+    draftRestored, draftHost, step, name, brand, barcodeUpc, sourceUrl, imageSourceUrl,
+    isGlobal, kcal, p, c, f, servings, basis, portionAmount, portionQty, portionName,
+    nutrientAmounts, icon, servingSizeStated,
+  ]);
 
   // IMPORT FROM SOURCE LINK — scrapes the pasted product/nutrition page and fills
   // the form from it, the same way a label scan does (mirrors the recipe "Import
@@ -6127,6 +6164,8 @@ export function CreateFoodWizard({
   }
 
   async function handleSave() {
+    // A create is already in flight — see savingRef.
+    if (savingRef.current) return;
     if (!name.trim()) {
       toast.error("Name required");
       setStep(0);
@@ -6152,6 +6191,7 @@ export function CreateFoodWizard({
       setStep(0);
       return;
     }
+    savingRef.current = true;
     setIsSaving(true);
     try {
       const res = await fetch(`/modules/forage/api/foods`, {
@@ -6190,11 +6230,14 @@ export function CreateFoodWizard({
         return;
       }
       const saved: Food = await res.json();
+      // The food exists now, so there is nothing left to resume.
+      clearCreateFoodDraft();
       toast.success("Food created");
       onCreated(saved);
     } catch {
       toast.error("Failed to create food");
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   }
@@ -6314,7 +6357,18 @@ export function CreateFoodWizard({
 
         {/* HEADER ROW — X left, title centered; X is vertically centered with it. */}
         <div style={{ display: "flex", alignItems: "center" }}>
-          <button type="button" onClick={onCancel} aria-label="Cancel" disabled={isSaving} style={{ display: "flex", background: "transparent", border: "none", padding: 6, marginLeft: -6, cursor: "pointer", color: "var(--color-primary)" }}>
+          <button
+            type="button"
+            onClick={() => {
+              // Closing deliberately discards the draft — only an abnormal
+              // teardown should ever leave one behind to resume.
+              clearCreateFoodDraft();
+              onCancel();
+            }}
+            aria-label="Cancel"
+            disabled={isSaving}
+            style={{ display: "flex", background: "transparent", border: "none", padding: 6, marginLeft: -6, cursor: "pointer", color: "var(--color-primary)" }}
+          >
             <X className="w-5 h-5" />
           </button>
           <span className="text-page-title" style={{ flex: 1, textAlign: "center" }}>Create Food</span>
@@ -6872,6 +6926,10 @@ export function FoodForm({
   // STATE
   const [isLoading, setIsLoading] = useState(isEdit);
   const [isSaving, setIsSaving] = useState(false);
+  // In-flight guard for the save POST/PUT — same reason as the create wizard's:
+  // `isSaving` only disables the button on the next render, so same-task taps
+  // would each fire a request (duplicate foods on the create path).
+  const savingRef = useRef(false);
   // Front and label scans are independent pipelines with their own spinners, so
   // one never blocks or visually hijacks the other (same split as the create wizard).
   const [isScanningFront, setIsScanningFront] = useState(false);
@@ -7014,7 +7072,7 @@ export function FoodForm({
     // result leaves the existing rows untouched.
     const draftServings = draft.servings
       .filter((s) => Number.isFinite(s.units_per_serving) && s.units_per_serving > 0 && s.unit)
-      .map((s) => ({ unit: s.unit, ups: String(s.units_per_serving) }));
+      .map((s) => ({ unit: s.unit, ups: fmtServingAmount(s.units_per_serving, s.unit) }));
     if (draftServings.length > 0) {
       setServings(draftServings);
     }
@@ -7209,7 +7267,7 @@ export function FoodForm({
             .filter((s) => s.unit !== "serving")
             .map((s) => ({
               unit: s.unit,
-              ups: String(s.units_per_serving ?? ""),
+              ups: s.units_per_serving == null ? "" : fmtServingAmount(Number(s.units_per_serving), s.unit),
             }))
         );
         const loaded: Record<string, string> = {};
@@ -7251,6 +7309,8 @@ export function FoodForm({
   }
 
   async function handleSave() {
+    // A save is already in flight — see savingRef.
+    if (savingRef.current) return;
     if (!name.trim()) {
       toast.error("Name required");
       return;
@@ -7267,6 +7327,7 @@ export function FoodForm({
       toast.error(`How much is one serving in ${incomplete.unit.trim()}? Enter an amount or remove that unit.`);
       return;
     }
+    savingRef.current = true;
     setIsSaving(true);
     try {
       const url = isEdit ? `/modules/forage/api/foods/${foodId}` : `/modules/forage/api/foods`;
@@ -7304,6 +7365,7 @@ export function FoodForm({
     } catch {
       toast.error(isEdit ? "Failed to update food" : "Failed to create food");
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   }
