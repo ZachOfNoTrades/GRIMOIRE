@@ -374,7 +374,6 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 }
 @media (hover: hover) { .orc-details-row:hover { background: var(--hover-bg); } }
 .orc-details-row-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orc-details-row-kind { flex: 0 0 auto; font-size: 0.6875rem; color: var(--color-gray); }
 .orc-attitude[data-attitude="hostile"] { color: var(--orc-bad); }
 .orc-attitude[data-attitude="friendly"] { color: var(--orc-good); }
 .orc-attitude[data-attitude="neutral"] { color: var(--color-secondary); }
@@ -390,9 +389,11 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 /* An equal-column grid, not a wrapping row: with labels of different lengths a flex row
    lands one button on the first line and three on the next, and the buttons move as the
    entry changes. Fixed columns keep each one where the DM last saw it. */
-.orc-details-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; margin-top: 0.5rem; }
-.orc-details-buttons .btn { min-width: 0; padding: 0.3rem 0.5rem; font-size: 0.75rem; justify-content: flex-start; }
-.orc-details-buttons .btn > span, .orc-details-buttons .btn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* One column, not a grid of equal cells: these labels run from "Zoom to" to "Show details to
+   players", so equal columns either cut the long ones or leave a gap after the short ones. Full
+   width fits them all and keeps each action where it was last time. */
+.orc-details-buttons { display: flex; flex-direction: column; gap: 0.15rem; margin-top: 0.5rem; }
+.orc-details-buttons .btn { width: 100%; min-width: 0; padding: 0.35rem 0.6rem; font-size: 0.75rem; justify-content: flex-start; }
 .orc-details-buttons .btn > svg { flex: 0 0 auto; }
 .orc-details-image { display: block; width: 100%; max-height: 14rem; object-fit: cover; border: 1px solid var(--card-border); }
 /* The same box before the picture is there, so nothing below it moves when it arrives. */
@@ -1197,8 +1198,8 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-list-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem 0.5rem; }
 /* What is narrowing the list, on its own row so the controls above never move. Equal columns
    rather than a wrapping row: three chips of different lengths would otherwise sit 2-then-1. */
-.orc-list-active { flex: 0 0 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; padding: 0 1rem 0.5rem; }
-.orc-list-active .orc-list-clear { grid-column: 1 / -1; justify-self: start; }
+.orc-list-active { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.3rem; padding: 0 1rem 0.5rem; }
+.orc-list-active .orc-list-clear { margin-left: auto; }
 .orc-list-wrap { position: relative; flex: 0 0 auto; border-bottom: 1px solid var(--card-border); }
 /* The menu hangs off the bar, not off its own button: once a chip or two wraps the row onto a
    second line, a menu anchored to the button would cover the chips underneath it. */
@@ -1225,7 +1226,7 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-list-group-name { pointer-events: none; margin: 0; padding: 0.3rem 0.6rem 0.15rem; font-size: 0.6875rem; color: var(--color-gray); }
 
 /* Active filters, each one click away from being dropped. */
-.orc-list-chip { display: flex; align-items: center; min-width: 0; gap: 0.35rem; padding: 0.15rem 0.5rem; font-size: 0.75rem; color: var(--badge-blue-text); background: var(--badge-blue-bg); border: 1px solid var(--badge-blue-border); border-radius: 999px; cursor: pointer; }
+.orc-list-chip { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; gap: 0.35rem; padding: 0.15rem 0.5rem; font-size: 0.75rem; color: var(--badge-blue-text); background: var(--badge-blue-bg); border: 1px solid var(--badge-blue-border); border-radius: 999px; cursor: pointer; }
 .orc-list-chip > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orc-list-chip .orc-list-count, .orc-list-chip > svg { flex: 0 0 auto; }
 .orc-list-chip .orc-list-count { color: inherit; opacity: 0.75; }
@@ -1267,14 +1268,38 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 /* The way back out of an entry, at the start of its header. */
 .orc-details-back { flex: 0 0 auto; padding: 0 0.25rem 0 0; }
 
-/* NEW ENTRY — the three ways to start one, and the creature library behind the first. */
-.orc-ways { margin-bottom: 0.25rem; }
-.orc-ways .orc-segment { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; }
-.orc-library { display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
-.orc-library-list { display: flex; flex-direction: column; min-height: 14rem; max-height: 22rem; overflow-y: auto; border: 1px solid var(--card-border); }
+/* NEW ENTRY — the three ways to start one, and the creature library behind the first. Laid out
+   the way the food logger's picker is: the tabs and the search stay put at the top and only the
+   results scroll, so the field does not travel as the list fills. */
+.orc-ways { flex: 0 0 auto; display: flex; gap: 0.25rem; }
+/* The dialog keeps the height of its tallest way in, so moving between Search, Describe and Create
+   does not resize it under the pointer. */
+.orc-form:has(.orc-ways) { min-height: min(46rem, 74vh); }
+.orc-ways .tab-button { flex: 1 1 0; justify-content: center; }
+.orc-library { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+.orc-library .bottom-action-bar-pill { border: 1px solid var(--input-border); }
+.orc-library-search { flex: 0 0 auto; }
+.orc-library-list { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
 .orc-library-row { display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 0.75rem; padding: 0.5rem 0.75rem; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--card-border); cursor: pointer; }
 .orc-library-row:last-child { border-bottom: 0; }
 .orc-library-row:hover, .orc-library-row:focus-visible { background: var(--hover-bg); outline: none; }
 .orc-library-name { font-weight: 600; color: var(--color-primary); }
 .orc-library-meta { grid-column: 1; font-size: 0.75rem; color: var(--color-secondary); }
 .orc-library-source { grid-row: 1 / span 2; grid-column: 2; display: inline-flex; align-items: center; gap: 0.25rem; align-self: center; font-size: 0.6875rem; color: var(--color-gray); white-space: nowrap; }
+
+/* WHAT THE PLAYERS SEE — one control for the three levels, in the details pane. It replaced a
+   badge and a button that said the same thing twice. */
+.orc-visibility { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; align-items: center; margin-top: 0.5rem; }
+.orc-visibility-label { font-size: 0.75rem; color: var(--color-secondary); }
+.orc-visibility .erow-filter-select-wrap { position: relative; display: flex; }
+.orc-visibility .erow-filter-select { font-size: 0.8125rem; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.orc-visibility-hint { grid-column: 2; font-size: 0.6875rem; color: var(--color-gray); }
+
+/* The same three levels in the map's right-click menu, as one row rather than a button whose
+   meaning depends on the state it is already in. */
+.orc-context-choice { padding: 0.25rem 0.35rem 0.35rem; }
+.orc-context-choice-label { margin: 0 0 0.25rem 0.25rem; font-size: 0.6875rem; color: var(--color-gray); }
+.orc-context-choice-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.2rem; }
+.orc-context-choice-item { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.35rem 0.2rem; font-size: 0.6875rem; color: var(--color-secondary); background: transparent; border: 1px solid var(--card-border); cursor: pointer; }
+.orc-context-choice-item:hover { color: var(--color-primary); background: var(--hover-bg); }
+.orc-context-choice-item[aria-checked="true"] { color: var(--badge-blue-text); background: var(--badge-blue-bg); border-color: var(--badge-blue-border); }

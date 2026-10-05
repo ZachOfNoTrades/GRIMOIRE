@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
-import { BookOpen, PenLine, Search, Sparkles } from "lucide-react";
+import { BookOpen, PenLine, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Attitude, EntityKind, OracleEntity, StatBlock } from "../types/oracle";
 import { ATTITUDES, DETAILS_MAX, ENTITY_IDEA_MAX, ENTITY_KINDS, NAME_MAX, NOTES_MAX } from "../lib/constants";
@@ -45,10 +45,10 @@ const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: 
 // How a new entry is started. The same three ways as the food logger: look it up, describe it, or
 // write it yourself. Editing has no tabs — there is only the form.
 type NewEntryWay = "search" | "describe" | "create";
-const WAYS: { key: NewEntryWay; label: string; icon: typeof Search }[] = [
-  { key: "search", label: "Search", icon: Search },
-  { key: "describe", label: "Describe", icon: Sparkles },
-  { key: "create", label: "Create", icon: PenLine },
+const WAYS: { value: NewEntryWay; label: string; icon: typeof Search }[] = [
+  { value: "search", label: "Search", icon: Search },
+  { value: "describe", label: "Describe", icon: Sparkles },
+  { value: "create", label: "Create", icon: PenLine },
 ];
 const IDEA_PLACEHOLDERS: Record<EntityKind, string> = { creature: "A swamp beast guarding the ford", person: "A shopkeeper in the village", place: "A smugglers' cave", item: "A cursed coral necklace" };
 
@@ -194,35 +194,52 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
         {/* ERROR */}
         {error && <div className="alert alert-red"><p className="alert-text">{error}</p></div>}
 
-        {/* HOW TO START — new entries only; editing has only the form. */}
+        {/* HOW TO START — new entries only; editing has only the form. Same tab strip the food
+            logger's picker uses. */}
         {!isEdit && (
-          <div className="orc-segments orc-ways" role="tablist" aria-label="How to add this">
+          <nav className="orc-ways" role="tablist" aria-label="How to add this">
             {WAYS.map((entry) => {
               const Icon = entry.icon;
               return (
-                <button key={entry.key} type="button" role="tab" aria-selected={way === entry.key} className="orc-segment" onClick={() => setWay(entry.key)}>
+                <button
+                  key={entry.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={way === entry.value}
+                  className={`tab-button ${way === entry.value ? "tab-button-active" : ""}`}
+                  onClick={() => setWay(entry.value)}
+                >
                   <Icon className="w-4 h-4" aria-hidden /> {entry.label}
                 </button>
               );
             })}
-          </div>
+          </nav>
         )}
 
         {/* SEARCH — the creature library: the SRD, and anything saved before. Picking one fills
             the form, so it can be renamed or annotated before it goes on the map. */}
         {!isEdit && way === "search" && (
           <div className="orc-library">
-            <div className="input-with-icon">
-              <Search className="input-with-icon-leading w-4 h-4" aria-hidden />
-              <input
-                className="input-field"
-                autoFocus
-                value={lookup}
-                maxLength={60}
-                placeholder="Search creatures"
-                aria-label="Search creatures"
-                onChange={(event) => setLookup(event.target.value)}
-              />
+            <div className="orc-library-search">
+              <div className="bottom-action-bar-pill" style={{ maxWidth: "none" }}>
+                <Search className="bottom-action-bar-pill-icon w-4 h-4" aria-hidden />
+                <input
+                  type="text"
+                  autoFocus
+                  value={lookup}
+                  maxLength={60}
+                  placeholder="Search creatures"
+                  aria-label="Search creatures"
+                  className="bottom-action-bar-pill-text"
+                  style={{ background: "transparent", border: "none", outline: "none", padding: 0 }}
+                  onChange={(event) => setLookup(event.target.value)}
+                />
+                {lookup !== "" && (
+                  <button type="button" className="bottom-action-bar-pill-clear" title="Clear search" aria-label="Clear search" onClick={() => setLookup("")}>
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="orc-library-list">
               {found.length === 0 && !isLooking && (
