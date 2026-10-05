@@ -5,6 +5,7 @@ import MapCanvas, { type MapToken } from "@/app/modules/oracle/components/MapCan
 import AutoScroll from "@/app/modules/oracle/components/AutoScroll";
 import type { DisplayMap, DisplayPanel, DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
 import { X } from "lucide-react";
+import { loadPictures, useWhenPictureReady } from "@/app/modules/oracle/lib/imagePreload";
 
 const POLL_MS = 1000;
 const KIND_LABELS = { creature: "You see", person: "You meet", place: "Location", item: "You find" } as const;
@@ -151,7 +152,19 @@ export default function DisplayClient({ code }: { code: string }) {
   // map (tokens moving, fog opening) still draws immediately: only a new background waits, and
   // only for as long as it takes, with a ceiling so a picture that never arrives cannot strand
   // the table on the old map.
-  const drawableMap = useMapOnceDrawable(snapshot?.map ?? null, imageUrl);
+  const mapBackground = useCallback((value: NonNullable<DisplaySnapshot["map"]>) => (value.background_image_id ? imageUrl(value.background_image_id, MAP_BACKGROUND_WIDTH) : null), [imageUrl]);
+  const drawableMap = useWhenPictureReady(snapshot?.map ?? null, mapBackground);
+
+  // The entries standing on this map are the ones the DM is most likely to put on screen next, so
+  // they are fetched quietly once the map is up and are ready the moment one is shown.
+  useEffect(() => {
+    const map = snapshot?.map;
+    if (!map) return;
+    loadPictures([
+      ...(map.companions ?? []).map((companion) => (companion.image_id ? imageUrl(companion.image_id) : null)),
+      snapshot?.panel?.kind === "entity" && snapshot.panel.image_id ? imageUrl(snapshot.panel.image_id) : null,
+    ]);
+  }, [snapshot?.map, snapshot?.panel, imageUrl]);
 
   if (status === "loading") {
     return (
@@ -283,40 +296,3 @@ function PanelPicture({ src, alt }: { src: string; alt: string }) {
 }
 
 const MAP_BACKGROUND_WIDTH = 1600;
-const BACKGROUND_WAIT_MS = 4000;
-
-function useMapOnceDrawable(next: DisplayMap | null, imageUrl: (imageId: string, width?: number) => string): DisplayMap | null {
-  const [shown, setShown] = useState<DisplayMap | null>(next);
-  const drawnBackgroundRef = useRef<string | null>(next?.background_image_id ?? null);
-
-  useEffect(() => {
-    if (!next) {
-      drawnBackgroundRef.current = null;
-      setShown(null);
-      return;
-    }
-    const background = next.background_image_id;
-    if (!background || background === drawnBackgroundRef.current) {
-      drawnBackgroundRef.current = background ?? null;
-      setShown(next);
-      return;
-    }
-    let stopped = false;
-    const show = () => {
-      if (stopped) return;
-      drawnBackgroundRef.current = background;
-      setShown(next);
-    };
-    const picture = new Image();
-    picture.onload = show;
-    picture.onerror = show;
-    picture.src = imageUrl(background, MAP_BACKGROUND_WIDTH);
-    const giveUp = setTimeout(show, BACKGROUND_WAIT_MS);
-    return () => {
-      stopped = true;
-      clearTimeout(giveUp);
-    };
-  }, [next, imageUrl]);
-
-  return shown;
-}
