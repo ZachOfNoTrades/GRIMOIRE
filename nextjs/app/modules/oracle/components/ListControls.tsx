@@ -20,7 +20,7 @@ interface ListControlsProps<T, C> {
 }
 
 /** A menu anchored under its button. Escape or a press outside closes it and hands focus back. */
-function MenuButton({ label, icon, isOn, children, title }: { label: string; icon: ReactNode; isOn?: boolean; title?: string; children: (close: () => void) => ReactNode }) {
+function MenuButton({ label, icon, isOn, children, title, after }: { label: string; icon: ReactNode; isOn?: boolean; title?: string; after?: ReactNode; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -62,8 +62,9 @@ function MenuButton({ label, icon, isOn, children, title }: { label: string; ico
         onClick={() => setOpen((value) => !value)}
       >
         {icon}
-        <span>{label}</span>
+        <span className="orc-list-button-label">{label}</span>
       </button>
+      {after}
       {open && (
         <div className="orc-context orc-list-menu" id={menuId} role="menu">
           {children(() => setOpen(false))}
@@ -125,7 +126,13 @@ export default function ListControls<T, C>({ sorts, sortValue, onSortChange, fil
 
       {/* FILTERS */}
       {offered.length > 0 && (
-        <MenuButton label="Filter" icon={<ListFilter className="w-3.5 h-3.5" aria-hidden />} isOn={active.length > 0} title="Narrow the list">
+        <MenuButton
+          label={chips.length === 0 ? "Filter" : chips.length === 1 ? chips[0].label : `${chips[0].label} +${chips.length - 1}`}
+          icon={<ListFilter className="w-3.5 h-3.5" aria-hidden />}
+          isOn={chips.length > 0}
+          title={chips.length > 0 ? "Change what the list is narrowed to" : "Narrow the list"}
+          after={chips.length > 0 ? <button type="button" className="orc-list-drop" title="Show everything again" aria-label="Show everything again" onClick={onClear}><X className="w-3.5 h-3.5" aria-hidden /></button> : null}
+        >
           {() => sections.map((group) => (
             <div key={group.key} className="orc-list-group">
               {group.label && <p className="orc-list-group-name">{group.label}</p>}
@@ -155,20 +162,6 @@ export default function ListControls<T, C>({ sorts, sortValue, onSortChange, fil
 
       </div>
 
-      {/* WHAT IS NARROWING THE LIST — its own row, so picking a filter never shifts the
-          controls above it. */}
-      {chips.length > 0 && (
-        <div className="orc-list-active">
-          {chips.map((filter) => (
-            <button key={filter.id} type="button" className="orc-list-chip" onClick={() => onToggle(filter.id)} aria-label={`Stop filtering by ${filter.label}`}>
-              <span>{filter.label}</span>
-              <span className="orc-list-count">{counts[filter.id] ?? 0}</span>
-              <X className="w-3 h-3" aria-hidden />
-            </button>
-          ))}
-          {chips.length > 1 && <button type="button" className="orc-list-clear" onClick={onClear}>Clear</button>}
-        </div>
-      )}
     </div>
   );
 }
