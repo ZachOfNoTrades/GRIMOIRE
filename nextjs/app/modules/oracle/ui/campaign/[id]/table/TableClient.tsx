@@ -1032,6 +1032,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             events={events}
             selected={selected}
             activeMapId={activeMap?.id ?? null}
+            partyX={activeMap?.party_x ?? null}
+            partyY={activeMap?.party_y ?? null}
             panelEntityId={panelEntity?.id ?? null}
             isVisibleToPlayers={
               !!(selected && activeMap && selected.map_id === activeMap.id && selected.map_x !== null && selected.map_y !== null &&

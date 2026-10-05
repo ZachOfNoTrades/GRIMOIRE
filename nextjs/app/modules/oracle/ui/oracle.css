@@ -385,8 +385,13 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-details-footer { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--card-border); font-size: 0.6875rem; color: var(--color-secondary); }
 .orc-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
 .orc-badges .badge { display: inline-flex; align-items: center; gap: 0.3rem; }
-.orc-details-buttons { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem; }
-.orc-details-buttons .btn { padding: 0.3rem 0.5rem; font-size: 0.75rem; }
+/* An equal-column grid, not a wrapping row: with labels of different lengths a flex row
+   lands one button on the first line and three on the next, and the buttons move as the
+   entry changes. Fixed columns keep each one where the DM last saw it. */
+.orc-details-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; margin-top: 0.5rem; }
+.orc-details-buttons .btn { min-width: 0; padding: 0.3rem 0.5rem; font-size: 0.75rem; justify-content: flex-start; }
+.orc-details-buttons .btn > span, .orc-details-buttons .btn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-details-buttons .btn > svg { flex: 0 0 auto; }
 .orc-details-image { display: block; width: 100%; max-height: 14rem; object-fit: cover; border: 1px solid var(--card-border); }
 
 .orc-sections { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; margin-top: 0.9rem; }
@@ -1143,7 +1148,51 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-bar-panel:not([data-open="true"]) { padding: 0; }
 /* The panel owns the only scroll, so the controls row is pinned under the search field
    with the list padding rather than the card margins erow-filter-row assumes. */
-.orc-list-controls { flex: 0 0 auto; margin: 0; padding: 0.5rem 1rem; border-bottom: 1px solid var(--card-border); }
-.orc-list-controls .erow-filter-select { font-size: 0.8125rem; padding-top: 0.25rem; padding-bottom: 0.25rem; }
-.orc-list-controls .erow-filter-select-wrap { flex: 1 1 8rem; }
-.orc-list-controls .filter-chip { padding: 0.25rem 0.625rem; font-size: 0.75rem; }
+/* ENTRY LIST CONTROLS — sort and filter under the search field.
+   At rest this is one line of two quiet buttons: at the table the DM is looking at the map,
+   so the controls stay out of the way until they are used. Picking a filter adds a chip here,
+   which is what keeps "why is the list short" answerable without opening anything. */
+.orc-list-bar { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem 0.5rem; }
+/* What is narrowing the list, on its own row so the controls above never move. Equal columns
+   rather than a wrapping row: three chips of different lengths would otherwise sit 2-then-1. */
+.orc-list-active { flex: 0 0 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; padding: 0 1rem 0.5rem; }
+.orc-list-active .orc-list-clear { grid-column: 1 / -1; justify-self: start; }
+.orc-list-wrap { flex: 0 0 auto; border-bottom: 1px solid var(--card-border); }
+/* The menu hangs off the bar, not off its own button: once a chip or two wraps the row onto a
+   second line, a menu anchored to the button would cover the chips underneath it. */
+.orc-list-anchor { display: flex; }
+
+/* Borderless, like the sort toggles elsewhere: these re-order and narrow a list, they are not
+   fields to fill in, and a framed control here read as a settings block. */
+.orc-list-button { display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.35rem; font-size: 0.75rem; color: var(--color-secondary); background: none; border: 1px solid transparent; cursor: pointer; white-space: nowrap; }
+.orc-list-button:hover { color: var(--color-primary); }
+.orc-list-button[data-on="true"] { color: var(--badge-blue-text); }
+.orc-list-button[aria-expanded="true"] { color: var(--color-primary); border-color: var(--card-border); }
+
+/* The menu borrows the right-click menu's surface, so both read as the same object. */
+.orc-list-menu { position: absolute; top: calc(100% + 0.2rem); left: 0.75rem; min-width: 15rem; max-height: 60vh; overflow-y: auto; }
+.orc-list-item { width: 100%; gap: 0.45rem; white-space: nowrap; }
+.orc-list-item:disabled { color: var(--color-gray); cursor: default; }
+.orc-list-item:disabled:hover { background: transparent; }
+.orc-list-tick { display: inline-flex; width: 0.9rem; flex: 0 0 auto; justify-content: center; color: var(--badge-blue-text); }
+.orc-list-count { font-size: 0.6875rem; font-variant-numeric: tabular-nums; color: var(--color-gray); }
+
+/* A heading only where one earns its place: these name how a set behaves, since picking two
+   kinds widens the list while a kind and a state narrow it together. */
+.orc-list-group + .orc-list-group { margin-top: 0.2rem; padding-top: 0.2rem; border-top: 1px solid var(--card-border); }
+.orc-list-group-name { pointer-events: none; margin: 0; padding: 0.3rem 0.6rem 0.15rem; font-size: 0.6875rem; color: var(--color-gray); }
+
+/* Active filters, each one click away from being dropped. */
+.orc-list-chip { display: flex; align-items: center; min-width: 0; gap: 0.35rem; padding: 0.15rem 0.5rem; font-size: 0.75rem; color: var(--badge-blue-text); background: var(--badge-blue-bg); border: 1px solid var(--badge-blue-border); border-radius: 999px; cursor: pointer; }
+.orc-list-chip > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-list-chip .orc-list-count, .orc-list-chip > svg { flex: 0 0 auto; }
+.orc-list-chip .orc-list-count { color: inherit; opacity: 0.75; }
+.orc-list-chip:hover { border-color: var(--badge-blue-text); }
+.orc-list-clear { padding: 0.2rem 0.25rem; font-size: 0.75rem; color: var(--color-secondary); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+.orc-list-clear:hover { color: var(--color-primary); }
+
+/* Opening is the one piece of motion here: it shows where the menu came from. */
+@media (prefers-reduced-motion: no-preference) {
+  .orc-list-menu { animation: orc-list-open 90ms ease-out; }
+}
+@keyframes orc-list-open { from { opacity: 0; transform: translateY(-2px); } }

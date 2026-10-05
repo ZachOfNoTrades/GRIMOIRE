@@ -1,6 +1,7 @@
 "use client";
 
-import ListControls, { type ListSortOption } from "./ListControls";
+import ListControls from "./ListControls";
+import { applyListFilters, countListFilters, toggleListFilter, type ListFilterDef, type ListSortDef } from "../lib/listFilters";
 import { ArrowLeft, Dices, Eye, EyeOff, Gem, HeartPulse, Landmark, MapPin, MapPinOff, Minus, MonitorUp, PawPrint, Pencil, Plus, RefreshCw, Search, Skull, Sparkles, Trash2, User, UserMinus, UserPlus, Users, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/Toaster";
@@ -16,6 +17,8 @@ interface DetailsPanelProps {
   events: OracleEvent[];
   selected: OracleEntity | null;
   activeMapId: string | null;
+  partyX: number | null; // where the party stands on that map, for the distance sort
+  partyY: number | null;
   panelEntityId: string | null; // the entry on the player display's panel, if any
   isVisibleToPlayers: boolean; // the selected entry is inside the party's vision right now
   isPlacing: boolean; // waiting for a tap on the map to place the selected entry
@@ -42,17 +45,48 @@ interface DetailsPanelProps {
 const KIND_ICONS: Record<EntityKind, typeof User> = { creature: PawPrint, person: User, place: Landmark, item: Gem };
 const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
 
-// THE DETAILS PANEL — everything about one creature, person, location or item. It is filled by
-type ListSortKey = "name" | "kind" | "map";
+/** What the entry list's filters and sorts are measured against. */
+interface EntityListContext {
+  activeMapId: string | null;
+  partyX: number | null;
+  partyY: number | null;
+}
 
-const SORT_OPTIONS: readonly ListSortOption<ListSortKey>[] = [
-  { value: "name", label: "Name (A-Z)" },
-  { value: "kind", label: "Kind" },
-  { value: "map", label: "On this map first" },
+/** How far an entry stands from the party on the map being looked at. Anything that is not on
+ *  that map has no distance and sorts to the end. */
+function distanceFromParty(entity: OracleEntity, context: EntityListContext): number {
+  if (context.partyX === null || context.partyY === null) return Infinity;
+  if (entity.in_party) return 0;
+  if (entity.map_id !== context.activeMapId || entity.map_x === null || entity.map_y === null) return Infinity;
+  return Math.hypot(entity.map_x - context.partyX, entity.map_y - context.partyY);
+}
+
+const byName = (a: OracleEntity, b: OracleEntity) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+
+// FILTERS — one entry each. `group` makes a set of alternatives: the four kinds widen the list
+// together, while a kind and a state narrow it together.
+const ENTITY_FILTERS: readonly ListFilterDef<OracleEntity, EntityListContext>[] = [
+  { id: "map", section: "Where it is", group: "place", label: "On this map", icon: <MapPin className="w-3.5 h-3.5" />, unavailable: (context) => !context.activeMapId, test: (entity, context) => entity.map_id === context.activeMapId },
+  { id: "party", section: "Where it is", group: "place", label: "With the party", icon: <Users className="w-3.5 h-3.5" />, test: (entity) => entity.in_party },
+  { id: "hidden", section: "State", label: "Hidden from players", icon: <EyeOff className="w-3.5 h-3.5" />, test: (entity) => !entity.is_revealed },
+  { id: "down", section: "State", label: "Down", icon: <Skull className="w-3.5 h-3.5" />, test: (entity) => entity.is_down },
+  { id: "kind-creature", section: "Kind", group: "kind", label: "Creatures", icon: <PawPrint className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "creature" },
+  { id: "kind-person", section: "Kind", group: "kind", label: "People", icon: <User className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "person" },
+  { id: "kind-place", section: "Kind", group: "kind", label: "Locations", icon: <Landmark className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "place" },
+  { id: "kind-item", section: "Kind", group: "kind", label: "Items", icon: <Gem className="w-3.5 h-3.5" />, test: (entity) => entity.kind === "item" },
 ];
 
 const KIND_ORDER: Record<string, number> = { creature: 0, person: 1, place: 2, item: 3 };
 
+// SORTS — every one falls back to the name, so the order is never arbitrary.
+const ENTITY_SORTS: readonly ListSortDef<OracleEntity, EntityListContext>[] = [
+  { value: "name", label: "Name (A-Z)", compare: () => 0 },
+  { value: "kind", label: "Kind", compare: (a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) },
+  { value: "map", label: "On this map first", compare: (a, b, context) => (context.activeMapId ? Number(b.map_id === context.activeMapId) - Number(a.map_id === context.activeMapId) : 0) },
+  { value: "distance", label: "Nearest the party", compare: (a, b, context) => distanceFromParty(a, context) - distanceFromParty(b, context) },
+];
+
+// THE DETAILS PANEL — everything about one creature, person, location or item. It is filled by
 // tapping something on the map or by picking a search result at the top.
 export default function DetailsPanel(props: DetailsPanelProps) {
   const { campaignId, entities, events, selected, activeMapId, panelEntityId, isVisibleToPlayers, isPlacing } = props;
@@ -67,7 +101,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const [draftFact, setDraftFact] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  const [sortKey, setSortKey] = useState<ListSortKey>("name");
+  const [sortValue, setSortValue] = useState("name");
 
   // A different entry starts a fresh knowledge check.
   useEffect(() => {
@@ -77,31 +111,22 @@ export default function DetailsPanel(props: DetailsPanelProps) {
     setNote("");
   }, [selected?.id]);
 
-  // How many entries sit on the map the DM is looking at: the chip's count, and what
-  // decides whether the chip is offered at all.
-  const onMapCount = useMemo(
-    () => (activeMapId ? entities.filter((entity) => entity.map_id === activeMapId).length : 0),
-    [entities, activeMapId],
-  );
+  const listContext = useMemo<EntityListContext>(() => ({ activeMapId, partyX: props.partyX, partyY: props.partyY }), [activeMapId, props.partyX, props.partyY]);
 
-  const byName = (a: OracleEntity, b: OracleEntity) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+  // What each filter would leave if it were picked: the number beside it, and what decides
+  // whether it is offered at all.
+  const counts = useMemo(() => countListFilters(entities, ENTITY_FILTERS, activeFilters, listContext), [entities, activeFilters, listContext]);
+
+  // The same measured with nothing picked: what decides whether a filter is offered at all.
+  const baseCounts = useMemo(() => countListFilters(entities, ENTITY_FILTERS, [], listContext), [entities, listContext]);
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const pool = activeFilters.includes("map") ? entities.filter((entity) => !!activeMapId && entity.map_id === activeMapId) : entities;
+    const pool = applyListFilters(entities, ENTITY_FILTERS, activeFilters, listContext);
     const list = needle ? pool.filter((entity) => `${entity.name} ${entity.details}`.toLowerCase().includes(needle)) : pool;
-    return [...list].sort((a, b) => {
-      if (sortKey === "kind") {
-        const kinds = (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9);
-        if (kinds !== 0) return kinds;
-      }
-      if (sortKey === "map" && activeMapId) {
-        const here = Number(b.map_id === activeMapId) - Number(a.map_id === activeMapId);
-        if (here !== 0) return here;
-      }
-      return byName(a, b);
-    });
-  }, [entities, query, activeFilters, activeMapId, sortKey]);
+    const sort = ENTITY_SORTS.find((entry) => entry.value === sortValue) ?? ENTITY_SORTS[0];
+    return [...list].sort((a, b) => sort.compare(a, b, listContext) || byName(a, b));
+  }, [entities, query, activeFilters, listContext, sortValue]);
 
   const history = selected ? events.filter((event) => event.entity_id === selected.id).slice(0, 8) : [];
   const showList = query.trim() !== "" || !selected;
@@ -186,13 +211,16 @@ export default function DetailsPanel(props: DetailsPanelProps) {
       {/* LIST CONTROLS */}
       {showList && entities.length > 0 && (
         <ListControls
-          sortOptions={SORT_OPTIONS}
-          sortKey={sortKey}
-          onSortChange={setSortKey}
-          sortLabel="Sort the list"
-          filters={[{ id: "map", label: "On this map", icon: <MapPin className="w-3.5 h-3.5" />, count: onMapCount }]}
+          sorts={ENTITY_SORTS}
+          sortValue={sortValue}
+          onSortChange={setSortValue}
+          filters={ENTITY_FILTERS}
+          counts={counts}
+          baseCounts={baseCounts}
           active={activeFilters}
-          onToggle={(id) => setActiveFilters((list) => (list.includes(id) ? list.filter((entry) => entry !== id) : [...list, id]))}
+          onToggle={(id) => setActiveFilters((list) => toggleListFilter(list, id))}
+          onClear={() => setActiveFilters([])}
+          context={listContext}
         />
       )}
 
@@ -332,7 +360,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             {selected.image_id && (
               <section className="orc-section">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="orc-details-image" src={`${campaignApi(campaignId)}/images/${selected.image_id}`} alt={selected.name} />
+                <img className="orc-details-image" src={`${campaignApi(campaignId)}/images/${selected.image_id}?w=480`} alt={selected.name} />
               </section>
             )}
 
