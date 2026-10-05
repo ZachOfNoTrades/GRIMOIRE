@@ -173,9 +173,12 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
 
                 {/* CAMPAIGN ACTIONS */}
                 <div className="orc-campaign-actions">
-                  <Button className="btn-blue" disabled={isPending} onClick={() => router.push(`/modules/oracle/ui/campaign/${campaign.id}/prep`)}>
-                    <Monitor className="w-4 h-4" /> Open
-                  </Button>
+                  <a className="btn btn-blue" style={{ textDecoration: "none" }} href={isPending ? undefined : `/modules/oracle/ui/campaign/${campaign.id}/table`} aria-disabled={isPending}>
+                    <Dices className="w-4 h-4" /> Open DM Screen
+                  </a>
+                  <a className="btn btn-blue" style={{ textDecoration: "none" }} href={isPending ? undefined : `/oracle/${campaign.display_code}`} target="_blank" rel="noopener" aria-disabled={isPending}>
+                    <Monitor className="w-4 h-4" /> Open Player Screen
+                  </a>
                   <Button className="btn-link-red" disabled={isPending} onClick={() => deleteCampaign(campaign)} title="Delete campaign" aria-label={`Delete ${campaign.name}`}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
