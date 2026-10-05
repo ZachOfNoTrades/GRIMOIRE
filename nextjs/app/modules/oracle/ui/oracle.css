@@ -974,12 +974,16 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 /* ---------- map switcher ---------- */
 
 .orc-map-switch { position: relative; }
-/* On the map rather than in a strip above it, so the map keeps the whole column. Quiet until
-   wanted, like the map's other controls. */
+/* On the map rather than in a strip above it, so the map keeps the whole column. Solid, so the
+   map's own drawing never shows through the name. */
 .orc-map-switch-float { position: absolute; top: 0.5rem; left: 0.5rem; z-index: 2; }
-.orc-map-switch-float .orc-map-switch-button { height: 2.25rem; background: color-mix(in srgb, var(--card-bg) 82%, transparent); opacity: 0.75; transition: opacity 0.15s; }
-.orc-map-switch-float .orc-map-switch-button:hover, .orc-map-switch-float .orc-map-switch-button:focus-visible, .orc-map-switch-float .orc-map-switch-button[aria-expanded="true"] { opacity: 1; background: var(--card-bg); }
-.orc-map[data-ground="black"] .orc-map-switch-float .orc-map-switch-button { background: #000; border-color: #3a3f47; }
+.orc-map-switch-float .orc-map-switch-button { height: 2.25rem; background: color-mix(in srgb, var(--card-bg) 88%, transparent); backdrop-filter: blur(6px); }
+.orc-map-switch-float .orc-map-switch-button:hover, .orc-map-switch-float .orc-map-switch-button:focus-visible, .orc-map-switch-float .orc-map-switch-button[aria-expanded="true"] { background: var(--card-bg); }
+
+/* The ground a blank map is drawn on is set on .orc-map, which is the switcher's sibling rather
+   than its parent, so the state is read from the frame they share. */
+.orc-map-frame:has(.orc-map[data-ground="black"]) .orc-map-switch-float .orc-map-switch-button { background: #000; border-color: #3a3f47; color: #e6e9ee; }
+.orc-map-frame:has(.orc-map[data-ground="white"]) .orc-map-switch-float .orc-map-switch-button { background: #fff; border-color: #c4c8cf; color: #1d2229; }
 .orc-map-switch-button { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.5rem; color: var(--color-primary); background: transparent; border: 1px solid var(--card-border); cursor: pointer; }
 .orc-map-switch-button:hover { background: var(--hover-bg); }
 .orc-map-switch-backdrop { position: fixed; inset: 0; z-index: 40; }
@@ -1253,12 +1257,24 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 
 /* A location's name is a handle on the DM's map: drag it to where it reads best, or click it to
    open the location. It stays where it is put rather than being nudged by the label layout. */
-.orc-feature-label-group[data-draggable="true"] { cursor: grab; }
+.orc-feature-label-group[data-draggable="true"] { cursor: pointer; }
 .orc-feature-label-grip { fill: transparent; }
-.orc-feature-label-group[data-dragging="true"] { cursor: grabbing; opacity: 0.75; }
+.orc-feature-label-group[data-dragging="true"] { opacity: 0.75; }
 @media (hover: hover) {
   .orc-feature-label-group[data-draggable="true"]:hover .orc-feature-label { text-decoration: underline; }
 }
 
 /* The way back out of an entry, at the start of its header. */
 .orc-details-back { flex: 0 0 auto; padding: 0 0.25rem 0 0; }
+
+/* NEW ENTRY — the three ways to start one, and the creature library behind the first. */
+.orc-ways { margin-bottom: 0.25rem; }
+.orc-ways .orc-segment { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; }
+.orc-library { display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+.orc-library-list { display: flex; flex-direction: column; min-height: 14rem; max-height: 22rem; overflow-y: auto; border: 1px solid var(--card-border); }
+.orc-library-row { display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 0.75rem; padding: 0.5rem 0.75rem; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--card-border); cursor: pointer; }
+.orc-library-row:last-child { border-bottom: 0; }
+.orc-library-row:hover, .orc-library-row:focus-visible { background: var(--hover-bg); outline: none; }
+.orc-library-name { font-weight: 600; color: var(--color-primary); }
+.orc-library-meta { grid-column: 1; font-size: 0.75rem; color: var(--color-secondary); }
+.orc-library-source { grid-row: 1 / span 2; grid-column: 2; display: inline-flex; align-items: center; gap: 0.25rem; align-self: center; font-size: 0.6875rem; color: var(--color-gray); white-space: nowrap; }

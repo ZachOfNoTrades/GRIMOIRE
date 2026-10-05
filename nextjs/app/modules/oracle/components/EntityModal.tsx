@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
-import { Sparkles } from "lucide-react";
+import { BookOpen, PenLine, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Attitude, EntityKind, OracleEntity, StatBlock } from "../types/oracle";
 import { ATTITUDES, DETAILS_MAX, ENTITY_IDEA_MAX, ENTITY_KINDS, NAME_MAX, NOTES_MAX } from "../lib/constants";
 import { CHALLENGE_ROWS, findChallengeRow, statBlockFromChallenge } from "../lib/reference";
 import { blurOnEnter, selectOnFocus } from "@/lib/inputBehavior";
+import { api } from "../lib/client";
+import type { LibraryCreature } from "../lib/creatureFunctions";
 
 export interface EntityDraft {
   kind: EntityKind;
@@ -39,6 +41,15 @@ interface EntityModalProps {
 }
 
 const KIND_LABELS: Record<EntityKind, string> = { creature: "Creature", person: "Person", place: "Location", item: "Item" };
+
+// How a new entry is started. The same three ways as the food logger: look it up, describe it, or
+// write it yourself. Editing has no tabs — there is only the form.
+type NewEntryWay = "search" | "describe" | "create";
+const WAYS: { key: NewEntryWay; label: string; icon: typeof Search }[] = [
+  { key: "search", label: "Search", icon: Search },
+  { key: "describe", label: "Describe", icon: Sparkles },
+  { key: "create", label: "Create", icon: PenLine },
+];
 const IDEA_PLACEHOLDERS: Record<EntityKind, string> = { creature: "A swamp beast guarding the ford", person: "A shopkeeper in the village", place: "A smugglers' cave", item: "A cursed coral necklace" };
 
 function numberOr(value: string, fallback: number, min: number, max: number): number {
@@ -53,6 +64,10 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
   const isEdit = entity !== null;
 
   // INPUT
+  const [way, setWay] = useState<NewEntryWay>("search");
+  const [lookup, setLookup] = useState("");
+  const [found, setFound] = useState<LibraryCreature[]>([]);
+  const [isLooking, setIsLooking] = useState(false);
   const [kind, setKind] = useState<EntityKind>(defaultKind);
   const [name, setName] = useState("");
   const [details, setDetails] = useState("");
@@ -118,6 +133,41 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
     }
   }
 
+  // THE LIBRARY — the bundled SRD alongside anything the DM has saved. Only what comes from a
+  // published book carries a source; everything else is homebrew.
+  useEffect(() => {
+    if (!isOpen || isEdit || way !== "search") return;
+    let stopped = false;
+    setIsLooking(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api<{ creatures: LibraryCreature[] }>(`/modules/oracle/api/creatures?q=${encodeURIComponent(lookup)}`);
+        if (!stopped) setFound(result.creatures);
+      } catch {
+        if (!stopped) setFound([]);
+      } finally {
+        if (!stopped) setIsLooking(false);
+      }
+    }, 200);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [isOpen, isEdit, way, lookup]);
+
+  // Taking one from the library fills the form rather than saving at once, so the DM can rename it
+  // or add a note before it goes on the map.
+  function take(creature: LibraryCreature) {
+    setKind("creature");
+    setName(creature.name);
+    setDetails(creature.details ?? "");
+    setAttitude("hostile");
+    setNotes(creature.source_url ? `Full entry: ${creature.source_url}` : "");
+    setSource(creature.official_source ?? "");
+    setStats(creature.stats);
+    setWay("create");
+  }
+
   function patchStats(patch: Partial<StatBlock>) {
     if (shownStats) setStats({ ...shownStats, ...patch });
   }
@@ -144,161 +194,220 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
         {/* ERROR */}
         {error && <div className="alert alert-red"><p className="alert-text">{error}</p></div>}
 
-        {/* KIND */}
-        <div className="orc-field">
-          <span className="orc-field-label">Kind</span>
-          <div className="orc-segments" role="radiogroup" aria-label="Kind">
-            {ENTITY_KINDS.map((entry) => (
-              <button key={entry} type="button" role="radio" aria-checked={kind === entry} className="orc-segment" onClick={() => setKind(entry)}>
-                {KIND_LABELS[entry]}
-              </button>
-            ))}
+        {/* HOW TO START — new entries only; editing has only the form. */}
+        {!isEdit && (
+          <div className="orc-segments orc-ways" role="tablist" aria-label="How to add this">
+            {WAYS.map((entry) => {
+              const Icon = entry.icon;
+              return (
+                <button key={entry.key} type="button" role="tab" aria-selected={way === entry.key} className="orc-segment" onClick={() => setWay(entry.key)}>
+                  <Icon className="w-4 h-4" aria-hidden /> {entry.label}
+                </button>
+              );
+            })}
           </div>
-        </div>
+        )}
 
-        {/* WRITE WITH AI — new entries only */}
-        {!isEdit && onWrite && (
-          <div className="orc-field">
-            <span className="orc-field-label">Write with AI</span>
-            <div className="orc-write-row">
+        {/* SEARCH — the creature library: the SRD, and anything saved before. Picking one fills
+            the form, so it can be renamed or annotated before it goes on the map. */}
+        {!isEdit && way === "search" && (
+          <div className="orc-library">
+            <div className="input-with-icon">
+              <Search className="input-with-icon-leading w-4 h-4" aria-hidden />
               <input
                 className="input-field"
-                aria-label="What it is"
-                value={idea}
-                maxLength={ENTITY_IDEA_MAX}
-                placeholder={IDEA_PLACEHOLDERS[kind]}
-                disabled={isWriting}
-                onChange={(event) => setIdea(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void write();
-                  }
-                }}
+                autoFocus
+                value={lookup}
+                maxLength={60}
+                placeholder="Search creatures"
+                aria-label="Search creatures"
+                onChange={(event) => setLookup(event.target.value)}
               />
-              <Button className="btn-off" onClick={() => void write()} disabled={isWriting}>
-                <Sparkles className="w-4 h-4" aria-hidden /> {isWriting ? "Writing…" : "Write"}
-              </Button>
+            </div>
+            <div className="orc-library-list">
+              {found.length === 0 && !isLooking && (
+                <div className="empty-state">
+                  <p className="empty-state-title">{lookup.trim() ? "No match" : "Nothing yet"}</p>
+                  <p className="empty-state-body">{lookup.trim() ? "Try another name, or describe it instead." : "Type a name to search the published creatures."}</p>
+                </div>
+              )}
+              {found.map((creature) => (
+                <button key={creature.id} type="button" className="orc-library-row" onClick={() => take(creature)}>
+                  <span className="orc-library-name">{creature.name}</span>
+                  <span className="orc-library-meta">
+                    {[creature.size, creature.creature_type].filter(Boolean).join(" ")}
+                    {creature.cr ? ` · CR ${creature.cr}` : ""}
+                  </span>
+                  <span className="orc-library-source">
+                    {creature.official_source ? <><BookOpen className="w-3 h-3" aria-hidden /> {creature.official_source}</> : "Homebrew"}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         )}
 
-        {/* NAME FIELD — autofocused on create (typing a name is the first step); not on edit,
-            where the DM came to change some field and it is not necessarily this one. */}
-        <label className="orc-field">
-          <span className="orc-field-label">Name</span>
-          <input
-            id="orc-entity-name"
-            className="input-field"
-            autoFocus={!isEdit}
-            value={name}
-            maxLength={NAME_MAX}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-
-        {/* ATTITUDE — not for items */}
-        {kind !== "item" && (
-        <div className="orc-field">
-          <span className="orc-field-label">Attitude</span>
-          <div className="orc-segments" role="radiogroup" aria-label="Attitude">
-            {ATTITUDES.map((entry) => (
-              <button key={entry} type="button" role="radio" aria-checked={attitude === entry} className="orc-segment" onClick={() => setAttitude(entry)}>
-                {entry[0].toUpperCase() + entry.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-        )}
-
-        {/* DETAILS FIELD */}
-        <label className="orc-field">
-          <span className="orc-field-label">Details (players may see this)</span>
-          <textarea className="input-field orc-textarea" rows={3} value={details} maxLength={DETAILS_MAX} onChange={(event) => setDetails(event.target.value)} />
-        </label>
-
-        {/* DM NOTES FIELD */}
-        <label className="orc-field">
-          <span className="orc-field-label">DM only (never shown to players)</span>
-          <textarea className="input-field orc-textarea" rows={3} value={notes} maxLength={NOTES_MAX} onChange={(event) => setNotes(event.target.value)} />
-        </label>
-
-        {/* SOURCE — creatures only */}
-        {kind === "creature" && (
-        <label className="orc-field">
-          <span className="orc-field-label">Source</span>
-          <input className="input-field" value={source} maxLength={200} placeholder="Monster Manual, p. 307" onChange={(event) => setSource(event.target.value)} />
-        </label>
-        )}
-
-        {/* STAT BLOCK */}
-        {shownStats && (
+        {/* THE ENTRY ITSELF — hidden while the library is being searched, since picking something
+            there fills this in. */}
+        {(isEdit || way !== "search") && (
+          <>
+          {/* KIND */}
           <div className="orc-field">
-            <span className="orc-field-label">Stats</span>
-
-            {/* CHALLENGE PICKER */}
-            <div className="orc-stat-grid">
-              <label className="orc-stat-field">
-                <span>CR</span>
-                <select
-                  className="input-field"
-                  value={shownStats.cr}
-                  onChange={(event) => {
-                    const row = findChallengeRow(event.target.value);
-                    if (row) setStats({ ...statBlockFromChallenge(row), abilities: shownStats.abilities });
-                  }}
-                >
-                  {!CHALLENGE_ROWS.some((row) => row.cr === shownStats.cr) && <option value={shownStats.cr}>{shownStats.cr}</option>}
-                  {CHALLENGE_ROWS.map((row) => (
-                    <option key={row.cr} value={row.cr}>{row.cr}</option>
-                  ))}
-                </select>
-              </label>
-
-              {/* ARMOR CLASS */}
-              <label className="orc-stat-field">
-                <span>AC</span>
-                <input className="input-field" inputMode="numeric" value={shownStats.ac} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
-                  onChange={(event) => patchStats({ ac: numberOr(event.target.value, shownStats.ac, 0, 40) })} />
-              </label>
-
-              {/* HIT POINTS */}
-              <label className="orc-stat-field">
-                <span>HP</span>
-                <input className="input-field" inputMode="numeric" value={shownStats.hp_max} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
-                  onChange={(event) => {
-                    const next = numberOr(event.target.value, shownStats.hp_max, 1, 9999);
-                    patchStats({ hp_max: next, hp: Math.min(shownStats.hp, next) === shownStats.hp && shownStats.hp !== shownStats.hp_max ? shownStats.hp : next });
-                  }} />
-              </label>
-
-              {/* SPEED */}
-              <label className="orc-stat-field">
-                <span>Speed</span>
-                <input className="input-field" inputMode="numeric" value={shownStats.speed} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
-                  onChange={(event) => patchStats({ speed: numberOr(event.target.value, shownStats.speed, 0, 300) })} />
-              </label>
-            </div>
-
-            {/* ATTACK */}
-            <div className="orc-stat-grid orc-stat-grid-attack">
-              <label className="orc-stat-field">
-                <span>Attack</span>
-                <input className="input-field" value={shownStats.attacks[0]?.name ?? ""} maxLength={60}
-                  onChange={(event) => patchStats({ attacks: [{ name: event.target.value, bonus: shownStats.attacks[0]?.bonus ?? 3, damage: shownStats.attacks[0]?.damage ?? "1d6" }, ...shownStats.attacks.slice(1)] })} />
-              </label>
-              <label className="orc-stat-field">
-                <span>To hit</span>
-                <input className="input-field" inputMode="numeric" value={shownStats.attacks[0]?.bonus ?? 0} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
-                  onChange={(event) => patchStats({ attacks: [{ name: shownStats.attacks[0]?.name ?? "Attack", bonus: numberOr(event.target.value, 0, -10, 30), damage: shownStats.attacks[0]?.damage ?? "1d6" }, ...shownStats.attacks.slice(1)] })} />
-              </label>
-              <label className="orc-stat-field">
-                <span>Damage</span>
-                <input className="input-field" value={shownStats.attacks[0]?.damage ?? ""} maxLength={60}
-                  onChange={(event) => patchStats({ attacks: [{ name: shownStats.attacks[0]?.name ?? "Attack", bonus: shownStats.attacks[0]?.bonus ?? 3, damage: event.target.value }, ...shownStats.attacks.slice(1)] })} />
-              </label>
+            <span className="orc-field-label">Kind</span>
+            <div className="orc-segments" role="radiogroup" aria-label="Kind">
+              {ENTITY_KINDS.map((entry) => (
+                <button key={entry} type="button" role="radio" aria-checked={kind === entry} className="orc-segment" onClick={() => setKind(entry)}>
+                  {KIND_LABELS[entry]}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* DESCRIBE IT — the AI writes the entry from an idea */}
+          {!isEdit && onWrite && way === "describe" && (
+            <div className="orc-field">
+              <span className="orc-field-label">Write with AI</span>
+              <div className="orc-write-row">
+                <input
+                  className="input-field"
+                  aria-label="What it is"
+                  value={idea}
+                  maxLength={ENTITY_IDEA_MAX}
+                  placeholder={IDEA_PLACEHOLDERS[kind]}
+                  disabled={isWriting}
+                  onChange={(event) => setIdea(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void write();
+                    }
+                  }}
+                />
+                <Button className="btn-off" onClick={() => void write()} disabled={isWriting}>
+                  <Sparkles className="w-4 h-4" aria-hidden /> {isWriting ? "Writing…" : "Write"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* NAME FIELD — autofocused on create (typing a name is the first step); not on edit,
+              where the DM came to change some field and it is not necessarily this one. */}
+          <label className="orc-field">
+            <span className="orc-field-label">Name</span>
+            <input
+              id="orc-entity-name"
+              className="input-field"
+              autoFocus={!isEdit}
+              value={name}
+              maxLength={NAME_MAX}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+
+          {/* ATTITUDE — not for items */}
+          {kind !== "item" && (
+          <div className="orc-field">
+            <span className="orc-field-label">Attitude</span>
+            <div className="orc-segments" role="radiogroup" aria-label="Attitude">
+              {ATTITUDES.map((entry) => (
+                <button key={entry} type="button" role="radio" aria-checked={attitude === entry} className="orc-segment" onClick={() => setAttitude(entry)}>
+                  {entry[0].toUpperCase() + entry.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          )}
+
+          {/* DETAILS FIELD */}
+          <label className="orc-field">
+            <span className="orc-field-label">Details (players may see this)</span>
+            <textarea className="input-field orc-textarea" rows={3} value={details} maxLength={DETAILS_MAX} onChange={(event) => setDetails(event.target.value)} />
+          </label>
+
+          {/* DM NOTES FIELD */}
+          <label className="orc-field">
+            <span className="orc-field-label">DM only (never shown to players)</span>
+            <textarea className="input-field orc-textarea" rows={3} value={notes} maxLength={NOTES_MAX} onChange={(event) => setNotes(event.target.value)} />
+          </label>
+
+          {/* SOURCE — creatures only */}
+          {kind === "creature" && (
+          <label className="orc-field">
+            <span className="orc-field-label">Source</span>
+            <input className="input-field" value={source} maxLength={200} placeholder="Monster Manual, p. 307" onChange={(event) => setSource(event.target.value)} />
+          </label>
+          )}
+
+          {/* STAT BLOCK */}
+          {shownStats && (
+            <div className="orc-field">
+              <span className="orc-field-label">Stats</span>
+
+              {/* CHALLENGE PICKER */}
+              <div className="orc-stat-grid">
+                <label className="orc-stat-field">
+                  <span>CR</span>
+                  <select
+                    className="input-field"
+                    value={shownStats.cr}
+                    onChange={(event) => {
+                      const row = findChallengeRow(event.target.value);
+                      if (row) setStats({ ...statBlockFromChallenge(row), abilities: shownStats.abilities });
+                    }}
+                  >
+                    {!CHALLENGE_ROWS.some((row) => row.cr === shownStats.cr) && <option value={shownStats.cr}>{shownStats.cr}</option>}
+                    {CHALLENGE_ROWS.map((row) => (
+                      <option key={row.cr} value={row.cr}>{row.cr}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* ARMOR CLASS */}
+                <label className="orc-stat-field">
+                  <span>AC</span>
+                  <input className="input-field" inputMode="numeric" value={shownStats.ac} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
+                    onChange={(event) => patchStats({ ac: numberOr(event.target.value, shownStats.ac, 0, 40) })} />
+                </label>
+
+                {/* HIT POINTS */}
+                <label className="orc-stat-field">
+                  <span>HP</span>
+                  <input className="input-field" inputMode="numeric" value={shownStats.hp_max} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
+                    onChange={(event) => {
+                      const next = numberOr(event.target.value, shownStats.hp_max, 1, 9999);
+                      patchStats({ hp_max: next, hp: Math.min(shownStats.hp, next) === shownStats.hp && shownStats.hp !== shownStats.hp_max ? shownStats.hp : next });
+                    }} />
+                </label>
+
+                {/* SPEED */}
+                <label className="orc-stat-field">
+                  <span>Speed</span>
+                  <input className="input-field" inputMode="numeric" value={shownStats.speed} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
+                    onChange={(event) => patchStats({ speed: numberOr(event.target.value, shownStats.speed, 0, 300) })} />
+                </label>
+              </div>
+
+              {/* ATTACK */}
+              <div className="orc-stat-grid orc-stat-grid-attack">
+                <label className="orc-stat-field">
+                  <span>Attack</span>
+                  <input className="input-field" value={shownStats.attacks[0]?.name ?? ""} maxLength={60}
+                    onChange={(event) => patchStats({ attacks: [{ name: event.target.value, bonus: shownStats.attacks[0]?.bonus ?? 3, damage: shownStats.attacks[0]?.damage ?? "1d6" }, ...shownStats.attacks.slice(1)] })} />
+                </label>
+                <label className="orc-stat-field">
+                  <span>To hit</span>
+                  <input className="input-field" inputMode="numeric" value={shownStats.attacks[0]?.bonus ?? 0} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
+                    onChange={(event) => patchStats({ attacks: [{ name: shownStats.attacks[0]?.name ?? "Attack", bonus: numberOr(event.target.value, 0, -10, 30), damage: shownStats.attacks[0]?.damage ?? "1d6" }, ...shownStats.attacks.slice(1)] })} />
+                </label>
+                <label className="orc-stat-field">
+                  <span>Damage</span>
+                  <input className="input-field" value={shownStats.attacks[0]?.damage ?? ""} maxLength={60}
+                    onChange={(event) => patchStats({ attacks: [{ name: shownStats.attacks[0]?.name ?? "Attack", bonus: shownStats.attacks[0]?.bonus ?? 3, damage: event.target.value }, ...shownStats.attacks.slice(1)] })} />
+                </label>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </div>
     </Modal>

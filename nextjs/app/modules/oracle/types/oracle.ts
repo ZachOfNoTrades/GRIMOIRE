@@ -105,7 +105,7 @@ export interface OracleEntity {
   is_down: boolean; // dead or out of the fight: stays on the map, no longer active
   in_party: boolean; // travels with the party instead of standing on a map
   party_group_id: string | null; // the group it travels with; null = with the party token
-  source: string | null; // the book and page, the adventure, or "AI-generated"
+  source: string | null; // the published book and page it comes from; null = homebrew
   knowledge: Knowledge[];
 }
 
@@ -164,7 +164,7 @@ export interface OracleChip {
 export interface OracleSettings {
   chip_seconds: number;
   banner_images: boolean;
-  ai_creatures: boolean; // false: every creature must come from the campaign's own material
+  ai_creatures: boolean; // false: every creature must come from a published source
   models: TaskModels; // which Claude model each kind of generation runs on
 }
 

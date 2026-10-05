@@ -361,6 +361,7 @@ export default function MapCanvas({
   // A location's label being dragged: where the pointer started, and where the label started.
   const labelDragRef = useRef<{ pointerId: number; id: string; x: number; y: number; dx: number; dy: number; moved: boolean } | null>(null);
   const [labelDrag, setLabelDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   const pinchRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const didPanRef = useRef(false); // the pointer travelled, so the release is not a tap
   const tapRef = useRef<{ pointerId: number; x: number; y: number; px: number; py: number } | null>(null);
@@ -842,6 +843,39 @@ export default function MapCanvas({
   const labels = placeLabels(labelRequests);
   const labelAt = (key: string) => labels.get(key) ?? { dy: 0, hidden: false };
 
+  // A location's name. A clear rectangle takes the gesture, because SVG text is only hit where its
+  // glyphs are painted and a press between two letters would fall through to the map.
+  function featureLabel(feature: MapFeature) {
+    const text = feature.name.toUpperCase();
+    const x = featureLabelX(feature);
+    const y = featureLabelY(feature);
+    const width = text.length * labelSize * 0.62;
+    return (
+      <g
+        key={feature.id}
+        className="orc-feature-label-group"
+        data-draggable={isDm && onFeatureLabelMove ? "true" : undefined}
+        data-dragging={labelDrag?.id === feature.id ? "true" : undefined}
+        pointerEvents={isDm ? "auto" : "none"}
+        onPointerDown={isDm ? (event) => labelDown(event, feature) : undefined}
+        onPointerMove={isDm ? labelMove : undefined}
+        onPointerUp={isDm ? (event) => labelUp(event, feature) : undefined}
+        onPointerCancel={isDm ? () => { labelDragRef.current = null; setLabelDrag(null); } : undefined}
+        onPointerEnter={isDm ? () => setHoveredLabel(feature.id) : undefined}
+        onPointerLeave={isDm ? () => setHoveredLabel((current) => (current === feature.id ? null : current)) : undefined}
+      >
+        {isDm && <rect className="orc-feature-label-grip" x={x - 2} y={y - labelSize} width={width + 4} height={labelSize * 1.35} />}
+        <text className="orc-feature-label" data-type={feature.type} data-state={feature.state} x={x} y={y} fontSize={labelSize}>
+          {text}
+        </text>
+      </g>
+    );
+  }
+
+  const shownFeatureLabels = data.features
+    .filter((feature) => feature.name && (feature.type === "building" || feature.type === "landmark") && !labelAt(`f:${feature.id}`).hidden)
+    .filter((feature) => isDm || isRevealedAt(feature.x + feature.w / 2, feature.y + feature.h / 2));
+
   const visibleTokens = tokens.filter((token) => token.kind !== "place");
 
   return (
@@ -1020,39 +1054,10 @@ export default function MapCanvas({
         <rect className="orc-fog-unexplored" {...cover} mask={`url(#${maskId}-unexplored)`} />
 
         {/* NAMEPLATES — every name of something the party has seen or can see is drawn above the fog,
-            in full (the DM sees them all) */}
+            in full (the DM sees them all). Something placed on top of a name hides it, so the one
+            the pointer is on is drawn again further down, over the tokens. */}
         <g className="orc-feature-labels" pointerEvents="none">
-          {data.features
-            .filter((feature) => feature.name && (feature.type === "building" || feature.type === "landmark") && !labelAt(`f:${feature.id}`).hidden)
-            .filter((feature) => isDm || isRevealedAt(feature.x + feature.w / 2, feature.y + feature.h / 2))
-            .map((feature) => {
-              const text = feature.name.toUpperCase();
-              const x = featureLabelX(feature);
-              const y = featureLabelY(feature);
-              // SVG text is only hit where its glyphs are painted, so a press in the gap between
-              // two letters would fall through to whatever is under the label. A clear rectangle
-              // behind it, sized the way the label layout measures text, is what takes the
-              // gestures.
-              const width = text.length * labelSize * 0.62;
-              return (
-                <g
-                  key={feature.id}
-                  className="orc-feature-label-group"
-                  data-draggable={isDm && onFeatureLabelMove ? "true" : undefined}
-                  data-dragging={labelDrag?.id === feature.id ? "true" : undefined}
-                  pointerEvents={isDm ? "auto" : "none"}
-                  onPointerDown={isDm ? (event) => labelDown(event, feature) : undefined}
-                  onPointerMove={isDm ? labelMove : undefined}
-                  onPointerUp={isDm ? (event) => labelUp(event, feature) : undefined}
-                  onPointerCancel={isDm ? () => { labelDragRef.current = null; setLabelDrag(null); } : undefined}
-                >
-                  {isDm && <rect className="orc-feature-label-grip" x={x - 2} y={y - labelSize} width={width + 4} height={labelSize * 1.35} />}
-                  <text className="orc-feature-label" data-type={feature.type} data-state={feature.state} x={x} y={y} fontSize={labelSize}>
-                    {text}
-                  </text>
-                </g>
-              );
-            })}
+          {shownFeatureLabels.filter((feature) => feature.id !== hoveredLabel).map(featureLabel)}
         </g>
 
         {/* WHAT THE PARTY SEES — above the fog, name in full */}
@@ -1231,6 +1236,12 @@ export default function MapCanvas({
             PARTY
           </text>
         </g>
+
+        {/* THE NAME UNDER THE POINTER — drawn last, so it reads over whatever covers it */}
+        <g className="orc-feature-labels" pointerEvents="none">
+          {shownFeatureLabels.filter((feature) => feature.id === hoveredLabel).map(featureLabel)}
+        </g>
+
       </svg>
     </div>
   );

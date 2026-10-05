@@ -1,6 +1,6 @@
 "use client";
 
-import { Brush, ChevronDown, CloudFog, Eraser, Eye, EyeOff, HeartPulse, MapPin, MonitorUp, Move, PanelLeft, RotateCcw, Search, Skull, Trash2, UserPlus, X, ZoomIn } from "lucide-react";
+import { Brush, ChevronDown, CloudFog, Eraser, Eye, EyeOff, HeartPulse, MapPin, MonitorUp, Move, PanelLeft, Plus, RotateCcw, Search, Skull, Trash2, UserPlus, X, ZoomIn } from "lucide-react";
 import TabLink from "../../../../components/TabLink";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1209,7 +1209,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             { label: "Move party here", icon: <Move className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); moveParty(cell.x, cell.y, activeMap.party_x, activeMap.party_y); } },
             { label: "Paint reveal", icon: <Brush className="w-4 h-4" />, onSelect: () => setTool("reveal") },
             { label: "Paint hide", icon: <Eraser className="w-4 h-4" />, onSelect: () => setTool("hide") },
-            { label: "Add entry here", icon: <MapPin className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "place", at: cell }); } },
+            { label: "New object here", icon: <Plus className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "creature", at: cell }); } },
+            { label: "New location here", icon: <MapPin className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "place", at: cell }); } },
             { label: "Reset fog of war", icon: <CloudFog className="w-4 h-4" />, danger: true, onSelect: () => { void resetActiveMap("fog"); } },
             { label: "Reset map", icon: <RotateCcw className="w-4 h-4" />, danger: true, onSelect: () => { void resetActiveMap(); } },
           ]}

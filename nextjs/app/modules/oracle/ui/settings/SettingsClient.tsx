@@ -117,8 +117,8 @@ export default function SettingsClient({ settings: initialSettings, cameFrom }: 
         <h2 className="settings-section-title">Creatures</h2>
         <div className="settings-group">
           <SettingsToggleRow
-            label="Allow AI-invented creatures"
-            hint="Off: creatures come only from published sources, your notes or an official book. On: the AI may also create new ones"
+            label="Allow homebrew creatures"
+            hint="Off: every creature comes from a published source. On: the AI may also write homebrew ones, which carry no source"
             checked={settings.ai_creatures}
             onChange={(next) => save({ ai_creatures: next })}
           />

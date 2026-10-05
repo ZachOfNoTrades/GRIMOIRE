@@ -77,8 +77,8 @@ function describeEntity(entity: OracleEntity): string {
 // What the model may do about creatures, and how hard they should be for this party.
 function creatureRules(context: GenerationContext): string {
   const source = context.aiCreatures
-    ? "A creature may come from published source material (the campaign's own notes, or an official book such as a Monster Manual) or be a unique creature you create from scratch; prefer published ones and invent only when the situation calls for something new."
-    : "Every creature must come from published source material: the campaign's own notes, or an official published book such as a Monster Manual. Never create a new creature of your own. When none fits, offer something that is not a creature.";
+    ? "A creature may come from a published book (name it and the page) or be a homebrew one you write; prefer published ones and write a homebrew creature only when the situation calls for something the books do not have."
+    : "Every creature must come from a published book, named with its page. The campaign's own notes are not a published source: they describe this campaign, they do not publish a creature. Never write a homebrew creature of your own. When no published creature fits, offer something that is not a creature.";
   const party = context.partyLevels.length > 0
     ? `The party is ${context.partyLevels.length} ${context.partyLevels.length === 1 ? "character" : "characters"} at level ${context.partyLevels.join(", ")}. Size every encounter to them by choosing how many creatures to send, with a wide spread across the ideas: some easy, most medium or hard, now and then one far beyond them. Keep each creature at its own challenge rating; change the number, not the creature.`
     : "No party is set, so assume a small group of low-level characters.";
@@ -266,7 +266,7 @@ Rules:
 - dm_notes: why it is here, what it wants, and one hook or secret, at most 40 words.
 - attitude: toward the party, as it fits the situation; "neutral" for an item.
 - cr: for a creature, one of ${challengeRatings}, suited to the party described in the situation; null for a person, a place or an item.
-- source: for a creature, where it comes from: the book and page ("Monster Manual, p. 307"), the adventure's name, or "AI-generated" when you created it from scratch (only if the situation allows that); null for a person, a place or an item.`;
+- source: for a creature, the published book and page it comes from ("Monster Manual, p. 307"), or null when you wrote it yourself — a homebrew creature has no source. Always null for a person, a place or an item.`;
 
   const reply = (await generateJson(prompt, "outline", { model })) as Record<string, unknown>;
   const challenge = text(reply.cr, 6);
@@ -351,10 +351,10 @@ Reply with one JSON object:
 }
 
 Rules:
-- entities: every character, creature type, notable place and notable item (treasure, relic, key object) the notes mention, plus at most three invented ones the session clearly needs${aiCreatures ? "" : " (creatures must come from the notes or an official published book; never create a new one)"}. At most 14 in total.
+- entities: every character, creature type, notable place and notable item (treasure, relic, key object) the notes mention, plus at most three invented ones the session clearly needs${aiCreatures ? "" : " (every creature must come from a published book; never write one of your own)"}. At most 14 in total.
 - name: use the name from the notes; invent a fitting one where the notes have none.
 - details: what the players could see or be told, at most 30 words. dm_notes: secrets, motives and what the game master should remember, at most 40 words.
-- kind "creature" is for anything the players might fight; give it "cr" as one of: ${challengeRatings} and "source": where it comes from (the notes' adventure or book, an official book and page such as "Monster Manual, p. 307"${aiCreatures ? ', or "AI-generated" for one you create from scratch' : ""}). Use null for people, places and items.
+- kind "creature" is for anything the players might fight; give it "cr" as one of: ${challengeRatings} and "source": where it comes from (the notes' adventure or book, an official book and page such as "Monster Manual, p. 307"${aiCreatures ? ", or null for a homebrew one you write yourself" : ""}). Use null for people, places and items.
 - kind "item" is for an object the players might find, take or use; attitude "neutral".
 - Where the notes are unsure about something, pick one option and say in dm_notes that the notes left it open.`;
 
