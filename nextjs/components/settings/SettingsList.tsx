@@ -1,8 +1,7 @@
 "use client";
 
-import type { ComponentType } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { BackLink } from "@/components/BackLink";
+import { useId, type ComponentType } from "react";
+import { ChevronRight } from "lucide-react";
 
 // Shared "grouped list" primitives for module settings/preferences pages.
 // Reference implementation: Forage's Settings tab. Pairs with the
@@ -42,6 +41,10 @@ export function SettingsGroup({ rows }: { rows: SettingsRowItem[] }) {
 }
 
 // SETTINGS TOGGLE ROW — a labeled switch row, meant to sit inside a .settings-group.
+//
+// Only the switch is pressable. The row used to be one big button, so a click anywhere in it —
+// reading the hint, selecting the label — flipped the setting; the text is there to be read, not
+// operated. The switch takes its name from the label rather than repeating it.
 export function SettingsToggleRow({
   label,
   hint,
@@ -55,21 +58,23 @@ export function SettingsToggleRow({
   disabled?: boolean;
   onChange: (next: boolean) => void;
 }) {
+  const labelId = useId();
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-disabled={disabled || undefined}
-      className="settings-toggle-row"
-      onClick={() => !disabled && onChange(!checked)}
-    >
+    <div className="settings-toggle-row" aria-disabled={disabled || undefined}>
       <span className="settings-toggle-body">
-        <span className="settings-toggle-label">{label}</span>
+        <span className="settings-toggle-label" id={labelId}>{label}</span>
         {hint && <span className="settings-toggle-hint">{hint}</span>}
       </span>
-      <span className="settings-switch" />
-    </button>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-labelledby={labelId}
+        disabled={disabled}
+        className="settings-switch"
+        onClick={() => !disabled && onChange(!checked)}
+      />
+    </div>
   );
 }
 
@@ -164,23 +169,5 @@ export function SettingsRadioGroup<T extends string>({
         );
       })}
     </div>
-  );
-}
-
-// SETTINGS BACK LINK — chevron + label link back to a parent settings page.
-// A real <a href> (via BackLink) so middle/cmd-click opens the parent in a new tab.
-export function SettingsBackLink({
-  label,
-  fallback,
-  onNavigate,
-}: {
-  label: string;
-  fallback: string;
-  onNavigate?: () => void;
-}) {
-  return (
-    <BackLink fallback={fallback} onNavigate={onNavigate} className="settings-back-link">
-      <ChevronLeft className="w-5 h-5" /> {label}
-    </BackLink>
   );
 }
