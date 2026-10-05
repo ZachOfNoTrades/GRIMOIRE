@@ -127,16 +127,6 @@ export default function ListControls<T, C>({ sorts, sortValue, onSortChange, fil
         ))}
       </MenuButton>
 
-      {/* HOW THE ROWS ARE DRAWN */}
-      <div className="erow-view-toggle orc-list-view">
-        <button type="button" className={`erow-view-option ${view === "rows" ? "is-active" : ""}`} aria-pressed={view === "rows"} title="A line each" aria-label="A line each" onClick={() => onViewChange("rows")}>
-          <Rows3 className="w-4 h-4" aria-hidden />
-        </button>
-        <button type="button" className={`erow-view-option ${view === "pictures" ? "is-active" : ""}`} aria-pressed={view === "pictures"} title="With pictures" aria-label="With pictures" onClick={() => onViewChange("pictures")}>
-          <LayoutList className="w-4 h-4" aria-hidden />
-        </button>
-      </div>
-
       {/* FILTERS */}
       {offered.length > 0 && (
         <MenuButton
@@ -172,7 +162,17 @@ export default function ListControls<T, C>({ sorts, sortValue, onSortChange, fil
           ))}
         </MenuButton>
       )}
-
+      {/* HOW THE ROWS ARE DRAWN — at the row's trailing edge, away from what narrows the list.
+          No title attribute: a hover tooltip never shows on a touch screen and lags on a mouse, so
+          the name lives on aria-label and the pressed state says which one is on. */}
+      <div className="erow-view-toggle orc-list-view" role="group" aria-label="How the rows are drawn">
+        <button type="button" className={`erow-view-option ${view === "rows" ? "is-active" : ""}`} aria-pressed={view === "rows"} aria-label="A line each" onClick={() => onViewChange("rows")}>
+          <Rows3 className="w-4 h-4" aria-hidden />
+        </button>
+        <button type="button" className={`erow-view-option ${view === "pictures" ? "is-active" : ""}`} aria-pressed={view === "pictures"} aria-label="With pictures" onClick={() => onViewChange("pictures")}>
+          <LayoutList className="w-4 h-4" aria-hidden />
+        </button>
+      </div>
       </div>
 
     </div>

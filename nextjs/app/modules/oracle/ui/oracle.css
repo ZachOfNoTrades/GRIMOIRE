@@ -1194,7 +1194,9 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 /* ENTRY LIST CONTROLS — sort and filter under the search field.
    One line of two quiet buttons, whatever is picked: at the table the DM is looking at the map,
    so the controls stay out of the way until they are used, and the row never changes height. */
-.orc-list-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.4rem 1rem 0.5rem; }
+/* One line, never wrapped: erow-filter-row wraps by default, which dropped the view switch
+   onto a second row of its own. */
+.orc-list-bar { flex: 0 0 auto; display: flex; flex-wrap: nowrap; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.4rem 1rem 0.5rem; }
 .orc-list-bar > .orc-list-anchor:first-child { flex: 0 0 auto; }
 .orc-list-bar > .orc-list-anchor:nth-child(2) { flex: 0 1 auto; min-width: 0; }
 /* WHAT THE LIST IS NARROWED TO — said once, by the control that sets it.
@@ -1317,10 +1319,13 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 /* THE PICTURE VIEW — a taller row showing what the thing looks like rather than an icon. The
    type is still said, by a small mark in the picture's corner: the same icon, quieter, so the
    picture is what the eye lands on. */
-.orc-list-view { flex: 0 0 auto; margin-left: 0.25rem; border: 1px solid var(--card-border); }
-.orc-details-row[data-view="pictures"] { gap: 0.75rem; min-height: 4rem; padding: 0.5rem; }
-.orc-row-face { position: relative; flex: 0 0 auto; display: block; width: 3rem; height: 3rem; }
-.orc-row-photo { display: block; width: 100%; height: 100%; object-fit: cover; border: 1px solid var(--card-border); background: var(--hover-bg); }
+.orc-list-view { flex: 0 0 auto; margin-left: auto; border: 1px solid var(--card-border); }
+.orc-details-row[data-view="pictures"] { align-items: center; gap: 0.75rem; min-height: 5rem; padding: 0.5rem; }
+.orc-row-face { position: relative; flex: 0 0 auto; display: block; width: 4rem; height: 4rem; }
+/* Zoomed to fill its square whatever shape the picture was made at, so every row down the list
+   reads the same. */
+.orc-row-photo { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; border: 1px solid var(--card-border); background: var(--hover-bg); }
 .orc-row-photo-none { display: flex; align-items: center; justify-content: center; color: var(--color-gray); }
-.orc-row-type { position: absolute; right: -0.2rem; bottom: -0.2rem; display: inline-flex; align-items: center; justify-content: center; width: 1.1rem; height: 1.1rem; color: var(--color-secondary); background: var(--card-bg); border: 1px solid var(--card-border); }
-.orc-details-row[data-view="pictures"] .orc-details-row-name { font-size: 0.9375rem; }
+.orc-row-type { position: absolute; right: -0.25rem; bottom: -0.25rem; display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; color: var(--color-secondary); background: var(--card-bg); border: 1px solid var(--card-border); }
+/* Up to two lines, so a long name is read rather than cut off. */
+.orc-details-row[data-view="pictures"] .orc-details-row-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow: hidden; font-size: 0.9375rem; line-height: 1.3; }

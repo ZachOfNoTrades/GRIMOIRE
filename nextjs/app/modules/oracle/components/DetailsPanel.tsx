@@ -302,7 +302,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                       <span className="orc-row-photo orc-row-photo-none"><Icon className="w-5 h-5" aria-hidden /></span>
                     )}
                     <span className="orc-row-type" aria-label={KIND_LABELS[entity.kind]} role="img">
-                      <Icon className="w-3 h-3" aria-hidden />
+                      <Icon className="w-3.5 h-3.5" aria-hidden />
                     </span>
                   </span>
                 ) : (
