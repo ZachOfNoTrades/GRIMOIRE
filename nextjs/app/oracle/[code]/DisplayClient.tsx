@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import MapCanvas, { type MapToken } from "@/app/modules/oracle/components/MapCanvas";
 import AutoScroll from "@/app/modules/oracle/components/AutoScroll";
-import type { DisplayPanel, DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
+import type { DisplayMap, DisplayPanel, DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
 import { X } from "lucide-react";
 
 const POLL_MS = 1000;
@@ -140,6 +140,19 @@ export default function DisplayClient({ code }: { code: string }) {
   }, [snapshot]);
 
   // LOADING PLACEHOLDER
+  // No version in the URL: the bytes behind an image id never change, so carrying the snapshot
+  // version here threw every picture out of the browser cache on any campaign edit and made the
+  // players wait for a fresh download each time. `w` picks the size this screen actually draws.
+  const imageUrl = useCallback((imageId: string, width = 960) => `/api/oracle/${code}/images/${imageId}?w=${width}`, [code]);
+
+  // Hold a map change until its picture is decoded. The geometry, the party and the tokens are
+  // SVG and paint at once, while the background has to come down the wire, so switching maps
+  // used to put the new party position on the old picture for a moment. Everything else about a
+  // map (tokens moving, fog opening) still draws immediately: only a new background waits, and
+  // only for as long as it takes, with a ceiling so a picture that never arrives cannot strand
+  // the table on the old map.
+  const drawableMap = useMapOnceDrawable(snapshot?.map ?? null, imageUrl);
+
   if (status === "loading") {
     return (
       <div className="orc-display">
@@ -171,12 +184,8 @@ export default function DisplayClient({ code }: { code: string }) {
     return <div className="orc-display" aria-label="The display is blank" />;
   }
 
-  const map = snapshot.map;
+  const map = drawableMap;
   const tokens: MapToken[] = map ? map.tokens.map((token) => ({ id: token.id, name: token.name, kind: token.kind, attitude: token.attitude, x: token.x, y: token.y, down: token.down })) : [];
-  // No version in the URL: the bytes behind an image id never change, so carrying the snapshot
-  // version here threw every picture out of the browser cache on any campaign edit and made the
-  // players wait for a fresh download each time. `w` picks the size this screen actually draws.
-  const imageUrl = (imageId: string, width = 960) => `/api/oracle/${code}/images/${imageId}?w=${width}`;
 
   return (
     // DISPLAY
@@ -186,7 +195,7 @@ export default function DisplayClient({ code }: { code: string }) {
       <div className="orc-display-map">
         {map ? (
           <>
-            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.groups ?? []} companions={(map.companions ?? []).map((companion) => ({ id: companion.id, name: companion.name, kind: companion.kind, imageUrl: companion.image_id ? imageUrl(companion.image_id) : null, groupId: companion.group_id }))} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id) : null} pictureOpacity={pictureOpacity} onPictureOpacity={changePictureOpacity} onTokenSelect={(id) => setLocalId((current) => (current === id ? null : id))} onFeatureSelect={(id) => setLocalId((current) => (current === id ? null : id))} linkedFeatures={map.locations.map((location) => location.feature_id)} revealFocus={revealFocus} mode="player" />
+            <MapCanvas data={map.data} partyX={map.party_x} partyY={map.party_y} visionRadius={map.vision_radius} explored={map.explored} tokens={tokens} members={map.groups ?? []} companions={(map.companions ?? []).map((companion) => ({ id: companion.id, name: companion.name, kind: companion.kind, imageUrl: companion.image_id ? imageUrl(companion.image_id) : null, groupId: companion.group_id }))} backgroundUrl={map.background_image_id ? imageUrl(map.background_image_id, MAP_BACKGROUND_WIDTH) : null} pictureOpacity={pictureOpacity} onPictureOpacity={changePictureOpacity} onTokenSelect={(id) => setLocalId((current) => (current === id ? null : id))} onFeatureSelect={(id) => setLocalId((current) => (current === id ? null : id))} linkedFeatures={map.locations.map((location) => location.feature_id)} revealFocus={revealFocus} mode="player" />
 
             {/* MAP NAME */}
             <div className="orc-display-caption">{map.name}</div>
@@ -271,4 +280,43 @@ function PanelPicture({ src, alt }: { src: string; alt: string }) {
       />
     </figure>
   );
+}
+
+const MAP_BACKGROUND_WIDTH = 1600;
+const BACKGROUND_WAIT_MS = 4000;
+
+function useMapOnceDrawable(next: DisplayMap | null, imageUrl: (imageId: string, width?: number) => string): DisplayMap | null {
+  const [shown, setShown] = useState<DisplayMap | null>(next);
+  const drawnBackgroundRef = useRef<string | null>(next?.background_image_id ?? null);
+
+  useEffect(() => {
+    if (!next) {
+      drawnBackgroundRef.current = null;
+      setShown(null);
+      return;
+    }
+    const background = next.background_image_id;
+    if (!background || background === drawnBackgroundRef.current) {
+      drawnBackgroundRef.current = background ?? null;
+      setShown(next);
+      return;
+    }
+    let stopped = false;
+    const show = () => {
+      if (stopped) return;
+      drawnBackgroundRef.current = background;
+      setShown(next);
+    };
+    const picture = new Image();
+    picture.onload = show;
+    picture.onerror = show;
+    picture.src = imageUrl(background, MAP_BACKGROUND_WIDTH);
+    const giveUp = setTimeout(show, BACKGROUND_WAIT_MS);
+    return () => {
+      stopped = true;
+      clearTimeout(giveUp);
+    };
+  }, [next, imageUrl]);
+
+  return shown;
 }
