@@ -1,4 +1,4 @@
-// A session's page — a SERVER component that preloads the campaign, the session and the cast
+// A session's page — a SERVER component that preloads the campaign, the session and the entities
 // and hands them to SessionClient.
 import { PageLoadFailed, PageMissing } from "../../../../../components/PageStates";
 import { loadSessionPage } from "../../../../../lib/pageData";

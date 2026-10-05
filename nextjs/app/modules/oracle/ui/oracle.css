@@ -1330,12 +1330,8 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 /* Up to two lines, so a long name is read rather than cut off. */
 .orc-details-row[data-view="pictures"] .orc-details-row-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow: hidden; font-size: 0.9375rem; line-height: 1.3; }
 
-/* The name and what it is, in the taller row. */
-.orc-row-text { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-.orc-row-detail { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 0.75rem; line-height: 1.35; color: var(--color-secondary); }
-
-/* RESTING ON A ROW — a line each says only the name, so the picture and the description are shown
-   beside it after half a second. Fixed rather than inside the scroller, so it cannot be clipped by
+/* RESTING ON A ROW — a row says a name, so the picture and the description are shown beside it
+   after half a second, whichever way the rows are drawn. Fixed rather than inside the scroller, so it cannot be clipped by
    it, and it never takes the pointer. */
 .orc-row-preview { position: fixed; z-index: 50; width: 17rem; max-height: 70vh; overflow: hidden; padding: 0.6rem; background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); pointer-events: none; }
 .orc-row-preview-photo { display: block; width: 100%; max-height: 10rem; object-fit: cover; margin-bottom: 0.5rem; border: 1px solid var(--card-border); }

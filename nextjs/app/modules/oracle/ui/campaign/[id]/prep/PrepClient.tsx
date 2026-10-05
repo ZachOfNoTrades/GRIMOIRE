@@ -24,7 +24,7 @@ interface PrepClientProps {
 }
 
 // PREP — the campaign's world (its notes, maps and pictures) and the list of sessions. A session
-// has its own page for notes, cast and recap.
+// has its own page for notes, entities and recap.
 export default function PrepClient({ snapshot, imageSources }: PrepClientProps) {
   const campaignId = snapshot.campaign.id;
   const base = campaignApi(campaignId);
@@ -193,7 +193,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   }
 
   async function resetMap(map: OracleMap) {
-    if (!(await confirm({ title: `Reset ${map.name}?`, message: "The fog returns everywhere the party can't see right now, and entries revealed on this map are hidden again.", confirmLabel: "Reset", danger: true }))) return;
+    if (!(await confirm({ title: `Reset ${map.name}?`, message: "The fog returns everywhere the party can't see right now, and entities revealed on this map are hidden again.", confirmLabel: "Reset", danger: true }))) return;
     try {
       const saved = await api<OracleMap>(`${base}/maps/${map.id}/reset`, "POST");
       setMaps((list) => list.map((entry) => (entry.id === saved.id ? saved : entry)));
@@ -204,7 +204,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   }
 
   async function deleteMap(map: OracleMap) {
-    if (!(await confirm({ title: `Delete ${map.name}?`, message: "The map and its explored area are removed. Entries placed on it stay in the cast.", confirmLabel: "Delete", danger: true }))) return;
+    if (!(await confirm({ title: `Delete ${map.name}?`, message: "The map and its explored area are removed. Entities placed on it are kept.", confirmLabel: "Delete", danger: true }))) return;
     const previousMaps = maps;
     setMaps((list) => list.filter((entry) => entry.id !== map.id));
     try {

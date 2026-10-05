@@ -77,7 +77,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     {
       description:
         'A campaign in full: world notes (tone and setting — read these before generating anything), the sessions (each with its rough notes and recap; the campaign current_session_id is the live one), maps (without feature lists; use oracle_get_map), ' +
-        'the cast (creatures, people, places and items with DM notes and what the players already know) and the recent session log.',
+        'the entities (creatures, people, places and items with DM notes and what the players already know) and the recent session log.',
       inputSchema: { campaign_id: Uuid },
     },
     async ({ campaign_id }) => {
@@ -223,7 +223,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     'oracle_create_entity',
     {
       description:
-        'Add a creature, person, place or item to the campaign cast. "details" is what the players may be shown; "dm_notes" is never shown to players. ' +
+        'Add a creature, person, place or item to the campaign entities. "details" is what the players may be shown; "dm_notes" is never shown to players. ' +
         'Give creatures a stat block. To put it on a map pass map_id with map_x/map_y; a placed entry starts hidden from the players, and oracle_update_entity sets how much they see of it.',
       inputSchema: {
         campaign_id: Uuid,
@@ -259,7 +259,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
   server.registerTool(
     'oracle_update_entity',
     {
-      description: 'Change a cast entry. Only the fields you pass are changed. Pass map_id=null to take it off the map.',
+      description: 'Change a entities entry. Only the fields you pass are changed. Pass map_id=null to take it off the map.',
       inputSchema: {
         campaign_id: Uuid,
         entity_id: Uuid,
@@ -293,7 +293,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
   server.registerTool(
     'oracle_delete_entity',
     {
-      description: 'Remove a cast entry and everything the players learned about it. Cannot be undone.',
+      description: 'Remove a entities entry and everything the players learned about it. Cannot be undone.',
       inputSchema: { campaign_id: Uuid, entity_id: Uuid },
     },
     async ({ campaign_id, entity_id }) => {
@@ -306,7 +306,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     'oracle_reveal_knowledge',
     {
       description:
-        'Reveal a fact about a cast entry to the players: it is added to what they know and appears on the player display whenever that entry is on the panel. ' +
+        'Reveal a fact about a entities entry to the players: it is added to what they know and appears on the player display whenever that entry is on the panel. ' +
         'Write it as a plain statement with no game statistics. Optionally record the check that earned it.',
       inputSchema: {
         campaign_id: Uuid,
@@ -326,7 +326,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
   server.registerTool(
     'oracle_add_log',
     {
-      description: 'Add a note to the session log, optionally attached to a cast entry so it shows in that entry\'s history.',
+      description: 'Add a note to the session log, optionally attached to a entities entry so it shows in that entry\'s history.',
       inputSchema: { campaign_id: Uuid, body: z.string().min(1).max(1000), entity_id: Uuid.nullable().optional() },
     },
     async ({ campaign_id, body, entity_id }) => json(await addEvent(await owned(campaign_id), body.trim(), entity_id ? entity_id.toLowerCase() : null)),
@@ -336,7 +336,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     'oracle_set_display',
     {
       description:
-        'Control the player display (the shared screen: map on the left, a reference panel on the right). Put a cast entry or a library image on the panel, clear the panel, or blank the whole display.',
+        'Control the player display (the shared screen: map on the left, a reference panel on the right). Put a entities entry or a library image on the panel, clear the panel, or blank the whole display.',
       inputSchema: {
         campaign_id: Uuid,
         panel_kind: z.enum(['entity', 'image']).nullable().optional().describe('What the panel shows; null clears it.'),

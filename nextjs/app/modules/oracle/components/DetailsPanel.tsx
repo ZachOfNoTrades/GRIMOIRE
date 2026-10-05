@@ -108,13 +108,14 @@ export default function DetailsPanel(props: DetailsPanelProps) {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [sortValue, setSortValue] = useState("name");
   const [view, setView] = useState<"rows" | "pictures">("rows");
-  // A line each says only the name, so resting on one shows the picture and what it is. Held back
-  // half a second, or it would flash past every row the pointer crosses on its way somewhere.
+  // A row says a name, so resting on one shows the picture and what it is, whichever way the rows
+  // are drawn. Held back half a second, or it would flash past every row the pointer crosses on
+  // its way somewhere else.
   const [preview, setPreview] = useState<{ entity: OracleEntity; top: number; right: number } | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const holdPreview = (entity: OracleEntity, element: HTMLElement) => {
-    if (view !== "rows" || !window.matchMedia("(hover: hover)").matches) return;
+    if (!window.matchMedia("(hover: hover)").matches) return;
     if (previewTimer.current) clearTimeout(previewTimer.current);
     const box = element.getBoundingClientRect();
     // Measured from the panel's own edge, not the row's: the row sits inside the panel's padding,
@@ -261,7 +262,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
         </div>
 
         {/* NEW ENTRY BUTTON */}
-        <Button className="btn-off" onClick={props.onCreate} title="New entry" aria-label="New entry">
+        <Button className="btn-off" onClick={props.onCreate} title="New entity" aria-label="New entity">
           <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New</span>
         </Button>
       </div>
@@ -334,14 +335,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
                 ) : (
                   <Icon className="w-4 h-4 orc-attitude" data-attitude={entity.attitude} aria-label={KIND_LABELS[entity.kind]} role="img" />
                 )}
-                {view === "pictures" ? (
-                  <span className="orc-row-text">
-                    <span className="orc-details-row-name">{entity.name}</span>
-                    {entity.details && <span className="orc-row-detail">{entity.details}</span>}
-                  </span>
-                ) : (
-                  <span className="orc-details-row-name">{entity.name}</span>
-                )}
+                <span className="orc-details-row-name">{entity.name}</span>
               </button>
             );
           })}
@@ -443,7 +437,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             ))}
             {selected.in_party ? null : selected.map_id === activeMapId && activeMapId ? (
               <>
-                <Button className="btn-off" onClick={() => props.onZoomTo(selected)} title="Zoom the map in on this entry">
+                <Button className="btn-off" onClick={() => props.onZoomTo(selected)} title="Zoom the map in on this entity">
                   <ZoomIn className="w-4 h-4" /> Zoom to
                 </Button>
                 <Button className="btn-off" onClick={() => props.onUnplace(selected)}>

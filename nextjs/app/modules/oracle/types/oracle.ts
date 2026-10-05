@@ -317,8 +317,8 @@ export interface DisplaySnapshot {
   panel: DisplayPanel | null;
 }
 
-// What a "build cast" run proposes from a session's rough notes.
-export interface BuiltCast {
+// What a "build entities" run proposes from a session's rough notes.
+export interface BuiltEntities {
   entities: {
     kind: EntityKind;
     name: string;

@@ -109,7 +109,7 @@ export const TEXT_MODEL_KEYS: readonly TextModel[] = ["haiku", "sonnet", "opus"]
 export type GenerationTask = "world" | "build" | "map" | "chips" | "fact" | "outline" | "picture";
 export const GENERATION_TASKS: { key: GenerationTask; label: string; hint: string }[] = [
   { key: "world", label: "World notes", hint: "Generate on the Prep tab" },
-  { key: "build", label: "Session cast", hint: "Session notes into a cast" },
+  { key: "build", label: "Session entities", hint: "Session notes into a entities" },
   { key: "map", label: "Maps", hint: "Drawing and editing in words" },
   { key: "chips", label: "Ideas banner", hint: "Batches for the banner" },
   { key: "fact", label: "Knowledge checks", hint: "The fact a roll earns" },

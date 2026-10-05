@@ -1,13 +1,13 @@
 import { getMainConnection } from "@/lib/db";
-import type { BuiltCast } from "../types/oracle";
+import type { BuiltEntities } from "../types/oracle";
 import { MAX_ENTITIES } from "./constants";
 import { OracleError } from "./errors";
 import { findChallengeRow, statBlockFromChallenge } from "./reference";
 
-// Save an accepted "build cast" proposal in one transaction: either every entry lands, or none
+// Save an accepted "build entities" proposal in one transaction: either every entry lands, or none
 // does. An entry whose name is already in the campaign is skipped, so applying the same proposal
 // twice adds nothing the second time.
-export async function applyBuiltCast(campaignId: string, built: BuiltCast): Promise<void> {
+export async function applyBuiltEntities(campaignId: string, built: BuiltEntities): Promise<void> {
   const pool = await getMainConnection();
   const transaction = pool.transaction();
   await transaction.begin();

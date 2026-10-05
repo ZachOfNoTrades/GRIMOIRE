@@ -195,7 +195,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? `Edit ${entity.name}` : "New entry"}
+      title={isEdit ? `Edit ${entity.name}` : "New entity"}
       tall
       footer={
         <div className="flex items-center justify-end gap-2 w-full">

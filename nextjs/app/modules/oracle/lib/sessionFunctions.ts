@@ -4,7 +4,7 @@ import { MAX_SESSIONS } from "./constants";
 import { OracleError } from "./errors";
 
 // SESSIONS — one per night at the table. A session holds the DM's rough notes going in and a
-// recap coming out; the campaign points at the one that is live. Cast, maps and pictures belong
+// recap coming out; the campaign points at the one that is live. Entities, maps and pictures belong
 // to the campaign and are reused across sessions.
 
 type SessionRow = { id: string; title: string; session_date: Date | string | null; notes: string; recap: string; is_done: boolean; ts_created: Date };

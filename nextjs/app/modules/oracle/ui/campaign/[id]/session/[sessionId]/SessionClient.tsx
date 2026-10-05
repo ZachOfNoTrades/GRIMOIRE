@@ -12,7 +12,7 @@ import { SESSION_HELP } from "../../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../../lib/client";
 import { DRAFT_MAX, RECAP_MAX, SESSION_TITLE_MAX } from "../../../../../lib/constants";
 import { saveOnShortcut, useUnsavedWarning } from "../../../../../lib/useUnsavedWarning";
-import type { BuiltCast, OracleCampaign, OracleEntity, OracleSession } from "../../../../../types/oracle";
+import type { BuiltEntities, OracleCampaign, OracleEntity, OracleSession } from "../../../../../types/oracle";
 
 interface SessionClientProps {
   campaign: OracleCampaign;
@@ -22,7 +22,7 @@ interface SessionClientProps {
 
 const KIND_LABELS = { creature: "Creature", person: "Person", place: "Location", item: "Item" } as const;
 
-// SESSION — one night at the table: the rough notes going in, the cast those notes need, and the
+// SESSION — one night at the table: the rough notes going in, the entities those notes need, and the
 // recap coming out. Go live makes it the session every generation at the Table is written for.
 export default function SessionClient({ campaign: initialCampaign, session: initialSession, entities: initialEntities }: SessionClientProps) {
   const campaignId = initialCampaign.id;
@@ -34,7 +34,7 @@ export default function SessionClient({ campaign: initialCampaign, session: init
   const [campaign, setCampaign] = useState<OracleCampaign>(initialCampaign);
   const [session, setSession] = useState<OracleSession>(initialSession);
   const [entities, setEntities] = useState<OracleEntity[]>(initialEntities);
-  const [proposal, setProposal] = useState<BuiltCast | null>(null);
+  const [proposal, setProposal] = useState<BuiltEntities | null>(null);
 
   // INPUT — the text fields keep what is typed until focus leaves them
   const [title, setTitle] = useState(initialSession.title);
@@ -102,9 +102,9 @@ export default function SessionClient({ campaign: initialCampaign, session: init
     try {
       // Build reads the saved notes, so make sure what is on screen is what is saved.
       if (!(await save({ notes: notes.trim() }))) return;
-      setProposal(await api<BuiltCast>(`${sessionBase}/build`, "POST"));
+      setProposal(await api<BuiltEntities>(`${sessionBase}/build`, "POST"));
     } catch (error) {
-      toast.error(errorMessage(error, "Couldn't build the cast"));
+      toast.error(errorMessage(error, "Couldn't build the entities"));
     } finally {
       setIsBuilding(false);
     }
@@ -208,7 +208,7 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                     <span className="orc-small text-secondary">{isNotesDirty ? "Unsaved changes. Save before leaving the page." : "The Table writes every idea against these."}</span>
                     <div className="orc-row-actions">
                       <Button className="btn-blue" disabled={isBuilding || isSaving || notes.trim().length < 20} onClick={build}>
-                        <Sparkles className="w-4 h-4" /> {isBuilding ? "Building…" : "Build cast"}
+                        <Sparkles className="w-4 h-4" /> {isBuilding ? "Building…" : "Build entities"}
                       </Button>
                       {saveButton}
                     </div>
@@ -217,14 +217,14 @@ export default function SessionClient({ campaign: initialCampaign, session: init
               </div>
             </div>
 
-            {/* CAST COLUMN */}
+            {/* ENTITIES COLUMN */}
             <div className="orc-stack">
 
-              {/* PROPOSAL CARD — shown after Build cast, until it is added or discarded */}
+              {/* PROPOSAL CARD — shown after Build entities, until it is added or discarded */}
               {proposal && (
                 <div className="card">
                   <div className="card-header">
-                    <h2 className="text-card-title"><Sparkles className="w-5 h-5" /> Proposed cast</h2>
+                    <h2 className="text-card-title"><Sparkles className="w-5 h-5" /> Proposed entities</h2>
                   </div>
                   <div className="card-content orc-stack">
                     {proposal.entities.map((entity, index) => (
@@ -246,16 +246,16 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                 </div>
               )}
 
-              {/* CAST CARD — the whole campaign's cast; entries are shared across sessions */}
+              {/* ENTITIES CARD — the whole campaign's entities; entries are shared across sessions */}
               <div className="card">
                 <div className="card-header">
-                  <h2 className="text-card-title"><Users className="w-5 h-5" /> Cast</h2>
+                  <h2 className="text-card-title"><Users className="w-5 h-5" /> Entities</h2>
                 </div>
                 <div className="card-content orc-stack">
                   {entities.length === 0 && (
                     <div className="empty-state">
-                      <p className="empty-state-title">No cast yet</p>
-                      <p className="empty-state-body">Build it from the notes, or add entries from the Table tab.</p>
+                      <p className="empty-state-title">No entities yet</p>
+                      <p className="empty-state-body">Build it from the notes, or add entities from the Table tab.</p>
                     </div>
                   )}
                   {[...entities].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })).map((entity) => (

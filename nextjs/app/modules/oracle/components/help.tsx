@@ -5,7 +5,7 @@ import type { HelpSection } from "@/components/ui/HelpButton";
 export const HOME_HELP: HelpSection[] = [
   {
     heading: "Getting started",
-    body: "Tap New campaign, then open its Prep tab: write or generate the world, then add a session and paste your rough notes into it. Build cast turns those notes into entries. The Table tab is where you run the night.",
+    body: "Tap New campaign, then open its Prep tab: write or generate the world, then add a session and paste your rough notes into it. Build entities turns those notes into entities. The Table tab is where you run the night.",
   },
   {
     heading: "Player display",
@@ -32,11 +32,11 @@ export const TABLE_HELP: HelpSection[] = [
   },
   {
     heading: "Details",
-    body: "Tap a creature, person or pin on the map, or search at the top of the Details panel. DM only notes and stats never reach the players. Show to players puts the entry on the display's panel.",
+    body: "Tap a creature, person or pin on the map, or search at the top of the Details panel. DM only notes and stats never reach the players. Show to players puts the entity on the display's panel.",
   },
   {
     heading: "Knowledge checks",
-    body: "Pick the skill, then tap the result the players reached: a 1 earns a mistaken belief, 2-9 trivia, 10-14 a slight edge, 15-19 a moderate one and 20 or more a secret. Reveal adds it to what the players know about that entry and shows it on the display.",
+    body: "Pick the skill, then tap the result the players reached: a 1 earns a mistaken belief, 2-9 trivia, 10-14 a slight edge, 15-19 a moderate one and 20 or more a secret. Reveal adds it to what the players know about that entity and shows it on the display.",
   },
   {
     heading: "Ideas banner",
@@ -54,7 +54,7 @@ export const TABLE_HELP: HelpSection[] = [
 export const PREP_HELP: HelpSection[] = [
   {
     heading: "Sessions",
-    body: "One per night at the table. Open a session for its notes, the cast those notes need, and its recap. Go live on the one you are running: every idea at the Table is written against its notes and recap.",
+    body: "One per night at the table. Open a session for its notes, the entities those notes need, and its recap. Go live on the one you are running: every idea at the Table is written against its notes and recap.",
   },
   {
     heading: "World",
@@ -66,14 +66,14 @@ export const PREP_HELP: HelpSection[] = [
   },
   {
     heading: "Pictures",
-    body: "Get a picture searches the web or, once an OpenRouter key is set up, generates one. Pictures can be shown on the player display, attached to an entry or put under a map.",
+    body: "Get a picture searches the web or, once an OpenRouter key is set up, generates one. Pictures can be shown on the player display, attached to an entity or put under a map.",
   },
 ];
 
 export const SESSION_HELP: HelpSection[] = [
   {
     heading: "Rough notes",
-    body: "Paste your plan for the night in any shape. Build cast proposes the creatures, people and places it needs; nothing is saved until you tap Add to campaign. Entries whose name already exists are skipped.",
+    body: "Paste your plan for the night in any shape. Build entities proposes the creatures, people and places it needs; nothing is saved until you tap Add to campaign. Entities whose name already exists are skipped.",
   },
   {
     heading: "Go live",

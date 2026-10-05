@@ -231,7 +231,7 @@ export const settingsSchema = z
 
 export const updateImageSchema = z.object({ caption: line(CAPTION_MAX, "a caption") });
 
-// What the DM accepts from a "build cast" run. Sent back whole so nothing is saved until
+// What the DM accepts from a "build entities" run. Sent back whole so nothing is saved until
 // the DM has seen it.
 export const applyBuildSchema = z.object({
   entities: z

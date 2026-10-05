@@ -22,7 +22,7 @@ interface EncounterRow {
   label: string;
   cr: string;
   count: number;
-  entityId: string | null; // set when the creature came from the cast
+  entityId: string | null; // set when the creature is an entity already
 }
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = { trivial: "Trivial", easy: "Easy", medium: "Medium", hard: "Hard", deadly: "Deadly" };
@@ -48,13 +48,13 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
   const [diceResult, setDiceResult] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
-  // ENCOUNTER BUILDER — lines are creatures from the cast (by id) or a plain challenge rating
+  // ENCOUNTER BUILDER — lines are existing entities (by id) or a plain challenge rating
   const [lines, setLines] = useState<EncounterRow[]>([]);
   const [pickCr, setPickCr] = useState("1");
   const [pickEntity, setPickEntity] = useState("");
   const [addedNote, setAddedNote] = useState<string | null>(null);
   const levels = snapshot.party.map((member) => member.level);
-  const castCreatures = useMemo(
+  const entityCreatures = useMemo(
     () => snapshot.entities.filter((entity) => entity.kind === "creature" && normalizeCr(entity.stats?.cr)).sort((a, b) => a.name.localeCompare(b.name)),
     [snapshot.entities]
   );
@@ -73,13 +73,13 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
     setLines((list) => list.map((line) => (line.key === key ? { ...line, count: line.count + delta } : line)).filter((line) => line.count > 0 && line.count <= 30));
   }
 
-  // Put the encounter's plain-CR creatures into the cast beside the party, numbered. Creatures
-  // picked from the cast are already there.
-  async function addEncounterToCast() {
+  // Add the encounter's plain-CR creatures as entities beside the party, numbered. Ones picked
+  // from the existing entities are already there.
+  async function addEncounterToEntities() {
     if (isAdding) return;
     const generic = lines.filter((line) => line.entityId === null);
     if (generic.length === 0) {
-      setAddedNote("Everything in this encounter is already in the cast.");
+      setAddedNote("Everything in this encounter is an entity already.");
       return;
     }
     setIsAdding(true);
@@ -193,11 +193,11 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
                     </div>
                   </div>
 
-                  {/* ADD FROM THE CAST */}
+                  {/* ADD FROM THE ENTITIES */}
                   <div className="orc-note-row">
-                    <select className="input-field" value={pickEntity} aria-label="Creature from the cast" onChange={(event) => setPickEntity(event.target.value)}>
-                      <option value="">{castCreatures.length ? "From the cast…" : "No cast creatures with a CR yet"}</option>
-                      {castCreatures.map((entity) => (
+                    <select className="input-field" value={pickEntity} aria-label="An entity you already have" onChange={(event) => setPickEntity(event.target.value)}>
+                      <option value="">{entityCreatures.length ? "From your entities…" : "No entities with a CR yet"}</option>
+                      {entityCreatures.map((entity) => (
                         <option key={entity.id} value={entity.id}>{entity.name} · CR {normalizeCr(entity.stats?.cr)}</option>
                       ))}
                     </select>
@@ -207,7 +207,7 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
                       title="Add this creature"
                       aria-label="Add this creature"
                       onClick={() => {
-                        const entity = castCreatures.find((entry) => entry.id === pickEntity);
+                        const entity = entityCreatures.find((entry) => entry.id === pickEntity);
                         if (entity) addLine({ key: `e:${entity.id}`, label: entity.name, cr: normalizeCr(entity.stats?.cr) as string, entityId: entity.id });
                       }}
                     >
@@ -262,8 +262,8 @@ export default function ReferenceClient({ snapshot }: ReferenceClientProps) {
                       <span className="orc-small text-secondary">{addedNote ?? ""}</span>
                       <div className="orc-row-actions">
                         <Button className="btn-off" onClick={() => { setLines([]); setAddedNote(null); }}>Clear</Button>
-                        <Button className="btn-blue" disabled={isAdding} onClick={addEncounterToCast}>
-                          <Plus className="w-4 h-4" /> {isAdding ? "Adding…" : "Add to cast"}
+                        <Button className="btn-blue" disabled={isAdding} onClick={addEncounterToEntities}>
+                          <Plus className="w-4 h-4" /> {isAdding ? "Adding…" : "Add to entities"}
                         </Button>
                       </div>
                     </div>

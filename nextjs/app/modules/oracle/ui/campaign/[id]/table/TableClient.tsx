@@ -163,8 +163,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   async function resetActiveMap(scope: "fog" | "all" = "all") {
     if (!activeMap) return;
     const asking = scope === "fog"
-      ? { title: `Reset the fog on ${activeMap.name}?`, message: "The fog returns everywhere the party can't see right now. Entries you have revealed stay on the players' map." }
-      : { title: `Reset ${activeMap.name}?`, message: "The fog returns everywhere the party can't see right now, and entries revealed on this map are hidden again." };
+      ? { title: `Reset the fog on ${activeMap.name}?`, message: "The fog returns everywhere the party can't see right now. Entities you have revealed stay on the players' map." }
+      : { title: `Reset ${activeMap.name}?`, message: "The fog returns everywhere the party can't see right now, and entities revealed on this map are hidden again." };
     if (!(await confirm({ ...asking, confirmLabel: "Reset", danger: true }))) return;
     try {
       await api(`${base}/maps/${activeMap.id}/reset${scope === "fog" ? "?scope=fog" : ""}`, "POST");
@@ -1194,8 +1194,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
             { label: "Move party here", icon: <Move className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); moveParty(cell.x, cell.y, activeMap.party_x, activeMap.party_y); } },
             { label: "Paint reveal", icon: <Brush className="w-4 h-4" />, onSelect: () => setTool("reveal") },
             { label: "Paint hide", icon: <Eraser className="w-4 h-4" />, onSelect: () => setTool("hide") },
-            { label: "New object here", icon: <Plus className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "creature", at: cell }); } },
-            { label: "New location here", icon: <MapPin className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "place", at: cell }); } },
+            // One way in: the dialog's own Type picker chooses between a creature, a person, a
+            // location and an item, so two menu entries for it were two names for one thing.
+            { label: "New entity here", icon: <Plus className="w-4 h-4" />, onSelect: () => { const cell = snapCell(groundMenu.x, groundMenu.y); setEntityModal({ entity: null, kind: "creature", at: cell }); } },
             { label: "Reset fog of war", icon: <CloudFog className="w-4 h-4" />, danger: true, onSelect: () => { void resetActiveMap("fog"); } },
             { label: "Reset map", icon: <RotateCcw className="w-4 h-4" />, danger: true, onSelect: () => { void resetActiveMap(); } },
           ]}

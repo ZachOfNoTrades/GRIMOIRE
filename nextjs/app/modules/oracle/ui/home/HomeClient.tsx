@@ -56,7 +56,7 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
   }
 
   async function deleteCampaign(campaign: CampaignSummary) {
-    if (!(await confirm({ title: `Delete ${campaign.name}?`, message: "Its sessions, maps, cast, pictures and log are all removed. This cannot be undone.", confirmLabel: "Delete", danger: true }))) return;
+    if (!(await confirm({ title: `Delete ${campaign.name}?`, message: "Its sessions, maps, entities, pictures and log are all removed. This cannot be undone.", confirmLabel: "Delete", danger: true }))) return;
     const previous = campaigns;
     setCampaigns((list) => list.filter((entry) => entry.id !== campaign.id));
     try {
