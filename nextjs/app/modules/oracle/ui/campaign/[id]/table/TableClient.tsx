@@ -152,6 +152,9 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
     if (!activeMap) return [];
     const placed = entities.filter((entity) => entity.map_id === activeMap.id && entity.map_x !== null && entity.map_y !== null);
     const places = placed.filter((entity) => entity.kind === "place").sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+    // Where the party can see from, measured once for the whole list rather than per entity.
+    const withParty = entities.filter((entity) => entity.in_party).map((entry) => ({ group_id: entry.party_group_id }));
+    const sight = visionPoints(activeMap, partyGroups, [...party, ...withParty]);
     return placed.map((entity) => ({
       id: entity.id,
       name: entity.name,
@@ -161,9 +164,12 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       y: entity.map_y as number,
       pin: entity.kind === "place" ? places.findIndex((place) => place.id === entity.id) + 1 : undefined,
       revealed: entity.visibility === "revealed",
+      visibility: entity.visibility,
+      // Only asked of one shown in range: hidden is never seen and revealed always is.
+      inSight: entity.visibility === "sight" && isVisibleFrom(sight, activeMap.vision_radius, entity.map_x as number, entity.map_y as number),
       down: entity.is_down,
     }));
-  }, [entities, activeMap]);
+  }, [entities, activeMap, partyGroups, party]);
 
   // Start the active map's exploration over. "fog" closes the map back up and leaves what the
   // players have been shown; "all" also takes back the entries revealed on it.

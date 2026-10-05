@@ -2,7 +2,7 @@
 
 import { Contrast, Crosshair, Maximize2, Minus, Plus, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { MapFeature, Attitude, EntityKind, ExploredCircle, MapData } from "../types/oracle";
+import type { MapFeature, Attitude, EntityKind, EntityVisibility, ExploredCircle, MapData } from "../types/oracle";
 import { MAP_GRID } from "../lib/constants";
 import { isVisibleFrom } from "../lib/fog";
 import RangeValue from "./RangeValue";
@@ -18,6 +18,10 @@ export interface MapToken {
   y: number;
   pin?: number; // places are drawn as numbered pins on the DM's map
   revealed?: boolean; // shown to the players; nothing placed is shown until the DM reveals it
+  // What the players may see of it, and — for one shown only while in range — whether they can
+  // see it right now. Both are for the DM's map; the players' snapshot carries only what they see.
+  visibility?: EntityVisibility;
+  inSight?: boolean;
   down?: boolean; // dead or out of the fight: drawn faded and crossed out
 }
 
@@ -792,7 +796,6 @@ export default function MapCanvas({
   // LABEL PLACEMENT — one pass over everything that carries text
   const baseOf = (token: MapToken) => (drag?.kind === "token" && drag.id === token.id ? { x: drag.x, y: drag.y } : { x: token.x, y: token.y });
   // Players see an entry only once the DM reveals it; the DM sees the rest drawn as hidden.
-  const isSeen = (token: MapToken) => !isDm || !!token.revealed;
 
   // STACKS — entries in the same grid cell are fanned out around the cell's middle, smaller, so
   // none hides another (or the party). Where they are drawn is a display matter only: dragging,
@@ -1040,36 +1043,38 @@ export default function MapCanvas({
         <rect className="orc-fog-dim" {...cover} mask={`url(#${maskId}-dim)`} />
         <rect className="orc-fog-unexplored" {...cover} mask={`url(#${maskId}-unexplored)`} />
 
-        {/* NOT YET REVEALED (the DM's map only) — above the fog, so they keep their own color
-            instead of taking its tint, with a dashed outline and a closed eye over the marker */}
-        {isDm && visibleTokens.filter((token) => !isSeen(token)).map((token) => {
+        {/* EVERY MARKER (the DM's map only) — above the fog, so none of them takes its tint.
+            Nothing about a marker changes with what the players may see of it except two marks:
+            a closed eye for one they never see, and a dashed outline for one they would see in
+            range but cannot see from where they stand. Colour, weight and the name are the same
+            in every state, so the map reads as one thing with notes on it. */}
+        {isDm && visibleTokens.map((token) => {
           const position = positionOf(token);
+          const unseen = token.visibility === "sight" && !token.inSight;
           return (
             <g
               key={token.id}
               className="orc-token"
-              data-token-id={isDm ? token.id : undefined}
+              data-token-id={token.id}
               data-attitude={token.attitude}
               data-down={token.down ? "true" : undefined}
               data-selected={selectedId === token.id ? "true" : undefined}
               data-shown={shownId === token.id ? "true" : undefined}
-              data-hidden="true"
-              onPointerDown={(event) => (isDm ? startDrag(event, "token", token.id, baseOf(token).x, baseOf(token).y) : event.stopPropagation())}
-              onClick={!isDm ? () => onTokenSelect?.(token.id) : undefined}
+              data-unseen={unseen ? "true" : undefined}
+              onPointerDown={(event) => startDrag(event, "token", token.id, baseOf(token).x, baseOf(token).y)}
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
               onPointerCancel={() => setDrag(null)}
             >
               <TokenMark kind={token.kind} x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />
               {token.down && <DownMark x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />}
-              {isDm && <HiddenMark x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />}
+              {token.visibility === "hidden" && <HiddenMark x={position.x} y={position.y} r={labelSize * 0.8 * position.scale} />}
               <text className="orc-token-name" data-attitude={token.attitude} x={position.x + labelSize * 1.2} y={position.y + labelSize * 0.35 + labelAt(`t:${token.id}`).dy} fontSize={labelSize}>
                 {token.name}
               </text>
             </g>
           );
         })}
-
 
         {/* NAMEPLATES — every name of something the party has seen or can see is drawn above the fog,
             in full (the DM sees them all). Something placed on top of a name hides it, so the one
@@ -1078,8 +1083,8 @@ export default function MapCanvas({
           {shownFeatureLabels.filter((feature) => feature.id !== hoveredLabel).map(featureLabel)}
         </g>
 
-        {/* WHAT THE PARTY SEES — above the fog, name in full */}
-        {visibleTokens.filter(isSeen).map((token) => {
+        {/* WHAT THE PARTY SEES — the players' map only; their snapshot carries nothing else */}
+        {!isDm && visibleTokens.map((token) => {
           const position = positionOf(token);
           return (
             <g

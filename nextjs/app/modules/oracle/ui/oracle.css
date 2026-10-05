@@ -284,7 +284,8 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-token[data-attitude="neutral"] :is(circle, polygon),
 .orc-token[data-attitude="neutral"] text { fill: var(--color-secondary); }
 .orc-token[data-selected="true"] :is(circle, polygon) { stroke: var(--color-primary); stroke-width: 3; }
-.orc-token[data-hidden="true"] :is(circle, polygon) { fill-opacity: 0.55; stroke: var(--color-secondary); stroke-dasharray: 3 2; }
+/* out of sight: the dash is the whole difference — color, fill and name stay as they are */
+.orc-token[data-unseen="true"] :is(circle, polygon) { stroke-dasharray: 3 2; }
 .orc-token[data-down="true"] { opacity: 0.8; }
 .orc-token[data-down="true"] :is(circle, polygon) { fill: var(--color-gray); }
 .orc-token[data-down="true"] .orc-token-name { fill: var(--color-gray); text-decoration: line-through; }
@@ -960,8 +961,6 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-map[data-tone="dark"] .orc-token-name[data-attitude="hostile"] { fill: color-mix(in srgb, var(--orc-bad) 55%, #fff); }
 .orc-map[data-tone="dark"] .orc-token-name[data-attitude="friendly"] { fill: color-mix(in srgb, var(--orc-good) 55%, #fff); }
 .orc-map[data-tone="dark"] .orc-token-name[data-attitude="neutral"] { fill: #e6e9ee; }
-.orc-map[data-tone="dark"] .orc-token[data-hidden] text { fill: #e6e9ee; }
-.orc-map[data-tone="light"] .orc-token[data-hidden] text { fill: #1d2229; }
 
 .orc-place-cell { fill: color-mix(in srgb, var(--orc-warn) 28%, transparent); stroke: var(--orc-warn); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 
