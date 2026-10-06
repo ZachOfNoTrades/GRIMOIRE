@@ -1388,3 +1388,8 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .card.orc-details .card-header { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .card.orc-details .card-content { max-height: 26rem; overflow-y: auto; overscroll-behavior: contain; }
 .orc-details-row { contain: layout paint; }
+
+/* MAP PAGE — the canvas takes the width, the details sit beside it */
+.orc-map-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+@media (min-width: 1024px) { .orc-map-page { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); } }
+.orc-map-canvas .orc-aligner-svg { max-height: min(70vh, 48rem); }

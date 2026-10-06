@@ -62,11 +62,22 @@ export const PREP_HELP: HelpSection[] = [
   },
   {
     heading: "Maps",
-    body: "Add map draws one from a description, or starts blank. Edit sets the name, description, scale and the picture under the map, which can be moved and resized to line up with the grid. ",
+    body: "Add map draws one from a description, or starts blank. Edit opens the map's page.",
   },
   {
     heading: "Pictures",
     body: "Get a picture searches the web or, once an OpenRouter key is set up, generates one. Pictures can be shown on the player display, attached to an entity or put under a map.",
+  },
+];
+
+export const MAP_HELP: HelpSection[] = [
+  {
+    heading: "Picture",
+    body: "The picture sits under the grid. Drag it, scroll or use the size control to resize it, or snap it with Fill, Fit and Stretch. To line it up exactly, pick a spot on the grid and the same spot on the picture, twice.",
+  },
+  {
+    heading: "Details",
+    body: "The description says what the map shows. Scale is the distance one tile stands for. Nothing is saved until you tap Save or press Ctrl+S.",
   },
 ];
 

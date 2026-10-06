@@ -1,9 +1,11 @@
 import { headers } from "next/headers";
 import { userCanAccessModule } from "@/lib/moduleAccess";
 import { getAuthorizedUser, type AuthUser } from "@/lib/permissions";
-import type { CampaignSummary, OracleCampaign, OracleEntity, OracleSession, OracleSettings, TableSnapshot } from "../types/oracle";
+import type { CampaignSummary, OracleCampaign, OracleEntity, OracleImage, OracleMap, OracleSession, OracleSettings, TableSnapshot } from "../types/oracle";
 import { getCampaign, listCampaigns, requireOwnedCampaign } from "./campaignFunctions";
 import { listEntities } from "./entityFunctions";
+import { listImages } from "./imageFunctions";
+import { getMap } from "./mapFunctions";
 import { getSession } from "./sessionFunctions";
 import { MODULE_SLUG } from "./constants";
 import { OracleError } from "./errors";
@@ -59,7 +61,24 @@ export function loadCampaignPage(campaignIdParam: string): Promise<PageLoad<Camp
   });
 }
 
-export function loadHomePage(): Promise<PageLoad<CampaignSummary[]>> {
+export interface MapPageData {
+  campaign: OracleCampaign;
+  map: OracleMap;
+  images: OracleImage[];
+  imageSources: ImageSourceInfo[];
+}
+
+export function loadMapPage(campaignIdParam: string, mapIdParam: string): Promise<PageLoad<MapPageData>> {
+  return guarded(async (user) => {
+    if (!UUID_PATTERN.test(campaignIdParam) || !UUID_PATTERN.test(mapIdParam)) throw new OracleError(404, "Map not found");
+    const campaignId = campaignIdParam.toLowerCase();
+    const campaign = await requireOwnedCampaign(user.id, campaignId);
+    const [map, images, imageSources] = await Promise.all([getMap(campaignId, mapIdParam.toLowerCase()), listImages(campaignId), listImageSources(user.id)]);
+    return { campaign, map, images, imageSources };
+  });
+}
+
+export function loadHomePage():Promise<PageLoad<CampaignSummary[]>> {
   return guarded((user) => listCampaigns(user.id));
 }
 

@@ -2,6 +2,7 @@
 
 import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Pencil, Plus, RotateCcw, Save, Sparkles, Trash2, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   const base = campaignApi(campaignId);
   const { confirm, confirmModal } = useConfirm();
   useAppHeight();
+  const router = useRouter();
 
   // DATA
   const [campaign, setCampaign] = useState<OracleCampaign>(snapshot.campaign);
@@ -50,7 +52,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   const [isAddingSession, setIsAddingSession] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [mapModal, setMapModal] = useState<{ map: OracleMap | null } | null>(null); // adding (null) or editing a map
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
   // What the server last confirmed for the world notes. The box is dirty while it differs.
   const [savedWorld, setSavedWorld] = useState(snapshot.campaign.world);
@@ -175,10 +177,11 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
     }
   }
 
-  // A map saved from the modal: a new one joins the list (and goes on the table when it is the first), an edited one is replaced.
-  function mapSaved(saved: OracleMap) {
-    setMaps((list) => (list.some((entry) => entry.id === saved.id) ? list.map((entry) => (entry.id === saved.id ? saved : entry)) : [...list, saved]));
+  // A map added from the modal joins the list (and goes on the table when it is the first), then opens on its own page.
+  function mapAdded(saved: OracleMap) {
+    setMaps((list) => (list.some((entry) => entry.id === saved.id) ? list : [...list, saved]));
     setCampaign((current) => (current.active_map_id ? current : { ...current, active_map_id: saved.id }));
+    router.push(`/modules/oracle/ui/campaign/${campaignId}/map/${saved.id}`);
   }
 
   async function makeActive(map: OracleMap) {
@@ -450,9 +453,9 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                       </div>
                       <div className="orc-campaign-actions">
                         {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}
-                        <Button className="btn-off" onClick={() => setMapModal({ map })} title="Edit map" aria-label={`Edit map ${map.name}`}>
+                        <Link href={`/modules/oracle/ui/campaign/${campaignId}/map/${map.id}`} className="btn btn-off" title="Edit map" aria-label={`Edit map ${map.name}`}>
                           <Pencil className="w-4 h-4" />
-                        </Button>
+                        </Link>
                         <Button className="btn-off" onClick={() => resetMap(map)} title="Reset map" aria-label={`Reset map ${map.name}`}>
                           <RotateCcw className="w-4 h-4" />
                         </Button>
@@ -464,7 +467,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                   ))}
 
                   {/* ADD MAP BUTTON */}
-                  <Button id="orc-map-add" className="btn-off" onClick={() => setMapModal({ map: null })}>
+                  <Button id="orc-map-add" className="btn-off" onClick={() => setIsMapModalOpen(true)}>
                     <Plus className="w-4 h-4" /> Add map
                   </Button>
                 </div>
@@ -516,14 +519,10 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
       {/* MAP MODAL */}
       <MapModal
-        isOpen={!!mapModal}
+        isOpen={isMapModalOpen}
         campaignId={campaignId}
-        map={mapModal?.map ?? null}
-        images={images}
-        imageSources={imageSources}
-        onImageAdded={(image) => setImages((list) => (list.some((entry) => entry.id === image.id) ? list : [...list, image]))}
-        onSaved={mapSaved}
-        onClose={() => setMapModal(null)}
+        onAdded={mapAdded}
+        onClose={() => setIsMapModalOpen(false)}
       />
 
       {/* PICTURE PICKER */}
