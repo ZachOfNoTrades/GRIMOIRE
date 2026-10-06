@@ -109,6 +109,8 @@ export interface UsageTotals {
   promptTokens: number;
   completionTokens: number;
   costUsd: number;
+  // Mean wall-clock per successful call, in ms; null when nothing succeeded.
+  durationMsAvg: number | null;
 }
 
 export interface UsageReport {
@@ -119,7 +121,7 @@ export interface UsageReport {
   daily: (UsageTotals & { day: string })[];
 }
 
-const EMPTY: UsageTotals = { calls: 0, failed: 0, promptTokens: 0, completionTokens: 0, costUsd: 0 };
+const EMPTY: UsageTotals = { calls: 0, failed: 0, promptTokens: 0, completionTokens: 0, costUsd: 0, durationMsAvg: null };
 
 function sinceFor(range: UsageRange): Date | null {
   if (range === "all") return null;
@@ -133,6 +135,7 @@ interface TotalsRecord {
   prompt_tokens: number;
   completion_tokens: number;
   cost_usd: number | null;
+  duration_ms_avg: number | null;
 }
 
 function totals(r: TotalsRecord): UsageTotals {
@@ -142,15 +145,19 @@ function totals(r: TotalsRecord): UsageTotals {
     promptTokens: r.prompt_tokens ?? 0,
     completionTokens: r.completion_tokens ?? 0,
     costUsd: Number(r.cost_usd ?? 0),
+    durationMsAvg: r.duration_ms_avg === null ? null : Number(r.duration_ms_avg),
   };
 }
 
+// Timing is averaged over successful calls only — a failed call's duration is how
+// long it took to fail, which says nothing about the model.
 const TOTALS_SELECT = `
   COUNT(*) AS calls,
   SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) AS failed,
   SUM(prompt_tokens) AS prompt_tokens,
   SUM(completion_tokens) AS completion_tokens,
-  SUM(cost_usd) AS cost_usd`;
+  SUM(cost_usd) AS cost_usd,
+  AVG(CASE WHEN ok = 1 THEN CAST(duration_ms AS FLOAT) END) AS duration_ms_avg`;
 
 export async function getUsageReport(userId: string, range: UsageRange): Promise<UsageReport> {
   const pool = await getMainConnection();
@@ -182,6 +189,9 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
 
   const perBackend: Record<LlmBackend, UsageTotals> = { claude: { ...EMPTY }, openrouter: { ...EMPTY } };
   const summary: UsageTotals = { ...EMPTY };
+  // The overall mean time is weighted by each backend's successful-call count.
+  let timedCalls = 0;
+  let timedMs = 0;
   for (const r of byBackend.recordset) {
     const t = totals(r);
     perBackend[r.backend] = t;
@@ -190,7 +200,13 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
     summary.promptTokens += t.promptTokens;
     summary.completionTokens += t.completionTokens;
     summary.costUsd += t.costUsd;
+    if (t.durationMsAvg !== null) {
+      const ok = t.calls - t.failed;
+      timedCalls += ok;
+      timedMs += t.durationMsAvg * ok;
+    }
   }
+  summary.durationMsAvg = timedCalls > 0 ? timedMs / timedCalls : null;
 
   return {
     range,

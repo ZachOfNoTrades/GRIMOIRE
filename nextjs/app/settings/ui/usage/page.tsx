@@ -22,6 +22,7 @@ interface Totals {
   promptTokens: number;
   completionTokens: number;
   costUsd: number;
+  durationMsAvg: number | null;
 }
 
 interface UsageReport {
@@ -49,6 +50,13 @@ function compact(n: number): string {
 
 function money(n: number): string {
   return n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(4)}`;
+}
+
+// Mean request time, "1.2s" / "14s"; blank when no call succeeded.
+function seconds(ms: number | null): string {
+  if (ms === null) return "";
+  const s = ms / 1000;
+  return s < 10 ? `${s.toFixed(1)}s` : `${Math.round(s)}s`;
 }
 
 // DAILY BAR CHART — one series (calls per day; cost when any call cost money), thin
@@ -184,6 +192,10 @@ export default function UsagePage() {
                 <div className="stat-label">Cost</div>
                 <div className="stat-value">{money(report.summary.costUsd)}</div>
               </div>
+              <div className="stat-card">
+                <div className="stat-label">Time</div>
+                <div className="stat-value">{seconds(report.summary.durationMsAvg) || "—"}</div>
+              </div>
               <div className={`stat-card${report.summary.failed > 0 ? " stat-card-red" : ""}`}>
                 <div className="stat-label">Failed</div>
                 <div className="stat-value">{report.summary.failed}</div>
@@ -195,11 +207,11 @@ export default function UsagePage() {
             <div className="stat-section" style={{ marginTop: "0.75rem" }}>
               <div className="stat-card">
                 <div className="stat-label">Claude</div>
-                <div className="stat-value">{compact(report.summary.byBackend.claude.calls)}</div>
+                <div className="stat-value">{[compact(report.summary.byBackend.claude.calls), seconds(report.summary.byBackend.claude.durationMsAvg)].filter(Boolean).join(" · ")}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">OpenRouter</div>
-                <div className="stat-value">{compact(report.summary.byBackend.openrouter.calls)} · {money(report.summary.byBackend.openrouter.costUsd)}</div>
+                <div className="stat-value">{[compact(report.summary.byBackend.openrouter.calls), money(report.summary.byBackend.openrouter.costUsd), seconds(report.summary.byBackend.openrouter.durationMsAvg)].filter(Boolean).join(" · ")}</div>
               </div>
             </div>
 
@@ -227,6 +239,7 @@ export default function UsagePage() {
                         <th className="table-header-cell">Calls</th>
                         <th className="table-header-cell">Tokens</th>
                         <th className="table-header-cell">Cost</th>
+                        <th className="table-header-cell">Time</th>
                       </tr>
                     </thead>
                     <tbody className="table-body">
@@ -238,6 +251,7 @@ export default function UsagePage() {
                           <td className="table-cell">{r.calls}{r.failed > 0 ? ` (${r.failed} failed)` : ""}</td>
                           <td className="table-cell">{compact(r.promptTokens + r.completionTokens)}</td>
                           <td className="table-cell">{money(r.costUsd)}</td>
+                          <td className="table-cell">{seconds(r.durationMsAvg)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -259,6 +273,7 @@ export default function UsagePage() {
                         <th className="table-header-cell">Calls</th>
                         <th className="table-header-cell">Tokens</th>
                         <th className="table-header-cell">Cost</th>
+                        <th className="table-header-cell">Time</th>
                       </tr>
                     </thead>
                     <tbody className="table-body">
@@ -269,6 +284,7 @@ export default function UsagePage() {
                           <td className="table-cell">{r.calls}</td>
                           <td className="table-cell">{compact(r.promptTokens + r.completionTokens)}</td>
                           <td className="table-cell">{money(r.costUsd)}</td>
+                          <td className="table-cell">{seconds(r.durationMsAvg)}</td>
                         </tr>
                       ))}
                     </tbody>
