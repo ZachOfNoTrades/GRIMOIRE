@@ -133,6 +133,7 @@ export const updateMapSchema = z
     scale_value: scaleValue.optional(),
     scale_unit: z.enum(SCALE_UNITS).optional(),
     background: pictureRect.nullable().optional(), // where the picture sits; null puts it back over the whole map
+    disabled: z.boolean().optional(), // hides the map from the Table's map list
     // Whole-map replacement (MCP and the in-app feature editor). Coerced server-side.
     data: z.unknown().optional(),
   })

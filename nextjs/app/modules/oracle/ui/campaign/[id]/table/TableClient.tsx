@@ -115,7 +115,7 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   const [isAdopting, setIsAdopting] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
 
-  const chosenMap = maps.find((map) => map.id === campaign.active_map_id) ?? maps[0] ?? null;
+  const chosenMap = maps.find((map) => map.id === campaign.active_map_id) ?? maps.find((map) => !map.data.disabled) ?? maps[0] ?? null;
   // The map is not drawn until its background is in the browser's cache: the features are SVG and
   // paint at once, so without this a map change shows the new layout over the old picture.
   const mapBackground = useCallback((map: OracleMap) => (map.background_image_id ? `${base}/images/${map.background_image_id}?w=1600` : null), [base]);
@@ -1061,7 +1061,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
                 <>
                   <div className="orc-map-switch-backdrop" onClick={() => setIsMapListOpen(false)} />
                   <div className="orc-map-switch-list" role="listbox" aria-label="Maps" style={mapListStyle}>
-                    {maps.map((map) => (
+                    {/* A disabled map is left out, unless it is the one on the table now. */}
+                    {maps.filter((map) => !map.data.disabled || map.id === activeMap?.id).map((map) => (
                       <button key={map.id} type="button" role="option" aria-selected={map.id === activeMap?.id} className="orc-map-switch-item" onClick={() => { setIsMapListOpen(false); if (map.id !== activeMap?.id) switchMap(map.id); }}>
                         <span>{map.name}</span>
                         {map.id === activeMap?.id && <span className="orc-map-switch-check" aria-hidden />}

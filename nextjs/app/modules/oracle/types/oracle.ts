@@ -47,6 +47,7 @@ export interface MapData {
   description: string; // what the map shows, in the DM's words; also what a generated map was drawn from
   background: PictureRect | null;
   features: MapFeature[];
+  disabled?: boolean; // left out of the Table's map list; the map and its page stay as they are
 }
 
 // A circle of map the party has seen. The union of these is the explored area.

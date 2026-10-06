@@ -420,7 +420,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                     >
                       <MapPreview data={map.data} pictureUrl={map.background_image_id ? `${base}/images/${map.background_image_id}` : null} />
                       <div className="orc-gen-body">
-                        <span className="orc-gen-value">{map.name}</span>
+                        <span className="orc-gen-value">{map.name}{map.data.disabled && <span className="badge">Disabled</span>}</span>
                       </div>
                       <ChevronRight className="w-4 h-4" aria-hidden />
                     </Link>

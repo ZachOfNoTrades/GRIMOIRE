@@ -98,6 +98,7 @@ export interface MapPatch {
   scale_value?: number;
   scale_unit?: ScaleUnit;
   background?: PictureRect | null;
+  disabled?: boolean;
 }
 
 // Party position, vision and the explored area. All of it is visible to the players, so the
@@ -137,7 +138,7 @@ export async function updateMap(campaignId: string, mapId: string, patch: MapPat
     updateFields.push("background_image_id = @backgroundImageId");
     request.input("backgroundImageId", patch.background_image_id);
   }
-  if (patch.description !== undefined || patch.scale_value !== undefined || patch.scale_unit !== undefined || patch.background !== undefined) {
+  if (patch.description !== undefined || patch.scale_value !== undefined || patch.scale_unit !== undefined || patch.background !== undefined || patch.disabled !== undefined) {
     const row = await pool.request().input("mapId", mapId).input("campaignId", campaignId).query(`
       SELECT data FROM oracle_maps WHERE id = @mapId AND campaign_id = @campaignId
     `);
@@ -149,6 +150,7 @@ export async function updateMap(campaignId: string, mapId: string, patch: MapPat
       scale_value: patch.scale_value ?? current.scale_value,
       scale_unit: patch.scale_unit ?? current.scale_unit,
       background: patch.background === undefined ? current.background : patch.background,
+      disabled: patch.disabled ?? current.disabled,
     });
     updateFields.push("data = @data");
     request.input("data", JSON.stringify(next));

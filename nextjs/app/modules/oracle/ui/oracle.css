@@ -1447,3 +1447,4 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-bar-panel .orc-zoom-value, .orc-bar-panel .orc-range-value, .orc-bar-panel .orc-label { color: inherit; opacity: 0.8; }
 .orc-map[data-ground="black"] .orc-bar-panel input[type="range"] { accent-color: #e6e9ee; }
 .orc-map[data-ground="white"] .orc-bar-panel input[type="range"] { accent-color: #1d2229; }
+.orc-map-badge { margin-left: 0.6rem; vertical-align: middle; }

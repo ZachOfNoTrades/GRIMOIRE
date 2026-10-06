@@ -124,7 +124,7 @@ export function coerceMapData(raw: unknown): MapData {
     });
   });
 
-  return { width, height, scale_value: scaled.value, scale_unit: scaled.unit, scale_label: formatScale(scaled.value, scaled.unit), description, background, features };
+  return { width, height, scale_value: scaled.value, scale_unit: scaled.unit, scale_label: formatScale(scaled.value, scaled.unit), description, background, features, ...(source.disabled === true ? { disabled: true } : {}) };
 }
 
 export function coerceExplored(raw: unknown): ExploredCircle[] {

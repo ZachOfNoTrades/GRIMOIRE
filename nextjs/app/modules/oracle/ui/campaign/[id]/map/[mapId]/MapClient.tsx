@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Plus, Save, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -132,6 +132,19 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
     setIsEditing(false);
   }
 
+  // Disabled maps stay here and in Prep but leave the Table's map list. Painted at once, then saved.
+  async function setDisabled(disabled: boolean) {
+    const previous = map;
+    setMap({ ...map, data: { ...map.data, disabled } });
+    try {
+      setMap(await api<OracleMap>(`${base}/maps/${map.id}`, "PUT", { disabled }));
+      toast.success(disabled ? "Map disabled" : "Map enabled");
+    } catch (error) {
+      setMap(previous);
+      toast.error(errorMessage(error, disabled ? "Couldn't disable the map" : "Couldn't enable the map"));
+    }
+  }
+
   async function remove() {
     if (!(await confirm({ title: `Delete ${map.name}?`, message: "The map and its explored area are removed. Entities placed on it are kept.", confirmLabel: "Delete", danger: true }))) return;
     try {
@@ -198,7 +211,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                 onKeyDown={saveOnShortcut(save)}
               />
             ) : (
-              <h1 id="orc-map-title" className="orc-map-title">{map.name}</h1>
+              <h1 id="orc-map-title" className="orc-map-title">{map.name}{map.data.disabled && <span className="badge orc-map-badge">Disabled</span>}</h1>
             )}
             <div className="orc-map-actions">
               {isEditing ? (
@@ -214,6 +227,9 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                   <HeaderMenu
                     id="orc-map-more"
                     items={[
+                      map.data.disabled
+                        ? { label: "Enable map", icon: <Eye className="w-4 h-4" />, onSelect: () => setDisabled(false) }
+                        : { label: "Disable map", icon: <EyeOff className="w-4 h-4" />, onSelect: () => setDisabled(true) },
                       { label: "Delete map", icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: remove },
                     ]}
                   />
