@@ -1414,12 +1414,12 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 /* The map page's Overlay slider sets how solid the features are: 100% is fully opaque, even over a picture. */
 .orc-map-viewer .orc-map .orc-feature > rect:first-child, .orc-map-viewer .orc-map .orc-feature > ellipse { fill-opacity: var(--orc-overlay, 1); stroke-opacity: max(var(--orc-overlay, 1), 0.35); }
 /* The map page draws its features in fuller color than the Table's tinted shapes. */
-.orc-map-viewer .orc-feature[data-type="building"] > rect:first-child { fill: color-mix(in srgb, var(--orc-good) 85%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="building"] > rect:first-child { fill: color-mix(in srgb, var(--orc-good) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature[data-type="building"][data-state="burned"] > rect:first-child,
-.orc-map-viewer .orc-feature[data-type="building"][data-state="ruined"] > rect:first-child { fill: color-mix(in srgb, var(--orc-bad) 85%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="road"] rect { fill: color-mix(in srgb, var(--color-gray) 85%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="water"] rect { fill: color-mix(in srgb, var(--orc-cool) 85%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="landmark"] ellipse { fill: color-mix(in srgb, var(--orc-cool) 85%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="building"][data-state="ruined"] > rect:first-child { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="road"] rect { fill: color-mix(in srgb, var(--color-gray) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="water"] rect { fill: color-mix(in srgb, var(--orc-cool) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="landmark"] ellipse { fill: color-mix(in srgb, var(--orc-cool) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature[data-type="landmark"][data-state="burned"] ellipse,
-.orc-map-viewer .orc-feature[data-type="landmark"][data-state="ruined"] ellipse { fill: color-mix(in srgb, var(--orc-bad) 85%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="landmark"][data-state="ruined"] ellipse { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature { filter: saturate(1.8); }
