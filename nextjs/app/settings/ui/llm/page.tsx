@@ -397,12 +397,12 @@ export default function LlmSettingsPage() {
                     const selectValue = isManual ? MANUAL : (row.model ?? "");
                     return (
                       <SettingsControlRow key={task.id} label={task.label} divider={i > 0}>
-                        <span style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", width: "min(100%, 34rem)" }}>
+                        <span style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", width: "34rem", maxWidth: "100%" }}>
 
                           {/* BACKEND */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "0 0 auto", width: "34rem", maxWidth: "100%" }}
+                            style={{ flex: "0 0 100%", minWidth: 0 }}
                             value={row.backend}
                             disabled={task.openRouterOnly}
                             aria-label={`${task.label} backend`}
@@ -418,7 +418,7 @@ export default function LlmSettingsPage() {
                               backends. */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "0 0 auto", width: "34rem", maxWidth: "100%" }}
+                            style={{ flex: "0 0 100%", minWidth: 0 }}
                             value={selectValue}
                             aria-label={`${task.label} model`}
                             onChange={(e) => pickModel(task.id, e.target.value)}
