@@ -1429,3 +1429,4 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map[data-ground="black"] .orc-feature-label-bg { fill: #000; stroke: rgba(255, 255, 255, 0.25); }
 .orc-map[data-ground="white"] .orc-feature-label-bg { fill: #fff; stroke: rgba(0, 0, 0, 0.2); }
 .orc-label-bg-toggle[aria-pressed="true"] { color: var(--color-primary); background: var(--hover-bg); }
+.orc-map-prop-text { white-space: pre-wrap; }

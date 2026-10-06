@@ -359,7 +359,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                     onKeyDown={saveOnShortcut(save)}
                   />
                 ) : (
-                  <span className="orc-section-text">{map.data.description || "None"}</span>
+                  <span className="orc-map-prop-text">{map.data.description || "None"}</span>
                 )}
               </dd>
             </dl>
