@@ -510,6 +510,8 @@ export default function EditSegmentModal({
         isOpen={isOpen}
         onClose={handleClose}
         fullHeight
+        fullScreenMobileOnly
+        stackedHeader
         title={
           // EXERCISE NAME (full width, truncates on overflow)
           <span className="truncate">{editedSegment.exercise_name || "New Exercise"}</span>

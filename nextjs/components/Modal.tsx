@@ -31,6 +31,9 @@ interface ModalProps {
     // Raises the card's cap from 85% to 95% of the visible viewport, for long forms that would
     // otherwise scroll a lot inside a short card (e.g. the quest task editor).
     tall?: boolean;
+    // On mobile, the title takes its own full-width top row and modalActions wrap onto a row
+    // beneath it, so a crowded controls group can never squeeze the title out.
+    stackedHeader?: boolean;
     zIndex?: number;
     modalActions?: ReactNode;
 }
@@ -49,6 +52,7 @@ export default function Modal({
     sheet = false,
     wide = false,
     tall = false,
+    stackedHeader = false,
     zIndex,
     modalActions,
 }: ModalProps) {
@@ -95,7 +99,7 @@ export default function Modal({
             >
 
                 {/* MODAL HEADER */}
-                <div className="modal-header">
+                <div className={`modal-header${stackedHeader ? ' modal-header-stacked' : ''}`}>
                     <h2 className='text-modal-title'>{title}</h2>
 
                     {/* MODAL ACTIONS */}
