@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "backend must be claude or openrouter" }, { status: 400 });
     }
 
-    return NextResponse.json(await listModelsForAllTasks(backend));
+    return NextResponse.json(await listModelsForAllTasks(backend, session.user.id));
   } catch (error) {
     console.error("Error in GET /api/llm/models:", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: "Couldn't load the model list" }, { status: 502 });
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "backend, task and model are required" }, { status: 400 });
     }
 
-    return NextResponse.json(await validateModel(body.backend, body.task, body.model));
+    return NextResponse.json(await validateModel(body.backend, body.task, body.model, session.user.id));
   } catch (error) {
     console.error("Error in POST /api/llm/models:", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: "Couldn't check the model" }, { status: 502 });

@@ -9,7 +9,7 @@ import HelpButton from "@/components/ui/HelpButton";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { SettingsControlRow } from "@/components/settings/SettingsList";
 import { LLM_TASKS, LLM_TASK_GROUPS, type LlmTaskId } from "@/lib/llm/tasks";
-import type { LlmBackend, LlmTaskConfig } from "@/lib/llm/types";
+import type { LlmBackend, LlmModelSort, LlmTaskConfig } from "@/lib/llm/types";
 import type { LlmTaskPrefs } from "@/types/preferences";
 
 // SETTINGS → AI → MODELS. Three things, all the signed-in user's own:
@@ -68,6 +68,31 @@ type ManualCheck = { state: "checking" } | { state: "ok"; name: string; model: C
 const BACKEND_LABEL: Record<LlmBackend, string> = { claude: "Claude", openrouter: "OpenRouter" };
 const MANUAL = "__manual__";
 
+const SORT_OPTIONS: { value: LlmModelSort; label: string }[] = [
+  { value: "name", label: "Name" },
+  { value: "price", label: "Price" },
+  { value: "speed", label: "Speed" },
+  { value: "release", label: "Release" },
+];
+
+// Order the dropdown. Entries without the sorted figure go last, in name order.
+function sortModels(models: CatalogModel[], sort: LlmModelSort): CatalogModel[] {
+  const key = (m: CatalogModel): number | null =>
+    sort === "price" ? m.estCostUsd
+    : sort === "speed" ? m.estSeconds
+    : sort === "release" ? (m.info?.created ? -Date.parse(m.info.created) : null)
+    : null;
+  return [...models].sort((a, b) => {
+    if (sort === "name") return a.name.localeCompare(b.name);
+    const ka = key(a);
+    const kb = key(b);
+    if (ka === null && kb === null) return a.name.localeCompare(b.name);
+    if (ka === null) return 1;
+    if (kb === null) return -1;
+    return ka - kb || a.name.localeCompare(b.name);
+  });
+}
+
 function money(n: number): string {
   if (n >= 1) return `$${n.toFixed(2)}`;
   if (n >= 0.01) return `$${n.toFixed(3)}`;
@@ -88,7 +113,7 @@ function ctxLabel(ctx: number): string {
 function optionLabel(m: CatalogModel | undefined): string {
   if (!m) return "";
   const parts = [m.name];
-  if (m.estCostUsd !== null) parts.push(`~${money(m.estCostUsd)}`);
+  if (m.estCostUsd !== null) parts.push(m.estCostUsd < 0.0001 ? money(m.estCostUsd) : `~${money(m.estCostUsd)}`);
   if (m.estSeconds !== null) parts.push(`${m.estSeconds < 10 ? m.estSeconds.toFixed(1) : Math.round(m.estSeconds)}s`);
   return parts.join(" | ");
 }
@@ -229,7 +254,7 @@ export default function LlmSettingsPage() {
 
   // Switching backend drops the model: ids are not portable between the two lists.
   function setBackend(task: LlmTaskId, backend: LlmBackend) {
-    setRow(task, { backend, model: undefined });
+    setRows((prev) => (prev ? { ...prev, [task]: { backend, sort: prev[task].sort } } : prev));
     setManual((prev) => ({ ...prev, [task]: false }));
     setChecks((prev) => ({ ...prev, [task]: undefined }));
   }
@@ -239,7 +264,7 @@ export default function LlmSettingsPage() {
       if (!prev) return prev;
       const next = { ...prev };
       for (const task of LLM_TASKS) {
-        if (!task.openRouterOnly) next[task.id] = { backend };
+        if (!task.openRouterOnly) next[task.id] = { backend, sort: next[task.id].sort };
       }
       return next;
     });
@@ -441,10 +466,11 @@ export default function LlmSettingsPage() {
                       <SettingsControlRow key={task.id} label={task.label} divider={i > 0}>
                         <span style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", width: "34rem", maxWidth: "100%" }}>
 
-                          {/* BACKEND */}
+                          {/* BACKEND + SORT — one line; the sort orders the model dropdown below
+                              and is saved with the task */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "0 0 100%", minWidth: 0 }}
+                            style={{ flex: "1 1 0", minWidth: 0 }}
                             value={row.backend}
                             disabled={task.openRouterOnly}
                             aria-label={`${task.label} backend`}
@@ -452,6 +478,15 @@ export default function LlmSettingsPage() {
                           >
                             {!task.openRouterOnly && <option value="claude">{BACKEND_LABEL.claude}</option>}
                             <option value="openrouter">{BACKEND_LABEL.openrouter}</option>
+                          </select>
+                          <select
+                            className="input-field input-field-compact"
+                            style={{ flex: "0 0 9rem", minWidth: 0 }}
+                            value={row.sort ?? "name"}
+                            aria-label={`${task.label} sort`}
+                            onChange={(e) => setRow(task.id, { sort: e.target.value as LlmModelSort })}
+                          >
+                            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
 
                           {/* MODEL — catalog dropdown; "Manual entry…" opens the text field. The
@@ -467,7 +502,7 @@ export default function LlmSettingsPage() {
                           >
                             <option value={MANUAL}>Manual entry…</option>
                             <option value="">{list ? `${optionLabel(list.models.find((m) => m.recommended))} (Recommended)` : "(Recommended)"}</option>
-                            {(list?.models ?? []).filter((m) => !m.recommended).map((m) => (
+                            {sortModels((list?.models ?? []).filter((m) => !m.recommended), row.sort ?? "name").map((m) => (
                               <option key={m.id} value={m.id}>{optionLabel(m)}</option>
                             ))}
                           </select>

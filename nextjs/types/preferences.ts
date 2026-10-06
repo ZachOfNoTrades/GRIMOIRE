@@ -2,7 +2,7 @@
 // Module-scoped settings live in their own module DB — forage_user_settings and
 // friends; this file is only for settings that apply across the whole app.
 
-import { isLlmBackend, type LlmTaskConfig } from "@/lib/llm/types";
+import { isLlmBackend, isLlmModelSort, type LlmTaskConfig } from "@/lib/llm/types";
 import { isLlmTaskId, type LlmTaskId } from "@/lib/llm/tasks";
 
 // THEME MODE — "auto" defers to the browser/OS color scheme
@@ -31,10 +31,13 @@ export function coerceLlmTaskPrefs(value: unknown): LlmTaskPrefs {
   if (!value || typeof value !== "object") return prefs;
   for (const [task, raw] of Object.entries(value as Record<string, unknown>)) {
     if (!isLlmTaskId(task) || !raw || typeof raw !== "object") continue;
-    const item = raw as { backend?: unknown; model?: unknown };
+    const item = raw as { backend?: unknown; model?: unknown; sort?: unknown };
     if (!isLlmBackend(item.backend)) continue;
     const model = typeof item.model === "string" ? item.model.trim().slice(0, 120) : "";
-    prefs[task] = model ? { backend: item.backend, model } : { backend: item.backend };
+    const config: LlmTaskConfig = { backend: item.backend };
+    if (model) config.model = model;
+    if (isLlmModelSort(item.sort) && item.sort !== "name") config.sort = item.sort;
+    prefs[task] = config;
   }
   return prefs;
 }

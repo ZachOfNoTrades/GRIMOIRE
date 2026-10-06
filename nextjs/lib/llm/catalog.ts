@@ -1,6 +1,7 @@
 import { LLM_TASKS, taskDef, type LlmTaskDef, type LlmTaskId } from "./tasks";
 import type { LlmBackend } from "./types";
 import { getModelTimingStats, getTaskTokenStats, type ModelTimingStats, type TaskTokenStats } from "./usage";
+import { getOpenRouterKeyStatus, withOpenRouterKey } from "./userKeys";
 
 // MODEL CATALOG — what the settings page offers in each task's model dropdown, and
 // how a typed-in id is checked.
@@ -81,11 +82,72 @@ function timingFor(h: TaskHistory, idOrAlias: string): ModelTimingStats | null {
   return best;
 }
 
-// A generation-side guess when no call on this model has been logged yet: a fixed
-// round trip plus the completion at a typical streaming rate, more for a photo.
+// A generation-side guess when neither a logged call nor OpenRouter's own stats are
+// available: a fixed round trip plus the completion at a typical streaming rate.
 function fallbackSeconds(def: LlmTaskDef, completionTokens: number): number {
   const base = def.needsVision ? 2.5 : def.openRouterOnly ? 8 : 0.8;
   return base + completionTokens / 60;
+}
+
+// OPENROUTER ENDPOINT STATS — GET /models/{id}/endpoints answers with each provider's
+// last-30-minute p50 latency (ms to first token) and throughput (tokens/s), but only
+// to an authenticated caller, so they are fetched with the viewing user's own key and
+// cached briefly. The endpoint we price is the lowest-latency healthy one, which is
+// the one OpenRouter routes to under `provider.sort: "latency"` (lib/llm/openrouter.ts).
+interface EndpointStats {
+  latencyMs: number;
+  tokensPerSec: number;
+}
+
+const STATS_TTL_MS = 30 * 60 * 1000;
+const statsCache = new Map<string, { at: number; stats: EndpointStats | null }>();
+
+async function fetchEndpointStats(id: string, key: string): Promise<EndpointStats | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(`https://openrouter.ai/api/v1/models/${id}/endpoints`, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { data?: { endpoints?: { status?: number; latency_last_30m?: { p50?: number } | null; throughput_last_30m?: { p50?: number } | null }[] } };
+    let best: EndpointStats | null = null;
+    for (const ep of body.data?.endpoints ?? []) {
+      if ((ep.status ?? 0) !== 0) continue;
+      const latencyMs = ep.latency_last_30m?.p50;
+      const tokensPerSec = ep.throughput_last_30m?.p50;
+      if (typeof latencyMs !== "number" || typeof tokensPerSec !== "number" || tokensPerSec <= 0) continue;
+      if (!best || latencyMs < best.latencyMs) best = { latencyMs, tokensPerSec };
+    }
+    return best;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function endpointStatsFor(ids: string[], key: string): Promise<Map<string, EndpointStats | null>> {
+  const now = Date.now();
+  const out = new Map<string, EndpointStats | null>();
+  const missing: string[] = [];
+  for (const id of ids) {
+    const cached = statsCache.get(id);
+    if (cached && now - cached.at < STATS_TTL_MS) out.set(id, cached.stats);
+    else missing.push(id);
+  }
+  // A handful at a time: ~100 ms each, and the settings page asks for every task's list.
+  const CONCURRENCY = 8;
+  for (let i = 0; i < missing.length; i += CONCURRENCY) {
+    const batch = missing.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map((id) => fetchEndpointStats(id, key)));
+    batch.forEach((id, n) => {
+      statsCache.set(id, { at: now, stats: results[n] });
+      out.set(id, results[n]);
+    });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -294,17 +356,24 @@ function recommend(models: OrModel[], cap: Capability, fallback: string): string
   return picks[0].id;
 }
 
-function orEntry(def: LlmTaskDef, m: OrModel, recommended: boolean, h: TaskHistory): CatalogModel {
+function orEntry(def: LlmTaskDef, m: OrModel, recommended: boolean, h: TaskHistory, stats?: EndpointStats | null): CatalogModel {
   const [promptTokens, completionTokens] = tokenCounts(def, h);
   const t = timingFor(h, m.id);
   // Logged cost on this very model beats a list-price projection.
   const projected = (promptTokens * m.promptPerM + completionTokens * m.completionPerM) / 1e6;
+  // Time: a logged call on this model for this task, else OpenRouter's live endpoint
+  // stats (first-token latency + the completion at the measured rate), else a guess.
+  const estSeconds = t
+    ? t.durationMsAvg / 1000
+    : stats
+      ? stats.latencyMs / 1000 + completionTokens / stats.tokensPerSec
+      : fallbackSeconds(def, completionTokens);
   return {
     id: m.id,
     name: m.name,
     recommended,
     estCostUsd: t?.costUsdAvg ?? projected,
-    estSeconds: t ? t.durationMsAvg / 1000 : fallbackSeconds(def, completionTokens),
+    estSeconds,
     basis: { taskCalls: h.tokens.calls, modelCalls: t?.calls ?? 0 },
     info: {
       promptPerM: m.promptPerM,
@@ -320,7 +389,9 @@ function orEntry(def: LlmTaskDef, m: OrModel, recommended: boolean, h: TaskHisto
 
 const LIST_MAX = 60;
 
-async function openRouterList(task: LlmTaskId): Promise<TaskModelList> {
+// The user's key, when they have one, unlocks OpenRouter's endpoint stats for the
+// time estimates; it is used for that read and nothing else.
+async function openRouterList(task: LlmTaskId, userId?: string): Promise<TaskModelList> {
   const def = taskDef(task);
   const cap = capabilityOf(def);
   const [all, h] = await Promise.all([getOpenRouterCatalog(), historyFor(task, "openrouter")]);
@@ -335,10 +406,20 @@ async function openRouterList(task: LlmTaskId): Promise<TaskModelList> {
   const rec = fitting.find((m) => m.id === recommended);
   if (rec && !kept.includes(rec)) kept.push(rec);
   kept.sort((a, b) => a.name.localeCompare(b.name));
-  return { recommended, models: kept.map((m) => orEntry(def, m, m.id === recommended, h)) };
+  const stats = await statsWithUserKey(userId, kept.map((m) => m.id));
+  return { recommended, models: kept.map((m) => orEntry(def, m, m.id === recommended, h, stats?.get(m.id))) };
 }
 
-async function validateOpenRouterModel(id: string, task: LlmTaskId): Promise<ValidationResult> {
+async function statsWithUserKey(userId: string | undefined, ids: string[]): Promise<Map<string, EndpointStats | null> | null> {
+  if (!userId || !(await getOpenRouterKeyStatus(userId)).configured) return null;
+  try {
+    return await withOpenRouterKey(userId, (key) => endpointStatsFor(ids, key));
+  } catch {
+    return null;
+  }
+}
+
+async function validateOpenRouterModel(id: string, task: LlmTaskId, userId?: string): Promise<ValidationResult> {
   if (!/^[a-z0-9-]+\/[a-z0-9][a-z0-9.:-]*$/i.test(id)) return { ok: false, reason: "An OpenRouter model id looks like vendor/model-name" };
   const def = taskDef(task);
   const cap = capabilityOf(def);
@@ -349,8 +430,8 @@ async function validateOpenRouterModel(id: string, task: LlmTaskId): Promise<Val
     const need = cap === "image" ? "generate images" : cap === "vision" ? "read images" : cap === "tools" ? "call tools" : "handle text";
     return { ok: false, reason: `${model.name} can't ${need}, which this task needs` };
   }
-  const h = await historyFor(task, "openrouter");
-  return { ok: true, name: model.name, model: orEntry(def, model, false, h) };
+  const [h, stats] = await Promise.all([historyFor(task, "openrouter"), statsWithUserKey(userId, [model.id])]);
+  return { ok: true, name: model.name, model: orEntry(def, model, false, h, stats?.get(model.id)) };
 }
 
 // The OpenRouter model a task runs on when the user left the choice blank — the same
@@ -371,22 +452,22 @@ export async function recommendedOpenRouterModel(task: LlmTaskId): Promise<strin
 // PUBLIC
 // ---------------------------------------------------------------------------------------------
 
-export async function listModels(backend: LlmBackend, task: LlmTaskId): Promise<TaskModelList> {
-  return backend === "claude" ? claudeList(task) : openRouterList(task);
+export async function listModels(backend: LlmBackend, task: LlmTaskId, userId?: string): Promise<TaskModelList> {
+  return backend === "claude" ? claudeList(task) : openRouterList(task, userId);
 }
 
 // Every task's list for one backend in one call (what the settings page loads).
-export async function listModelsForAllTasks(backend: LlmBackend): Promise<Record<string, TaskModelList>> {
+export async function listModelsForAllTasks(backend: LlmBackend, userId?: string): Promise<Record<string, TaskModelList>> {
   const out: Record<string, TaskModelList> = {};
   for (const def of LLM_TASKS) {
     if (backend === "claude" && def.openRouterOnly) continue;
-    out[def.id] = await listModels(backend, def.id);
+    out[def.id] = await listModels(backend, def.id, userId);
   }
   return out;
 }
 
-export async function validateModel(backend: LlmBackend, task: LlmTaskId, id: string): Promise<ValidationResult> {
+export async function validateModel(backend: LlmBackend, task: LlmTaskId, id: string, userId?: string): Promise<ValidationResult> {
   const trimmed = id.trim();
   if (!trimmed) return { ok: false, reason: "Empty model id" };
-  return backend === "claude" ? validateClaudeModel(trimmed, task) : validateOpenRouterModel(trimmed, task);
+  return backend === "claude" ? validateClaudeModel(trimmed, task) : validateOpenRouterModel(trimmed, task, userId);
 }

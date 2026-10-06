@@ -12,11 +12,21 @@ export function isLlmBackend(value: unknown): value is LlmBackend {
   return typeof value === "string" && (LLM_BACKENDS as string[]).includes(value);
 }
 
-// One user's choice for one task. `model` only applies to OpenRouter (an OpenRouter
-// model id such as "anthropic/claude-haiku-4.5"); the CLI model is fixed per task.
+// How the settings page orders a task's model dropdown.
+export type LlmModelSort = "name" | "price" | "speed" | "release";
+export const LLM_MODEL_SORTS: readonly LlmModelSort[] = ["name", "price", "speed", "release"];
+
+export function isLlmModelSort(value: unknown): value is LlmModelSort {
+  return typeof value === "string" && (LLM_MODEL_SORTS as string[]).includes(value);
+}
+
+// One user's choice for one task: the backend, an optional model (an OpenRouter id
+// such as "anthropic/claude-haiku-4.5", or a CLI alias / full id), and the order
+// they last chose for that task's dropdown.
 export interface LlmTaskConfig {
   backend: LlmBackend;
   model?: string;
+  sort?: LlmModelSort;
 }
 
 // An image handed to a vision call: a file on this box. The OpenRouter backend
