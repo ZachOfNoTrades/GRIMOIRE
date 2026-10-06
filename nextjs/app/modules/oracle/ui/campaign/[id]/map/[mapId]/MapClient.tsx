@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -132,16 +132,6 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
     setIsEditing(false);
   }
 
-  async function reset() {
-    if (!(await confirm({ title: `Reset ${map.name}?`, message: "The fog returns everywhere the party can't see right now, and entities revealed on this map are hidden again.", confirmLabel: "Reset", danger: true }))) return;
-    try {
-      setMap(await api<OracleMap>(`${base}/maps/${map.id}/reset`, "POST"));
-      toast.success(`${map.name} reset`);
-    } catch (error) {
-      toast.error(errorMessage(error, "Couldn't reset the map"));
-    }
-  }
-
   async function remove() {
     if (!(await confirm({ title: `Delete ${map.name}?`, message: "The map and its explored area are removed. Entities placed on it are kept.", confirmLabel: "Delete", danger: true }))) return;
     try {
@@ -224,7 +214,6 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                   <HeaderMenu
                     id="orc-map-more"
                     items={[
-                      { label: "Reset fog", icon: <RotateCcw className="w-4 h-4" />, onSelect: reset },
                       { label: "Delete map", icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: remove },
                     ]}
                   />

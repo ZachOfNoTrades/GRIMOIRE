@@ -73,7 +73,7 @@ export const PREP_HELP: HelpSection[] = [
 export const MAP_HELP: HelpSection[] = [
   {
     heading: "Viewing",
-    body: "The page opens to read. Edit changes the name, description, scale and picture; Reset brings the fog back; Delete removes the map.",
+    body: "The page opens to read. Edit changes the name, description, scale and picture; the menu beside it deletes the map.",
   },
   {
     heading: "Picture",
