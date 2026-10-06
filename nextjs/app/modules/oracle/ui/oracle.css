@@ -1442,3 +1442,8 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-type="landmark"] { fill: color-mix(in srgb, var(--orc-cool) 25%, #000); }
 .orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-state="burned"],
 .orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-state="ruined"] { fill: color-mix(in srgb, var(--orc-bad) 45%, #000); }
+/* Every number and name in the map bar takes the bar's own color, so the slider values match the
+   zoom value on any ground and theme. */
+.orc-bar-panel .orc-zoom-value, .orc-bar-panel .orc-range-value, .orc-bar-panel .orc-label { color: inherit; opacity: 0.8; }
+.orc-map[data-ground="black"] .orc-bar-panel input[type="range"] { accent-color: #e6e9ee; }
+.orc-map[data-ground="white"] .orc-bar-panel input[type="range"] { accent-color: #1d2229; }

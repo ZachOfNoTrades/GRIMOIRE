@@ -1,7 +1,7 @@
 "use client";
 
 import { Contrast, Crosshair, Maximize2, Minus, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MapFeature, Attitude, EntityKind, EntityVisibility, ExploredCircle, MapData } from "../types/oracle";
 import { MAP_GRID } from "../lib/constants";
 import { isVisibleFrom } from "../lib/fog";
@@ -307,6 +307,24 @@ const clampZoom = (zoom: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom))
 
 // The map is drawn as SVG from structured features. Coordinates are map units; the viewBox does
 // the scaling, so the same drawing fills a phone, a laptop pane or the shared screen.
+// A name's backdrop, sized from the drawn text itself (the next sibling) so it covers every
+// glyph whatever the font, letter spacing or zoom.
+function LabelBackdrop({ text, x, y, size }: { text: string; x: number; y: number; size: number }) {
+  const ref = useRef<SVGRectElement>(null);
+  const [box, setBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    const label = ref.current?.nextElementSibling;
+    if (label instanceof SVGTextElement) {
+      const measured = label.getBBox();
+      setBox({ x: measured.x, y: measured.y, width: measured.width, height: measured.height });
+    }
+  }, [text, x, y, size]);
+  if (!box) return <rect ref={ref} className="orc-feature-label-bg" x={x} y={y} width={0} height={0} />;
+  const padX = size * 0.35;
+  const padY = size * 0.15;
+  return <rect ref={ref} className="orc-feature-label-bg" x={box.x - padX} y={box.y - padY} width={box.width + padX * 2} height={box.height + padY * 2} />;
+}
+
 export default function MapCanvas({
   data,
   partyX,
@@ -903,8 +921,8 @@ export default function MapCanvas({
         onPointerEnter={isDm ? () => setHoveredLabel(feature.id) : undefined}
         onPointerLeave={isDm ? () => setHoveredLabel((current) => (current === feature.id ? null : current)) : undefined}
       >
-        {isLabelBacked && <rect className="orc-feature-label-bg" x={x - labelSize * 0.35} y={y - labelSize * 1.05} width={width + labelSize * 0.7} height={labelSize * 1.45} />}
         {isDm && <rect className="orc-feature-label-grip" x={x - 2} y={y - labelSize} width={width + 4} height={labelSize * 1.35} />}
+        {isLabelBacked && <LabelBackdrop text={text} x={x} y={y} size={labelSize} />}
         <text className="orc-feature-label" data-type={feature.type} data-state={feature.state} x={x} y={y} fontSize={labelSize}>
           {text}
         </text>
