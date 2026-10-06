@@ -924,7 +924,7 @@ export default function MapCanvas({
       >
         {isDm && <rect className="orc-feature-label-grip" x={x - 2} y={y - labelSize} width={width + 4} height={labelSize * 1.35} />}
         {isLabelBacked && <LabelBackdrop text={text} x={x} y={y} size={labelSize} />}
-        <text className="orc-feature-label" data-type={feature.type} data-state={feature.state} x={x} y={y} fontSize={labelSize}>
+        <text className="orc-feature-label" data-type={feature.type} x={x} y={y} fontSize={labelSize}>
           {text}
         </text>
       </g>
@@ -1070,14 +1070,11 @@ export default function MapCanvas({
           data.features
             .filter((feature) => feature.type === layer)
             .map((feature) => (
-              <g key={feature.id} className="orc-feature" data-type={feature.type} data-state={feature.state} data-link={linkedFeatures.includes(feature.id) ? "true" : undefined} onPointerDown={!isDm && linkedFeatures.includes(feature.id) ? (event) => event.stopPropagation() : undefined} onClick={!isDm && linkedFeatures.includes(feature.id) ? () => { if (!didPanRef.current) onFeatureSelect?.(feature.id); } : undefined}>
+              <g key={feature.id} className="orc-feature" data-type={feature.type} data-link={linkedFeatures.includes(feature.id) ? "true" : undefined} onPointerDown={!isDm && linkedFeatures.includes(feature.id) ? (event) => event.stopPropagation() : undefined} onClick={!isDm && linkedFeatures.includes(feature.id) ? () => { if (!didPanRef.current) onFeatureSelect?.(feature.id); } : undefined}>
                 {isOval(feature) ? (
                   <ellipse className="orc-feature-shape" cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
                 ) : (
                   <rect className="orc-feature-shape" x={feature.x} y={feature.y} width={feature.w} height={feature.h} />
-                )}
-                {feature.state !== "intact" && feature.type === "building" && (
-                  <rect className="orc-feature-rubble" x={feature.x + feature.w * 0.25} y={feature.y + feature.h * 0.35} width={feature.w * 0.5} height={feature.h * 0.4} />
                 )}
               </g>
             ))

@@ -1,5 +1,5 @@
 // Shared by server and client code — keep this file free of Node-only imports.
-import type { Attitude, EntityKind, FeatureState, FeatureType, KnowledgeTier } from "../types/oracle";
+import type { Attitude, EntityKind, FeatureType, KnowledgeTier } from "../types/oracle";
 
 export const MODULE_SLUG = "oracle";
 
@@ -20,7 +20,6 @@ export function displayUrlFor(code: string): string {
 export const ENTITY_KINDS: readonly EntityKind[] = ["creature", "person", "place", "item"];
 export const ATTITUDES: readonly Attitude[] = ["friendly", "neutral", "hostile"];
 export const FEATURE_TYPES: readonly FeatureType[] = ["building", "road", "water", "wall", "landmark"];
-export const FEATURE_STATES: readonly FeatureState[] = ["intact", "burned", "ruined"];
 
 // KNOWLEDGE CHECK — the players roll and say the number; the DM clicks the tier it reached.
 // The steps follow the fifth-edition lore ladder (DC 10 common, 15 uncommon, 20 rare), with the

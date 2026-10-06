@@ -27,11 +27,11 @@ const MapFeature = z.object({
   y: z.number().describe('Top edge, map units (y grows downward).'),
   w: z.number(),
   h: z.number(),
-  state: z.enum(['intact', 'burned', 'ruined']),
+  shape: z.enum(['rect', 'oval']).optional().describe('How it is drawn. Omitted: a landmark is an oval, everything else a rectangle.'),
 });
 
 const MAP_HELP =
-  'A map is structured data, drawn by the app: { width, height, features[] } where every feature is an axis-aligned rectangle. ' +
+  'A map is structured data, drawn by the app: { width, height, features[] } where every feature is an axis-aligned box, drawn as a rectangle or an oval (shape). ' +
   'Default size is 1000 wide by 620 tall. Roads are long thin rectangles (20-34 across), water is a river band or pond, a wall is one large outline rectangle, ' +
   'landmarks are small (16-40 a side), buildings 50-130 a side. Buildings must not overlap each other, roads or water. ' +
   'The grid is 50 units a tile. What a tile stands for is scale_value + scale_unit (default 5 feet); a tile of hours or miles makes a town, ruin or tower one feature about a tile across, a tile of feet makes single buildings and walls.';
@@ -199,7 +199,7 @@ export function registerOracleTools(server: McpServer, ctx: McpContext) {
     'oracle_set_map_features',
     {
       description:
-        'Replace a map\'s whole feature list (e.g. "update the village to look like it was sacked": fetch the map, set buildings to state "burned" or "ruined", add rubble landmarks, ' +
+        'Replace a map\'s whole feature list (e.g. "add a market square and a well": fetch the map, add or change features, ' +
         'and send every feature back). Keep ids, positions and sizes of anything you are not changing. ' + MAP_HELP,
       inputSchema: { campaign_id: Uuid, map_id: Uuid, features: z.array(MapFeature).max(120) },
     },

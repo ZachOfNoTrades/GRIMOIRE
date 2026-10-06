@@ -412,7 +412,7 @@ Rules:
 // ---------------------------------------------------------------------------------------------
 
 const MAP_FORMAT = `A map is ${MAP_DEFAULT_WIDTH} units wide and ${MAP_DEFAULT_HEIGHT} units tall; x grows to the right, y grows downward. It is a list of axis-aligned rectangles called features:
-{ "id": string, "type": "building" | "road" | "water" | "wall" | "landmark", "name": string, "x": number, "y": number, "w": number, "h": number, "state": "intact" | "burned" | "ruined" }
+{ "id": string, "type": "building" | "road" | "water" | "wall" | "landmark", "name": string, "x": number, "y": number, "w": number, "h": number }
 - x, y is the top-left corner; w, h the size.
 - "road": a long thin rectangle, 20 to 34 units across. "water": a river (a long band 40 to 70 across) or a pond. "wall": the outline of a palisade or town wall, drawn as one large rectangle around what it encloses. "landmark": a small feature such as a well, statue, gate or tree, 16 to 40 units a side. "building": 50 to 130 units a side.
 - name: a short label for notable buildings and landmarks ("Inn", "Chapel", "Mill", "Well"), an empty string for ordinary houses, roads and water.
@@ -447,7 +447,7 @@ ${MAP_FORMAT}
 
 Reply with one JSON object: { "width": ${MAP_DEFAULT_WIDTH}, "height": ${MAP_DEFAULT_HEIGHT}, ${SCALE_REPLY}, "features": [ ... ] }
 
-Use 12 to 30 features. Fill the map sensibly: roads that connect, buildings along them, any water or wall the description implies, a few landmarks. Everything starts "intact" unless the description says otherwise.`;
+Use 12 to 30 features. Fill the map sensibly: roads that connect, buildings along them, any water or wall the description implies, a few landmarks.`;
 
   const data = coerceMapData({ ...((await generateJson(userId, "map", prompt, { model, timeoutMs: 120_000 })) as object), ...(scale ? { scale_value: scale.value, scale_unit: scale.unit } : {}), description });
   if (data.features.length === 0) throw new OracleError(502, "The generator returned an empty map. Try again.");

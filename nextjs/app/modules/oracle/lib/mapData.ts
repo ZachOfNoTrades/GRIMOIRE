@@ -1,7 +1,6 @@
 // Shared by server and client code — keep this file free of Node-only imports.
-import type { ExploredCircle, FeatureState, FeatureType, MapData, MapFeature, PictureRect } from "../types/oracle";
+import type { ExploredCircle, FeatureType, MapData, MapFeature, PictureRect } from "../types/oracle";
 import {
-  FEATURE_STATES,
   FEATURE_TYPES,
   MAP_DEFAULT_HEIGHT,
   MAP_DEFAULT_WIDTH,
@@ -114,7 +113,6 @@ export function coerceMapData(raw: unknown): MapData {
       y: clampNumber(item.y, -height, height * 2, 0),
       w,
       h,
-      state: FEATURE_STATES.includes(item.state as FeatureState) ? (item.state as FeatureState) : "intact",
       ...(item.shape === "rect" || item.shape === "oval" ? { shape: item.shape } : {}),
       // Where the DM dragged the label, kept only when it has actually been moved.
       ...(Number.isFinite(Number(item.label_dx)) && Number(item.label_dx) !== 0 ? { label_dx: clampNumber(item.label_dx, -width, width, 0) } : {}),

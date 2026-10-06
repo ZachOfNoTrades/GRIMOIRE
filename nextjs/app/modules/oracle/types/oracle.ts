@@ -4,7 +4,6 @@ import type { ScaleUnit, TaskModels } from "../lib/constants";
 export type EntityKind = "creature" | "person" | "place" | "item";
 export type Attitude = "friendly" | "neutral" | "hostile";
 export type FeatureType = "building" | "road" | "water" | "wall" | "landmark";
-export type FeatureState = "intact" | "burned" | "ruined";
 export type FeatureShape = "rect" | "oval";
 export type KnowledgeTier = "false" | "trivial" | "common" | "useful" | "secret";
 
@@ -18,7 +17,6 @@ export interface MapFeature {
   y: number;
   w: number;
   h: number;
-  state: FeatureState;
   shape?: FeatureShape; // drawn as; when missing, a landmark is an oval and everything else a rectangle
   // Where the DM dragged the label, in map units from where it would otherwise sit. A location's
   // label stays where it is put: it is not nudged around by the label layout as other things move.

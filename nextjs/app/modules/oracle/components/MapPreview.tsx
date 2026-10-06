@@ -26,7 +26,7 @@ export default function MapPreview({ data, pictureUrl, grid = false }: MapPrevie
         data.features
           .filter((feature) => feature.type === layer)
           .map((feature) => (
-            <g key={feature.id} className="orc-feature" data-type={feature.type} data-state={feature.state}>
+            <g key={feature.id} className="orc-feature" data-type={feature.type}>
               {isOval(feature) ? (
                 <ellipse className="orc-feature-shape" cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
               ) : (

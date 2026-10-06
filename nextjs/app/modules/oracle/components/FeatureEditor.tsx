@@ -3,9 +3,9 @@
 import { Circle, MousePointer2, Square, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FEATURE_STATES, MAP_GRID, MAX_FEATURES } from "../lib/constants";
+import { MAP_GRID, MAX_FEATURES } from "../lib/constants";
 import { isOval } from "../lib/mapData";
-import type { FeatureShape, FeatureState, FeatureType, MapFeature, PictureRect } from "../types/oracle";
+import type { FeatureShape, FeatureType, MapFeature, PictureRect } from "../types/oracle";
 
 interface FeatureEditorProps {
   width: number; // the map's size in map units
@@ -30,12 +30,11 @@ const TOOLS: { value: Tool; label: string }[] = [
 ];
 
 const TYPE_LABELS: Record<FeatureType, string> = { building: "Building", road: "Road", water: "Water", wall: "Wall", landmark: "Landmark" };
-const STATE_LABELS: Record<FeatureState, string> = { intact: "Intact", burned: "Burned", ruined: "Ruined" };
 const SHAPE_LABELS: Record<FeatureShape, string> = { rect: "Rectangle", oval: "Oval" };
 const MIN_SIZE = 10; // map units; a smaller drag is treated as a click
 
 // SHAPES — draw rectangles and ovals over the map's picture, then say what each one is (building,
-// road, water, wall, landmark), name it and set its state. Move, resize and delete them. Everything snaps to the grid unless Snap is off. Changes
+// road, water, wall, landmark) and name it. Move, resize and delete them. Everything snaps to the grid unless Snap is off. Changes
 // go up through `onChange`; the page saves them with the rest of the map.
 export default function FeatureEditor({ width, height, features, pictureUrl, pictureRect, onChange }: FeatureEditorProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -169,7 +168,7 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
     }
     if (box.w < MIN_SIZE || box.h < MIN_SIZE) return;
     // A new shape starts as the usual thing of its kind; the panel below sets what it really is.
-    const feature: MapFeature = { id: newId(), type: tool === "oval" ? "landmark" : "building", shape: tool, name: "", ...box, state: "intact" };
+    const feature: MapFeature = { id: newId(), type: tool === "oval" ? "landmark" : "building", shape: tool, name: "", ...box };
     onChange([...features, feature], `Drew ${SHAPE_LABELS[tool].toLowerCase()}`, `Drew|${feature.id}`);
     setSelectedId(feature.id);
     setTool("select");
@@ -228,7 +227,7 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
           features
             .filter((feature) => feature.type === layer)
             .map((feature) => (
-              <g key={feature.id} className="orc-feature orc-shapes-feature" data-feature-id={feature.id} data-type={feature.type} data-state={feature.state} data-selected={feature.id === selectedId ? "true" : undefined}>
+              <g key={feature.id} className="orc-feature orc-shapes-feature" data-feature-id={feature.id} data-type={feature.type} data-selected={feature.id === selectedId ? "true" : undefined}>
                 {isOval(feature) ? (
                   <ellipse className="orc-feature-shape" cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
                 ) : (
@@ -268,12 +267,6 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
             <span className="orc-field-label">Type</span>
             <select id="orc-shape-type" className="input-field" value={selected.type} onChange={(event) => update(selected.id, { type: event.target.value as FeatureType, shape: isOval(selected) ? "oval" : "rect" }, "Changed type of")}>
               {(Object.keys(TYPE_LABELS) as FeatureType[]).map((type) => <option key={type} value={type}>{TYPE_LABELS[type]}</option>)}
-            </select>
-          </label>
-          <label className="orc-field">
-            <span className="orc-field-label">State</span>
-            <select id="orc-shape-state" className="input-field" value={selected.state} onChange={(event) => update(selected.id, { state: event.target.value as FeatureState }, "Changed state of")}>
-              {FEATURE_STATES.map((state) => <option key={state} value={state}>{STATE_LABELS[state]}</option>)}
             </select>
           </label>
           <Button className="btn-link-red orc-shapes-delete" onClick={() => remove(selected.id)} title="Delete shape (Delete)" aria-label="Delete shape">

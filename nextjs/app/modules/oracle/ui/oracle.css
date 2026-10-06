@@ -250,19 +250,11 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-feature-label { font-weight: 700; letter-spacing: 0.05em; pointer-events: none; }
 .orc-feature[data-type="building"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-good) 12%, var(--solid-background)); stroke: var(--orc-good); }
 .orc-feature-label[data-type="building"] { fill: var(--orc-good); }
-.orc-feature[data-type="building"][data-state="burned"] > .orc-feature-shape,
-.orc-feature[data-type="building"][data-state="ruined"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-bad) 12%, var(--solid-background)); stroke: var(--orc-bad); stroke-dasharray: 8 6; }
-.orc-feature-label[data-state="burned"],
-.orc-feature-label[data-state="ruined"] { fill: var(--orc-bad); }
-.orc-feature-rubble { fill: color-mix(in srgb, var(--orc-bad) 28%, transparent); stroke: none; }
-.orc-feature[data-state="ruined"] .orc-feature-rubble { fill: color-mix(in srgb, var(--color-gray) 45%, transparent); }
 .orc-feature[data-type="road"] > .orc-feature-shape { fill: color-mix(in srgb, var(--color-gray) 30%, var(--solid-background)); stroke: none; }
 .orc-feature[data-type="water"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-cool) 22%, var(--solid-background)); stroke: var(--orc-cool); }
 .orc-feature[data-type="wall"] > .orc-feature-shape { fill: none; stroke: var(--color-gray); stroke-dasharray: 12 8; }
 .orc-feature[data-type="landmark"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-cool) 25%, var(--solid-background)); stroke: var(--orc-cool); }
 .orc-feature-label[data-type="landmark"] { fill: var(--orc-cool); }
-.orc-feature[data-type="landmark"][data-state="burned"] > .orc-feature-shape,
-.orc-feature[data-type="landmark"][data-state="ruined"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-bad) 22%, var(--solid-background)); stroke: var(--orc-bad); }
 
 /* FOG. The DM sees through it (a tint that marks what the players cannot see); on the player
    display, out-of-sight ground is dimmed and never-seen ground is solid. */
@@ -1414,13 +1406,9 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map-viewer .orc-map .orc-feature > .orc-feature-shape { fill-opacity: var(--orc-overlay, 1); stroke-opacity: max(var(--orc-overlay, 1), 0.35); }
 /* The map page draws its features in fuller color than the Table's tinted shapes. */
 .orc-map-viewer .orc-feature[data-type="building"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-good) 40%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="building"][data-state="burned"] > .orc-feature-shape,
-.orc-map-viewer .orc-feature[data-type="building"][data-state="ruined"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature[data-type="road"] > .orc-feature-shape { fill: color-mix(in srgb, var(--color-gray) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature[data-type="water"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-cool) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature[data-type="landmark"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-cool) 40%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="landmark"][data-state="burned"] > .orc-feature-shape,
-.orc-map-viewer .orc-feature[data-type="landmark"][data-state="ruined"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature { filter: saturate(1.8); }
 /* LABEL BACKDROPS — optional, from the map bar. They follow the black/white control: the theme's
    ground by default, black or white once the DM picks one. */
@@ -1435,12 +1423,8 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map[data-label-bg] .orc-feature-label-group .orc-feature-label { stroke: none; }
 .orc-map[data-label-bg][data-ground="black"] .orc-feature-label[data-type="building"] { fill: color-mix(in srgb, var(--orc-good) 30%, #fff); }
 .orc-map[data-label-bg][data-ground="black"] .orc-feature-label[data-type="landmark"] { fill: color-mix(in srgb, var(--orc-cool) 30%, #fff); }
-.orc-map[data-label-bg][data-ground="black"] .orc-feature-label[data-state="burned"],
-.orc-map[data-label-bg][data-ground="black"] .orc-feature-label[data-state="ruined"] { fill: color-mix(in srgb, var(--orc-bad) 35%, #fff); }
 .orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-type="building"] { fill: color-mix(in srgb, var(--orc-good) 25%, #000); }
 .orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-type="landmark"] { fill: color-mix(in srgb, var(--orc-cool) 25%, #000); }
-.orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-state="burned"],
-.orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-state="ruined"] { fill: color-mix(in srgb, var(--orc-bad) 45%, #000); }
 /* Every number and name in the map bar takes the bar's own color, so the slider values match the
    zoom value on any ground and theme. */
 .orc-bar-panel .orc-zoom-value, .orc-bar-panel .orc-range-value, .orc-bar-panel .orc-label { color: inherit; opacity: 0.8; }
