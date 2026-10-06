@@ -53,7 +53,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
 
   // STATE
   const [pictureOpacity, setPictureOpacity] = useState(1); // this screen only, like the Table's slider
-  const [overlayOpacity, setOverlayOpacity] = useState(1); // the grid, features and their names over the picture
+  const [overlayOpacity, setOverlayOpacity] = useState(initialMap.background_image_id ? 0.12 : 1); // how solid the features are; starts as the Table draws them
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -237,7 +237,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                           <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Background opacity" onCommit={(value) => setPictureOpacity(value / 100)} />
                         </div>
                       )}
-                      <div className="orc-bar-slider orc-vision" title="How strongly the grid, features and names show over the picture">
+                      <div className="orc-bar-slider orc-vision" title="How solid the features are, up to fully opaque">
                         <span className="orc-label">Overlay</span>
                         <input type="range" min={0} max={100} value={Math.round(overlayOpacity * 100)} aria-label="Overlay opacity" onChange={(event) => setOverlayOpacity(Number(event.target.value) / 100)} />
                         <RangeValue value={Math.round(overlayOpacity * 100)} min={0} max={100} suffix="%" label="Overlay opacity" onCommit={(value) => setOverlayOpacity(value / 100)} />
