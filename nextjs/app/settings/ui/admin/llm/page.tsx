@@ -123,27 +123,33 @@ export default function AdminLlmPage() {
                 <div className="settings-group">
                   {LLM_TASKS.filter((t) => t.group === group.key).map((task, i) => (
                     <SettingsControlRow key={task.id} label={task.label} divider={i > 0}>
-                      <span style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", rowGap: "0.5rem", width: "34rem", maxWidth: "100%" }}>
+                      {/* Label column + field column, so each field says which backend it pins
+                          even once it holds a value. */}
+                      <span style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", columnGap: "0.75rem", rowGap: "0.5rem", alignItems: "center", width: "34rem", maxWidth: "100%" }}>
 
                         {/* CLAUDE — one of the CLI aliases, or blank */}
                         {!task.openRouterOnly && (
-                          <select
-                            className="input-field input-field-compact"
-                            style={{ minWidth: 0 }}
-                            value={pins[task.id]?.claude ?? ""}
-                            aria-label={`${task.label} Claude`}
-                            onChange={(e) => setPin(task.id, "claude", e.target.value)}
-                          >
-                            {CLAUDE_ALIASES.map((a) => <option key={a} value={a}>{a ? `Claude · ${a}` : "Claude · automatic"}</option>)}
-                          </select>
+                          <>
+                            <span className="text-secondary" style={{ fontSize: "0.8rem" }}>Claude</span>
+                            <select
+                              className="input-field input-field-compact"
+                              style={{ minWidth: 0 }}
+                              value={pins[task.id]?.claude ?? ""}
+                              aria-label={`${task.label} Claude`}
+                              onChange={(e) => setPin(task.id, "claude", e.target.value)}
+                            >
+                              {CLAUDE_ALIASES.map((a) => <option key={a} value={a}>{a || "Automatic"}</option>)}
+                            </select>
+                          </>
                         )}
 
                         {/* OPENROUTER — any model id, or blank */}
+                        <span className="text-secondary" style={{ fontSize: "0.8rem" }}>OpenRouter</span>
                         <input
                           type="text"
                           className="input-field input-field-compact font-mono"
                           style={{ minWidth: 0 }}
-                          placeholder="OpenRouter · automatic"
+                          placeholder="Automatic"
                           value={pins[task.id]?.openrouter ?? ""}
                           aria-label={`${task.label} OpenRouter`}
                           onChange={(e) => setPin(task.id, "openrouter", e.target.value)}
