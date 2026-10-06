@@ -62,7 +62,7 @@ export const PREP_HELP: HelpSection[] = [
   },
   {
     heading: "Maps",
-    body: "Add map draws one from a description, or starts blank. Edit opens the map's page.",
+    body: "Add map draws one from a description, or starts blank. The arrow opens the map's page.",
   },
   {
     heading: "Pictures",
@@ -72,8 +72,12 @@ export const PREP_HELP: HelpSection[] = [
 
 export const MAP_HELP: HelpSection[] = [
   {
+    heading: "Viewing",
+    body: "The page opens to read. Edit changes the name, description, scale and picture; Reset brings the fog back; Delete removes the map.",
+  },
+  {
     heading: "Picture",
-    body: "The picture sits under the grid. Drag it, scroll or use the size control to resize it, or snap it with Fill, Fit and Stretch. To line it up exactly, pick a spot on the grid and the same spot on the picture, twice.",
+    body: "While editing, the picture sits under the grid. Drag it, scroll or use the size control to resize it, or snap it with Fill, Fit and Stretch. To line it up exactly, pick a spot on the grid and the same spot on the picture, twice.",
   },
   {
     heading: "Details",

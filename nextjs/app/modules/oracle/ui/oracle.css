@@ -1393,3 +1393,5 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 @media (min-width: 1024px) { .orc-map-page { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); } }
 .orc-map-canvas .orc-aligner-svg { max-height: min(70vh, 48rem); }
+.orc-map-canvas .orc-map-preview { width: 100%; max-height: min(70vh, 48rem); }
+.orc-map-title { margin: 0; font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; }

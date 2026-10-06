@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Pencil, Plus, RotateCcw, Save, Sparkles, Trash2, Users } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronRight, Image as ImageIcon, Map as MapIcon, Plus, Save, Sparkles, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -192,30 +192,6 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
     } catch (error) {
       setCampaign(previous);
       toast.error(errorMessage(error, "Couldn't switch maps"));
-    }
-  }
-
-  async function resetMap(map: OracleMap) {
-    if (!(await confirm({ title: `Reset ${map.name}?`, message: "The fog returns everywhere the party can't see right now, and entities revealed on this map are hidden again.", confirmLabel: "Reset", danger: true }))) return;
-    try {
-      const saved = await api<OracleMap>(`${base}/maps/${map.id}/reset`, "POST");
-      setMaps((list) => list.map((entry) => (entry.id === saved.id ? saved : entry)));
-      toast.success(`${map.name} reset`);
-    } catch (error) {
-      toast.error(errorMessage(error, "Couldn't reset the map"));
-    }
-  }
-
-  async function deleteMap(map: OracleMap) {
-    if (!(await confirm({ title: `Delete ${map.name}?`, message: "The map and its explored area are removed. Entities placed on it are kept.", confirmLabel: "Delete", danger: true }))) return;
-    const previousMaps = maps;
-    setMaps((list) => list.filter((entry) => entry.id !== map.id));
-    try {
-      await api(`${base}/maps/${map.id}`, "DELETE");
-      if (campaign.active_map_id === map.id) setCampaign(await api<TableSnapshot>(base).then((fresh) => fresh.campaign));
-    } catch (error) {
-      setMaps(previousMaps);
-      toast.error(errorMessage(error, "Couldn't delete the map"));
     }
   }
 
@@ -453,15 +429,9 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                       </div>
                       <div className="orc-campaign-actions">
                         {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}
-                        <Link href={`/modules/oracle/ui/campaign/${campaignId}/map/${map.id}`} className="btn btn-off" title="Edit map" aria-label={`Edit map ${map.name}`}>
-                          <Pencil className="w-4 h-4" />
+                        <Link href={`/modules/oracle/ui/campaign/${campaignId}/map/${map.id}`} className="btn btn-off" title="Open map" aria-label={`Open map ${map.name}`}>
+                          <ChevronRight className="w-4 h-4" />
                         </Link>
-                        <Button className="btn-off" onClick={() => resetMap(map)} title="Reset map" aria-label={`Reset map ${map.name}`}>
-                          <RotateCcw className="w-4 h-4" />
-                        </Button>
-                        <Button className="btn-link-red" onClick={() => deleteMap(map)} title="Delete map" aria-label={`Delete map ${map.name}`}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
                       </div>
                     </div>
                   ))}
