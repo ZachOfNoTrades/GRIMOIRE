@@ -353,6 +353,20 @@ async function validateOpenRouterModel(id: string, task: LlmTaskId): Promise<Val
   return { ok: true, name: model.name, model: orEntry(def, model, false, h) };
 }
 
+// The OpenRouter model a task runs on when the user left the choice blank — the same
+// pick the dropdown shows as recommended, so what is shown is what runs. Falls back
+// to the task's static default only if the catalog can't be fetched at all.
+export async function recommendedOpenRouterModel(task: LlmTaskId): Promise<string> {
+  const def = taskDef(task);
+  try {
+    const all = await getOpenRouterCatalog();
+    const cap = capabilityOf(def);
+    return recommend(all.filter((m) => fits(m, cap)), cap, def.openRouterModel);
+  } catch {
+    return def.openRouterModel;
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // PUBLIC
 // ---------------------------------------------------------------------------------------------

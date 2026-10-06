@@ -1,4 +1,5 @@
 import { getLlmTaskConfig } from "@/lib/userPreferences";
+import { recommendedOpenRouterModel } from "./catalog";
 import { runClaudeCli } from "./claudeCli";
 import { openRouterChat } from "./openrouter";
 import { taskDef, type LlmTaskId } from "./tasks";
@@ -24,12 +25,10 @@ export interface ResolvedBackend extends LlmTaskConfig {
 export async function resolveBackend(userId: string, task: LlmTaskId): Promise<ResolvedBackend> {
   const def = taskDef(task);
   const config = await getLlmTaskConfig(userId, task);
-  if (config.backend === "openrouter") {
-    return { backend: "openrouter", model: config.model?.trim() || def.openRouterModel };
-  }
-  if (def.openRouterOnly) {
-    // Can't happen through the settings UI; a hand-edited row lands here.
-    return { backend: "openrouter", model: def.openRouterModel };
+  if (config.backend === "openrouter" || def.openRouterOnly) {
+    // A blank pick means the recommendation — the live catalog's, the same one the
+    // settings dropdown shows, so what the user saw is what runs.
+    return { backend: "openrouter", model: config.model?.trim() || (await recommendedOpenRouterModel(task)) };
   }
   // The user's CLI pick (an alias or a full id) wins over the task's default alias.
   return { backend: "claude", model: config.model?.trim() || def.cliModel || "default" };
