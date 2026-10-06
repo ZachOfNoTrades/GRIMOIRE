@@ -465,12 +465,14 @@ export default function LlmSettingsPage() {
                     const selectValue = isManual ? MANUAL : (row.model ?? "");
                     return (
                       <SettingsControlRow key={task.id} label={task.label} divider={i > 0}>
-                        <span style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", width: "34rem", maxWidth: "100%" }}>
+                        {/* Two columns: the sort button's column and the dropdowns' column, so the
+                            backend and model selects share one width with the sort beside the model. */}
+                        <span style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", columnGap: "0.5rem", rowGap: "0.5rem", alignItems: "center", width: "34rem", maxWidth: "100%" }}>
 
                           {/* BACKEND */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "0 0 100%", minWidth: 0 }}
+                            style={{ gridColumn: 2, minWidth: 0 }}
                             value={row.backend}
                             disabled={task.openRouterOnly}
                             aria-label={`${task.label} backend`}
@@ -494,7 +496,7 @@ export default function LlmSettingsPage() {
                               backends. */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "1 1 0", minWidth: 0 }}
+                            style={{ gridColumn: 2, minWidth: 0 }}
                             value={selectValue}
                             aria-label={`${task.label} model`}
                             onChange={(e) => pickModel(task.id, e.target.value)}
@@ -508,7 +510,7 @@ export default function LlmSettingsPage() {
 
                           {/* MANUAL ENTRY — checked against the catalog on blur */}
                           {isManual && (
-                            <span style={{ display: "flex", gap: "0.5rem", width: "100%", minWidth: 0, alignItems: "center" }}>
+                            <span style={{ gridColumn: "1 / -1", display: "flex", gap: "0.5rem", minWidth: 0, alignItems: "center" }}>
                               <input
                                 type="text"
                                 className="input-field input-field-compact font-mono"
@@ -534,7 +536,7 @@ export default function LlmSettingsPage() {
                               ? (check?.state === "ok" ? check.model : undefined)
                               : list?.models.find((m) => (row.model ? m.id === row.model : m.recommended));
                             return shown ? (
-                              <p className="settings-group-note" style={{ flex: "0 0 100%", margin: 0 }}>{modelFooter(shown)}</p>
+                              <p className="settings-group-note" style={{ gridColumn: "1 / -1", margin: 0 }}>{modelFooter(shown)}</p>
                             ) : null;
                           })()}
                         </span>

@@ -29,7 +29,7 @@ export default function SortMenuButton<T extends string>({
   const current = options.find((o) => o.value === value) ?? options[0];
 
   return (
-    <div ref={anchorRef} style={{ position: "relative", display: "flex", alignItems: "center", flex: "0 0 auto" }}>
+    <div ref={anchorRef} style={{ position: "relative", display: "flex", alignItems: "center", gridColumn: 1 }}>
 
       {/* BUTTON — borderless; the label is the order in force */}
       <button
