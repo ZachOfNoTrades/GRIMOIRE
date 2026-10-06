@@ -53,6 +53,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
 
   // STATE
   const [pictureOpacity, setPictureOpacity] = useState(1); // this screen only, like the Table's slider
+  const [overlayOpacity, setOverlayOpacity] = useState(1); // the grid, features and their names over the picture
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -128,6 +129,20 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
     }
   }
 
+  // A location's name dragged on the map. Written on its own, like the Table does, and kept in
+  // `map` so the page's dirty check does not count it as an unsaved edit.
+  async function moveFeatureLabel(featureId: string, dx: number, dy: number) {
+    const previous = map;
+    const data = { ...map.data, features: map.data.features.map((feature) => (feature.id === featureId ? { ...feature, label_dx: dx, label_dy: dy } : feature)) };
+    setMap({ ...map, data });
+    try {
+      setMap(await api<OracleMap>(`${base}/maps/${map.id}`, "PUT", { data }));
+    } catch (error) {
+      setMap(previous);
+      toast.error(errorMessage(error, "Couldn't move the label"));
+    }
+  }
+
   function choose(image: OracleImage) {
     setPictureId(image.id);
     setRect(null);
@@ -200,7 +215,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
           <div className="orc-map-stage">
             {/* The Table's map and its controls, without the party, fog and vision: this page shows the map, not the night. */}
             {!isEditing && (
-              <div className="orc-map-viewer" style={{ aspectRatio: `${map.data.width} / ${map.data.height}` }}>
+              <div className="orc-map-viewer" style={{ aspectRatio: `${map.data.width} / ${map.data.height}`, "--orc-overlay": overlayOpacity } as React.CSSProperties}>
                 <MapCanvas
                   data={map.data}
                   partyX={map.party_x}
@@ -212,13 +227,23 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                   pictureOpacity={pictureOpacity}
                   mode="dm"
                   tool="move"
-                  barExtras={map.background_image_id ? (
-                    <div className="orc-bar-slider orc-vision" title="How strongly the map's background shows on this screen">
-                      <span className="orc-label">Background</span>
-                      <input type="range" min={0} max={100} value={Math.round(pictureOpacity * 100)} aria-label="Background opacity" onChange={(event) => setPictureOpacity(Number(event.target.value) / 100)} />
-                      <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Background opacity" onCommit={(value) => setPictureOpacity(value / 100)} />
-                    </div>
-                  ) : null}
+                  onFeatureLabelMove={moveFeatureLabel}
+                  barExtras={(
+                    <>
+                      {map.background_image_id && (
+                        <div className="orc-bar-slider orc-vision" title="How strongly the map's background shows on this screen">
+                          <span className="orc-label">Background</span>
+                          <input type="range" min={0} max={100} value={Math.round(pictureOpacity * 100)} aria-label="Background opacity" onChange={(event) => setPictureOpacity(Number(event.target.value) / 100)} />
+                          <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Background opacity" onCommit={(value) => setPictureOpacity(value / 100)} />
+                        </div>
+                      )}
+                      <div className="orc-bar-slider orc-vision" title="How strongly the grid, features and names show over the picture">
+                        <span className="orc-label">Overlay</span>
+                        <input type="range" min={0} max={100} value={Math.round(overlayOpacity * 100)} aria-label="Overlay opacity" onChange={(event) => setOverlayOpacity(Number(event.target.value) / 100)} />
+                        <RangeValue value={Math.round(overlayOpacity * 100)} min={0} max={100} suffix="%" label="Overlay opacity" onCommit={(value) => setOverlayOpacity(value / 100)} />
+                      </div>
+                    </>
+                  )}
                 />
               </div>
             )}

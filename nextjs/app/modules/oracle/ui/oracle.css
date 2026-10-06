@@ -1411,3 +1411,4 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map-stage .orc-map-preview .orc-feature { opacity: 0.45; }
 .orc-map-viewer { position: relative; width: 100%; min-height: 18rem; border: 1px solid var(--card-border); overflow: hidden; }
 .orc-map-viewer .orc-fog-dim, .orc-map-viewer .orc-fog-unexplored, .orc-map-viewer .orc-fog-outline, .orc-map-viewer .orc-party { display: none; }
+.orc-map-viewer .orc-map-grid, .orc-map-viewer .orc-feature, .orc-map-viewer .orc-feature-labels { opacity: var(--orc-overlay, 1); }
