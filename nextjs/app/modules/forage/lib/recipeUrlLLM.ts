@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { generateText } from '@/lib/llm/generate';
 import type { IngredientItem } from './recipeIngredientResolver';
 import { fetchWebPage, htmlToText } from './webPageFetch';
 
@@ -96,28 +96,9 @@ Rules:
 Output the JSON object only — no prose, no markdown fences.`;
 }
 
-function runClaude(prompt: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const proc = spawn(
-      'claude',
-      ['-p', '--output-format', 'text', '--no-session-persistence'],
-      { timeout: CLAUDE_TIMEOUT_MS, shell: false, env: { ...process.env } }
-    );
-    let stdout = '';
-    let stderr = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('error', (err) => reject(new Error(`Failed to start claude CLI: ${err.message}`)));
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`claude CLI exited ${code}: ${(stderr || stdout).trim().slice(0, 400)}`));
-        return;
-      }
-      resolve(stdout);
-    });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
+// One model call on the user's `forage_estimate` backend, no tools; the raw reply.
+function runModel(userId: string, prompt: string): Promise<string> {
+  return generateText(userId, 'forage_estimate', { prompt, json: true, timeoutMs: CLAUDE_TIMEOUT_MS });
 }
 
 function coerce(raw: any, jsonLdName?: string, jsonLdYield?: string): ExtractedRecipe {
@@ -154,7 +135,7 @@ function coerce(raw: any, jsonLdName?: string, jsonLdYield?: string): ExtractedR
 // Fetch + parse a recipe URL into a normalized {name, serving_count, ingredients}.
 // One LLM call either way: it normalizes JSON-LD ingredient lines when present,
 // or extracts the whole recipe from page text on the fallback path.
-export async function extractRecipeFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
+export async function extractRecipeFromUrl(userId: string, rawUrl: string): Promise<ExtractedRecipe> {
   const html = await fetchWebPage(rawUrl, BLOCKED_HINT);
   const jsonLd = extractJsonLdRecipe(html);
 
@@ -164,7 +145,7 @@ export async function extractRecipeFromUrl(rawUrl: string): Promise<ExtractedRec
 
   if (!source.trim()) throw new Error('No recipe content found at that link');
 
-  const stdout = await runClaude(buildPrompt(source));
+  const stdout = await runModel(userId, buildPrompt(source));
   const cleaned = stdout.replace(/```(?:json)?/gi, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');

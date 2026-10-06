@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { generateText } from '@/lib/llm/generate';
 import type { GenericFoodEstimate } from './genericFoodLLM';
 import type { NutrientCode } from '../utils/nutrientLedger';
 import { normUnit, familyOf } from './unitConversion';
@@ -222,7 +222,7 @@ function tokenSetsEqual(a: Set<string>, b: Set<string>): boolean {
 // the best candidate (or none), since bag-of-words can't tell "white rice" from
 // "rice flour, white". Returns the chosen index, or -1 for "none suitable" (→
 // the caller falls back to LLM food generation rather than a wrong FDC match).
-async function chooseCandidate(name: string, descriptions: string[]): Promise<number> {
+async function chooseCandidate(userId: string, name: string, descriptions: string[]): Promise<number> {
   if (descriptions.length === 0) return -1;
   const qt = tokens(name);
   const q = new Set(qt);
@@ -251,21 +251,21 @@ async function chooseCandidate(name: string, descriptions: string[]): Promise<nu
     // plainest among ONLY these — homonyms never enter the choice. Default to the
     // top-ranked match (not LLM fallback) when the model is unsure.
     const sub = strong.map((i) => descriptions[i]);
-    const picked = await pickWithAi(name, sub);
+    const picked = await pickWithAi(userId, name, sub);
     return picked >= 1 && picked <= sub.length ? strong[picked - 1] : strong[0];
   }
 
   if (descriptions.length === 1) {
     // Single non-exact candidate — still verify it's actually this ingredient.
-    return (await pickWithAi(name, descriptions)) === 0 ? -1 : 0;
+    return (await pickWithAi(userId, name, descriptions)) === 0 ? -1 : 0;
   }
-  const picked = await pickWithAi(name, descriptions);
+  const picked = await pickWithAi(userId, name, descriptions);
   return picked >= 1 && picked <= descriptions.length ? picked - 1 : -1;
 }
 
 // Ask the model which 1-based candidate best matches the ingredient (0 = none).
 // Best-effort: returns 0 on any failure (treated as "no confident match").
-function pickWithAi(name: string, descriptions: string[]): Promise<number> {
+async function pickWithAi(userId: string, name: string, descriptions: string[]): Promise<number> {
   const safeName = name.replace(/[`$"\\]/g, ' ').slice(0, 120);
   const list = descriptions.map((d, i) => `${i + 1}. ${d.replace(/[`$"\\]/g, ' ').slice(0, 120)}`).join('\n');
   const prompt = `You match a recipe ingredient to the best USDA food. Reply with ONLY a single integer.
@@ -277,28 +277,19 @@ ${list}
 
 Pick the number of the candidate that best represents this ingredient as a plain, raw/uncooked, generic food. The candidate's PRIMARY food (the part before the first comma) must BE the ingredient — reject any where the ingredient word only appears as a qualifier of a different food (e.g. "Crackers, water" for water) or names a different food that merely shares the word (e.g. "Water convolvulus", a plant, for drinking water). Avoid composite dishes, flours, oils, juices, or unrelated foods unless the ingredient itself names them. If NONE is a good match, reply 0. Reply with only the integer.`;
 
-  return new Promise<number>((resolve) => {
-    const proc = spawn('claude', ['-p', '--output-format', 'text', '--no-session-persistence'], {
-      timeout: PICK_TIMEOUT_MS,
-      shell: false,
-      env: { ...process.env },
-    });
-    let stdout = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.on('error', () => resolve(0));
-    proc.on('close', (code) => {
-      if (code !== 0) { resolve(0); return; }
-      const m = stdout.match(/-?\d+/);
-      const n = m ? parseInt(m[0], 10) : NaN;
-      resolve(Number.isFinite(n) && n >= 0 ? n : 0);
-    });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
+  // The user's `forage_estimate` backend, no tools; any failure reads as "no match".
+  try {
+    const reply = await generateText(userId, 'forage_estimate', { prompt, timeoutMs: PICK_TIMEOUT_MS });
+    const m = reply.match(/-?\d+/);
+    const n = m ? parseInt(m[0], 10) : NaN;
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
 }
 
 // Look up a generic food in FDC. Best-effort — never throws.
-export async function lookupGenericFoodFromFdc(name: string): Promise<FdcFoodEstimate | null> {
+export async function lookupGenericFoodFromFdc(userId: string, name: string): Promise<FdcFoodEstimate | null> {
   const key = process.env.USDA_FDC_API_KEY;
   if (!key) return null; // soft-disable: no key configured
 
@@ -320,7 +311,7 @@ export async function lookupGenericFoodFromFdc(name: string): Promise<FdcFoodEst
       .slice(0, MAX_CANDIDATES);
     if (candidates.length === 0) return null;
 
-    const idx = await chooseCandidate(name, candidates.map((c) => c.name));
+    const idx = await chooseCandidate(userId, name, candidates.map((c) => c.name));
     if (idx < 0) {
       console.log(`[ForageFDC] "${name}" -> no confident FDC match; using LLM`);
       return null;

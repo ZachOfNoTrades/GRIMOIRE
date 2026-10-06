@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (body.prompt) {
       await spendGeneration(owner.user, "oracle/map");
       const campaign = await getCampaign(owner.campaignId);
-      data = await generateMapData(campaign.world, body.prompt, await modelFor(owner.user.id, "map"), scale);
+      data = await generateMapData(owner.user.id, campaign.world, body.prompt, await modelFor(owner.user.id, "map"), scale);
     } else if (scale) {
       data = coerceMapData({ ...blankMapData(), scale_value: scale.value, scale_unit: scale.unit });
     }

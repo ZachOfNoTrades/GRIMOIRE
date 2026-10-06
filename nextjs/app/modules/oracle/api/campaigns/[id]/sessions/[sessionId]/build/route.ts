@@ -15,6 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (session.notes.trim().length < 20) throw new OracleError(400, "Write or paste some session notes first");
     const campaign = await getCampaign(owner.campaignId);
     await spendGeneration(owner.user, "oracle/build");
-    return ok(await buildEntities(campaign.world, session.notes, await modelFor(owner.user.id, "build"), (await getSettings(owner.user.id)).ai_creatures));
+    return ok(await buildEntities(owner.user.id, campaign.world, session.notes, await modelFor(owner.user.id, "build"), (await getSettings(owner.user.id)).ai_creatures));
   });
 }

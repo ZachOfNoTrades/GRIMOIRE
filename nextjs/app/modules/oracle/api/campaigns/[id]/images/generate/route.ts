@@ -5,13 +5,14 @@ import { imageGenerateSchema, parseBody } from "@/app/modules/oracle/lib/validat
 import type { EntityKind } from "@/app/modules/oracle/types/oracle";
 
 // POST /modules/oracle/api/campaigns/[id]/images/generate — have an image model draw it.
-// Body: { prompt, caption, detail?, kind? }. Answers 409 when no OpenRouter key is configured.
+// Body: { prompt, caption, detail?, kind? }. Runs on the DM's own OpenRouter key; answers 409
+// when they haven't saved one.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return withOwner(request, id, "POST /oracle/api/campaigns/[id]/images/generate", async (owner) => {
     const body = await parseBody(request, imageGenerateSchema);
     const campaign = await getCampaign(owner.campaignId);
     await spendGeneration(owner.user, "oracle/image");
-    return ok(await generateImage(owner.campaignId, body.prompt, campaign.world, body.caption, body.detail ?? "", (body.kind as EntityKind | undefined) ?? null), 201);
+    return ok(await generateImage(owner.user.id, owner.campaignId, body.prompt, campaign.world, body.caption, body.detail ?? "", (body.kind as EntityKind | undefined) ?? null), 201);
   });
 }

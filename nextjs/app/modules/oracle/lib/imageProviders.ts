@@ -4,15 +4,18 @@ import type { TextModel } from "./constants";
 import { OracleError } from "./errors";
 import { saveImage } from "./imageFunctions";
 import { generateJson } from "./llm";
+import { resolveBackend } from "@/lib/llm/generate";
+import { recordUsage } from "@/lib/llm/usage";
+import { getOpenRouterKeyStatus, withOpenRouterKey } from "@/lib/llm/userKeys";
+import { LlmBackendError, redactSecrets } from "@/lib/llm/types";
 
 // WHERE NEW PICTURES COME FROM — two sources, offered side by side wherever a picture is added:
 //
 //   search    look the subject up on Openverse (openly licensed photos and artwork) and keep one
 //   generate  have an image model draw it, through OpenRouter
 //
-// Search needs no account. Generation is paid per image through OpenRouter, with the key in
-// OPENROUTER_ORACLE_KEY (Infisical) or OPENROUTER_API_KEY; without one the option is shown,
-// marked unavailable.
+// Search needs no account. Generation is paid per image through OpenRouter on the DM's OWN key
+// (Settings → AI); there is no app-wide key. Without one the option is shown, marked unavailable.
 
 export interface ImageSourceInfo {
   key: "search" | "generate";
@@ -21,15 +24,11 @@ export interface ImageSourceInfo {
   note: string | null;
 }
 
-function openRouterKey(): string | undefined {
-  return process.env.OPENROUTER_ORACLE_KEY || process.env.OPENROUTER_API_KEY || undefined;
-}
-
-export function listImageSources(): ImageSourceInfo[] {
-  const canGenerate = !!openRouterKey();
+export async function listImageSources(userId: string): Promise<ImageSourceInfo[]> {
+  const canGenerate = (await getOpenRouterKeyStatus(userId)).configured;
   return [
     { key: "search", label: "Search the web", available: true, note: null },
-    { key: "generate", label: "Generate", available: canGenerate, note: canGenerate ? null : "Needs an OpenRouter key" },
+    { key: "generate", label: "Generate", available: canGenerate, note: canGenerate ? null : "Needs an OpenRouter key in Settings → AI" },
   ];
 }
 
@@ -134,7 +133,7 @@ async function openverseSearch(query: string, artworkOnly: boolean): Promise<Ima
 const termsCache = new Map<string, string>();
 const TERMS_CACHE_MAX = 500;
 
-export async function searchTermsFor(subject: string, world: string, model: TextModel, detail = ""): Promise<string> {
+export async function searchTermsFor(userId: string, subject: string, world: string, model: TextModel, detail = ""): Promise<string> {
   const key = `${subject.trim().toLowerCase()}|${detail.trim().toLowerCase().slice(0, 200)}`;
   const cached = termsCache.get(key);
   if (cached) return cached;
@@ -144,7 +143,7 @@ ${detail ? `What is known about it: ${detail.slice(0, 400)}` : ""}
 ${world ? `Setting: ${world.slice(0, 300)}` : ""}
 Answer with JSON only: { "terms": "<search words>" }`;
   try {
-    const result = (await generateJson(prompt, "picture-terms", { model, timeoutMs: 30_000 })) as { terms?: unknown };
+    const result = (await generateJson(userId, "picture", prompt, { model, timeoutMs: 30_000 })) as { terms?: unknown };
     const terms = typeof result.terms === "string" ? result.terms.replace(/[^\p{L}\p{N} '-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 80) : "";
     const chosen = terms || subject;
     if (termsCache.size >= TERMS_CACHE_MAX) termsCache.clear();
@@ -281,36 +280,51 @@ export async function importSearchImage(campaignId: string, sourceId: string, ca
 // GENERATE — OpenRouter image API
 // ---------------------------------------------------------------------------------------------
 
-// The model is configurable because prices and quality move quickly.
-const IMAGE_MODEL = process.env.ORACLE_IMAGE_MODEL || "google/gemini-3.1-flash-image";
 const IMAGE_STYLE = "Painted fantasy illustration, inked linework, muted palette, tabletop RPG art. No text, no lettering, no border, no watermark.";
 
 // `kind` picks the framing: a portrait for a creature, person or item, a scene for a location.
-export async function generateImage(campaignId: string, prompt: string, world: string, caption: string, detail = "", kind: EntityKind | null = null): Promise<OracleImage> {
-  const apiKey = openRouterKey();
-  if (!apiKey) throw new OracleError(409, "Image generation isn't set up yet. It needs an OpenRouter key.");
-
+// Runs on the DM's own OpenRouter key with the model from their `oracle_image` task setting; the
+// key is decrypted inside withOpenRouterKey and used for this one request.
+export async function generateImage(userId: string, campaignId: string, prompt: string, world: string, caption: string, detail = "", kind: EntityKind | null = null): Promise<OracleImage> {
+  const { model } = await resolveBackend(userId, "oracle_image");
   const framing = kind === "place" ? "A view of the place." : kind === "item" ? "A single object, centered." : kind ? "A portrait, the subject filling the frame." : "";
   const fullPrompt = `${prompt}.${detail ? ` ${detail.slice(0, 500)}` : ""} ${framing} ${IMAGE_STYLE}${world ? ` Setting: ${world.slice(0, 400)}` : ""}`.replace(/\s+/g, " ");
-  let response: Response;
+  const started = Date.now();
+  const usage = (ok: boolean, errorCode: string | null, costUsd: number | null = null) =>
+    recordUsage({ userId, task: "oracle_image", backend: "openrouter", model, promptTokens: 0, completionTokens: 0, costUsd, durationMs: Date.now() - started, ok, errorCode });
+
+  let body: { data?: { b64_json?: string; media_type?: string }[]; usage?: { cost?: number } };
   try {
-    response = await fetch("https://openrouter.ai/api/v1/images", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: IMAGE_MODEL, prompt: fullPrompt, aspect_ratio: kind && kind !== "place" ? "1:1" : "4:3", n: 1, output_format: "jpeg" }),
-      signal: AbortSignal.timeout(120_000),
+    body = await withOpenRouterKey(userId, async (apiKey) => {
+      let response: Response;
+      try {
+        response = await fetch("https://openrouter.ai/api/v1/images", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "HTTP-Referer": "https://grimoire.zsmith.io", "X-OpenRouter-Title": "GRIMOIRE" },
+          body: JSON.stringify({ model, prompt: fullPrompt, aspect_ratio: kind && kind !== "place" ? "1:1" : "4:3", n: 1, output_format: "jpeg", usage: { include: true } }),
+          signal: AbortSignal.timeout(120_000),
+        });
+      } catch (error) {
+        console.error("Oracle image generation failed:", redactSecrets(error instanceof Error ? error.message : String(error)));
+        throw new OracleError(502, "The image generator didn't answer. Try again.");
+      }
+      if (!response.ok) {
+        console.error(`Oracle image generation failed with status: '${response.status}'`, redactSecrets((await response.text().catch(() => "")).slice(0, 300)));
+        throw new OracleError(502, response.status === 401 || response.status === 403 ? "OpenRouter rejected your key. Check it in Settings → AI." : "The image generator refused the request. Try a different description.");
+      }
+      return (await response.json()) as typeof body;
     });
   } catch (error) {
-    console.error("Oracle image generation failed:", error);
-    throw new OracleError(502, "The image generator didn't answer. Try again.");
+    usage(false, error instanceof LlmBackendError ? error.code : "openrouter_error");
+    if (error instanceof LlmBackendError) throw new OracleError(error.status, error.message);
+    throw error;
   }
-  if (!response.ok) {
-    console.error(`Oracle image generation failed with status: '${response.status}'`, (await response.text().catch(() => "")).slice(0, 300));
-    throw new OracleError(502, "The image generator refused the request. Try a different description.");
-  }
-  const body = (await response.json()) as { data?: { b64_json?: string; media_type?: string }[] };
   const first = body.data?.[0];
-  if (!first?.b64_json) throw new OracleError(502, "The image generator returned nothing. Try again.");
+  if (!first?.b64_json) {
+    usage(false, "bad_response");
+    throw new OracleError(502, "The image generator returned nothing. Try again.");
+  }
+  usage(true, null, typeof body.usage?.cost === "number" ? body.usage.cost : null);
   const contentType = first.media_type && ALLOWED_IMAGE_TYPES[first.media_type] ? first.media_type : "image/jpeg";
   return saveImage(campaignId, caption, contentType, Buffer.from(first.b64_json, "base64"));
 }

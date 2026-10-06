@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { generateText } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
@@ -168,28 +168,9 @@ When the SOURCE is an OPEN FOOD FACTS RECORD block, these rules replace the page
 Output the JSON object only — no prose, no markdown fences.`;
 }
 
-function runClaude(prompt: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const proc = spawn(
-      'claude',
-      ['-p', '--output-format', 'text', '--no-session-persistence'],
-      { timeout: CLAUDE_TIMEOUT_MS, shell: false, env: { ...process.env } }
-    );
-    let stdout = '';
-    let stderr = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('error', (err) => reject(new Error(`Failed to start claude CLI: ${err.message}`)));
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`claude CLI exited ${code}: ${(stderr || stdout).trim().slice(0, 400)}`));
-        return;
-      }
-      resolve(stdout);
-    });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
+// One model call on the user's `forage_estimate` backend, no tools; the raw reply.
+function runModel(userId: string, prompt: string): Promise<string> {
+  return generateText(userId, 'forage_estimate', { prompt, json: true, timeoutMs: CLAUDE_TIMEOUT_MS });
 }
 
 // What the LLM will read, plus where it came from.
@@ -278,14 +259,15 @@ async function buildSource(rawUrl: string): Promise<SourceBundle> {
 // Scrape a product page and return a food draft in LabelOcrDraft shape.
 // Throws user-safe errors (bad URL, private host, timeout, blocked, unreadable).
 export async function extractFoodFromUrl(opts: {
+  userId: string;
   url: string;
   knownUnits: Set<string>;
 }): Promise<FoodUrlDraft> {
-  const { url, knownUnits } = opts;
+  const { userId, url, knownUnits } = opts;
   const bundle = await buildSource(url);
   if (!bundle.source.trim()) throw new Error('No content found at that link');
 
-  const stdout = await runClaude(buildPrompt(bundle.source, knownUnits));
+  const stdout = await runModel(userId, buildPrompt(bundle.source, knownUnits));
   const cleaned = stdout.replace(/```(?:json)?/gi, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');

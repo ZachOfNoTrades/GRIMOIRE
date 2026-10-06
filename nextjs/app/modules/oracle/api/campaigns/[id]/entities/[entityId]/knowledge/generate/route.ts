@@ -15,6 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const entity = await getEntity(owner.campaignId, requireUuid(entityId, "Entry"));
     await spendGeneration(owner.user, "oracle/fact");
     const context = await buildContext(owner.campaignId, owner.user.id);
-    return ok({ fact: await generateFact(context, entity, body.skill, body.tier as KnowledgeTier, await modelFor(owner.user.id, "fact")) });
+    return ok({ fact: await generateFact(owner.user.id, context, entity, body.skill, body.tier as KnowledgeTier, await modelFor(owner.user.id, "fact")) });
   });
 }

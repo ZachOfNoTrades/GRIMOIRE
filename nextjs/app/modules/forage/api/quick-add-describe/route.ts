@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const estimate = await describeFoodWithLLM(description);
+    const estimate = await describeFoodWithLLM(session.user.id!, description);
     return NextResponse.json(estimate);
   } catch (error: any) {
     console.error('Error in POST /forage/api/quick-add-describe:', error);

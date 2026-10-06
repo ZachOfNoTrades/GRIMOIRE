@@ -16,7 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const kind = body.kind as EntityKind;
     await spendGeneration(owner.user, "oracle/outline");
     const context = await buildContext(owner.campaignId, owner.user.id);
-    const outline = await outlineEntity(context, kind, body.name, await modelFor(owner.user.id, "outline"), body.idea, body.draft);
+    const outline = await outlineEntity(owner.user.id, context, kind, body.name, await modelFor(owner.user.id, "outline"), body.idea, body.draft);
     const row = kind === "creature" ? findChallengeRow(outline.cr ?? "1/4") : null;
     return ok({
       name: outline.name,

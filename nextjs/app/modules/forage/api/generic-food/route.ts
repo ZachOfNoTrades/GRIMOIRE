@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   if (description.length > 500) return NextResponse.json({ error: 'description too long (max 500 chars)' }, { status: 400 });
 
   try {
-    const estimate = await estimateGenericFood(description);
+    const estimate = await estimateGenericFood(session.user.id!, description);
     const allNutrients = await listNutrients();
     const codeToId = new Map(allNutrients.map(n => [n.code, n.id]));
 

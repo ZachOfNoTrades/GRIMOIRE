@@ -15,6 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const [campaign, sessions] = await Promise.all([getCampaign(owner.campaignId), listSessions(owner.campaignId)]);
     const latestNotes = [...sessions].reverse().find((session) => session.notes.trim())?.notes ?? "";
     await spendGeneration(owner.user, "oracle/world");
-    return ok({ world: await generateWorld(campaign.name, body.seed, latestNotes, await modelFor(owner.user.id, "world")) });
+    return ok({ world: await generateWorld(owner.user.id, campaign.name, body.seed, latestNotes, await modelFor(owner.user.id, "world")) });
   });
 }

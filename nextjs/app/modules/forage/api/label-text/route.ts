@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const draft = await parseLabelText({ text, userId: session.user.id });
+    const draft = await parseLabelText({ text, userId: session.user.id! });
     return NextResponse.json(draft);
   } catch (error: any) {
     console.error('Error in POST /forage/api/label-text:', error);

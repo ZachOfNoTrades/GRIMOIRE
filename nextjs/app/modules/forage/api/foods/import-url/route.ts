@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   try {
     const units = await listUnits(session.user.id!);
     const knownUnits = new Set(units.map((u) => u.name.toLowerCase()));
-    const draft = await extractFoodFromUrl({ url: url.trim(), knownUnits });
+    const draft = await extractFoodFromUrl({ userId: session.user.id!, url: url.trim(), knownUnits });
     return NextResponse.json(draft);
   } catch (error: any) {
     console.error('Error in POST /forage/api/foods/import-url:', error);

@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { generateText } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
@@ -87,28 +87,9 @@ Rules:
 Output the JSON object only — no prose, no markdown fences.`;
 }
 
-function runClaude(prompt: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const proc = spawn(
-      'claude',
-      ['-p', '--output-format', 'text', '--no-session-persistence'],
-      { timeout: CLAUDE_TIMEOUT_MS, shell: false, env: { ...process.env } }
-    );
-    let stdout = '';
-    let stderr = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('error', (err) => reject(new Error(`Failed to start claude CLI: ${err.message}`)));
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`claude CLI exited ${code}: ${(stderr || stdout).trim().slice(0, 400)}`));
-        return;
-      }
-      resolve(stdout);
-    });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
+// One model call on the user's `forage_estimate` backend, no tools; the raw reply.
+function runModel(userId: string, prompt: string): Promise<string> {
+  return generateText(userId, 'forage_estimate', { prompt, json: true, timeoutMs: CLAUDE_TIMEOUT_MS });
 }
 
 // Trims an over-long paste to the prompt budget by keeping BOTH ends. Head-only
@@ -128,8 +109,9 @@ function clampText(raw: string): string {
 export async function parseLabelText(opts: {
   text: string;
   // Whose unit catalog the parser may emit, so a paste can land on one of the
-  // user's own custom units ("stick") instead of dropping the row.
-  userId?: string | null;
+  // user's own custom units ("stick") instead of dropping the row — and whose
+  // model backend the call runs on.
+  userId: string;
 }): Promise<LabelOcrDraft> {
   const raw = (opts.text ?? '').trim();
   if (raw.length < MIN_LABEL_TEXT_CHARS) {
@@ -144,7 +126,7 @@ export async function parseLabelText(opts: {
   // %DV values that copy/paste does to a label and the regex parser cannot.
   try {
     const t0 = Date.now();
-    const stdout = await runClaude(buildPrompt(text, knownUnits));
+    const stdout = await runModel(opts.userId, buildPrompt(text, knownUnits));
     const cleaned = stdout.replace(/```(?:json)?/gi, '').trim();
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');

@@ -54,7 +54,8 @@ export function loadCampaignPage(campaignIdParam: string): Promise<PageLoad<Camp
     if (!UUID_PATTERN.test(campaignIdParam)) throw new OracleError(404, "Campaign not found");
     const campaignId = campaignIdParam.toLowerCase();
     await requireOwnedCampaign(user.id, campaignId);
-    return { snapshot: await getTableSnapshot(campaignId, user.id), imageSources: listImageSources() };
+    const [snapshot, imageSources] = await Promise.all([getTableSnapshot(campaignId, user.id), listImageSources(user.id)]);
+    return { snapshot, imageSources };
   });
 }
 

@@ -1,7 +1,7 @@
-import { spawn } from 'child_process';
+import { generateJson } from '@/lib/llm/generate';
 import { NUTRIENT_CODES_IN_ORDER, NUTRIENT_BY_CODE } from '../utils/nutrientLedger';
 
-const CLAUDE_TIMEOUT_MS = 60_000;
+const LLM_TIMEOUT_MS = 60_000;
 
 export interface GenericFoodEstimate {
   name: string;
@@ -67,45 +67,12 @@ Rules:
 Output the JSON object only — no prose, no markdown fences.`;
 }
 
-export async function estimateGenericFood(description: string): Promise<GenericFoodEstimate> {
-  const prompt = buildPrompt(description);
-
-  return new Promise<GenericFoodEstimate>((resolve, reject) => {
-    const proc = spawn(
-      'claude',
-      ['-p', '--output-format', 'text', '--no-session-persistence'],
-      { timeout: CLAUDE_TIMEOUT_MS, shell: false, env: { ...process.env } }
-    );
-    let stdout = '';
-    let stderr = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('error', (err) => reject(new Error(`Failed to start claude CLI: ${err.message}`)));
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`claude CLI exited ${code}: ${(stderr || stdout).trim().slice(0, 400)}`));
-        return;
-      }
-      try {
-        const estimate = parseOutput(stdout);
-        console.log(`[ForageGenericFood-LLM] estimate: ${estimate.name} (${estimate.kcal} kcal/${estimate.serving_unit})`);
-        resolve(estimate);
-      } catch (err: any) {
-        reject(new Error(`Unparseable output: ${err?.message}. stdout: ${stdout.trim().slice(0, 400)}`));
-      }
-    });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
-}
-
-function parseOutput(stdout: string): GenericFoodEstimate {
-  const cleaned = stdout.replace(/```(?:json)?/gi, '').trim();
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) throw new Error('no JSON object found');
-  const parsed = JSON.parse(cleaned.slice(start, end + 1));
-  return coerce(parsed);
+// One model call on the user's `forage_estimate` backend, no tools.
+export async function estimateGenericFood(userId: string, description: string): Promise<GenericFoodEstimate> {
+  const raw = await generateJson(userId, 'forage_estimate', { prompt: buildPrompt(description), timeoutMs: LLM_TIMEOUT_MS });
+  const estimate = coerce(raw);
+  console.log(`[ForageGenericFood-LLM] estimate: ${estimate.name} (${estimate.kcal} kcal/${estimate.serving_unit})`);
+  return estimate;
 }
 
 function coerce(raw: any): GenericFoodEstimate {

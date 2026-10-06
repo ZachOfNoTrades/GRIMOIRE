@@ -140,6 +140,7 @@ function startGeneration(campaignId: string, user: AuthUser, wanted: number): vo
 
       const [context, settings] = await Promise.all([buildContext(campaignId, user.id), getSettings(user.id)]);
       const batch = await generateChipBatch(
+        user.id,
         context,
         wanted,
         existing.recordset.map((row) => row.label),
@@ -285,7 +286,7 @@ export async function adoptImageChip(
     const limit = await checkGenerationLimit(user.id, user.generationLimit);
     if (limit.allowed) {
       await logGeneration(user.id, "oracle/outline");
-      outline = await outlineEntity(await buildContext(campaignId, user.id), kind, name, await modelFor(user.id, "outline"));
+      outline = await outlineEntity(user.id, await buildContext(campaignId, user.id), kind, name, await modelFor(user.id, "outline"));
     }
   } catch (error) {
     console.warn(`Oracle outline failed for '${name}', adding it without a write-up:`, error instanceof Error ? error.message : error);

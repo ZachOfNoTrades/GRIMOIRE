@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Scrape + normalize (SSRF-guarded inside extractRecipeFromUrl).
-    const extracted = await extractRecipeFromUrl(url.trim());
+    const extracted = await extractRecipeFromUrl(userId, url.trim());
 
     // No ingredients usually means a block/challenge page rendered, or the link
     // isn't a recipe — don't silently create an empty recipe.

@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { generateText } from '@/lib/llm/generate';
 import { Food } from '../types/food';
 import { addFoodServing } from './foodFunctions';
 import type { FdcPortion } from './usdaFdc';
@@ -55,7 +55,7 @@ function gramsPerUnitFromPortions(portions: FdcPortion[] | undefined, unit: stri
 // used for cross-family/count conversions with no deterministic or FDC answer
 // (e.g. grams->cups for a food with no volume portion, or "1 clove"). Returns
 // null on any failure so the caller can fall back to grams.
-function aiGramsPerUnit(foodName: string, unit: string): Promise<number | null> {
+async function aiGramsPerUnit(userId: string, foodName: string, unit: string): Promise<number | null> {
   const safeFood = foodName.replace(/[`$"\\]/g, ' ').slice(0, 120);
   const safeUnit = unit.replace(/[`$"\\]/g, ' ').slice(0, 24);
   const prompt = `You are a culinary unit-conversion tool. Output how many grams ONE "${safeUnit}" of the food below weighs. Respond with a single positive number — nothing else, no units, no prose.
@@ -66,29 +66,19 @@ Examples: 1 cup all-purpose flour -> 125; 1 cup white rice (raw) -> 185; 1 clove
 
 Output only the number of grams for one "${safeUnit}" of "${safeFood}".`;
 
-  return new Promise<number | null>((resolve) => {
-    const proc = spawn(
-      'claude',
-      ['-p', '--output-format', 'text', '--no-session-persistence'],
-      { timeout: AI_TIMEOUT_MS, shell: false, env: { ...process.env } }
-    );
-    let stdout = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.on('error', () => resolve(null));
-    proc.on('close', (code) => {
-      if (code !== 0) { resolve(null); return; }
-      const match = stdout.replace(/,/g, '').match(/-?\d+(\.\d+)?/);
-      const grams = match ? Number(match[0]) : NaN;
-      if (Number.isFinite(grams) && grams > 0) {
-        console.log(`[ForageUnitConvert-AI] 1 ${safeUnit} of "${safeFood}" -> ${grams} g`);
-        resolve(grams);
-      } else {
-        resolve(null);
-      }
-    });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
+  // The user's `forage_estimate` backend, no tools; any failure reads as "unknown".
+  try {
+    const reply = await generateText(userId, 'forage_estimate', { prompt, timeoutMs: AI_TIMEOUT_MS });
+    const match = reply.replace(/,/g, '').match(/-?\d+(\.\d+)?/);
+    const grams = match ? Number(match[0]) : NaN;
+    if (Number.isFinite(grams) && grams > 0) {
+      console.log(`[ForageUnitConvert-AI] 1 ${safeUnit} of "${safeFood}" -> ${grams} g`);
+      return grams;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export interface PlacedServing {
@@ -175,7 +165,7 @@ export async function ensureServingForUnit(
     if (gramsPerServing > 0) {
       let gramsPerUnit = gramsPerUnitFromPortions(ctx.portions, unit);
       if (gramsPerUnit == null) {
-        gramsPerUnit = await aiGramsPerUnit(food.name, unit);
+        gramsPerUnit = await aiGramsPerUnit(userId, food.name, unit);
       }
       if (gramsPerUnit && gramsPerUnit > 0) {
         const upsNew = gramsPerServing / gramsPerUnit;

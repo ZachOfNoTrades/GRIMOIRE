@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const units = await listUnits(session.user.id!);
     const knownUnits = new Set(units.map((u) => u.name.toLowerCase()));
-    const draft = await extractFoodFromUrl({ url: food.source_url, knownUnits });
+    const draft = await extractFoodFromUrl({ userId: session.user.id!, url: food.source_url, knownUnits });
 
     // No facts panel on the page today → change nothing and say so, rather than
     // zeroing out a food that was fine.

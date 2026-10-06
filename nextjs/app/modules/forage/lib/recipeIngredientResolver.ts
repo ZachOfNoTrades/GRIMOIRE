@@ -64,8 +64,8 @@ export async function resolveIngredientItems(
 
         // 2/3. Create from FDC, falling back to the LLM.
         if (!food) {
-          const fdc = await lookupGenericFoodFromFdc(item.name);
-          const estimate = fdc ?? (await estimateGenericFood(item.name));
+          const fdc = await lookupGenericFoodFromFdc(userId, item.name);
+          const estimate = fdc ?? (await estimateGenericFood(userId, item.name));
           const nutrients = Object.entries(estimate.nutrients)
             .filter(([code, amt]) => amt > 0 && codeToId.has(code))
             .map(([code, amt]) => ({ nutrient_id: codeToId.get(code)!, amount: amt }));

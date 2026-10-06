@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   if (name.length > 200) return NextResponse.json({ error: 'name too long (max 200 chars)' }, { status: 400 });
 
   try {
-    const estimate = await lookupGenericFoodFromFdc(name);
+    const estimate = await lookupGenericFoodFromFdc(session.user.id!, name);
     if (!estimate) {
       return NextResponse.json({ error: `No USDA match for '${name}'` }, { status: 404 });
     }
