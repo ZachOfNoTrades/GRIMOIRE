@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import SegmentedToggle from "@/components/ui/SegmentedToggle";
 import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
 import { HeaderMenu } from "@/components/ui/HeaderMenu";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
@@ -14,13 +15,14 @@ import { useConfirm } from "@/lib/useConfirm";
 import MapCanvas from "../../../../../components/MapCanvas";
 import RangeValue from "../../../../../components/RangeValue";
 import ImagePicker, { type ImageSource } from "../../../../../components/ImagePicker";
+import FeatureEditor from "../../../../../components/FeatureEditor";
 import PictureAligner from "../../../../../components/PictureAligner";
 import SessionBar from "../../../../../components/SessionBar";
 import { MAP_HELP } from "../../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../../lib/client";
-import { MAP_DESCRIPTION_MAX, MAP_GRID, NAME_MAX, SCALE_UNITS, SCALE_VALUE_MAX, type ScaleUnit } from "../../../../../lib/constants";
+import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN, GRID_ROWS_MAX, GRID_ROWS_MIN, MAP_DESCRIPTION_MAX, MAP_GRID, NAME_MAX, SCALE_UNITS, SCALE_VALUE_MAX, type ScaleUnit } from "../../../../../lib/constants";
 import { saveOnShortcut, useUnsavedWarning } from "../../../../../lib/useUnsavedWarning";
-import type { OracleCampaign, OracleImage, OracleMap } from "../../../../../types/oracle";
+import type { MapFeature, OracleCampaign, OracleImage, OracleMap } from "../../../../../types/oracle";
 
 interface MapClientProps {
   campaign: OracleCampaign;
@@ -53,6 +55,10 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
   const [scaleUnit, setScaleUnit] = useState<ScaleUnit>(initialMap.data.scale_unit);
   const [pictureId, setPictureId] = useState<string | null>(initialMap.background_image_id);
   const [rect, setRect] = useState(initialMap.data.background ?? null);
+  const [features, setFeatures] = useState<MapFeature[]>(initialMap.data.features);
+  const [columnsDraft, setColumnsDraft] = useState(String(Math.round(initialMap.data.width / MAP_GRID)));
+  const [rowsDraft, setRowsDraft] = useState(String(Math.round(initialMap.data.height / MAP_GRID)));
+  const [editView, setEditView] = useState<"picture" | "shapes">("picture");
 
   // STATE
   const [pictureOpacity, setPictureOpacity] = useState(1); // this screen only, like the Table's slider
@@ -83,13 +89,24 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
 
   const parsedScale = Number(scaleValue);
   const isScaleOk = Number.isFinite(parsedScale) && parsedScale > 0 && parsedScale <= SCALE_VALUE_MAX;
+  // GRID SIZE — columns × rows of the fixed-size tile; the map grows or shrinks to fit.
+  const parsedColumns = Number(columnsDraft);
+  const parsedRows = Number(rowsDraft);
+  const isSizeOk = Number.isInteger(parsedColumns) && Number.isInteger(parsedRows) && parsedColumns >= GRID_COLUMNS_MIN && parsedColumns <= GRID_COLUMNS_MAX && parsedRows >= GRID_ROWS_MIN && parsedRows <= GRID_ROWS_MAX;
+  // A count left as it was keeps the map's exact size (an older map need not be whole tiles).
+  const draftWidth = isSizeOk && parsedColumns !== Math.round(map.data.width / MAP_GRID) ? parsedColumns * MAP_GRID : map.data.width;
+  const draftHeight = isSizeOk && parsedRows !== Math.round(map.data.height / MAP_GRID) ? parsedRows * MAP_GRID : map.data.height;
+  const isSizeDirty = draftWidth !== map.data.width || draftHeight !== map.data.height;
+  const isShapesDirty = JSON.stringify(features) !== JSON.stringify(map.data.features);
   const isDirty =
     name.trim() !== map.name ||
     description.trim() !== (map.data.description ?? "") ||
     (isScaleOk && (parsedScale !== map.data.scale_value || scaleUnit !== map.data.scale_unit)) ||
     pictureId !== map.background_image_id ||
-    JSON.stringify(rect) !== JSON.stringify(map.data.background ?? null);
-  const canSave = isDirty && name.trim().length > 0 && isScaleOk && !isSaving;
+    JSON.stringify(rect) !== JSON.stringify(map.data.background ?? null) ||
+    isShapesDirty ||
+    isSizeDirty;
+  const canSave = isDirty && name.trim().length > 0 && isScaleOk && isSizeOk && !isSaving;
   useUnsavedWarning(isEditing && isDirty);
   useEntityTitle(`${map.name} · ${campaign.name}`);
 
@@ -104,6 +121,10 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
         scale_unit: scaleUnit,
         background_image_id: pictureId,
         background: pictureId ? rect : null,
+        // Shapes and the grid size live in the map's data and go up as the whole of it.
+        ...(isShapesDirty || isSizeDirty
+          ? { data: { ...map.data, width: draftWidth, height: draftHeight, features, description: description.trim(), scale_value: parsedScale, scale_unit: scaleUnit, background: pictureId ? rect : null } }
+          : {}),
       });
       setMap(saved);
       setName(saved.name);
@@ -112,6 +133,9 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
       setScaleUnit(saved.data.scale_unit);
       setPictureId(saved.background_image_id);
       setRect(saved.data.background ?? null);
+      setFeatures(saved.data.features);
+      setColumnsDraft(String(Math.round(saved.data.width / MAP_GRID)));
+      setRowsDraft(String(Math.round(saved.data.height / MAP_GRID)));
       setIsEditing(false);
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't save the map"));
@@ -129,6 +153,9 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
     setScaleUnit(map.data.scale_unit);
     setPictureId(map.background_image_id);
     setRect(map.data.background ?? null);
+    setFeatures(map.data.features);
+    setColumnsDraft(String(Math.round(map.data.width / MAP_GRID)));
+    setRowsDraft(String(Math.round(map.data.height / MAP_GRID)));
     setIsEditing(false);
   }
 
@@ -278,10 +305,23 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                 />
               </div>
             )}
-            {isEditing && pictureId && (
-              <PictureAligner key={pictureId} url={`${base}/images/${pictureId}`} width={map.data.width} height={map.data.height} features={map.data.features} rect={rect} onChange={setRect} />
+            {/* EDIT VIEW — line up the picture, or draw the shapes over it */}
+            {isEditing && (
+              <SegmentedToggle
+                options={[{ value: "picture", label: "Picture" }, { value: "shapes", label: "Shapes" }]}
+                value={editView}
+                onChange={setEditView}
+                ariaLabel="What to edit"
+                className="orc-map-edit-view"
+              />
             )}
-            {isEditing && !pictureId && (
+            {isEditing && editView === "shapes" && (
+              <FeatureEditor width={draftWidth} height={draftHeight} features={features} pictureUrl={pictureId ? `${base}/images/${pictureId}?w=1600` : null} pictureRect={rect} onChange={setFeatures} />
+            )}
+            {isEditing && editView === "picture" && pictureId && (
+              <PictureAligner key={pictureId} url={`${base}/images/${pictureId}`} width={draftWidth} height={draftHeight} features={features} rect={rect} onChange={setRect} />
+            )}
+            {isEditing && editView === "picture" && !pictureId && (
               <div className="empty-state">
                 <p className="empty-state-title">No picture</p>
               </div>
@@ -347,7 +387,19 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
               </dd>
 
               <dt>Size</dt>
-              <dd>{columns} × {rows} tiles</dd>
+              <dd>
+                {isEditing ? (
+                  <div className="orc-scale-row">
+                    <input id="orc-map-columns" className="input-field orc-scale-value" inputMode="numeric" value={columnsDraft} aria-label="Columns" onChange={(event) => setColumnsDraft(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))} onKeyDown={saveOnShortcut(save)} />
+                    <span className="orc-small text-secondary">×</span>
+                    <input id="orc-map-rows" className="input-field orc-scale-value" inputMode="numeric" value={rowsDraft} aria-label="Rows" onChange={(event) => setRowsDraft(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))} onKeyDown={saveOnShortcut(save)} />
+                    <span className="orc-small text-secondary">tiles</span>
+                    {!isSizeOk && <span className="orc-small orc-map-size-error">{GRID_COLUMNS_MIN}–{GRID_COLUMNS_MAX} × {GRID_ROWS_MIN}–{GRID_ROWS_MAX}</span>}
+                  </div>
+                ) : (
+                  <>{columns} × {rows} tiles</>
+                )}
+              </dd>
 
               <dt>Description</dt>
               <dd>

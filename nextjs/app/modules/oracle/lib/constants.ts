@@ -67,6 +67,11 @@ export const MAP_DEFAULT_HEIGHT = 620;
 export const VISION_DEFAULT = 150;
 // The map grid (drawn every MAP_GRID units); placed entries snap to cell centers.
 export const MAP_GRID = 50;
+// A map's size in tiles, matching the width/height bounds coerceMapData keeps (400–2400 × 300–1600).
+export const GRID_COLUMNS_MIN = 8;
+export const GRID_COLUMNS_MAX = 48;
+export const GRID_ROWS_MIN = 6;
+export const GRID_ROWS_MAX = 32;
 // What one tile stands for: a number the DM types and a unit chosen from a short list.
 export const SCALE_UNITS = ["feet", "yards", "meters", "miles", "kilometers", "hours", "days"] as const;
 export type ScaleUnit = (typeof SCALE_UNITS)[number];
