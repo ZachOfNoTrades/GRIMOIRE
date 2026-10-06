@@ -184,17 +184,6 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
     router.push(`/modules/oracle/ui/campaign/${campaignId}/map/${saved.id}`);
   }
 
-  async function makeActive(map: OracleMap) {
-    const previous = campaign;
-    setCampaign({ ...campaign, active_map_id: map.id });
-    try {
-      setCampaign(await api<OracleCampaign>(base, "PUT", { active_map_id: map.id }));
-    } catch (error) {
-      setCampaign(previous);
-      toast.error(errorMessage(error, "Couldn't switch maps"));
-    }
-  }
-
   async function deleteImage(image: OracleImage) {
     if (!(await confirm({ title: `Delete ${image.caption}?`, message: "The picture is removed from the library and from anything that uses it.", confirmLabel: "Delete", danger: true }))) return;
     const previous = images;
@@ -422,18 +411,19 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
 
                   {/* MAP ROWS */}
                   {maps.map((map) => (
-                    <div key={map.id} className="orc-gen-row" data-active={campaign.active_map_id === map.id ? "true" : undefined}>
+                    <Link
+                      key={map.id}
+                      href={`/modules/oracle/ui/campaign/${campaignId}/map/${map.id}`}
+                      className="orc-gen-row orc-map-row"
+                      data-active={campaign.active_map_id === map.id ? "true" : undefined}
+                      aria-label={`Open map ${map.name}`}
+                    >
                       <MapPreview data={map.data} pictureUrl={map.background_image_id ? `${base}/images/${map.background_image_id}` : null} />
                       <div className="orc-gen-body">
                         <span className="orc-gen-value">{map.name}</span>
                       </div>
-                      <div className="orc-campaign-actions">
-                        {campaign.active_map_id !== map.id && <Button className="btn-off" onClick={() => makeActive(map)}>Use</Button>}
-                        <Link href={`/modules/oracle/ui/campaign/${campaignId}/map/${map.id}`} className="btn btn-off" title="Open map" aria-label={`Open map ${map.name}`}>
-                          <ChevronRight className="w-4 h-4" />
-                        </Link>
-                      </div>
-                    </div>
+                      <ChevronRight className="w-4 h-4" aria-hidden />
+                    </Link>
                   ))}
 
                   {/* ADD MAP BUTTON */}

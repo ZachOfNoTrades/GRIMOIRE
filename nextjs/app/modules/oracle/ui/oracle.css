@@ -1395,3 +1395,5 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map-canvas .orc-aligner-svg { max-height: min(70vh, 48rem); }
 .orc-map-canvas .orc-map-preview { width: 100%; max-height: min(70vh, 48rem); }
 .orc-map-title { margin: 0; font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; }
+.orc-map-row { color: inherit; text-decoration: none; cursor: pointer; }
+.orc-map-row:hover, .orc-map-row:focus-visible { border-color: var(--color-primary); }
