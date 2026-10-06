@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { SettingsControlRow } from "@/components/settings/SettingsList";
+import SortMenuButton from "@/components/settings/SortMenuButton";
 import { LLM_TASKS, LLM_TASK_GROUPS, type LlmTaskId } from "@/lib/llm/tasks";
 import type { LlmBackend, LlmModelSort, LlmTaskConfig } from "@/lib/llm/types";
 import type { LlmTaskPrefs } from "@/types/preferences";
@@ -466,11 +467,10 @@ export default function LlmSettingsPage() {
                       <SettingsControlRow key={task.id} label={task.label} divider={i > 0}>
                         <span style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", width: "34rem", maxWidth: "100%" }}>
 
-                          {/* BACKEND + SORT — one line; the sort orders the model dropdown below
-                              and is saved with the task */}
+                          {/* BACKEND */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "1 1 0", minWidth: 0 }}
+                            style={{ flex: "0 0 100%", minWidth: 0 }}
                             value={row.backend}
                             disabled={task.openRouterOnly}
                             aria-label={`${task.label} backend`}
@@ -479,15 +479,14 @@ export default function LlmSettingsPage() {
                             {!task.openRouterOnly && <option value="claude">{BACKEND_LABEL.claude}</option>}
                             <option value="openrouter">{BACKEND_LABEL.openrouter}</option>
                           </select>
-                          <select
-                            className="input-field input-field-compact"
-                            style={{ flex: "0 0 9rem", minWidth: 0 }}
+
+                          {/* SORT — orders the model dropdown beside it; saved with the task */}
+                          <SortMenuButton
+                            options={SORT_OPTIONS}
                             value={row.sort ?? "name"}
-                            aria-label={`${task.label} sort`}
-                            onChange={(e) => setRow(task.id, { sort: e.target.value as LlmModelSort })}
-                          >
-                            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </select>
+                            onChange={(sort) => setRow(task.id, { sort })}
+                            ariaLabel={`${task.label} sort`}
+                          />
 
                           {/* MODEL — catalog dropdown; "Manual entry…" opens the text field. The
                               blank value is the recommendation, listed once, as the default. Sized
@@ -495,7 +494,7 @@ export default function LlmSettingsPage() {
                               backends. */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "0 0 100%", minWidth: 0 }}
+                            style={{ flex: "1 1 0", minWidth: 0 }}
                             value={selectValue}
                             aria-label={`${task.label} model`}
                             onChange={(e) => pickModel(task.id, e.target.value)}
