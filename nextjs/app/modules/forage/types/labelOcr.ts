@@ -28,6 +28,11 @@ export interface LabelOcrDraft {
   // it to the food's icon avatar. Tesseract OCR never sets it.
   icon: string | null;
   servings: Array<{ unit: string; units_per_serving: number }>;
+  // Units the label prints that the user's catalog lacks (e.g. "packet"). NOT saved:
+  // the food form offers them as temporary options for this session and only
+  // creates the ones still used by a serving row when the food is saved. A
+  // `servings` row may name one of these.
+  new_units?: Array<{ name: string; type: 'mass' | 'volume' | 'count' }>;
   kcal_per_serving: number | null;
   protein_g_per_serving: number | null;
   carbs_g_per_serving: number | null;

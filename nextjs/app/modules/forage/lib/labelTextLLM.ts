@@ -2,7 +2,7 @@ import { generateText } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
-import { coerceDraft } from './labelOcrLLM';
+import { coerceDraft, NEW_UNITS_RULE } from './labelOcrLLM';
 import { parseNutritionText } from './labelParser';
 import { listUnits } from './unitFunctions';
 
@@ -57,6 +57,7 @@ JSON shape (strict — extra/misnamed keys break the consumer):
   "icon": string | null,
   "serving_size_stated": boolean,
   "servings": [{ "unit": string, "units_per_serving": number }, ...],
+  "new_units": [{ "name": string, "type": "mass" | "volume" | "count" }, ...],
   "kcal_per_serving": number | null,
   "protein_g_per_serving": number | null,
   "carbs_g_per_serving": number | null,
@@ -78,7 +79,8 @@ Rules:
 - name / brand: extract from the text if present, otherwise empty string "". Keep the name under 80 chars and strip the brand out of it.
 - barcode_upc: if the text states a UPC/EAN, emit digits only — no spaces or dashes. Otherwise null.
 - icon: pick the single best-fitting icon code for this food from this exact list: ${iconList}. Choose by category (a soda/energy drink → cup-soda, a chocolate/candy bar → candy, a cookie → cookie, chicken → drumstick, a leafy salad → salad, coffee → coffee, milk → milk, beer → beer, wine → wine). Emit exactly one code from the list, or null if none is a reasonable match. Never invent a code not in the list.
-- servings.unit must be one of: ${unitsList}. If the text says "Serving size 1 Cup (240mL)" emit BOTH rows: [{"unit":"cup","units_per_serving":1},{"unit":"ml","units_per_serving":240}]; a per-100g listing gives exactly [{"unit":"g","units_per_serving":100}] and a per-100ml listing exactly [{"unit":"ml","units_per_serving":100}]. If a unit is not in that list, drop that row. If there is no recognizable serving info, emit [{"unit":"g","units_per_serving":0}].
+- servings.unit must be one of: ${unitsList}. If the text says "Serving size 1 Cup (240mL)" emit BOTH rows: [{"unit":"cup","units_per_serving":1},{"unit":"ml","units_per_serving":240}]; a per-100g listing gives exactly [{"unit":"g","units_per_serving":100}] and a per-100ml listing exactly [{"unit":"ml","units_per_serving":100}]. If there is no recognizable serving info, emit [{"unit":"g","units_per_serving":0}].
+${NEW_UNITS_RULE}
 - nutrients_by_code keys must be from this exact list: ${codesList}. Values are in the standard unit for that nutrient (g for fiber/sugars/fats, mg for sodium/calcium/iron/potassium/cholesterol/magnesium/phosphorus, mcg for vitamin D/B12/folate/biotin/iodine/selenium/chromium/molybdenum/vitamin A/K). Do NOT include calories/protein/carbs/fat here — those go in the top-level macro fields.
 - If a nutrient is given only as %DV, back-calculate using FDA 2016 Daily Values (e.g. phosphorus 10% × 1250mg = 125mg).
 - When (and only when) serving_size_stated is true, also read any INGREDIENTS list and SUPPLEMENT FACTS panel in the text for trackable nutrients in the known-codes list — caffeine above all is usually declared there ("Caffeine 200mg", "Caffeine Anhydrous 150mg") rather than in the nutrition facts. Only emit a quantified amount; an ingredient named with no amount is omitted, never guessed.
@@ -133,7 +135,7 @@ export async function parseLabelText(opts: {
     if (start === -1 || end === -1 || end <= start) {
       throw new Error('no JSON object in CLI output');
     }
-    const draft = coerceDraft(JSON.parse(cleaned.slice(start, end + 1)), knownUnits);
+    const draft = coerceDraft(JSON.parse(cleaned.slice(start, end + 1)), knownUnits, text);
     console.log(
       `[ForageLabelText-LLM] ${Date.now() - t0}ms — "${draft.name}" (${draft.brand}), ` +
         `${draft.kcal_per_serving ?? '?'} kcal, ${Object.keys(draft.nutrients_by_code).length} nutrients, ` +

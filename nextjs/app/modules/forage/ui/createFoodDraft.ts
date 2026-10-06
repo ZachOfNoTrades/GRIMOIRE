@@ -24,6 +24,8 @@
    exit (save, cancel, closing the logger) and expires after MAX_AGE_MS, so the
    only thing that ever leaves one behind is the abnormal teardown. */
 
+import type { FoodUnit } from "../types/unit";
+
 export type CreateFoodDraftHost = "logger" | "page";
 
 export type CreateFoodDraft = {
@@ -52,6 +54,8 @@ export type CreateFoodDraft = {
   nutrientAmounts: Record<string, string>;
   icon: string | null;
   servingSizeStated: boolean;
+  // Scan-proposed units not yet in the catalog; absent on drafts written before this existed.
+  tempUnits?: FoodUnit[];
 };
 
 const KEY = "forage.createFoodDraft";
@@ -80,6 +84,9 @@ function isWellFormed(draft: unknown): draft is CreateFoodDraft {
     (d.basis === "serving" || d.basis === "100g" || d.basis === "100ml") &&
     (d.imageSourceUrl === null || typeof d.imageSourceUrl === "string") &&
     (d.icon === null || typeof d.icon === "string") &&
+    (d.tempUnits === undefined ||
+      (Array.isArray(d.tempUnits) &&
+        d.tempUnits.every((u) => u && typeof (u as FoodUnit).id === "string" && typeof (u as FoodUnit).name === "string"))) &&
     Array.isArray(d.servings) &&
     d.servings.every((s) => s && typeof (s as ServingRow).unit === "string" && typeof (s as ServingRow).ups === "string") &&
     !!d.nutrientAmounts &&

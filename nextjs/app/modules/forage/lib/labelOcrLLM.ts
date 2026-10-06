@@ -5,6 +5,8 @@ import { extractJson, generateJson, generateText, usesOpenRouter } from '@/lib/l
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
+import { dupeKey } from './unitFunctions';
+import { CUSTOM_UNIT_MAX_LEN } from '../types/unit';
 
 // 60s ceiling for the model call. Vision on a phone-photo label is typically
 // 7-15s; the cap is here so a stuck call can't hang the request indefinitely.
@@ -14,6 +16,11 @@ const LLM_TIMEOUT_MS = 60_000;
 // truth), excluding `creatine` (in the ledger but not yet seeded in food_nutrients).
 // Sent in the prompt so the LLM only emits codes that downstream code will accept.
 const KNOWN_NUTRIENT_CODES = NUTRIENT_CODES_IN_ORDER.filter((code) => code !== 'creatine');
+
+// Shared by the label-photo and pasted-text prompts. A unit the label prints but the
+// catalog lacks becomes a PROPOSAL the user reviews, never a database row — so the
+// rule is strict about quoting the label rather than inferring.
+export const NEW_UNITS_RULE = `- new_units: when the stated serving size uses a unit word that is printed on the label (e.g. "Serving size 1 packet", "2 sticks", "1 sachet") and is NOT in the servings.unit list, emit it in "new_units" as {"name": the singular lowercase word exactly as printed, "type": "mass" | "volume" | "count"} AND emit a servings row using that name. Use "count" for piece-like words (packet, stick, sachet, bar, scoop); "mass"/"volume" only if the word is itself a weight/volume measure. Never invent a unit the label does not print, never emit one for a serving size that is not stated, and never translate or guess a synonym. If the label uses no such word, emit "new_units": [].`;
 
 // Two openings for the same task: on the Claude CLI the model Reads the files at
 // `imagePaths` and Writes its answer to `outputPath`; on OpenRouter the photos are
@@ -48,6 +55,7 @@ JSON shape (strict — extra/misnamed keys break the consumer):
   "icon": string | null,
   "serving_size_stated": boolean,
   "servings": [{ "unit": string, "units_per_serving": number }, ...],
+  "new_units": [{ "name": string, "type": "mass" | "volume" | "count" }, ...],
   "kcal_per_serving": number | null,
   "protein_g_per_serving": number | null,
   "carbs_g_per_serving": number | null,
@@ -65,7 +73,8 @@ Rules:
 - name / brand: extract from the package if visible (prefer the front/marketing face for the brand and product name); otherwise empty string "".
 - barcode_upc: if a product barcode is visible, emit the digits printed beneath it (the 8/12/13-digit UPC/EAN number) as a string of digits only — no spaces or dashes. If no barcode/number is legible, emit null.
 - icon: pick the single best-fitting icon code for this food from this exact list: ${iconList}. Choose by category (e.g. a soda/energy drink → cup-soda, a chocolate/candy bar → candy, a cookie/biscuit → cookie, chicken → drumstick, a leafy salad → salad, coffee → coffee, milk → milk, beer → beer, wine → wine). Emit exactly one code from the list, or null if none is a reasonable match. Never invent a code not in the list.
-- servings.unit must be one of: ${unitsList}. If the label says "1 Cup (240mL)" emit BOTH rows: [{"unit":"cup","units_per_serving":1},{"unit":"ml","units_per_serving":240}]. If a unit on the label is not in that list, drop that row. If no recognizable serving info, emit [{"unit":"g","units_per_serving":0}].
+- servings.unit must be one of: ${unitsList}. If the label says "1 Cup (240mL)" emit BOTH rows: [{"unit":"cup","units_per_serving":1},{"unit":"ml","units_per_serving":240}]. If no recognizable serving info, emit [{"unit":"g","units_per_serving":0}].
+${NEW_UNITS_RULE}
 - nutrients_by_code keys must be from this exact list: ${codesList}. Values are in the standard unit for that nutrient (g for fiber/sugars/fats, mg for sodium/calcium/iron/potassium/magnesium/phosphorus/etc., mcg for vitamin D/B12/folate/biotin/iodine/selenium/chromium/molybdenum/vitamin A/K). Do NOT include calories/protein/carbs/fat here — those go in the top-level macro fields.
 - If the label only shows %DV for a nutrient, back-calculate using FDA 2016 Daily Values (e.g. phosphorus 10% × 1250mg = 125mg).
 - When (and only when) serving_size_stated is true, don't stop at the nutrition-facts panel: also read the INGREDIENTS list and any SUPPLEMENT FACTS panel for trackable nutrients in the known-codes list. Some actives — caffeine above all — are usually declared there (e.g. "Caffeine 200mg", "Caffeine (from green tea extract) 150mg", "Caffeine Anhydrous 150mg") rather than in the nutrition facts. When an ingredient names a known-code nutrient WITH an explicit per-serving amount, emit it in nutrients_by_code under its code (caffeine in mg). Only emit a quantified amount — if an ingredient is listed by name with no amount, omit it (do not guess). A caffeine pill's Supplement Facts panel that states "Serving size 1 capsule" counts as serving_size_stated=true even if caffeine is the only line.
@@ -116,7 +125,14 @@ export async function parseLabelImageWithLLM(opts: {
 // Anything that can't be coerced becomes null/empty so the modal still loads.
 // Exported so the source-link import (foodUrlLLM) coerces identically — both
 // paths produce the same draft the food form consumes.
-export function coerceDraft(raw: any, knownUnits: Set<string>): LabelOcrDraft {
+export function coerceDraft(
+  raw: any,
+  knownUnits: Set<string>,
+  // The raw label text when the source is text (not pixels): a proposed unit must
+  // literally appear in it, which is the only check available against a model
+  // inventing a unit. Omitted for photos — the prompt rule is the only guard there.
+  sourceText?: string
+): LabelOcrDraft {
   const name = typeof raw?.name === 'string' ? raw.name : '';
   const brand = typeof raw?.brand === 'string' ? raw.brand : '';
 
@@ -129,22 +145,26 @@ export function coerceDraft(raw: any, knownUnits: Set<string>): LabelOcrDraft {
   // Only accept an icon the renderer actually knows; anything else → null.
   const icon = typeof raw?.icon === 'string' && FOOD_ICON_CODES.includes(raw.icon) ? raw.icon : null;
 
+  // Nutrition is only trustworthy from a real facts panel with a stated serving
+  // size — and a proposed unit comes off that same serving size, so it shares the gate.
+  const serving_size_stated = raw?.serving_size_stated === true;
+  const new_units = serving_size_stated ? coerceNewUnits(raw?.new_units, knownUnits, sourceText) : [];
+  const proposed = new Set(new_units.map((u) => u.name));
+
   const servingsIn: any[] = Array.isArray(raw?.servings) ? raw.servings : [];
   const servings = servingsIn
     .map((s) => ({
       unit: typeof s?.unit === 'string' ? s.unit.trim().toLowerCase() : '',
       units_per_serving: Number(s?.units_per_serving),
     }))
-    .filter((s) => s.unit && knownUnits.has(s.unit) && Number.isFinite(s.units_per_serving) && s.units_per_serving > 0);
+    .filter((s) => s.unit && (knownUnits.has(s.unit) || proposed.has(s.unit)) && Number.isFinite(s.units_per_serving) && s.units_per_serving > 0);
   if (servings.length === 0) {
     servings.push({ unit: 'g', units_per_serving: 0 });
   }
 
-  // Nutrition is only trustworthy from a real facts panel with a stated serving
-  // size. When the model didn't see one, hard-drop all nutrition (regardless of
-  // what it emitted) so front-of-pack marketing claims ("24g PROTEIN!") can never
-  // leak in. name / brand / barcode still pass through.
-  const serving_size_stated = raw?.serving_size_stated === true;
+  // When the model didn't see a stated serving size, hard-drop all nutrition
+  // (regardless of what it emitted) so front-of-pack marketing claims ("24g
+  // PROTEIN!") can never leak in. name / brand / barcode still pass through.
 
   const kcal_per_serving      = serving_size_stated ? coerceNumberOrNull(raw?.kcal_per_serving) : null;
   const protein_g_per_serving = serving_size_stated ? coerceNumberOrNull(raw?.protein_g_per_serving) : null;
@@ -161,7 +181,34 @@ export function coerceDraft(raw: any, knownUnits: Set<string>): LabelOcrDraft {
     }
   }
 
-  return { name, brand, barcode_upc, icon, serving_size_stated, servings, kcal_per_serving, protein_g_per_serving, carbs_g_per_serving, fat_g_per_serving, nutrients_by_code };
+  return { name, brand, barcode_upc, icon, serving_size_stated, servings, new_units, kcal_per_serving, protein_g_per_serving, carbs_g_per_serving, fat_g_per_serving, nutrients_by_code };
+}
+
+// Validates the model's proposed units against the catalog and (for text sources)
+// the label text. Each survivor is a clean singular lowercase word the user can
+// accept or discard in the form; nothing here touches the database.
+function coerceNewUnits(
+  raw: unknown,
+  knownUnits: Set<string>,
+  sourceText?: string
+): Array<{ name: string; type: 'mass' | 'volume' | 'count' }> {
+  if (!Array.isArray(raw)) return [];
+  const taken = new Set(Array.from(knownUnits).map(dupeKey));
+  taken.add(dupeKey('serving'));
+  const haystack = sourceText?.toLowerCase();
+  const out: Array<{ name: string; type: 'mass' | 'volume' | 'count' }> = [];
+  for (const u of raw) {
+    const name = typeof u?.name === 'string' ? u.name.trim().replace(/\s+/g, ' ').toLowerCase() : '';
+    if (!name || name.length > CUSTOM_UNIT_MAX_LEN || !/^[a-z][a-z' -]*$/.test(name)) continue;
+    const key = dupeKey(name);
+    if (taken.has(key)) continue;
+    if (haystack && !new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:s|es)?\\b`).test(haystack)) continue;
+    taken.add(key);
+    const type = u?.type === 'mass' || u?.type === 'volume' ? u.type : 'count';
+    out.push({ name, type });
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 function coerceNumberOrNull(v: unknown): number | null {

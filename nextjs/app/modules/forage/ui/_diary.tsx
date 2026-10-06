@@ -109,7 +109,8 @@ import { ServingUnitOptions } from "../components/ServingUnitOptions";
 import { NutrientMeter, bandDisplay, fmtNutrient, ProgramTargetMark, isProgramTarget, type NutrientBand } from "./nutrition/nutrientMeter";
 import { withVirtualUnits, expandVirtualServings, resolveServingForSave } from "../lib/virtualUnits";
 import type { FoodUnit, UnitType } from "../types/unit";
-import { CUSTOM_UNIT_MAX_LEN } from "../types/unit";
+import { CUSTOM_UNIT_MAX_LEN, CUSTOM_UNIT_ORDER_BASE } from "../types/unit";
+import { normUnit } from "../lib/unitFamilies";
 import { UNIT_TYPE_LABELS, UNIT_TYPES, convert, familyOf } from "../lib/unitFamilies";
 import { useUnits, prefetchUnits, setUnitsCache, unitTypeByName, optionGroups } from "../utils/useUnits";
 import { selectOnFocus, blurOnEnter, focusOnEnter, useBlurActiveInputOnScroll } from "@/lib/inputBehavior";
@@ -5036,6 +5037,51 @@ export function useNutrientTargets(): { bands: ResolvedNutrientTarget[]; loaded:
    is owned by the parent (one label for the whole table).
    ============================================================ */
 
+// TEMPORARY UNITS — a label scan can propose a unit the user's catalog lacks
+// ("packet"). It lives in form state only (id prefixed `temp:`), so discarding the
+// form leaves nothing behind; saveTempUnits() creates the ones a serving row still
+// uses at the moment the food is saved.
+const TEMP_UNIT_PREFIX = "temp:";
+const isTempUnit = (u: FoodUnit) => u.id.startsWith(TEMP_UNIT_PREFIX);
+
+function mergeTempUnits(catalog: FoodUnit[], temp?: FoodUnit[]): FoodUnit[] {
+  if (!temp || temp.length === 0) return catalog;
+  const have = new Set(catalog.map((u) => normUnit(u.name)));
+  return [...catalog, ...temp.filter((u) => !have.has(normUnit(u.name)))];
+}
+
+function toTempUnits(draft: LabelOcrDraft, existing: FoodUnit[]): FoodUnit[] {
+  const out = [...existing];
+  for (const n of draft.new_units ?? []) {
+    if (out.some((u) => normUnit(u.name) === normUnit(n.name))) continue;
+    out.push({ id: `${TEMP_UNIT_PREFIX}${n.name}`, name: n.name, type: n.type, display_order: CUSTOM_UNIT_ORDER_BASE, is_custom: true });
+  }
+  return out;
+}
+
+// Creates each temp unit that a serving row still names. A 400 means it exists by
+// now (another tab, an earlier save attempt) — fine, the row can use it. Returns
+// false after toasting when a create genuinely failed, so the caller aborts the save.
+async function saveTempUnits(temp: FoodUnit[], usedNames: string[]): Promise<boolean> {
+  const used = new Set(usedNames.map(normUnit));
+  const wanted = temp.filter((u) => used.has(normUnit(u.name)));
+  if (wanted.length === 0) return true;
+  for (const u of wanted) {
+    const res = await fetch(`/modules/forage/api/units`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: u.name, type: u.type }),
+    });
+    if (!res.ok && res.status !== 400) {
+      toast.error(`Couldn't add the "${u.name}" unit`);
+      return false;
+    }
+  }
+  const fresh = await fetch(`/modules/forage/api/units`).then((r) => (r.ok ? r.json() : null));
+  if (Array.isArray(fresh)) setUnitsCache(fresh);
+  return true;
+}
+
 // Sentinel value for the dropdown's trailing "＋ New unit…" option. Not a unit name,
 // so it can never collide with one (unit names are trimmed non-empty free text).
 const ADD_UNIT_SENTINEL = "__add_custom_unit__";
@@ -5047,7 +5093,11 @@ export function ServingTable({
   rowIdPrefix,
   nextIdAfter,
   advanceOnEnter,
+  tempUnits,
 }: {
+  // Units proposed by a label scan that don't exist yet. Offered in the dropdown
+  // for this form session only; they're created on save if a row still uses one.
+  tempUnits?: FoodUnit[];
   rows: { unit: string; ups: string }[];
   onChange: (i: number, patch: { unit?: string; ups?: string }) => void;
   onRemove: (i: number) => void;
@@ -5055,7 +5105,8 @@ export function ServingTable({
   nextIdAfter?: (i: number) => string | null;
   advanceOnEnter?: (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, nextId: string | null) => void;
 }) {
-  const units = useUnits();
+  const catalog = useUnits();
+  const units = mergeTempUnits(catalog, tempUnits);
   // Which row (if any) opened the "new custom unit" prompt. Null = closed.
   const [addingForRow, setAddingForRow] = useState<number | null>(null);
   const groups = optionGroups(units, (u) => u.type);
@@ -5064,7 +5115,7 @@ export function ServingTable({
   function unitOption(u: FoodUnit) {
     return (
       <option key={u.id} value={u.name}>
-        {u.name}
+        {isTempUnit(u) ? `${u.name} (new)` : u.name}
       </option>
     );
   }
@@ -5708,6 +5759,9 @@ export function CreateFoodWizard({
   // serving size. Gates the "Scan label" tile's captured-check so a stray
   // front-of-pack macro claim never lights it.
   const [servingSizeStated, setServingSizeStated] = useState(false);
+  // Units a scan proposed that aren't in the catalog yet; created on save only if
+  // a serving row still uses one (see saveTempUnits).
+  const [tempUnits, setTempUnits] = useState<FoodUnit[]>([]);
   const [isPickingIcon, setIsPickingIcon] = useState(false);
   const [isLiveScannerOpen, setIsLiveScannerOpen] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement | null>(null);
@@ -5828,6 +5882,7 @@ export function CreateFoodWizard({
       .map((s) => ({ unit: s.unit, ups: fmtServingAmount(s.units_per_serving, s.unit) }));
     if (basis === "serving" && draftServings.length > 0) {
       setServings(draftServings);
+      setTempUnits((prev) => toTempUnits(draft, prev));
     }
     if (Object.keys(draft.nutrients_by_code).length > 0) {
       const byId: Record<string, string> = {};
@@ -5883,6 +5938,7 @@ export function CreateFoodWizard({
       setNutrientAmounts(saved.nutrientAmounts);
       setIcon(saved.icon);
       setServingSizeStated(saved.servingSizeStated);
+      setTempUnits(saved.tempUnits ?? []);
       setStep(saved.step);
     }
     setDraftRestored(true);
@@ -5918,11 +5974,12 @@ export function CreateFoodWizard({
       nutrientAmounts,
       icon,
       servingSizeStated,
+      tempUnits,
     });
   }, [
     draftRestored, draftHost, step, name, brand, barcodeUpc, sourceUrl, imageSourceUrl,
     isGlobal, kcal, p, c, f, servings, basis, portionAmount, portionQty, portionName,
-    nutrientAmounts, icon, servingSizeStated,
+    nutrientAmounts, icon, servingSizeStated, tempUnits,
   ]);
 
   // IMPORT FROM SOURCE LINK — scrapes the pasted product/nutrition page and fills
@@ -6194,6 +6251,8 @@ export function CreateFoodWizard({
     savingRef.current = true;
     setIsSaving(true);
     try {
+      const saveServings = buildSaveServings();
+      if (!(await saveTempUnits(tempUnits, saveServings.map((s) => s.unit)))) return;
       const res = await fetch(`/modules/forage/api/foods`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -6210,7 +6269,7 @@ export function CreateFoodWizard({
           fat_g_per_serving: Number(f || 0),
           icon,
           omit_default_serving: basis !== "serving",
-          servings: buildSaveServings(),
+          servings: saveServings,
           nutrients: Object.entries(nutrientAmounts)
             .map(([nutrient_id, amount]) => ({ nutrient_id, amount: Number(amount) }))
             .filter((n) => Number.isFinite(n.amount) && n.amount >= 0),
@@ -6644,6 +6703,7 @@ export function CreateFoodWizard({
 
                 {servings.length > 0 && (
                   <ServingTable
+                    tempUnits={tempUnits}
                     rows={servings}
                     onChange={updateServing}
                     onRemove={removeServing}
@@ -6911,6 +6971,9 @@ export function FoodForm({
   const [c, setC] = useState("");
   const [f, setF] = useState("");
   const [servings, setServings] = useState<ServingDraft[]>(isEdit ? [] : [{ unit: "g", ups: "" }]);
+  // Units a scan proposed that aren't in the catalog yet; created on save only if
+  // a serving row still uses one (see saveTempUnits).
+  const [tempUnits, setTempUnits] = useState<FoodUnit[]>([]);
   // nutrientAmounts is keyed by nutrient.id. Empty string = "not entered" (won't be saved).
   const [nutrientAmounts, setNutrientAmounts] = useState<Record<string, string>>({});
   // Preseeded icon code from FOOD_ICONS. null = use the default (apple) — kept as
@@ -7075,6 +7138,7 @@ export function FoodForm({
       .map((s) => ({ unit: s.unit, ups: fmtServingAmount(s.units_per_serving, s.unit) }));
     if (draftServings.length > 0) {
       setServings(draftServings);
+      setTempUnits((prev) => toTempUnits(draft, prev));
     }
     if (Object.keys(draft.nutrients_by_code).length > 0) {
       const byId: Record<string, string> = {};
@@ -7330,6 +7394,7 @@ export function FoodForm({
     savingRef.current = true;
     setIsSaving(true);
     try {
+      if (!(await saveTempUnits(tempUnits, servings.map((s) => (s.unit ?? "").trim())))) return;
       const url = isEdit ? `/modules/forage/api/foods/${foodId}` : `/modules/forage/api/foods`;
       const method = isEdit ? "PUT" : "POST";
       const res = await fetch(url, {
@@ -7554,6 +7619,7 @@ export function FoodForm({
           {/* SERVINGS */}
           {servings.length > 0 && (
             <ServingTable
+              tempUnits={tempUnits}
               rows={servings}
               onChange={updateServing}
               onRemove={removeServing}

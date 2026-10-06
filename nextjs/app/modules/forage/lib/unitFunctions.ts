@@ -119,7 +119,7 @@ function cleanType(type: unknown): UnitType {
 // just invented, so additionally strip a single trailing 's'. That keeps "sticks"
 // from being added next to "stick". Detection only — the typed name is what gets
 // stored and displayed, so an over-eager fold costs at most a rename.
-function dupeKey(name: string): string {
+export function dupeKey(name: string): string {
   const n = normUnit(name);
   return n.length > 2 && n.endsWith('s') ? n.slice(0, -1) : n;
 }
