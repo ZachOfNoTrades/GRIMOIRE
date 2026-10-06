@@ -37,11 +37,23 @@ interface UsageSummary {
 
 type TaskRows = Record<LlmTaskId, LlmTaskConfig>;
 
+interface ModelInfo {
+  promptPerM: number;
+  completionPerM: number;
+  ctx: number;
+  created: string | null;
+  imageIn: boolean;
+  imageOut: boolean;
+  tools: boolean;
+}
 interface CatalogModel {
   id: string;
   name: string;
-  note: string;
   recommended: boolean;
+  estCostUsd: number | null;
+  estSeconds: number | null;
+  basis: { taskCalls: number; modelCalls: number };
+  info: ModelInfo | null;
 }
 interface TaskModelList {
   recommended: string;
@@ -51,16 +63,54 @@ interface TaskModelList {
 type Catalog = Partial<Record<LlmBackend, Record<string, TaskModelList>>>;
 
 // Outcome of checking a typed-in model id, per task.
-type ManualCheck = { state: "checking" } | { state: "ok"; name: string } | { state: "bad"; reason: string };
+type ManualCheck = { state: "checking" } | { state: "ok"; name: string; model: CatalogModel } | { state: "bad"; reason: string };
 
 const BACKEND_LABEL: Record<LlmBackend, string> = { claude: "Claude", openrouter: "OpenRouter" };
 const MANUAL = "__manual__";
 
-// The catalog's own facts about a model (OpenRouter price per M tokens and context)
-// ride along with the name; Claude's list carries no note.
+function money(n: number): string {
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n >= 0.01) return `$${n.toFixed(3)}`;
+  if (n >= 0.0001) return `$${n.toFixed(4)}`;
+  return "<$0.0001";
+}
+
+function perM(n: number): string {
+  return n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}`;
+}
+
+function ctxLabel(ctx: number): string {
+  return ctx >= 1_000_000 ? `${(ctx / 1_000_000).toFixed(1)}M` : `${Math.round(ctx / 1000)}K`;
+}
+
+// `{Model} | ~$cost | {seconds}s` — the estimate for THIS task on that model.
 function optionLabel(m: CatalogModel | undefined): string {
   if (!m) return "";
-  return m.note ? `${m.name} · ${m.note}` : m.name;
+  const cost = m.estCostUsd === null ? "—" : `~${money(m.estCostUsd)}`;
+  const secs = m.estSeconds === null ? "—" : `${m.estSeconds < 10 ? m.estSeconds.toFixed(1) : Math.round(m.estSeconds)}s`;
+  return `${m.name} | ${cost} | ${secs}`;
+}
+
+// The footer under a dropdown: the catalog's facts plus where the estimate came from.
+function modelFooter(m: CatalogModel | undefined): string {
+  if (!m) return "";
+  const parts: string[] = [m.id];
+  if (m.info) {
+    parts.push(`${perM(m.info.promptPerM)} in / ${perM(m.info.completionPerM)} out per M tokens`);
+    if (m.info.ctx) parts.push(`${ctxLabel(m.info.ctx)} context`);
+    const caps = [m.info.imageIn && "reads images", m.info.tools && "tools", m.info.imageOut && "generates images"].filter(Boolean) as string[];
+    if (caps.length) parts.push(caps.join(", "));
+    if (m.info.created) parts.push(`released ${m.info.created.slice(0, 7)}`);
+  }
+  const { taskCalls, modelCalls } = m.basis;
+  parts.push(
+    modelCalls > 0
+      ? `estimate from ${modelCalls} call${modelCalls === 1 ? "" : "s"} on this model`
+      : taskCalls > 0
+        ? `estimate from ${taskCalls} call${taskCalls === 1 ? "" : "s"} of this task`
+        : "estimate from typical prompt size, no calls logged yet"
+  );
+  return parts.join(" · ");
 }
 
 function rowsFrom(prefs: LlmTaskPrefs): TaskRows {
@@ -236,7 +286,7 @@ export default function LlmSettingsPage() {
         body: JSON.stringify({ backend: row.backend, task, model }),
       });
       const body = await res.json();
-      setChecks((prev) => ({ ...prev, [task]: body.ok ? { state: "ok", name: body.name } : { state: "bad", reason: body.reason || body.error || "Unknown model" } }));
+      setChecks((prev) => ({ ...prev, [task]: body.ok ? { state: "ok", name: body.name, model: body.model } : { state: "bad", reason: body.reason || body.error || "Unknown model" } }));
     } catch {
       setChecks((prev) => ({ ...prev, [task]: { state: "bad", reason: "Couldn't check the model" } }));
     }
@@ -451,6 +501,16 @@ export default function LlmSettingsPage() {
                               {check?.state === "bad" && <span style={{ color: "var(--alert-red-text)" }}>✗ {check.reason}</span>}
                             </span>
                           )}
+
+                          {/* FOOTER — the chosen model's facts and the basis of its estimate */}
+                          {(() => {
+                            const shown = isManual
+                              ? (check?.state === "ok" ? check.model : undefined)
+                              : list?.models.find((m) => (row.model ? m.id === row.model : m.recommended));
+                            return shown ? (
+                              <p className="settings-group-note" style={{ flex: "0 0 100%", margin: 0 }}>{modelFooter(shown)}</p>
+                            ) : null;
+                          })()}
                         </span>
                       </SettingsControlRow>
                     );

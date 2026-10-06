@@ -40,6 +40,9 @@ export interface LlmTaskDef {
   needsTools?: boolean;
   // Tasks with no CLI equivalent (image generation) are OpenRouter-only.
   openRouterOnly?: boolean;
+  // Seed for the cost estimate until the usage log has real calls for the task:
+  // typical prompt and completion token counts.
+  estTokens: [prompt: number, completion: number];
 }
 
 // Fast, cheap text model: 0.8 s / $0.00006 on the rune eval prompt when measured
@@ -51,25 +54,25 @@ const TOOLS = "anthropic/claude-haiku-4.5";
 const VISION = "google/gemini-2.5-flash";
 
 export const LLM_TASKS: readonly LlmTaskDef[] = [
-  { id: "rune_eval",          group: "rune",   label: "Spoken answer grading", openRouterModel: FAST_TEXT, cliModel: "sonnet", cliEffort: "low" },
-  { id: "rune_refine",        group: "rune",   label: "Card refine",           openRouterModel: FAST_TEXT },
-  { id: "rune_deck",          group: "rune",   label: "Deck generate / refine", openRouterModel: TOOLS, needsTools: true },
-  { id: "golem_program",      group: "golem",  label: "Program generation",    openRouterModel: TOOLS, needsTools: true },
-  { id: "golem_week",         group: "golem",  label: "Week plan",             openRouterModel: TOOLS, needsTools: true },
-  { id: "golem_session",      group: "golem",  label: "Session targets",       openRouterModel: TOOLS, needsTools: true },
-  { id: "golem_analysis",     group: "golem",  label: "Session analysis",      openRouterModel: TOOLS, needsTools: true },
-  { id: "golem_regenerate",   group: "golem",  label: "Session plan rewrite",  openRouterModel: TOOLS, needsTools: true },
-  { id: "forage_estimate",    group: "forage", label: "Food estimates",        openRouterModel: FAST_TEXT },
-  { id: "forage_label_image", group: "forage", label: "Label photo",           openRouterModel: VISION, needsVision: true },
-  { id: "forage_recipe_photo", group: "forage", label: "Recipe photo",         openRouterModel: VISION, needsVision: true },
-  { id: "oracle_world",       group: "oracle", label: "World",                 openRouterModel: FAST_TEXT, cliModel: "haiku" },
-  { id: "oracle_build",       group: "oracle", label: "Session build",         openRouterModel: FAST_TEXT, cliModel: "haiku" },
-  { id: "oracle_map",         group: "oracle", label: "Map",                   openRouterModel: FAST_TEXT, cliModel: "haiku" },
-  { id: "oracle_chips",       group: "oracle", label: "Idea chips",            openRouterModel: FAST_TEXT, cliModel: "haiku" },
-  { id: "oracle_fact",        group: "oracle", label: "Knowledge facts",       openRouterModel: FAST_TEXT, cliModel: "haiku" },
-  { id: "oracle_outline",     group: "oracle", label: "Entity outline",        openRouterModel: FAST_TEXT, cliModel: "haiku" },
-  { id: "oracle_picture",     group: "oracle", label: "Picture search terms",  openRouterModel: FAST_TEXT, cliModel: "haiku" },
-  { id: "oracle_image",       group: "oracle", label: "Image generation",      openRouterModel: "google/gemini-3.1-flash-image", openRouterOnly: true },
+  { id: "rune_eval",          group: "rune",   label: "Spoken answer grading", openRouterModel: FAST_TEXT, cliModel: "sonnet", cliEffort: "low", estTokens: [1000, 70] },
+  { id: "rune_refine",        group: "rune",   label: "Card refine",           openRouterModel: FAST_TEXT, estTokens: [600, 150] },
+  { id: "rune_deck",          group: "rune",   label: "Deck generate / refine", openRouterModel: TOOLS, needsTools: true, estTokens: [3000, 900] },
+  { id: "golem_program",      group: "golem",  label: "Program generation",    openRouterModel: TOOLS, needsTools: true, estTokens: [12000, 2500] },
+  { id: "golem_week",         group: "golem",  label: "Week plan",             openRouterModel: TOOLS, needsTools: true, estTokens: [8000, 1500] },
+  { id: "golem_session",      group: "golem",  label: "Session targets",       openRouterModel: TOOLS, needsTools: true, estTokens: [8000, 1200] },
+  { id: "golem_analysis",     group: "golem",  label: "Session analysis",      openRouterModel: TOOLS, needsTools: true, estTokens: [8000, 600] },
+  { id: "golem_regenerate",   group: "golem",  label: "Session plan rewrite",  openRouterModel: TOOLS, needsTools: true, estTokens: [6000, 200] },
+  { id: "forage_estimate",    group: "forage", label: "Food estimates",        openRouterModel: FAST_TEXT, estTokens: [700, 150] },
+  { id: "forage_label_image", group: "forage", label: "Label photo",           openRouterModel: VISION, needsVision: true, estTokens: [2700, 220] },
+  { id: "forage_recipe_photo", group: "forage", label: "Recipe photo",         openRouterModel: VISION, needsVision: true, estTokens: [1500, 250] },
+  { id: "oracle_world",       group: "oracle", label: "World",                 openRouterModel: FAST_TEXT, cliModel: "haiku", estTokens: [900, 250] },
+  { id: "oracle_build",       group: "oracle", label: "Session build",         openRouterModel: FAST_TEXT, cliModel: "haiku", estTokens: [4000, 900] },
+  { id: "oracle_map",         group: "oracle", label: "Map",                   openRouterModel: FAST_TEXT, cliModel: "haiku", estTokens: [1500, 1200] },
+  { id: "oracle_chips",       group: "oracle", label: "Idea chips",            openRouterModel: FAST_TEXT, cliModel: "haiku", estTokens: [2500, 900] },
+  { id: "oracle_fact",        group: "oracle", label: "Knowledge facts",       openRouterModel: FAST_TEXT, cliModel: "haiku", estTokens: [1500, 60] },
+  { id: "oracle_outline",     group: "oracle", label: "Entity outline",        openRouterModel: FAST_TEXT, cliModel: "haiku", estTokens: [1500, 150] },
+  { id: "oracle_picture",     group: "oracle", label: "Picture search terms",  openRouterModel: FAST_TEXT, cliModel: "haiku", estTokens: [300, 20] },
+  { id: "oracle_image",       group: "oracle", label: "Image generation",      openRouterModel: "google/gemini-3.1-flash-image", openRouterOnly: true, estTokens: [100, 1300] },
 ];
 
 export const LLM_TASK_IDS: readonly LlmTaskId[] = LLM_TASKS.map((t) => t.id);

@@ -1,5 +1,6 @@
 import { LLM_TASKS, taskDef, type LlmTaskDef, type LlmTaskId } from "./tasks";
 import type { LlmBackend } from "./types";
+import { getModelTimingStats, getTaskTokenStats, type ModelTimingStats, type TaskTokenStats } from "./usage";
 
 // MODEL CATALOG — what the settings page offers in each task's model dropdown, and
 // how a typed-in id is checked.
@@ -12,13 +13,33 @@ import type { LlmBackend } from "./types";
 //               recommendation is dynamic: a short list of known-good model FAMILIES
 //               per capability, the newest release of each, then the cheapest of those
 //               — so a new Haiku or Flash rolls in on its own.
+//
+// Every entry carries an ESTIMATE for this task — "~$ per call" and seconds — built
+// from the usage log: the task's average prompt/completion tokens × the model's list
+// price, and the average duration of past calls on that model. Before any history
+// exists the task's seed token counts stand in, and the time is derived from the
+// completion size.
+
+export interface ModelInfo {
+  promptPerM: number;
+  completionPerM: number;
+  ctx: number;
+  created: string | null;   // ISO date
+  imageIn: boolean;
+  imageOut: boolean;
+  tools: boolean;
+}
 
 export interface CatalogModel {
   id: string;
   name: string;
-  // Short price/context line for the dropdown ("$0.10 / $0.30 per M · 262K ctx").
-  note: string;
   recommended: boolean;
+  estCostUsd: number | null;
+  estSeconds: number | null;
+  // Where the estimate comes from: calls of this task in the log (tokens), and calls
+  // on this very model (time, actual cost).
+  basis: { taskCalls: number; modelCalls: number };
+  info: ModelInfo | null;   // null for the Claude aliases
 }
 
 export interface TaskModelList {
@@ -30,16 +51,51 @@ export interface ValidationResult {
   ok: boolean;
   name?: string;
   reason?: string;
+  model?: CatalogModel;
+}
+
+interface TaskHistory {
+  tokens: TaskTokenStats;
+  timing: Map<string, ModelTimingStats>;
+}
+
+async function historyFor(task: LlmTaskId, backend: LlmBackend): Promise<TaskHistory> {
+  const [tokens, timing] = await Promise.all([getTaskTokenStats(task, backend), getModelTimingStats(task, backend)]);
+  return { tokens, timing };
+}
+
+function tokenCounts(def: LlmTaskDef, h: TaskHistory): [number, number] {
+  return h.tokens.calls > 0 ? [h.tokens.promptTokensAvg, h.tokens.completionTokensAvg] : def.estTokens;
+}
+
+// Logged model ids are what the backend reported ("claude-haiku-4-5-20251001",
+// "google/gemini-3.8-flash"); an alias or id matches by family word.
+function timingFor(h: TaskHistory, idOrAlias: string): ModelTimingStats | null {
+  const exact = h.timing.get(idOrAlias);
+  if (exact) return exact;
+  const key = idOrAlias.toLowerCase();
+  let best: ModelTimingStats | null = null;
+  for (const [model, stats] of h.timing) {
+    if (model.toLowerCase().includes(key) && (!best || stats.calls > best.calls)) best = stats;
+  }
+  return best;
+}
+
+// A generation-side guess when no call on this model has been logged yet: a fixed
+// round trip plus the completion at a typical streaming rate, more for a photo.
+function fallbackSeconds(def: LlmTaskDef, completionTokens: number): number {
+  const base = def.needsVision ? 2.5 : def.openRouterOnly ? 8 : 0.8;
+  return base + completionTokens / 60;
 }
 
 // ---------------------------------------------------------------------------------------------
 // CLAUDE CLI
 // ---------------------------------------------------------------------------------------------
 
-const CLAUDE_MODELS: { id: string; name: string; note: string }[] = [
-  { id: "haiku", name: "Haiku", note: "" },
-  { id: "sonnet", name: "Sonnet", note: "" },
-  { id: "opus", name: "Opus", note: "" },
+const CLAUDE_MODELS: { id: string; name: string }[] = [
+  { id: "haiku", name: "Haiku" },
+  { id: "sonnet", name: "Sonnet" },
+  { id: "opus", name: "Opus" },
 ];
 const CLAUDE_ALIASES = new Set(CLAUDE_MODELS.map((m) => m.id));
 // Full ids the CLI accepts ("claude-sonnet-4-6", "claude-opus-5-5[1m]").
@@ -49,18 +105,38 @@ export function claudeRecommendation(task: LlmTaskId): string {
   return taskDef(task).cliModel ?? "sonnet";
 }
 
-function claudeList(task: LlmTaskId): TaskModelList {
-  const recommended = claudeRecommendation(task);
+// The CLI has no list price; its estimate is the logged cost of past calls on that
+// model for this task, else unknown.
+function claudeEntry(task: LlmTaskId, id: string, name: string, recommended: boolean, h: TaskHistory): CatalogModel {
+  const t = timingFor(h, id);
   return {
+    id,
+    name,
     recommended,
-    models: CLAUDE_MODELS.map((m) => ({ ...m, recommended: m.id === recommended })),
+    estCostUsd: t?.costUsdAvg ?? null,
+    estSeconds: t ? t.durationMsAvg / 1000 : null,
+    basis: { taskCalls: h.tokens.calls, modelCalls: t?.calls ?? 0 },
+    info: null,
   };
 }
 
-function validateClaudeModel(id: string): ValidationResult {
-  if (CLAUDE_ALIASES.has(id)) return { ok: true, name: CLAUDE_MODELS.find((m) => m.id === id)!.name };
-  if (CLAUDE_ID_PATTERN.test(id)) return { ok: true, name: id };
-  return { ok: false, reason: "Use haiku, sonnet, opus, or a full Claude model id like claude-sonnet-4-6" };
+async function claudeList(task: LlmTaskId): Promise<TaskModelList> {
+  const recommended = claudeRecommendation(task);
+  const h = await historyFor(task, "claude");
+  return {
+    recommended,
+    models: CLAUDE_MODELS.map((m) => claudeEntry(task, m.id, m.name, m.id === recommended, h)),
+  };
+}
+
+async function validateClaudeModel(id: string, task: LlmTaskId): Promise<ValidationResult> {
+  const alias = CLAUDE_MODELS.find((m) => m.id === id);
+  if (!alias && !CLAUDE_ID_PATTERN.test(id)) {
+    return { ok: false, reason: "Use haiku, sonnet, opus, or a full Claude model id like claude-sonnet-4-6" };
+  }
+  const h = await historyFor(task, "claude");
+  const name = alias?.name ?? id;
+  return { ok: true, name, model: claudeEntry(task, id, name, false, h) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -218,39 +294,54 @@ function recommend(models: OrModel[], cap: Capability, fallback: string): string
   return picks[0].id;
 }
 
-function money(perM: number): string {
-  return perM >= 1 ? `$${perM.toFixed(2)}` : `$${perM.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}`;
+function orEntry(def: LlmTaskDef, m: OrModel, recommended: boolean, h: TaskHistory): CatalogModel {
+  const [promptTokens, completionTokens] = tokenCounts(def, h);
+  const t = timingFor(h, m.id);
+  // Logged cost on this very model beats a list-price projection.
+  const projected = (promptTokens * m.promptPerM + completionTokens * m.completionPerM) / 1e6;
+  return {
+    id: m.id,
+    name: m.name,
+    recommended,
+    estCostUsd: t?.costUsdAvg ?? projected,
+    estSeconds: t ? t.durationMsAvg / 1000 : fallbackSeconds(def, completionTokens),
+    basis: { taskCalls: h.tokens.calls, modelCalls: t?.calls ?? 0 },
+    info: {
+      promptPerM: m.promptPerM,
+      completionPerM: m.completionPerM,
+      ctx: m.ctx,
+      created: m.created ? new Date(m.created * 1000).toISOString().slice(0, 10) : null,
+      imageIn: m.imageIn,
+      imageOut: m.imageOut,
+      tools: m.tools,
+    },
+  };
 }
 
-function ctxLabel(ctx: number): string {
-  return ctx >= 1_000_000 ? `${(ctx / 1_000_000).toFixed(1)}M ctx` : `${Math.round(ctx / 1000)}K ctx`;
-}
-
-function noteFor(m: OrModel, cap: Capability): string {
-  if (cap === "image") return `${money(m.completionPerM)} per M out`;
-  return `${money(m.promptPerM)} / ${money(m.completionPerM)} per M · ${ctxLabel(m.ctx)}`;
-}
-
-const LIST_MAX = 40;
+const LIST_MAX = 60;
 
 async function openRouterList(task: LlmTaskId): Promise<TaskModelList> {
   const def = taskDef(task);
   const cap = capabilityOf(def);
-  const all = await getOpenRouterCatalog();
+  const [all, h] = await Promise.all([getOpenRouterCatalog(), historyFor(task, "openrouter")]);
   const fitting = all.filter((m) => fits(m, cap));
   const recommended = recommend(fitting, cap, def.openRouterModel);
-  // Cheapest first, the recommendation pinned to the top, capped so the dropdown
-  // stays readable; a model outside the cut is still reachable by manual entry.
-  const sorted = fitting.sort((a, b) => blendedPrice(a) - blendedPrice(b));
-  const top = sorted.filter((m) => m.id !== recommended).slice(0, LIST_MAX - 1);
+  // By name; the recommendation is also the dropdown's default entry. Capped so the
+  // list stays readable — a model outside the cut is still reachable by manual entry
+  // (the cut keeps the cheapest, which is where the useful long tail is).
+  const kept = fitting.length > LIST_MAX
+    ? [...fitting].sort((a, b) => blendedPrice(a) - blendedPrice(b)).slice(0, LIST_MAX)
+    : fitting;
   const rec = fitting.find((m) => m.id === recommended);
-  const models = [...(rec ? [rec] : []), ...top].map((m) => ({ id: m.id, name: m.name, note: noteFor(m, cap), recommended: m.id === recommended }));
-  return { recommended, models };
+  if (rec && !kept.includes(rec)) kept.push(rec);
+  kept.sort((a, b) => a.name.localeCompare(b.name));
+  return { recommended, models: kept.map((m) => orEntry(def, m, m.id === recommended, h)) };
 }
 
 async function validateOpenRouterModel(id: string, task: LlmTaskId): Promise<ValidationResult> {
   if (!/^[a-z0-9-]+\/[a-z0-9][a-z0-9.:-]*$/i.test(id)) return { ok: false, reason: "An OpenRouter model id looks like vendor/model-name" };
-  const cap = capabilityOf(taskDef(task));
+  const def = taskDef(task);
+  const cap = capabilityOf(def);
   const all = await getOpenRouterCatalog();
   const model = all.find((m) => m.id === id);
   if (!model) return { ok: false, reason: "Not in OpenRouter's model list" };
@@ -258,7 +349,8 @@ async function validateOpenRouterModel(id: string, task: LlmTaskId): Promise<Val
     const need = cap === "image" ? "generate images" : cap === "vision" ? "read images" : cap === "tools" ? "call tools" : "handle text";
     return { ok: false, reason: `${model.name} can't ${need}, which this task needs` };
   }
-  return { ok: true, name: model.name };
+  const h = await historyFor(task, "openrouter");
+  return { ok: true, name: model.name, model: orEntry(def, model, false, h) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -282,5 +374,5 @@ export async function listModelsForAllTasks(backend: LlmBackend): Promise<Record
 export async function validateModel(backend: LlmBackend, task: LlmTaskId, id: string): Promise<ValidationResult> {
   const trimmed = id.trim();
   if (!trimmed) return { ok: false, reason: "Empty model id" };
-  return backend === "claude" ? validateClaudeModel(trimmed) : validateOpenRouterModel(trimmed, task);
+  return backend === "claude" ? validateClaudeModel(trimmed, task) : validateOpenRouterModel(trimmed, task);
 }

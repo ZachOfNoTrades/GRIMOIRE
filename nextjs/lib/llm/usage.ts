@@ -46,6 +46,57 @@ export function recordUsage(row: UsageRow): void {
   })();
 }
 
+// HISTORY FOR ESTIMATES — what a task has cost so far, across all users (token counts
+// and timings only; never content). The settings page turns this into a per-model
+// "~$cost | seconds" estimate: average prompt/completion tokens for the task × the
+// model's list price, and the average duration of past calls on that model.
+export interface TaskTokenStats {
+  calls: number;
+  promptTokensAvg: number;
+  completionTokensAvg: number;
+}
+
+export interface ModelTimingStats {
+  calls: number;
+  durationMsAvg: number;
+  costUsdAvg: number | null;
+}
+
+// Per backend: a CLI call carries ~28K tokens of agent system prompt that an
+// OpenRouter call never sends, so the two must not be averaged together.
+export async function getTaskTokenStats(task: string, backend: LlmBackend): Promise<TaskTokenStats> {
+  const pool = await getMainConnection();
+  const result = await pool
+    .request()
+    .input("task", sql.NVarChar(40), task)
+    .input("backend", sql.NVarChar(16), backend)
+    .query<{ calls: number; p: number | null; c: number | null }>(
+      `SELECT COUNT(*) AS calls, AVG(CAST(prompt_tokens AS FLOAT)) AS p, AVG(CAST(completion_tokens AS FLOAT)) AS c
+       FROM llm_usage
+       WHERE task = @task AND backend = @backend AND ok = 1 AND prompt_tokens > 0`
+    );
+  const row = result.recordset[0];
+  return { calls: row?.calls ?? 0, promptTokensAvg: row?.p ?? 0, completionTokensAvg: row?.c ?? 0 };
+}
+
+// Per model id (the id OpenRouter or the CLI reported), for one task and backend.
+export async function getModelTimingStats(task: string, backend: LlmBackend): Promise<Map<string, ModelTimingStats>> {
+  const pool = await getMainConnection();
+  const result = await pool
+    .request()
+    .input("task", sql.NVarChar(40), task)
+    .input("backend", sql.NVarChar(16), backend)
+    .query<{ model: string; calls: number; d: number; cost: number | null }>(
+      `SELECT model, COUNT(*) AS calls, AVG(CAST(duration_ms AS FLOAT)) AS d, AVG(cost_usd) AS cost
+       FROM llm_usage
+       WHERE task = @task AND backend = @backend AND ok = 1
+       GROUP BY model`
+    );
+  const out = new Map<string, ModelTimingStats>();
+  for (const r of result.recordset) out.set(r.model, { calls: r.calls, durationMsAvg: r.d, costUsdAvg: r.cost === null ? null : Number(r.cost) });
+  return out;
+}
+
 export type UsageRange = "7d" | "30d" | "all";
 
 export function isUsageRange(value: unknown): value is UsageRange {
