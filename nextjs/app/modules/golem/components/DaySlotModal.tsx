@@ -276,7 +276,16 @@ export default function DaySlotModal({
         {/* ROTATION CADENCE */}
         <div className="flex flex-col gap-1">
           <label className="text-secondary">Rotation cadence</label>
-          <select className="input-field" value={form.rotation_cadence} onChange={(e) => setForm({ ...form, rotation_cadence: e.target.value })}>
+          {/* CADENCE SELECT — per_session slots ignore pins, so switching to it clears the pin rather than keeping an inert one. */}
+          <select
+            className="input-field"
+            value={form.rotation_cadence}
+            onChange={(e) => setForm({
+              ...form,
+              rotation_cadence: e.target.value,
+              pinned_exercise_id: e.target.value === 'per_session' ? null : form.pinned_exercise_id,
+            })}
+          >
             {withCurrent(CADENCES, form.rotation_cadence).map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <span className="text-secondary text-sm">{CADENCE_HELP[form.rotation_cadence] ?? ''}</span>
@@ -288,7 +297,16 @@ export default function DaySlotModal({
           <select
             className="input-field"
             value={form.pinned_exercise_id ?? ''}
-            onChange={(e) => setForm({ ...form, pinned_exercise_id: e.target.value || null })}
+            onChange={(e) => {
+              // Choosing a pin on a per_session slot moves it to 'never' — otherwise the pin is ignored by
+              // the engine and the API rejects the combination.
+              const pinnedExerciseId = e.target.value || null;
+              setForm({
+                ...form,
+                pinned_exercise_id: pinnedExerciseId,
+                rotation_cadence: pinnedExerciseId && form.rotation_cadence === 'per_session' ? 'never' : form.rotation_cadence,
+              });
+            }}
           >
             <option value="">(no pin — let the engine choose)</option>
             {exercises.map((ex) => <option key={ex.id} value={ex.id}>{ex.name}</option>)}

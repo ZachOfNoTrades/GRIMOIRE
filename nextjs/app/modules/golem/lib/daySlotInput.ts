@@ -20,13 +20,23 @@ function uuidOrNull(value: any, field: string): string | null {
 // (not a route file) because Next.js route modules may only export HTTP handlers
 // and recognised config fields — exporting this from a route fails the build.
 export function coerceDaySlotInput(body: any): DaySlotInput {
+  const pinnedExerciseId = uuidOrNull(body?.pinned_exercise_id, 'pinned_exercise_id');
+
+  // The engine ignores pins on per_session slots and the write path nulls them, so a pin sent with
+  // per_session would be discarded behind a 201. A pin with no cadence defaults to 'never' (always use
+  // the pin); an explicit per_session + pin is a contradiction the caller must resolve.
+  const rotationCadence = body?.rotation_cadence || (pinnedExerciseId ? 'never' : 'per_session');
+  if (pinnedExerciseId && rotationCadence === 'per_session') {
+    throw new DaySlotInputError('a pinned exercise needs rotation_cadence never or per_block (per_session slots ignore pins)');
+  }
+
   return {
     order_index: Number(body?.order_index) || 1,
     role: body?.role || 'secondary',
     target_muscle_group_id: uuidOrNull(body?.target_muscle_group_id, 'target_muscle_group_id'),
     category_filter: body?.category_filter || 'Strength',
-    rotation_cadence: body?.rotation_cadence || 'per_session',
-    pinned_exercise_id: uuidOrNull(body?.pinned_exercise_id, 'pinned_exercise_id'),
+    rotation_cadence: rotationCadence,
+    pinned_exercise_id: pinnedExerciseId,
     is_optional: !!body?.is_optional,
     is_warmup: !!body?.is_warmup,
     progression_model: body?.progression_model || 'double_progression',
