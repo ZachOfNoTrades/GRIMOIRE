@@ -77,7 +77,7 @@ export const MAP_HELP: HelpSection[] = [
   },
   {
     heading: "Picture",
-    body: "While editing, the picture sits under the grid. Drag it, scroll or use the size control to resize it, or snap it with Fill, Fit and Stretch. To line it up exactly, pick a spot on the grid and the same spot on the picture, twice.",
+    body: "While editing, the picture sits under the grid. Drag it, or use the size control to resize it, or snap it with Fill, Fit and Stretch. To line it up exactly, pick a spot on the grid and the same spot on the picture, twice.",
   },
   {
     heading: "Details",

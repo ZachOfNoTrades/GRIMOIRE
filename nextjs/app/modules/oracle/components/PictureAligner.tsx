@@ -85,26 +85,8 @@ export default function PictureAligner({ url, width, height, features, rect, onC
     return { x: point.x, y: point.y };
   }
 
-  // Wheel zoom is registered by hand so it can stop the page from scrolling.
-  const currentRef = useRef(current);
-  currentRef.current = current;
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const point = toPoint(svg, event.clientX, event.clientY);
-      if (!point) return;
-      const next = zoomRect(currentRef.current, Math.exp(-event.deltaY * 0.0015), point.x, point.y);
-      const percent = (next.w / width) * 100;
-      if (percent < ZOOM_MIN || percent > ZOOM_MAX) return;
-      onChangeRef.current(next);
-    };
-    svg.addEventListener("wheel", onWheel, { passive: false });
-    return () => svg.removeEventListener("wheel", onWheel);
-  }, [width, isMatching]);
+  // No wheel zoom: a scroll over the picture scrolls the page, so it can never nudge the picture
+  // off the grid by accident. Size changes only through the size control and Fill/Fit/Stretch.
 
   function setZoom(percent: number) {
     const factor = percent / 100 / (current.w / width) || 1;
