@@ -246,24 +246,23 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-map-ground { fill: color-mix(in srgb, var(--orc-good) 5%, var(--solid-background)); }
 .orc-map-grid line { stroke: color-mix(in srgb, var(--orc-good) 16%, transparent); stroke-width: 1; }
 
-.orc-feature rect,
-.orc-feature ellipse { stroke-width: 2; vector-effect: non-scaling-stroke; }
+.orc-feature-shape { stroke-width: 2; vector-effect: non-scaling-stroke; }
 .orc-feature-label { font-weight: 700; letter-spacing: 0.05em; pointer-events: none; }
-.orc-feature[data-type="building"] > rect:first-child { fill: color-mix(in srgb, var(--orc-good) 12%, var(--solid-background)); stroke: var(--orc-good); }
+.orc-feature[data-type="building"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-good) 12%, var(--solid-background)); stroke: var(--orc-good); }
 .orc-feature-label[data-type="building"] { fill: var(--orc-good); }
-.orc-feature[data-type="building"][data-state="burned"] > rect:first-child,
-.orc-feature[data-type="building"][data-state="ruined"] > rect:first-child { fill: color-mix(in srgb, var(--orc-bad) 12%, var(--solid-background)); stroke: var(--orc-bad); stroke-dasharray: 8 6; }
+.orc-feature[data-type="building"][data-state="burned"] > .orc-feature-shape,
+.orc-feature[data-type="building"][data-state="ruined"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-bad) 12%, var(--solid-background)); stroke: var(--orc-bad); stroke-dasharray: 8 6; }
 .orc-feature-label[data-state="burned"],
 .orc-feature-label[data-state="ruined"] { fill: var(--orc-bad); }
 .orc-feature-rubble { fill: color-mix(in srgb, var(--orc-bad) 28%, transparent); stroke: none; }
 .orc-feature[data-state="ruined"] .orc-feature-rubble { fill: color-mix(in srgb, var(--color-gray) 45%, transparent); }
-.orc-feature[data-type="road"] rect { fill: color-mix(in srgb, var(--color-gray) 30%, var(--solid-background)); stroke: none; }
-.orc-feature[data-type="water"] rect { fill: color-mix(in srgb, var(--orc-cool) 22%, var(--solid-background)); stroke: var(--orc-cool); }
-.orc-feature[data-type="wall"] rect { fill: none; stroke: var(--color-gray); stroke-dasharray: 12 8; }
-.orc-feature[data-type="landmark"] ellipse { fill: color-mix(in srgb, var(--orc-cool) 25%, var(--solid-background)); stroke: var(--orc-cool); }
+.orc-feature[data-type="road"] > .orc-feature-shape { fill: color-mix(in srgb, var(--color-gray) 30%, var(--solid-background)); stroke: none; }
+.orc-feature[data-type="water"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-cool) 22%, var(--solid-background)); stroke: var(--orc-cool); }
+.orc-feature[data-type="wall"] > .orc-feature-shape { fill: none; stroke: var(--color-gray); stroke-dasharray: 12 8; }
+.orc-feature[data-type="landmark"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-cool) 25%, var(--solid-background)); stroke: var(--orc-cool); }
 .orc-feature-label[data-type="landmark"] { fill: var(--orc-cool); }
-.orc-feature[data-type="landmark"][data-state="burned"] ellipse,
-.orc-feature[data-type="landmark"][data-state="ruined"] ellipse { fill: color-mix(in srgb, var(--orc-bad) 22%, var(--solid-background)); stroke: var(--orc-bad); }
+.orc-feature[data-type="landmark"][data-state="burned"] > .orc-feature-shape,
+.orc-feature[data-type="landmark"][data-state="ruined"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-bad) 22%, var(--solid-background)); stroke: var(--orc-bad); }
 
 /* FOG. The DM sees through it (a tint that marks what the players cannot see); on the player
    display, out-of-sight ground is dimmed and never-seen ground is solid. */
@@ -934,7 +933,7 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 /* ---------- map background picture ---------- */
 /* With a picture under the map, the drawn features become light outlines so the art reads, and the ground tint is dropped. */
 .orc-map[data-picture] .orc-map-ground { fill: #0b0b0b; }
-.orc-map[data-picture] .orc-feature > rect:first-child, .orc-map[data-picture] .orc-feature > ellipse { fill-opacity: 0.12; stroke-opacity: 0.75; }
+.orc-map[data-picture] .orc-feature > .orc-feature-shape { fill-opacity: 0.12; stroke-opacity: 0.75; }
 .orc-map[data-picture] .orc-map-grid line { stroke: rgba(255, 255, 255, 0.14); }
 
 
@@ -1157,7 +1156,7 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 
 .orc-map-preview { flex: 0 0 auto; width: 5.5rem; max-height: 3.75rem; border: 1px solid var(--card-border); background: var(--card-bg); }
 .orc-gen-row:has(.orc-map-preview) { gap: 0.65rem; }
-.orc-map-preview .orc-feature rect, .orc-map-preview .orc-feature ellipse { stroke-width: 1; }
+.orc-map-preview .orc-feature-shape { stroke-width: 1; }
 
 /* ---------- party groups panel ---------- */
 .orc-party-group { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.35rem; border: 1px solid var(--card-border); }
@@ -1412,16 +1411,16 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map-viewer { position: relative; width: 100%; min-height: 18rem; border: 1px solid var(--card-border); overflow: hidden; }
 .orc-map-viewer .orc-fog-dim, .orc-map-viewer .orc-fog-unexplored, .orc-map-viewer .orc-fog-outline, .orc-map-viewer .orc-party { display: none; }
 /* The map page's Overlay slider sets how solid the features are: 100% is fully opaque, even over a picture. */
-.orc-map-viewer .orc-map .orc-feature > rect:first-child, .orc-map-viewer .orc-map .orc-feature > ellipse { fill-opacity: var(--orc-overlay, 1); stroke-opacity: max(var(--orc-overlay, 1), 0.35); }
+.orc-map-viewer .orc-map .orc-feature > .orc-feature-shape { fill-opacity: var(--orc-overlay, 1); stroke-opacity: max(var(--orc-overlay, 1), 0.35); }
 /* The map page draws its features in fuller color than the Table's tinted shapes. */
-.orc-map-viewer .orc-feature[data-type="building"] > rect:first-child { fill: color-mix(in srgb, var(--orc-good) 40%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="building"][data-state="burned"] > rect:first-child,
-.orc-map-viewer .orc-feature[data-type="building"][data-state="ruined"] > rect:first-child { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="road"] rect { fill: color-mix(in srgb, var(--color-gray) 40%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="water"] rect { fill: color-mix(in srgb, var(--orc-cool) 40%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="landmark"] ellipse { fill: color-mix(in srgb, var(--orc-cool) 40%, var(--solid-background)); }
-.orc-map-viewer .orc-feature[data-type="landmark"][data-state="burned"] ellipse,
-.orc-map-viewer .orc-feature[data-type="landmark"][data-state="ruined"] ellipse { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="building"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-good) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="building"][data-state="burned"] > .orc-feature-shape,
+.orc-map-viewer .orc-feature[data-type="building"][data-state="ruined"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="road"] > .orc-feature-shape { fill: color-mix(in srgb, var(--color-gray) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="water"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-cool) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="landmark"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-cool) 40%, var(--solid-background)); }
+.orc-map-viewer .orc-feature[data-type="landmark"][data-state="burned"] > .orc-feature-shape,
+.orc-map-viewer .orc-feature[data-type="landmark"][data-state="ruined"] > .orc-feature-shape { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature { filter: saturate(1.8); }
 /* LABEL BACKDROPS — optional, from the map bar. They follow the black/white control: the theme's
    ground by default, black or white once the DM picks one. */
@@ -1464,10 +1463,23 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-shapes-svg[data-tool="select"] .orc-shapes-feature { cursor: move; }
 .orc-shapes-ground { fill: var(--solid-background); }
 .orc-shapes-grid line { stroke: color-mix(in srgb, var(--color-primary) 18%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.orc-shapes-feature > rect, .orc-shapes-feature > ellipse { fill-opacity: 0.55; }
+.orc-shapes-feature > .orc-feature-shape { fill-opacity: 0.55; }
 .orc-shapes-name { font-size: 12px; font-weight: 700; fill: var(--color-primary); paint-order: stroke; stroke: var(--solid-background); stroke-width: 3px; pointer-events: none; }
 .orc-shapes-preview { fill: color-mix(in srgb, var(--color-primary) 15%, transparent); stroke: var(--color-primary); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 .orc-shapes-outline { fill: none; stroke: var(--color-primary); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
 .orc-shapes-handle { fill: var(--solid-background); stroke: var(--color-primary); stroke-width: 2; vector-effect: non-scaling-stroke; cursor: nwse-resize; }
-.orc-shapes-inspector { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 0.75rem; align-items: end; }
+.orc-shapes-inspector { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 0.75rem; align-items: end; }
 @media (max-width: 640px) { .orc-shapes-inspector { grid-template-columns: minmax(0, 1fr); } }
+
+/* HISTORY — beside the map while editing (under it on a phone) */
+@media (min-width: 1024px) {
+  .orc-map-page[data-editing] .orc-map-body { grid-template-columns: minmax(0, 1fr) 15rem; }
+  .orc-map-page[data-editing] .orc-map-main, .orc-map-page[data-editing] .orc-map-details { grid-column: 1; }
+  .orc-map-page[data-editing] .orc-history { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 0.75rem; align-self: start; }
+}
+.orc-history .card-header { display: flex; align-items: center; justify-content: space-between; }
+.orc-history-list { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 0.1rem; max-height: 60vh; overflow-y: auto; }
+.orc-history-step { display: block; width: 100%; padding: 0.35rem 0.5rem; text-align: left; font-size: 0.8125rem; color: var(--color-primary); background: transparent; border: 0; border-left: 2px solid transparent; cursor: pointer; }
+.orc-history-step:hover { background: var(--hover-bg); }
+.orc-history-step[data-current="true"] { border-left-color: var(--color-primary); font-weight: 700; background: var(--hover-bg); }
+.orc-history-step[data-undone="true"] { color: var(--color-secondary); opacity: 0.55; }

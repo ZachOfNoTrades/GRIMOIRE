@@ -1,4 +1,5 @@
 import { MAP_GRID } from "../lib/constants";
+import { isOval } from "../lib/mapData";
 import type { MapData } from "../types/oracle";
 
 interface MapPreviewProps {
@@ -26,10 +27,10 @@ export default function MapPreview({ data, pictureUrl, grid = false }: MapPrevie
           .filter((feature) => feature.type === layer)
           .map((feature) => (
             <g key={feature.id} className="orc-feature" data-type={feature.type} data-state={feature.state}>
-              {feature.type === "landmark" ? (
-                <ellipse cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
+              {isOval(feature) ? (
+                <ellipse className="orc-feature-shape" cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
               ) : (
-                <rect x={feature.x} y={feature.y} width={feature.w} height={feature.h} />
+                <rect className="orc-feature-shape" x={feature.x} y={feature.y} width={feature.w} height={feature.h} />
               )}
             </g>
           ))

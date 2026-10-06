@@ -5,6 +5,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import type { MapFeature, Attitude, EntityKind, EntityVisibility, ExploredCircle, MapData } from "../types/oracle";
 import { MAP_GRID } from "../lib/constants";
 import { isVisibleFrom } from "../lib/fog";
+import { isOval } from "../lib/mapData";
 import RangeValue from "./RangeValue";
 
 // One thing drawn on top of the map. The DM's view gets every placed entry; the player display
@@ -873,7 +874,7 @@ export default function MapCanvas({
     explored.some((circle) => Math.hypot(circle.x - x, circle.y - y) <= circle.r) || isVisibleFrom(sightPoints, visionRadius, x, y);
   // A location's label sits beside its shape, plus wherever the DM dragged it to.
   const featureLabelX = (feature: MapFeature) => feature.x + 5 + (labelDrag?.id === feature.id ? labelDrag.dx : feature.label_dx ?? 0);
-  const featureLabelY = (feature: MapFeature) => (feature.type === "landmark" ? feature.y - 5 : feature.y + labelSize + 3) + (labelDrag?.id === feature.id ? labelDrag.dy : feature.label_dy ?? 0);
+  const featureLabelY = (feature: MapFeature) => (isOval(feature) ? feature.y - 5 : feature.y + labelSize + 3) + (labelDrag?.id === feature.id ? labelDrag.dy : feature.label_dy ?? 0);
 
   const labelRequests: LabelRequest[] = [
     { key: "party", x: party.x, y: party.y + labelSize * 2.4, text: "PARTY", size: labelSize, centered: true, priority: 0, canHide: false },
@@ -1070,10 +1071,10 @@ export default function MapCanvas({
             .filter((feature) => feature.type === layer)
             .map((feature) => (
               <g key={feature.id} className="orc-feature" data-type={feature.type} data-state={feature.state} data-link={linkedFeatures.includes(feature.id) ? "true" : undefined} onPointerDown={!isDm && linkedFeatures.includes(feature.id) ? (event) => event.stopPropagation() : undefined} onClick={!isDm && linkedFeatures.includes(feature.id) ? () => { if (!didPanRef.current) onFeatureSelect?.(feature.id); } : undefined}>
-                {feature.type === "landmark" ? (
-                  <ellipse cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
+                {isOval(feature) ? (
+                  <ellipse className="orc-feature-shape" cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
                 ) : (
-                  <rect x={feature.x} y={feature.y} width={feature.w} height={feature.h} />
+                  <rect className="orc-feature-shape" x={feature.x} y={feature.y} width={feature.w} height={feature.h} />
                 )}
                 {feature.state !== "intact" && feature.type === "building" && (
                   <rect className="orc-feature-rubble" x={feature.x + feature.w * 0.25} y={feature.y + feature.h * 0.35} width={feature.w * 0.5} height={feature.h * 0.4} />

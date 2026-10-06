@@ -4,7 +4,8 @@ import { Circle, MousePointer2, Square, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FEATURE_STATES, MAP_GRID, MAX_FEATURES } from "../lib/constants";
-import type { FeatureState, FeatureType, MapFeature, PictureRect } from "../types/oracle";
+import { isOval } from "../lib/mapData";
+import type { FeatureShape, FeatureState, FeatureType, MapFeature, PictureRect } from "../types/oracle";
 
 interface FeatureEditorProps {
   width: number; // the map's size in map units
@@ -12,31 +13,29 @@ interface FeatureEditorProps {
   features: MapFeature[];
   pictureUrl: string | null;
   pictureRect: PictureRect | null; // null: stretched over the whole map
-  onChange: (features: MapFeature[]) => void;
+  onChange: (features: MapFeature[], label: string, mergeKey: string) => void; // label names the step for the edit history
 }
 
-type Tool = "select" | FeatureType;
+type Tool = "select" | FeatureShape;
 type Point = { x: number; y: number };
 type Gesture =
   | { kind: "draw"; pointerId: number; from: Point; to: Point }
   | { kind: "move"; pointerId: number; id: string; from: Point; origin: MapFeature }
   | { kind: "resize"; pointerId: number; id: string; from: Point; origin: MapFeature };
 
-const TOOLS: { value: Tool; label: string; shape: "pointer" | "rect" | "circle" }[] = [
-  { value: "select", label: "Select", shape: "pointer" },
-  { value: "building", label: "Building", shape: "rect" },
-  { value: "road", label: "Road", shape: "rect" },
-  { value: "water", label: "Water", shape: "rect" },
-  { value: "wall", label: "Wall", shape: "rect" },
-  { value: "landmark", label: "Landmark", shape: "circle" },
+const TOOLS: { value: Tool; label: string }[] = [
+  { value: "select", label: "Select" },
+  { value: "rect", label: "Rectangle" },
+  { value: "oval", label: "Oval" },
 ];
 
 const TYPE_LABELS: Record<FeatureType, string> = { building: "Building", road: "Road", water: "Water", wall: "Wall", landmark: "Landmark" };
 const STATE_LABELS: Record<FeatureState, string> = { intact: "Intact", burned: "Burned", ruined: "Ruined" };
+const SHAPE_LABELS: Record<FeatureShape, string> = { rect: "Rectangle", oval: "Oval" };
 const MIN_SIZE = 10; // map units; a smaller drag is treated as a click
 
-// SHAPES — draw, move, resize and name the map's buildings, roads, water, walls (rectangles) and
-// landmarks (circles) over its picture. Everything snaps to the grid unless Snap is off. Changes
+// SHAPES — draw rectangles and ovals over the map's picture, then say what each one is (building,
+// road, water, wall, landmark), name it and set its state. Move, resize and delete them. Everything snaps to the grid unless Snap is off. Changes
 // go up through `onChange`; the page saves them with the rest of the map.
 export default function FeatureEditor({ width, height, features, pictureUrl, pictureRect, onChange }: FeatureEditorProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -45,7 +44,7 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [gesture, setGesture] = useState<Gesture | null>(null);
 
-  const selected = features.find((feature) => feature.id === selectedId) ?? null;
+  const selected = features.find((feature) => feature.id === selectedId) ?? null; // null too once an undo removes it
   const picture = pictureRect ?? { x: 0, y: 0, w: width, h: height };
   const atLimit = features.length >= MAX_FEATURES;
 
@@ -78,12 +77,18 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
   const clampX = (value: number) => Math.min(width, Math.max(0, value));
   const clampY = (value: number) => Math.min(height, Math.max(0, value));
 
-  function update(id: string, patch: Partial<MapFeature>) {
-    onChange(features.map((feature) => (feature.id === id ? { ...feature, ...patch } : feature)));
+  // A step's name: the verb and the shape's own name when it has one ("Moved First Tower").
+  function stepLabel(verb: string, feature: MapFeature | undefined) {
+    return `${verb} ${feature?.name.trim() || "shape"}`;
+  }
+
+  function update(id: string, patch: Partial<MapFeature>, verb: string) {
+    const next = features.map((feature) => (feature.id === id ? { ...feature, ...patch } : feature));
+    onChange(next, stepLabel(verb, next.find((feature) => feature.id === id)), `${verb}|${id}`);
   }
 
   function remove(id: string) {
-    onChange(features.filter((feature) => feature.id !== id));
+    onChange(features.filter((feature) => feature.id !== id), stepLabel("Deleted", features.find((feature) => feature.id === id)), `Deleted|${id}`);
     setSelectedId(null);
   }
 
@@ -146,7 +151,7 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
     const point = toPoint(event.clientX, event.clientY);
     if (!point) return;
     if (gesture.kind === "draw") setGesture({ ...gesture, to: point });
-    else update(gesture.id, transformed(gesture, point));
+    else update(gesture.id, transformed(gesture, point), gesture.kind === "move" ? "Moved" : "Resized");
   }
 
   function onPointerUp(event: React.PointerEvent<SVGSVGElement>) {
@@ -161,8 +166,9 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
       box = { x, y, w: Math.min(MAP_GRID, width - x), h: Math.min(MAP_GRID, height - y) };
     }
     if (box.w < MIN_SIZE || box.h < MIN_SIZE) return;
-    const feature: MapFeature = { id: newId(), type: tool, name: "", ...box, state: "intact" };
-    onChange([...features, feature]);
+    // A new shape starts as the usual thing of its kind; the panel below sets what it really is.
+    const feature: MapFeature = { id: newId(), type: tool === "oval" ? "landmark" : "building", shape: tool, name: "", ...box, state: "intact" };
+    onChange([...features, feature], `Drew ${SHAPE_LABELS[tool].toLowerCase()}`, `Drew|${feature.id}`);
     setSelectedId(feature.id);
     setTool("select");
   }
@@ -182,11 +188,11 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
             type="button"
             className="orc-shapes-tool"
             aria-pressed={tool === entry.value}
-            title={entry.value === "select" ? "Select, move and resize" : `Draw ${entry.label.toLowerCase()}`}
+            title={entry.value === "select" ? "Select, move and resize" : entry.value === "oval" ? "Draw an oval" : "Draw a rectangle"}
             disabled={entry.value !== "select" && atLimit}
             onClick={() => setTool(entry.value)}
           >
-            {entry.shape === "pointer" ? <MousePointer2 className="w-4 h-4" aria-hidden /> : entry.shape === "rect" ? <Square className="w-4 h-4" aria-hidden /> : <Circle className="w-4 h-4" aria-hidden />}
+            {entry.value === "select" ? <MousePointer2 className="w-4 h-4" aria-hidden /> : entry.value === "rect" ? <Square className="w-4 h-4" aria-hidden /> : <Circle className="w-4 h-4" aria-hidden />}
             {entry.label}
           </button>
         ))}
@@ -221,16 +227,16 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
             .filter((feature) => feature.type === layer)
             .map((feature) => (
               <g key={feature.id} className="orc-feature orc-shapes-feature" data-feature-id={feature.id} data-type={feature.type} data-state={feature.state} data-selected={feature.id === selectedId ? "true" : undefined}>
-                {feature.type === "landmark" ? (
-                  <ellipse cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
+                {isOval(feature) ? (
+                  <ellipse className="orc-feature-shape" cx={feature.x + feature.w / 2} cy={feature.y + feature.h / 2} rx={feature.w / 2} ry={feature.h / 2} />
                 ) : (
-                  <rect x={feature.x} y={feature.y} width={feature.w} height={feature.h} />
+                  <rect className="orc-feature-shape" x={feature.x} y={feature.y} width={feature.w} height={feature.h} />
                 )}
                 {feature.name && <text className="orc-shapes-name" x={feature.x + 4} y={feature.y + 14}>{feature.name}</text>}
               </g>
             ))
         )}
-        {preview && (tool === "landmark" ? (
+        {preview && (tool === "oval" ? (
           <ellipse className="orc-shapes-preview" cx={preview.x + preview.w / 2} cy={preview.y + preview.h / 2} rx={preview.w / 2} ry={preview.h / 2} />
         ) : (
           <rect className="orc-shapes-preview" x={preview.x} y={preview.y} width={preview.w} height={preview.h} />
@@ -248,17 +254,23 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
         <div className="orc-shapes-inspector">
           <label className="orc-field">
             <span className="orc-field-label">Name</span>
-            <input id="orc-shape-name" className="input-field" value={selected.name} maxLength={60} placeholder="Unnamed" onChange={(event) => update(selected.id, { name: event.target.value })} />
+            <input id="orc-shape-name" className="input-field" value={selected.name} maxLength={60} placeholder="Unnamed" onChange={(event) => update(selected.id, { name: event.target.value }, "Renamed")} />
+          </label>
+          <label className="orc-field">
+            <span className="orc-field-label">Shape</span>
+            <select id="orc-shape-shape" className="input-field" value={isOval(selected) ? "oval" : "rect"} onChange={(event) => update(selected.id, { shape: event.target.value as FeatureShape }, "Changed shape of")}>
+              {(Object.keys(SHAPE_LABELS) as FeatureShape[]).map((shape) => <option key={shape} value={shape}>{SHAPE_LABELS[shape]}</option>)}
+            </select>
           </label>
           <label className="orc-field">
             <span className="orc-field-label">Type</span>
-            <select id="orc-shape-type" className="input-field" value={selected.type} onChange={(event) => update(selected.id, { type: event.target.value as FeatureType })}>
+            <select id="orc-shape-type" className="input-field" value={selected.type} onChange={(event) => update(selected.id, { type: event.target.value as FeatureType, shape: isOval(selected) ? "oval" : "rect" }, "Changed type of")}>
               {(Object.keys(TYPE_LABELS) as FeatureType[]).map((type) => <option key={type} value={type}>{TYPE_LABELS[type]}</option>)}
             </select>
           </label>
           <label className="orc-field">
             <span className="orc-field-label">State</span>
-            <select id="orc-shape-state" className="input-field" value={selected.state} onChange={(event) => update(selected.id, { state: event.target.value as FeatureState })}>
+            <select id="orc-shape-state" className="input-field" value={selected.state} onChange={(event) => update(selected.id, { state: event.target.value as FeatureState }, "Changed state of")}>
               {FEATURE_STATES.map((state) => <option key={state} value={state}>{STATE_LABELS[state]}</option>)}
             </select>
           </label>

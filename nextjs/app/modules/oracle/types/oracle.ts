@@ -5,6 +5,7 @@ export type EntityKind = "creature" | "person" | "place" | "item";
 export type Attitude = "friendly" | "neutral" | "hostile";
 export type FeatureType = "building" | "road" | "water" | "wall" | "landmark";
 export type FeatureState = "intact" | "burned" | "ruined";
+export type FeatureShape = "rect" | "oval";
 export type KnowledgeTier = "false" | "trivial" | "common" | "useful" | "secret";
 
 // MAP — a map is structured data the app draws, never a picture, so an edit ("the village was
@@ -18,6 +19,7 @@ export interface MapFeature {
   w: number;
   h: number;
   state: FeatureState;
+  shape?: FeatureShape; // drawn as; when missing, a landmark is an oval and everything else a rectangle
   // Where the DM dragged the label, in map units from where it would otherwise sit. A location's
   // label stays where it is put: it is not nudged around by the label layout as other things move.
   label_dx?: number;

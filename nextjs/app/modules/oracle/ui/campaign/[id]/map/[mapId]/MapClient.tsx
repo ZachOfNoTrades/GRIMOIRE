@@ -3,7 +3,7 @@
 import { ArrowLeft, Eye, EyeOff, Plus, Save, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import SegmentedToggle from "@/components/ui/SegmentedToggle";
@@ -16,19 +16,33 @@ import MapCanvas from "../../../../../components/MapCanvas";
 import RangeValue from "../../../../../components/RangeValue";
 import ImagePicker, { type ImageSource } from "../../../../../components/ImagePicker";
 import FeatureEditor from "../../../../../components/FeatureEditor";
+import HistoryPanel from "../../../../../components/HistoryPanel";
 import PictureAligner from "../../../../../components/PictureAligner";
 import SessionBar from "../../../../../components/SessionBar";
 import { MAP_HELP } from "../../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../../lib/client";
 import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN, GRID_ROWS_MAX, GRID_ROWS_MIN, MAP_DESCRIPTION_MAX, MAP_GRID, NAME_MAX, SCALE_UNITS, SCALE_VALUE_MAX, type ScaleUnit } from "../../../../../lib/constants";
+import { useEditHistory } from "../../../../../lib/useEditHistory";
 import { saveOnShortcut, useUnsavedWarning } from "../../../../../lib/useUnsavedWarning";
-import type { MapFeature, OracleCampaign, OracleImage, OracleMap } from "../../../../../types/oracle";
+import type { MapFeature, OracleCampaign, OracleImage, OracleMap, PictureRect } from "../../../../../types/oracle";
 
 interface MapClientProps {
   campaign: OracleCampaign;
   map: OracleMap;
   images: OracleImage[];
   imageSources: ImageSource[];
+}
+
+interface Draft {
+  name: string;
+  description: string;
+  scaleValue: string;
+  scaleUnit: ScaleUnit;
+  pictureId: string | null;
+  rect: PictureRect | null;
+  features: MapFeature[];
+  columnsDraft: string;
+  rowsDraft: string;
 }
 
 const PICTURE_KEY = "orc-picture-opacity-map-page";
@@ -59,6 +73,51 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
   const [columnsDraft, setColumnsDraft] = useState(String(Math.round(initialMap.data.width / MAP_GRID)));
   const [rowsDraft, setRowsDraft] = useState(String(Math.round(initialMap.data.height / MAP_GRID)));
   const [editView, setEditView] = useState<"picture" | "shapes">("picture");
+
+  // EDIT HISTORY — the editable fields as one snapshot per step, for undo, redo and the History list.
+  const draft: Draft = { name, description, scaleValue, scaleUnit, pictureId, rect, features, columnsDraft, rowsDraft };
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const applyDraft = useCallback((next: Draft) => {
+    setName(next.name);
+    setDescription(next.description);
+    setScaleValue(next.scaleValue);
+    setScaleUnit(next.scaleUnit);
+    setPictureId(next.pictureId);
+    setRect(next.rect);
+    setFeatures(next.features);
+    setColumnsDraft(next.columnsDraft);
+    setRowsDraft(next.rowsDraft);
+  }, []);
+  const history = useEditHistory<Draft>(applyDraft);
+  // Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) step through the history while editing. Inside a text field the
+  // browser's own undo for that field wins.
+  useEffect(() => {
+    if (!isEditing) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        history.undo();
+      } else if ((key === "z" && event.shiftKey) || key === "y") {
+        event.preventDefault();
+        history.redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // One edit: applied at once and recorded as a named step.
+  function change(label: string, patch: Partial<Draft>, mergeKey = "") {
+    const next = { ...draftRef.current, ...patch };
+    draftRef.current = next;
+    applyDraft(next);
+    history.record(label, next, mergeKey);
+  }
 
   // STATE
   const [pictureOpacity, setPictureOpacity] = useState(1); // this screen only, like the Table's slider
@@ -136,6 +195,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
       setFeatures(saved.data.features);
       setColumnsDraft(String(Math.round(saved.data.width / MAP_GRID)));
       setRowsDraft(String(Math.round(saved.data.height / MAP_GRID)));
+      history.end();
       setIsEditing(false);
     } catch (error) {
       toast.error(errorMessage(error, "Couldn't save the map"));
@@ -156,6 +216,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
     setFeatures(map.data.features);
     setColumnsDraft(String(Math.round(map.data.width / MAP_GRID)));
     setRowsDraft(String(Math.round(map.data.height / MAP_GRID)));
+    history.end();
     setIsEditing(false);
   }
 
@@ -197,8 +258,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
   }
 
   function choose(image: OracleImage) {
-    setPictureId(image.id);
-    setRect(null);
+    change("Chose picture", { pictureId: image.id, rect: null });
   }
 
   // The map as this page draws it: its own label positions in place of the Table's.
@@ -234,7 +294,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                 value={name}
                 maxLength={NAME_MAX}
                 aria-label="Map name"
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => change("Renamed map", { name: event.target.value }, "name")}
                 onKeyDown={saveOnShortcut(save)}
               />
             ) : (
@@ -250,7 +310,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                 </>
               ) : (
                 <>
-                  <HeaderEditButton id="orc-map-edit" onClick={() => setIsEditing(true)} />
+                  <HeaderEditButton id="orc-map-edit" onClick={() => { history.begin(draftRef.current); setIsEditing(true); }} />
                   <HeaderMenu
                     id="orc-map-more"
                     items={[
@@ -316,10 +376,10 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
               />
             )}
             {isEditing && editView === "shapes" && (
-              <FeatureEditor width={draftWidth} height={draftHeight} features={features} pictureUrl={pictureId ? `${base}/images/${pictureId}?w=1600` : null} pictureRect={rect} onChange={setFeatures} />
+              <FeatureEditor width={draftWidth} height={draftHeight} features={features} pictureUrl={pictureId ? `${base}/images/${pictureId}?w=1600` : null} pictureRect={rect} onChange={(next, label, target) => change(label, { features: next }, target)} />
             )}
             {isEditing && editView === "picture" && pictureId && (
-              <PictureAligner key={pictureId} url={`${base}/images/${pictureId}`} width={draftWidth} height={draftHeight} features={features} rect={rect} onChange={setRect} />
+              <PictureAligner key={pictureId} url={`${base}/images/${pictureId}`} width={draftWidth} height={draftHeight} features={features} rect={rect} onChange={(next) => change("Aligned picture", { rect: next }, "picture")} />
             )}
             {isEditing && editView === "picture" && !pictureId && (
               <div className="empty-state">
@@ -343,7 +403,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                 <span>Search or upload</span>
               </button>
               {pictureId && (
-                <button type="button" className="orc-library-item orc-library-add" onClick={() => { setPictureId(null); setRect(null); }}>
+                <button type="button" className="orc-library-item orc-library-add" onClick={() => change("Removed picture", { pictureId: null, rect: null })}>
                   <Trash2 className="w-5 h-5" aria-hidden />
                   <span>Remove</span>
                 </button>
@@ -372,10 +432,10 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                       value={scaleValue}
                       placeholder="5"
                       aria-label="Distance one tile stands for"
-                      onChange={(event) => setScaleValue(event.target.value.replace(/[^0-9.]/g, "").slice(0, 8))}
+                      onChange={(event) => change("Changed scale", { scaleValue: event.target.value.replace(/[^0-9.]/g, "").slice(0, 8) }, "scale")}
                       onKeyDown={saveOnShortcut(save)}
                     />
-                    <select id="orc-map-scale-unit" className="input-field orc-scale-unit" value={scaleUnit} aria-label="Unit" onChange={(event) => setScaleUnit(event.target.value as ScaleUnit)}>
+                    <select id="orc-map-scale-unit" className="input-field orc-scale-unit" value={scaleUnit} aria-label="Unit" onChange={(event) => change("Changed unit", { scaleUnit: event.target.value as ScaleUnit })}>
                       {SCALE_UNITS.map((unit) => (
                         <option key={unit} value={unit}>{unit}</option>
                       ))}
@@ -390,9 +450,9 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
               <dd>
                 {isEditing ? (
                   <div className="orc-scale-row">
-                    <input id="orc-map-columns" className="input-field orc-scale-value" inputMode="numeric" value={columnsDraft} aria-label="Columns" onChange={(event) => setColumnsDraft(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))} onKeyDown={saveOnShortcut(save)} />
+                    <input id="orc-map-columns" className="input-field orc-scale-value" inputMode="numeric" value={columnsDraft} aria-label="Columns" onChange={(event) => change("Resized grid", { columnsDraft: event.target.value.replace(/[^0-9]/g, "").slice(0, 2) }, "columns")} onKeyDown={saveOnShortcut(save)} />
                     <span className="orc-small text-secondary">×</span>
-                    <input id="orc-map-rows" className="input-field orc-scale-value" inputMode="numeric" value={rowsDraft} aria-label="Rows" onChange={(event) => setRowsDraft(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))} onKeyDown={saveOnShortcut(save)} />
+                    <input id="orc-map-rows" className="input-field orc-scale-value" inputMode="numeric" value={rowsDraft} aria-label="Rows" onChange={(event) => change("Resized grid", { rowsDraft: event.target.value.replace(/[^0-9]/g, "").slice(0, 2) }, "rows")} onKeyDown={saveOnShortcut(save)} />
                     <span className="orc-small text-secondary">tiles</span>
                     {!isSizeOk && <span className="orc-small orc-map-size-error">{GRID_COLUMNS_MIN}–{GRID_COLUMNS_MAX} × {GRID_ROWS_MIN}–{GRID_ROWS_MAX}</span>}
                   </div>
@@ -412,7 +472,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                     maxLength={MAP_DESCRIPTION_MAX}
                     placeholder="What this map shows"
                     aria-label="Description"
-                    onChange={(event) => setDescription(event.target.value)}
+                    onChange={(event) => change("Edited description", { description: event.target.value }, "description")}
                     onKeyDown={saveOnShortcut(save)}
                   />
                 ) : (
@@ -421,6 +481,11 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
               </dd>
             </dl>
           </div>
+
+          {/* HISTORY — editing only: every change as a step to jump back or forward to */}
+          {isEditing && (
+            <HistoryPanel entries={history.entries} index={history.index} canUndo={history.canUndo} canRedo={history.canRedo} onUndo={history.undo} onRedo={history.redo} onJump={history.jumpTo} />
+          )}
           </div>
         </div>
       </div>
