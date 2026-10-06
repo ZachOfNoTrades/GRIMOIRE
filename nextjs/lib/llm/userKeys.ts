@@ -60,8 +60,11 @@ export async function describeOpenRouterKey(key: string): Promise<OpenRouterKeyI
   const body = (await response.json().catch(() => null)) as { data?: Record<string, unknown> } | null;
   const data = body?.data ?? {};
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  // OpenRouter's default label is the masked key itself ("sk-or-v1-f5a...117"), which
+  // would only repeat the last-4 shown next to it; keep a label only when it's a name.
+  const label = typeof data.label === "string" && !/^sk-or-/.test(data.label) ? data.label.slice(0, 100) : null;
   return {
-    label: typeof data.label === "string" ? data.label.slice(0, 100) : null,
+    label,
     limit: num(data.limit),
     limitRemaining: num(data.limit_remaining),
     usage: num(data.usage),

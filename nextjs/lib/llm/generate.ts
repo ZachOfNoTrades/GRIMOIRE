@@ -31,7 +31,8 @@ export async function resolveBackend(userId: string, task: LlmTaskId): Promise<R
     // Can't happen through the settings UI; a hand-edited row lands here.
     return { backend: "openrouter", model: def.openRouterModel };
   }
-  return { backend: "claude", model: def.cliModel ?? "default" };
+  // The user's CLI pick (an alias or a full id) wins over the task's default alias.
+  return { backend: "claude", model: config.model?.trim() || def.cliModel || "default" };
 }
 
 // True when the task will run on OpenRouter — lets a call site skip CLI-only work
@@ -73,7 +74,7 @@ export async function generate(userId: string, task: LlmTaskId, req: LlmRequest)
     }
 
     const cli = { ...req.cli };
-    if (def.cliModel && !cli.model) cli.model = def.cliModel;
+    if (resolved.model !== "default" && !cli.model) cli.model = resolved.model;
     if (def.cliEffort && !cli.effort) cli.effort = def.cliEffort;
     const result = await runClaudeCli({ system: req.system, prompt: req.prompt, images: req.images, timeoutMs: req.timeoutMs, cli });
     model = result.model;

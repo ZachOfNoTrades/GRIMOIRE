@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedUser } from "@/lib/permissions";
 import { getUserPreferences, updateLlmTaskPrefs, updateUserTheme } from "@/lib/userPreferences";
 import { coerceLlmTaskPrefs, isThemeMode, THEME_MODES } from "@/types/preferences";
+import { validateModel } from "@/lib/llm/catalog";
+import { taskDef, type LlmTaskId } from "@/lib/llm/tasks";
 
 // APP-WIDE PREFERENCES FOR THE CALLER. `getAuthorizedUser` (not the
 // session-only guard) so an API key / Bearer token can read and set them too —
@@ -49,9 +51,20 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "llm_tasks must be an object" }, { status: 400 });
     }
 
+    // A typed-in model id must exist for its backend and fit the task — a bad id
+    // would otherwise only surface as a failed generation later.
+    const taskPrefs = hasTasks ? coerceLlmTaskPrefs(body.llm_tasks) : {};
+    for (const [task, config] of Object.entries(taskPrefs)) {
+      if (!config?.model) continue;
+      const check = await validateModel(config.backend, task as LlmTaskId, config.model);
+      if (!check.ok) {
+        return NextResponse.json({ error: `${taskDef(task as LlmTaskId).label}: ${check.reason}`, task }, { status: 400 });
+      }
+    }
+
     let preferences = await getUserPreferences(session.user.id);
     if (hasTheme) preferences = await updateUserTheme(session.user.id, body.theme);
-    if (hasTasks) preferences = await updateLlmTaskPrefs(session.user.id, coerceLlmTaskPrefs(body.llm_tasks));
+    if (hasTasks) preferences = await updateLlmTaskPrefs(session.user.id, taskPrefs);
     return NextResponse.json(preferences);
   } catch (error) {
     console.error("Error in PUT /api/users/me/preferences:", error);
