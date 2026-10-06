@@ -22,6 +22,9 @@ export interface MapFeature {
   // label stays where it is put: it is not nudged around by the label layout as other things move.
   label_dx?: number;
   label_dy?: number;
+  // The same, for the map's own page: the DM places names there apart from the Table.
+  page_label_dx?: number;
+  page_label_dy?: number;
 }
 
 // What one tile stands for is `scale_value` of `scale_unit` (default 5 feet). `scale_label` is the

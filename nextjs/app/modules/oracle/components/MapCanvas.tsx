@@ -88,6 +88,7 @@ interface MapCanvasProps {
   // the entry's icon and nameplate are revealed, and the camera returns. A new `nonce` plays it again.
   revealFocus?: { id: string; x: number; y: number; nonce: number } | null;
   barExtras?: React.ReactNode; // the DM's sliders, shown first in the action bar
+  screen?: string; // keys this screen's saved preferences (the ground, the open bar); defaults to the mode
 }
 
 const FOCUS_ZOOM = 2.5;
@@ -341,6 +342,7 @@ export default function MapCanvas({
   focus = null,
   revealFocus = null,
   barExtras = null,
+  screen,
 }: MapCanvasProps) {
   const maskId = useId().replace(/:/g, "");
   const svgRef = useRef<SVGSVGElement>(null);
@@ -359,17 +361,17 @@ export default function MapCanvas({
   const [isBarOpen, setIsBarOpen] = useState(mode === "dm");
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(`orc-bar-${mode}`);
+      const saved = localStorage.getItem(`orc-bar-${screen ?? mode}`);
       if (saved === "open" || saved === "closed") setIsBarOpen(saved === "open");
       else if (window.innerWidth < 700) setIsBarOpen(false);
     } catch {
       if (window.innerWidth < 700) setIsBarOpen(false);
     }
-  }, [mode]);
+  }, [mode, screen]);
   function changeBarOpen(open: boolean) {
     setIsBarOpen(open);
     try {
-      localStorage.setItem(`orc-bar-${mode}`, open ? "open" : "closed");
+      localStorage.setItem(`orc-bar-${screen ?? mode}`, open ? "open" : "closed");
     } catch {
       /* storage can be blocked; the change still applies */
     }
@@ -392,17 +394,17 @@ export default function MapCanvas({
   const [ground, setGround] = useState<"black" | "white" | null>(null);
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(`orc-ground-${mode}`);
+      const saved = localStorage.getItem(`orc-ground-${screen ?? mode}`);
       if (saved === "black" || saved === "white") setGround(saved);
     } catch {
       /* storage can be blocked; the theme's ground stands */
     }
-  }, [mode]);
+  }, [mode, screen]);
   function toggleGround() {
     const next = ground === "black" ? "white" : "black";
     setGround(next);
     try {
-      localStorage.setItem(`orc-ground-${mode}`, next);
+      localStorage.setItem(`orc-ground-${screen ?? mode}`, next);
     } catch {
       /* storage can be blocked; the change still applies */
     }
