@@ -115,7 +115,7 @@ function optionLabel(m: CatalogModel | undefined): string {
   if (!m) return "";
   const parts = [m.name];
   if (m.estCostUsd !== null) parts.push(m.estCostUsd < 0.0001 ? money(m.estCostUsd) : `~${money(m.estCostUsd)}`);
-  if (m.estSeconds !== null) parts.push(`${m.estSeconds < 10 ? m.estSeconds.toFixed(1) : Math.round(m.estSeconds)}s`);
+  if (m.estSeconds !== null) parts.push(`~${m.estSeconds < 10 ? m.estSeconds.toFixed(1) : Math.round(m.estSeconds)}s`);
   return parts.join(" | ");
 }
 
@@ -151,6 +151,8 @@ export default function LlmSettingsPage() {
   const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [rows, setRows] = useState<TaskRows | null>(null);
+  // What is saved, so Save only lights up once something differs from it.
+  const [savedRows, setSavedRows] = useState<TaskRows | null>(null);
   const [catalog, setCatalog] = useState<Catalog>({});
 
   // INPUT
@@ -182,6 +184,7 @@ export default function LlmSettingsPage() {
         setUsage(u.error ? null : u.summary);
         const nextRows = rowsFrom(p.error ? {} : (p.llm_tasks ?? {}));
         setRows(nextRows);
+        setSavedRows(nextRows);
         const nextCatalog: Catalog = { claude: mc.error ? {} : mc, openrouter: mo.error ? {} : mo };
         setCatalog(nextCatalog);
         if (mo.error) toast.error("Couldn't load OpenRouter's model list");
@@ -309,6 +312,8 @@ export default function LlmSettingsPage() {
     }
   }
 
+  const isDirty = useMemo(() => JSON.stringify(rows) !== JSON.stringify(savedRows), [rows, savedRows]);
+
   const hasBadManual = useMemo(
     () => !!rows && LLM_TASKS.some((t) => manual[t.id] && rows[t.id].model && checks[t.id]?.state !== "ok"),
     [rows, manual, checks]
@@ -332,7 +337,9 @@ export default function LlmSettingsPage() {
         toast.error(body?.error || "Couldn't save task settings");
         return;
       }
-      setRows(rowsFrom(body.llm_tasks ?? {}));
+      const savedNow = rowsFrom(body.llm_tasks ?? {});
+      setRows(savedNow);
+      setSavedRows(savedNow);
       toast.success("Task settings saved");
     } catch {
       toast.error("Couldn't save task settings");
@@ -502,9 +509,10 @@ export default function LlmSettingsPage() {
                             onChange={(e) => pickModel(task.id, e.target.value)}
                           >
                             <option value={MANUAL}>Manual entry…</option>
-                            <option value="">{list ? `${optionLabel(list.models.find((m) => m.recommended))} (Recommended)` : "(Recommended)"}</option>
-                            {sortModels((list?.models ?? []).filter((m) => !m.recommended), row.sort ?? "name").map((m) => (
-                              <option key={m.id} value={m.id}>{optionLabel(m)}</option>
+                            {/* The recommendation sits in sorted order like any other entry; its
+                                value is blank, which is what "no pick" saves as. */}
+                            {sortModels(list?.models ?? [], row.sort ?? "name").map((m) => (
+                              <option key={m.id} value={m.recommended ? "" : m.id}>{m.recommended ? `${optionLabel(m)} (Recommended)` : optionLabel(m)}</option>
                             ))}
                           </select>
 
@@ -549,7 +557,7 @@ export default function LlmSettingsPage() {
 
             {/* SAVE TASKS */}
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
-              <Button className="btn-blue" onClick={saveTasks} disabled={isSavingTasks || hasBadManual}>
+              <Button className="btn-blue" onClick={saveTasks} disabled={!isDirty || isSavingTasks || hasBadManual}>
                 {isSavingTasks ? "Saving…" : "Save"}
               </Button>
             </div>

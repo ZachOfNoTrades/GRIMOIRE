@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610051500 (Per-user LLM keys, per-task backend choice, usage log)
+-- Version: 202610061200 (App settings: admin-pinned recommended models)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -83,6 +83,23 @@ BEGIN TRY
 
         CREATE INDEX IX_user_api_keys_user_active
             ON user_api_keys (user_id) WHERE revoked = 0;
+    END
+
+    -- =============================
+    -- App Settings (admin-set, app-wide)
+    -- =============================
+    -- JSON values under a string key, written only by a global admin. First key:
+    -- `llm_recommended_models` — per-task recommended model pins for the model
+    -- dropdowns (nextjs/lib/llm/recommendations.ts).
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='app_settings' AND xtype='U')
+    BEGIN
+        CREATE TABLE app_settings (
+            setting_key NVARCHAR(100) NOT NULL,
+            setting_value NVARCHAR(MAX) NULL,
+            ts_updated DATETIME2 NOT NULL CONSTRAINT DF_app_settings_ts_updated DEFAULT SYSUTCDATETIME(),
+
+            CONSTRAINT PK_app_settings PRIMARY KEY (setting_key)
+        );
     END
 
     -- =============================

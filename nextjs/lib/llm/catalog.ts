@@ -2,6 +2,7 @@ import { LLM_TASKS, taskDef, type LlmTaskDef, type LlmTaskId } from "./tasks";
 import type { LlmBackend } from "./types";
 import { getModelTimingStats, getTaskTokenStats, type ModelTimingStats, type TaskTokenStats } from "./usage";
 import { getOpenRouterKeyStatus, withOpenRouterKey } from "./userKeys";
+import { getRecommendedModels } from "./recommendations";
 
 // MODEL CATALOG — what the settings page offers in each task's model dropdown, and
 // how a typed-in id is checked.
@@ -163,8 +164,10 @@ const CLAUDE_ALIASES = new Set(CLAUDE_MODELS.map((m) => m.id));
 // Full ids the CLI accepts ("claude-sonnet-4-6", "claude-opus-5-5[1m]").
 const CLAUDE_ID_PATTERN = /^claude-[a-z0-9][a-z0-9.-]{2,60}(\[1m\])?$/;
 
-export function claudeRecommendation(task: LlmTaskId): string {
-  return taskDef(task).cliModel ?? "sonnet";
+// An admin pin wins; otherwise the task's own alias.
+async function claudeRecommendation(task: LlmTaskId): Promise<string> {
+  const pinned = (await getRecommendedModels())[task]?.claude;
+  return pinned ?? taskDef(task).cliModel ?? "sonnet";
 }
 
 // The CLI has no list price; its estimate is the logged cost of past calls on that
@@ -183,11 +186,12 @@ function claudeEntry(task: LlmTaskId, id: string, name: string, recommended: boo
 }
 
 async function claudeList(task: LlmTaskId): Promise<TaskModelList> {
-  const recommended = claudeRecommendation(task);
-  const h = await historyFor(task, "claude");
+  const [recommended, h] = await Promise.all([claudeRecommendation(task), historyFor(task, "claude")]);
+  // A pinned full id that isn't one of the aliases is listed too, so it can be picked.
+  const listed = CLAUDE_MODELS.some((m) => m.id === recommended) ? CLAUDE_MODELS : [...CLAUDE_MODELS, { id: recommended, name: recommended }];
   return {
     recommended,
-    models: CLAUDE_MODELS.map((m) => claudeEntry(task, m.id, m.name, m.id === recommended, h)),
+    models: listed.map((m) => claudeEntry(task, m.id, m.name, m.id === recommended, h)),
   };
 }
 
@@ -345,7 +349,9 @@ function blendedPrice(m: OrModel): number {
   return m.promptPerM * 0.75 + m.completionPerM * 0.25;
 }
 
-function recommend(models: OrModel[], cap: Capability, fallback: string): string {
+// An admin pin wins when it is a model that fits the task; otherwise the family rule.
+function recommend(models: OrModel[], cap: Capability, fallback: string, pinned?: string): string {
+  if (pinned && models.some((m) => m.id === pinned)) return pinned;
   const picks: OrModel[] = [];
   for (const family of FAMILIES[cap]) {
     const newest = models.filter((m) => family.test(m.id)).sort((a, b) => b.created - a.created)[0];
@@ -394,9 +400,9 @@ const LIST_MAX = 60;
 async function openRouterList(task: LlmTaskId, userId?: string): Promise<TaskModelList> {
   const def = taskDef(task);
   const cap = capabilityOf(def);
-  const [all, h] = await Promise.all([getOpenRouterCatalog(), historyFor(task, "openrouter")]);
+  const [all, h, pins] = await Promise.all([getOpenRouterCatalog(), historyFor(task, "openrouter"), getRecommendedModels()]);
   const fitting = all.filter((m) => fits(m, cap));
-  const recommended = recommend(fitting, cap, def.openRouterModel);
+  const recommended = recommend(fitting, cap, def.openRouterModel, pins[task]?.openrouter);
   // By name; the recommendation is also the dropdown's default entry. Capped so the
   // list stays readable — a model outside the cut is still reachable by manual entry
   // (the cut keeps the cheapest, which is where the useful long tail is).
@@ -440,9 +446,9 @@ async function validateOpenRouterModel(id: string, task: LlmTaskId, userId?: str
 export async function recommendedOpenRouterModel(task: LlmTaskId): Promise<string> {
   const def = taskDef(task);
   try {
-    const all = await getOpenRouterCatalog();
+    const [all, pins] = await Promise.all([getOpenRouterCatalog(), getRecommendedModels()]);
     const cap = capabilityOf(def);
-    return recommend(all.filter((m) => fits(m, cap)), cap, def.openRouterModel);
+    return recommend(all.filter((m) => fits(m, cap)), cap, def.openRouterModel, pins[task]?.openrouter);
   } catch {
     return def.openRouterModel;
   }

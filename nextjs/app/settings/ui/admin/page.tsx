@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRowNav } from "@/lib/useRowNav";
-import { Plus, ShieldCheck } from "lucide-react";
+import { Cpu, Plus, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { User } from "@/types/user";
 import { Button } from "@/components/ui/button";
 import AddUserModal from "./AddUserModal";
@@ -17,6 +18,7 @@ export default function AdminSettingsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const rowNav = useRowNav();
+  const router = useRouter();
 
   // Fetch users
   async function fetchUsers() {
@@ -62,6 +64,12 @@ export default function AdminSettingsPage() {
           <h1 className="text-page-title settings-title">
             <ShieldCheck className="w-6 h-6" /> Admin Settings
           </h1>
+
+          {/* RECOMMENDED MODELS — the per-task model pins for every user's dropdowns */}
+          <Button className="btn-off" onClick={() => router.push("/settings/ui/admin/llm")}>
+            <Cpu className="w-4 h-4" />
+            Recommended models
+          </Button>
         </div>
 
         {/* USERS CARD */}
