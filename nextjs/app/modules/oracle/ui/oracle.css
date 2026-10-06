@@ -1423,3 +1423,9 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map-viewer .orc-feature[data-type="landmark"][data-state="burned"] ellipse,
 .orc-map-viewer .orc-feature[data-type="landmark"][data-state="ruined"] ellipse { fill: color-mix(in srgb, var(--orc-bad) 40%, var(--solid-background)); }
 .orc-map-viewer .orc-feature { filter: saturate(1.8); }
+/* LABEL BACKDROPS — optional, from the map bar. They follow the black/white control: the theme's
+   ground by default, black or white once the DM picks one. */
+.orc-feature-label-bg { fill: var(--solid-background); fill-opacity: 0.85; stroke: var(--card-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.orc-map[data-ground="black"] .orc-feature-label-bg { fill: #000; stroke: rgba(255, 255, 255, 0.25); }
+.orc-map[data-ground="white"] .orc-feature-label-bg { fill: #fff; stroke: rgba(0, 0, 0, 0.2); }
+.orc-label-bg-toggle[aria-pressed="true"] { color: var(--color-primary); background: var(--hover-bg); }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Contrast, Crosshair, Maximize2, Minus, Plus, SlidersHorizontal, X } from "lucide-react";
+import { Contrast, Crosshair, Maximize2, Minus, Plus, SlidersHorizontal, Tag, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { MapFeature, Attitude, EntityKind, EntityVisibility, ExploredCircle, MapData } from "../types/oracle";
 import { MAP_GRID } from "../lib/constants";
@@ -405,6 +405,24 @@ export default function MapCanvas({
     setGround(next);
     try {
       localStorage.setItem(`orc-ground-${screen ?? mode}`, next);
+    } catch {
+      /* storage can be blocked; the change still applies */
+    }
+  }
+  // Backdrops behind location names, for reading them over a busy picture (kept per screen).
+  const [isLabelBacked, setIsLabelBacked] = useState(false);
+  useEffect(() => {
+    try {
+      setIsLabelBacked(localStorage.getItem(`orc-label-bg-${screen ?? mode}`) === "on");
+    } catch {
+      /* storage can be blocked; names stay bare */
+    }
+  }, [mode, screen]);
+  function toggleLabelBacked() {
+    const next = !isLabelBacked;
+    setIsLabelBacked(next);
+    try {
+      localStorage.setItem(`orc-label-bg-${screen ?? mode}`, next ? "on" : "off");
     } catch {
       /* storage can be blocked; the change still applies */
     }
@@ -885,6 +903,7 @@ export default function MapCanvas({
         onPointerEnter={isDm ? () => setHoveredLabel(feature.id) : undefined}
         onPointerLeave={isDm ? () => setHoveredLabel((current) => (current === feature.id ? null : current)) : undefined}
       >
+        {isLabelBacked && <rect className="orc-feature-label-bg" x={x - labelSize * 0.35} y={y - labelSize * 1.05} width={width + labelSize * 0.7} height={labelSize * 1.45} />}
         {isDm && <rect className="orc-feature-label-grip" x={x - 2} y={y - labelSize} width={width + 4} height={labelSize * 1.35} />}
         <text className="orc-feature-label" data-type={feature.type} data-state={feature.state} x={x} y={y} fontSize={labelSize}>
           {text}
@@ -910,6 +929,7 @@ export default function MapCanvas({
       data-picture={backgroundUrl ? "true" : undefined}
       data-tone={tone ?? undefined}
       data-ground={ground ?? undefined}
+      data-label-bg={isLabelBacked ? "true" : undefined}
     >
 
       {/* ACTION BAR — one small button that opens the map's controls: on the DM's map the sliders,
@@ -946,6 +966,9 @@ export default function MapCanvas({
 
           <button type="button" className="orc-zoom-btn" title="Black or white background" aria-label="Toggle black or white background" aria-pressed={ground === "white"} onClick={toggleGround}>
             <Contrast className="w-4 h-4" />
+          </button>
+          <button type="button" className="orc-zoom-btn orc-label-bg-toggle" title="Backgrounds behind location names" aria-label="Toggle label backgrounds" aria-pressed={isLabelBacked} onClick={toggleLabelBacked}>
+            <Tag className="w-4 h-4" />
           </button>
           {!isDm && backgroundUrl && onPictureOpacity && (
             <label className="orc-bar-slider">
