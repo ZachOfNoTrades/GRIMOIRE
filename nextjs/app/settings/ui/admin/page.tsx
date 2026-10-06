@@ -1,162 +1,52 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRowNav } from "@/lib/useRowNav";
-import { Cpu, Plus, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { User } from "@/types/user";
-import { Button } from "@/components/ui/button";
-import AddUserModal from "./AddUserModal";
+import { ShieldCheck, Users, Cpu } from "lucide-react";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import { SettingsGroup, type SettingsRowItem } from "@/components/settings/SettingsList";
 
+// Admin settings hub — the same grouped-rows layout as the per-user Settings hub.
+// Global-admin only (the subtree layout guards it). Each row opens its own page.
 export default function AdminSettingsPage() {
-  // DATA
-  const [users, setUsers] = useState<User[]>([]);
-
-  // STATE
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-
-  const rowNav = useRowNav();
   const router = useRouter();
 
-  // Fetch users
-  async function fetchUsers() {
-    try {
-      const response = await fetch("/api/users");
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data);
-      }
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  const accountRows: SettingsRowItem[] = [
+    {
+      icon: Users,
+      label: "Users",
+      onClick: () => router.push("/settings/ui/admin/users"),
+    },
+  ];
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Loading placeholder
-  if (isLoading) {
-    return (
-      <div className="page">
-        <div className="page-container">
-          <div className="loading-container">
-            <div className="loading-spinner" />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const aiRows: SettingsRowItem[] = [
+    {
+      icon: Cpu,
+      label: "Recommended models",
+      onClick: () => router.push("/settings/ui/admin/llm"),
+    },
+  ];
 
   return (
+    /* PAGE */
     <div className="page">
+
+      {/* PAGE CONTAINER */}
       <div className="page-container">
 
         {/* BREADCRUMBS */}
-        <Breadcrumbs />
+        <Breadcrumbs label="Admin" />
 
-        {/* PAGE HEADER */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-page-title settings-title">
-            <ShieldCheck className="w-6 h-6" /> Admin Settings
-          </h1>
+        {/* PAGE TITLE */}
+        <h1 className="text-page-title settings-title"><ShieldCheck className="w-6 h-6" /> Admin</h1>
 
-          {/* RECOMMENDED MODELS — the per-task model pins for every user's dropdowns */}
-          <Button className="btn-off" onClick={() => router.push("/settings/ui/admin/llm")}>
-            <Cpu className="w-4 h-4" />
-            Recommended models
-          </Button>
-        </div>
+        {/* ACCOUNTS SECTION */}
+        <h2 className="settings-section-title">Accounts</h2>
+        <SettingsGroup rows={accountRows} />
 
-        {/* USERS CARD */}
-        <div className="card mt-6">
-
-          {/* HEADER */}
-          <div className="card-header flex items-center justify-between">
-            <h3 className="text-card-title">Users</h3>
-
-            {/* ADD USER BUTTON */}
-            <Button
-              className="btn-blue"
-              onClick={() => setIsAddModalOpen(true)}
-            >
-              <Plus className="w-4 h-4" />
-              Add User
-            </Button>
-          </div>
-
-          {/* USERS TABLE */}
-          <div className="table-container" style={{ border: "none" }}>
-            <table className="table">
-              <thead className="table-header">
-                <tr className="table-header-row">
-                  <th className="table-header-cell">Name</th>
-                  <th className="table-header-cell">Email</th>
-                  <th className="table-header-cell">Status</th>
-                  <th className="table-header-cell">Role</th>
-                </tr>
-              </thead>
-              <tbody className="table-body">
-
-                {/* LOADING PLACEHOLDER */}
-                {isLoading && (
-                  <tr className="table-row">
-                    <td className="table-cell" colSpan={4}>
-                      <div className="loading-container">
-                        <div className="loading-spinner" />
-                      </div>
-                    </td>
-                  </tr>
-                )}
-
-                {/* EMPTY PLACEHOLDER */}
-                {!isLoading && users.length === 0 && (
-                  <tr className="table-row">
-                    <td className="table-empty" colSpan={4}>No users found</td>
-                  </tr>
-                )}
-
-                {/* USER ROWS */}
-                {!isLoading && users.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="table-row table-row-clickable"
-                    {...rowNav(`/settings/ui/user/${user.id}`)}
-                  >
-                    <td className="table-cell">{user.name}</td>
-                    <td className="table-cell">{user.email}</td>
-                    <td className="table-cell">
-                      {user.enabled ? (
-                        <span className="badge-green">Active</span>
-                      ) : (
-                        <span className="badge-red">Disabled</span>
-                      )}
-                    </td>
-                    <td className="table-cell">
-                      {user.global_admin ? (
-                        <span className="badge-blue">Admin</span>
-                      ) : (
-                        <span className="badge-gray">User</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* AI SECTION */}
+        <h2 className="settings-section-title">AI</h2>
+        <SettingsGroup rows={aiRows} />
       </div>
-
-      {/* ADD USER MODAL */}
-      <AddUserModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onUserAdded={fetchUsers}
-      />
     </div>
   );
 }

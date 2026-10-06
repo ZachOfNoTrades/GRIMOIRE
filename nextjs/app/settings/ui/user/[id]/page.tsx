@@ -272,7 +272,7 @@ export default function UserDetailPage() {
       }
 
       toast.success("User deleted");
-      router.push("/settings/ui/admin");
+      router.push("/settings/ui/admin/users");
     } catch (error) {
       console.error("Error deleting user:", error);
       toast.error("Failed to delete user");
