@@ -56,6 +56,13 @@ type ManualCheck = { state: "checking" } | { state: "ok"; name: string } | { sta
 const BACKEND_LABEL: Record<LlmBackend, string> = { claude: "Claude", openrouter: "OpenRouter" };
 const MANUAL = "__manual__";
 
+// The catalog's own facts about a model (OpenRouter price per M tokens and context)
+// ride along with the name; Claude's list carries no note.
+function optionLabel(m: CatalogModel | undefined): string {
+  if (!m) return "";
+  return m.note ? `${m.name} · ${m.note}` : m.name;
+}
+
 function rowsFrom(prefs: LlmTaskPrefs): TaskRows {
   const rows = {} as TaskRows;
   for (const task of LLM_TASKS) {
@@ -395,7 +402,7 @@ export default function LlmSettingsPage() {
                           {/* BACKEND */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "0 0 auto", minWidth: "9rem" }}
+                            style={{ flex: "0 0 auto", width: "34rem", maxWidth: "100%" }}
                             value={row.backend}
                             disabled={task.openRouterOnly}
                             aria-label={`${task.label} backend`}
@@ -411,15 +418,15 @@ export default function LlmSettingsPage() {
                               backends. */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "1 1 0", width: 0, minWidth: "10rem" }}
+                            style={{ flex: "0 0 auto", width: "34rem", maxWidth: "100%" }}
                             value={selectValue}
                             aria-label={`${task.label} model`}
                             onChange={(e) => pickModel(task.id, e.target.value)}
                           >
                             <option value={MANUAL}>Manual entry…</option>
-                            <option value="">{list ? `${list.models.find((m) => m.recommended)?.name ?? list.recommended} (Recommended)` : "(Recommended)"}</option>
+                            <option value="">{list ? `${optionLabel(list.models.find((m) => m.recommended))} (Recommended)` : "(Recommended)"}</option>
                             {(list?.models ?? []).filter((m) => !m.recommended).map((m) => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
+                              <option key={m.id} value={m.id}>{optionLabel(m)}</option>
                             ))}
                           </select>
 
