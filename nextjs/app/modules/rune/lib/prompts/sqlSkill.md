@@ -4,15 +4,21 @@ You have the ability to run read-only SQL queries to assist in making decisions.
 
 ### How to Run Queries
 
-Run queries using the Bash tool:
+Run queries using the Bash tool, always passing the user ID as the first argument:
 
 ```
-node app/modules/rune/lib/sql_query_tool/executeSqlQueryScript.mjs "SELECT ..."
+node app/modules/rune/lib/sql_query_tool/executeSqlQueryScript.mjs "{{USER_ID}}" "SELECT ..."
 ```
 
 The tool returns JSON: `{ success: true, rowCount: N, data: [...] }` or `{ success: false, error: "..." }`
 
 **Constraints**: SELECT only, max 100 rows, 5-second timeout.
+
+### User Scoping
+
+The `@userId` parameter is automatically bound server-side. You MUST include `WHERE user_id = @userId` (or `AND user_id = @userId`) when querying any user-owned table. Do NOT hardcode user IDs.
+
+**User-owned tables** (require `@userId`): decks, cards, card_progress, card_reviews, collections, study_sessions, rune_settings
 
 ### Database Schema
 
@@ -20,7 +26,8 @@ The tool returns JSON: `{ success: true, rowCount: N, data: [...] }` or `{ succe
 -- Decks (card collections)
 CREATE TABLE decks (
     id UNIQUEIDENTIFIER PRIMARY KEY,
-    name NVARCHAR(255) UNIQUE NOT NULL,
+    user_id UNIQUEIDENTIFIER NOT NULL,
+    name NVARCHAR(255) NOT NULL,
     description NVARCHAR(MAX),
     is_archived BIT DEFAULT 0
 );
@@ -28,6 +35,7 @@ CREATE TABLE decks (
 -- Cards (individual flash cards)
 CREATE TABLE cards (
     id UNIQUEIDENTIFIER PRIMARY KEY,
+    user_id UNIQUEIDENTIFIER NOT NULL,
     deck_id UNIQUEIDENTIFIER NOT NULL REFERENCES decks(id),
     front NVARCHAR(MAX) NOT NULL,       -- Question/prompt side
     back NVARCHAR(MAX) NOT NULL,        -- Answer side
@@ -41,6 +49,7 @@ CREATE TABLE cards (
 -- Card Progress (spaced repetition state)
 CREATE TABLE card_progress (
     id UNIQUEIDENTIFIER PRIMARY KEY,
+    user_id UNIQUEIDENTIFIER NOT NULL,
     card_id UNIQUEIDENTIFIER UNIQUE NOT NULL REFERENCES cards(id),
     ease_factor DECIMAL(4,2) DEFAULT 2.50,
     interval_days INT DEFAULT 0,
@@ -55,5 +64,5 @@ CREATE TABLE card_progress (
 Check existing cards in a deck to avoid duplicates:
 
 ```sql
-SELECT front, back FROM cards WHERE deck_id = '...' AND is_disabled = 0
+SELECT front, back FROM cards WHERE deck_id = '...' AND user_id = @userId AND is_disabled = 0
 ```

@@ -1,65 +1,31 @@
 /**
- * This script takes a 'query' argument and executes it against the RUNE database.
+ * Executes a read-only SQL query against the RUNE database, scoped to a specific user.
  *
- * Usage: `node executeSqlQueryScript.mjs "SELECT TOP 10 name FROM decks"`
+ * Usage: node executeSqlQueryScript.mjs "<userId>" "SELECT ..."
+ *
+ * The query MUST reference @userId for any user-owned table (decks, cards, ...).
+ * The actual userId value is injected server-side via a bound parameter —
+ * the LLM never controls the UUID directly.
+ *
+ * The guard lives in sqlValidation.mjs so the in-process `run_sql` tool for OpenRouter
+ * models (lib/llm/tools/sql.ts) enforces the exact same rules as this script.
  */
 
 import sql from 'mssql';
+import { MAX_RESULT_CHARS, MAX_ROWS, QUERY_TIMEOUT_MS, validateSqlQuery } from './sqlValidation.mjs';
 
-export const QUERY_TIMEOUT_MS = 5000;
-export const MAX_ROWS = 100;
-export const MAX_RESULT_CHARS = 50000;
+// EXTRACT AND VALIDATE ARGUMENTS
 
-export const FORBIDDEN_PATTERNS = [
-  /\bINSERT\b/i,
-  /\bUPDATE\b/i,
-  /\bDELETE\b/i,
-  /\bDROP\b/i,
-  /\bALTER\b/i,
-  /\bCREATE\b/i,
-  /\bTRUNCATE\b/i,
-  /\bEXEC\b/i,
-  /\bEXECUTE\b/i,
-  /\bMERGE\b/i,
-  /\bGRANT\b/i,
-  /\bREVOKE\b/i,
-  /\bsp_/i,
-  /\bxp_/i,
-  /;/,
-];
+const userId = process.argv[2];
+const query = process.argv[3];
 
-// Validates a query is only a basic SELECT statement
-export function validateSqlQuery(sql) {
-  const trimmed = sql.trim();
-
-  if (trimmed.length === 0) {
-    return { valid: false, error: 'Query is empty' };
-  }
-
-  if (!trimmed.toUpperCase().startsWith('SELECT')) {
-    return { valid: false, error: 'Only SELECT queries are allowed' };
-  }
-
-  for (const pattern of FORBIDDEN_PATTERNS) {
-    if (pattern.test(trimmed)) {
-      const keyword = pattern.source.replace(/\\b/g, '').replace(/\\/g, '');
-      return { valid: false, error: `Forbidden keyword detected: ${keyword}` };
-    }
-  }
-
-  return { valid: true };
+if (!userId || userId.trim().length === 0) {
+  console.error(JSON.stringify({ success: false, error: 'No userId provided. Usage: node executeSqlQueryScript.mjs "<userId>" "SELECT ..."' }));
+  process.exit(1);
 }
 
-/**
- * MAIN FUNCTION
- */
-
-// EXTRACT AND VALIDATE QUERY
-
-const query = process.argv[2]; // Extract query from script execution
-
 if (!query || query.trim().length === 0) {
-  console.error(JSON.stringify({ success: false, error: 'No SQL query provided. Usage: node executeSqlQueryScript.mjs "SELECT ..."' }));
+  console.error(JSON.stringify({ success: false, error: 'No SQL query provided. Usage: node executeSqlQueryScript.mjs "<userId>" "SELECT ..."' }));
   process.exit(1);
 }
 
@@ -71,7 +37,7 @@ if (!validation.valid) {
   process.exit(1);
 }
 
-// CONNECT TO DATABASE AND EXECUTE
+// CONNECT TO DATABASE AND EXECUTE WITH BOUND @userId
 
 const config = {
   server: process.env.SQL_SERVER_URL,
@@ -92,12 +58,15 @@ try {
   const request = pool.request();
   request.timeout = QUERY_TIMEOUT_MS;
 
+  // Bind @userId server-side — the LLM references it but never controls the value
+  request.input('userId', sql.UniqueIdentifier, userId);
+
   const result = await request.query(trimmedQuery);
 
   // Trim down results by row count, if necessary
   const rows = result.recordset.slice(0, MAX_ROWS);
   const rowCount = result.recordset.length;
-  let isTruncated = rowCount > MAX_ROWS;
+  const isTruncated = rowCount > MAX_ROWS;
 
   // Trim down results by character count, if necessary
   let serialized = JSON.stringify({ success: true, rowCount: Math.min(rowCount, MAX_ROWS), truncated: isTruncated, data: rows }, null, 2);

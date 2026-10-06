@@ -94,7 +94,7 @@ export async function generateNextWeekPlanWithLlm(
 
   const volumeLandmarks = await formatVolumeLandmarksForPrompt(userId);
   const planPrompt = buildWeekPlanPrompt(weekContext, weekId, daysPerWeek, profileContext, volumeLandmarks);
-  const outputFile = await callLLM(userId, planPrompt);
+  const outputFile = await callLLM(userId, planPrompt, 'golem_week');
   const planRaw = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
   const sessionPlans = parseWeekPlanResponse(planRaw);

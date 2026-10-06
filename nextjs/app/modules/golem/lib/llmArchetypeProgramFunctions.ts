@@ -210,7 +210,7 @@ export async function generateArchetypeProgram(
     // LLM CALL — single structured response (structure + archetype assignment)
     console.log('[GenerateArchetypeProgram] Calling LLM for program structure + archetype assignment...');
     const prompt = buildPrompt(prompts, daysPerWeek, muscleNames, existing, profileContext);
-    const outputFile = await callLLM(userId, prompt);
+    const outputFile = await callLLM(userId, prompt, 'golem_program');
     const rawContent = readLLMOutput(outputFile);
     try { unlinkSync(outputFile); } catch { /* temp cleanup */ }
     const out = parseLLMResponse(rawContent) as unknown as LlmArchetypeProgramOutput;

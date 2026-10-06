@@ -151,7 +151,7 @@ async function generateAndInsertCards(
 
   // Call LLM
   console.log(`[GenerateCards] Calling LLM for deck '${deckName}'`);
-  const outputFile = await callLLM(taskPrompt);
+  const outputFile = await callLLM(userId, taskPrompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -204,7 +204,7 @@ async function generateAndInsertCardsFromDescription(
 
   // Call LLM
   console.log(`[GenerateCards] Calling LLM for deck '${deckName}' from description`);
-  const outputFile = await callLLM(taskPrompt);
+  const outputFile = await callLLM(userId, taskPrompt);
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 

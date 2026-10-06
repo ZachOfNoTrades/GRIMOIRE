@@ -1,21 +1,24 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import { spawn } from 'child_process';
+import { extractJson, generateJson, generateText, usesOpenRouter } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
 
-// 60s ceiling for the Claude CLI call. Vision on a phone-photo label is typically
-// 7-15s; the cap is here so a stuck CLI invocation can't hang the request indefinitely.
-const CLAUDE_TIMEOUT_MS = 60_000;
+// 60s ceiling for the model call. Vision on a phone-photo label is typically
+// 7-15s; the cap is here so a stuck call can't hang the request indefinitely.
+const LLM_TIMEOUT_MS = 60_000;
 
 // Nutrient codes the modal knows how to render — from the ledger (single source of
 // truth), excluding `creatine` (in the ledger but not yet seeded in food_nutrients).
 // Sent in the prompt so the LLM only emits codes that downstream code will accept.
 const KNOWN_NUTRIENT_CODES = NUTRIENT_CODES_IN_ORDER.filter((code) => code !== 'creatine');
 
-function buildPrompt(imagePaths: string[], outputPath: string, knownUnits: Set<string>): string {
+// Two openings for the same task: on the Claude CLI the model Reads the files at
+// `imagePaths` and Writes its answer to `outputPath`; on OpenRouter the photos are
+// attached to the request and the answer is the reply itself (outputPath null).
+function buildPrompt(imagePaths: string[], outputPath: string | null, knownUnits: Set<string>): string {
   const unitsList = Array.from(knownUnits).sort().join(', ');
   const codesList = KNOWN_NUTRIENT_CODES.join(', ');
   const iconList = FOOD_ICON_CODES.join(', ');
@@ -26,12 +29,15 @@ function buildPrompt(imagePaths: string[], outputPath: string, knownUnits: Set<s
   // nutrition off the panel. Whichever angle is clearest for a given field wins.
   const isMulti = imagePaths.length > 1;
   const imageLines = imagePaths.map((p, i) => `  ${i + 1}. ${p}`).join('\n');
+  const answerWith = outputPath ? `Write a single JSON object to ${outputPath}.` : 'Reply with a single JSON object.';
   const intro = isMulti
-    ? `You are given ${imagePaths.length} photos of the SAME packaged food, taken from different sides (e.g. the front/marketing face and the back nutrition-facts panel):
-${imageLines}
+    ? `You are given ${imagePaths.length} photos of the SAME packaged food, taken from different sides (e.g. the front/marketing face and the back nutrition-facts panel)${outputPath ? `:\n${imageLines}` : ' (attached, in order).'}
 
-Read EVERY image, then combine what you see into a single product. The brand and product name are usually on the FRONT/marketing face; the calories, macros and nutrient amounts are on the nutrition-facts panel. Take each field from whichever image shows it most clearly. Write a single JSON object to ${outputPath}.`
-    : `Read the nutrition label image at ${imagePaths[0]}. Extract the nutrition facts and write a single JSON object to ${outputPath}.`;
+Read EVERY image, then combine what you see into a single product. The brand and product name are usually on the FRONT/marketing face; the calories, macros and nutrient amounts are on the nutrition-facts panel. Take each field from whichever image shows it most clearly. ${answerWith}`
+    : `Read the ${outputPath ? `nutrition label image at ${imagePaths[0]}` : 'attached nutrition label image'}. Extract the nutrition facts and ${outputPath ? `write a single JSON object to ${outputPath}` : 'reply with a single JSON object'}.`;
+  const outro = outputPath
+    ? `Write valid JSON only — no prose, no markdown fences, no explanation. After writing the file, output the single word "done".`
+    : `Reply with valid JSON only — no prose, no markdown fences, no explanation.`;
   return `${intro}
 
 JSON shape (strict — extra/misnamed keys break the consumer):
@@ -64,70 +70,45 @@ Rules:
 - If the label only shows %DV for a nutrient, back-calculate using FDA 2016 Daily Values (e.g. phosphorus 10% × 1250mg = 125mg).
 - When (and only when) serving_size_stated is true, don't stop at the nutrition-facts panel: also read the INGREDIENTS list and any SUPPLEMENT FACTS panel for trackable nutrients in the known-codes list. Some actives — caffeine above all — are usually declared there (e.g. "Caffeine 200mg", "Caffeine (from green tea extract) 150mg", "Caffeine Anhydrous 150mg") rather than in the nutrition facts. When an ingredient names a known-code nutrient WITH an explicit per-serving amount, emit it in nutrients_by_code under its code (caffeine in mg). Only emit a quantified amount — if an ingredient is listed by name with no amount, omit it (do not guess). A caffeine pill's Supplement Facts panel that states "Serving size 1 capsule" counts as serving_size_stated=true even if caffeine is the only line.
 
-Write valid JSON only — no prose, no markdown fences, no explanation. After writing the file, output the single word "done".`;
+${outro}`;
 }
 
-// Spawns the Claude CLI in print-mode with Read+Write tools auto-allowed, asks it
-// to OCR one OR MORE images of the same packaged food (e.g. front + back) and emit
-// a strict JSON draft, then parses and returns the draft. Reading multiple sides
-// lets the model pull the brand/name off the front while still getting nutrition
-// off the facts panel. Throws on timeout, non-zero exit, missing output file, or
-// invalid JSON shape. Designed as a drop-in replacement for parseLabelImage().
+// OCR one OR MORE images of the same packaged food (e.g. front + back) into a strict
+// JSON draft on the user's `forage_label_image` backend. Reading multiple sides lets
+// the model pull the brand/name off the front while still getting nutrition off the
+// facts panel. Throws on timeout, backend failure, or invalid JSON shape. Designed as
+// a drop-in replacement for parseLabelImage().
 export async function parseLabelImageWithLLM(opts: {
+  userId: string;
   imagePaths: string[];
   knownUnits: Set<string>;
 }): Promise<LabelOcrDraft> {
-  const { imagePaths, knownUnits } = opts;
+  const { userId, imagePaths, knownUnits } = opts;
   if (imagePaths.length === 0) throw new Error('parseLabelImageWithLLM: no image paths provided');
-  const tmpDir = join(process.cwd(), '.tmp');
-  if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
 
-  const outputPath = join(tmpDir, `forage-label-llm-${randomUUID()}.json`);
-  const prompt = buildPrompt(imagePaths, outputPath, knownUnits);
-
-  return new Promise<LabelOcrDraft>((resolve, reject) => {
-    const proc = spawn(
-      'claude',
-      [
-        '-p',
-        '--output-format', 'text',
-        '--no-session-persistence',
-        '--permission-mode', 'bypassPermissions',
-        '--allowedTools', 'Read,Write',
-      ],
-      { timeout: CLAUDE_TIMEOUT_MS, shell: false, env: { ...process.env } }
-    );
-    let stdout = '';
-    let stderr = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('error', (err) => reject(new Error(`Failed to start claude CLI: ${err.message}`)));
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`claude CLI exited with code ${code}: ${(stderr || stdout).trim().slice(0, 400)}`));
-        return;
-      }
-      if (!existsSync(outputPath)) {
-        reject(new Error(`claude CLI finished but did not write ${outputPath}. stdout: ${stdout.trim().slice(0, 400)}`));
-        return;
-      }
-      try {
-        const raw = readFileSync(outputPath, 'utf8');
-        // Tolerate leading/trailing whitespace, accidental ```json fences, and a "done"
-        // tail that Claude sometimes appends inside the file.
-        const cleaned = raw.replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/i, '').trim();
-        const parsed = JSON.parse(cleaned);
-        const draft = coerceDraft(parsed, knownUnits);
-        try { unlinkSync(outputPath); } catch {}
-        console.log(`[ForageOCR-LLM] draft: ${JSON.stringify(draft)}`);
-        resolve(draft);
-      } catch (err: any) {
-        reject(new Error(`claude CLI wrote invalid JSON to ${outputPath}: ${err?.message ?? err}`));
-      }
+  let parsed: unknown;
+  if (await usesOpenRouter(userId, 'forage_label_image')) {
+    parsed = await generateJson(userId, 'forage_label_image', {
+      prompt: buildPrompt(imagePaths, null, knownUnits),
+      images: imagePaths.map((path) => ({ path })),
+      timeoutMs: LLM_TIMEOUT_MS,
     });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
+  } else {
+    const tmpDir = join(process.cwd(), '.tmp');
+    if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+    const outputPath = join(tmpDir, `forage-label-llm-${randomUUID()}.json`);
+    const raw = await generateText(userId, 'forage_label_image', {
+      prompt: buildPrompt(imagePaths, outputPath, knownUnits),
+      timeoutMs: LLM_TIMEOUT_MS,
+      cli: { permissionMode: 'bypassPermissions', allowedTools: 'Read,Write', outputFile: outputPath },
+    });
+    // Tolerate accidental ```json fences and a "done" tail inside the file.
+    parsed = extractJson(raw);
+  }
+
+  const draft = coerceDraft(parsed, knownUnits);
+  console.log(`[ForageOCR-LLM] draft: ${JSON.stringify(draft)}`);
+  return draft;
 }
 
 // Defensively coerce the LLM's JSON to the LabelOcrDraft shape. Drops unknown

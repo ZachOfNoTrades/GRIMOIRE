@@ -135,9 +135,10 @@ function runTesseract(imagePath: string): Promise<string> {
 // MIME, oversize, tesseract crash).
 export async function parseLabelImage(opts: {
   images: { imageBytes: Buffer; mimeType: string }[];
-  // Whose unit catalog the parser is allowed to emit. Passing it lets a scan land
-  // on one of the user's own custom units ("stick") instead of dropping it.
-  userId?: string | null;
+  // Whose unit catalog the parser is allowed to emit (a scan can land on one of the
+  // user's own custom units, "stick", instead of dropping it) — and whose model
+  // backend the vision call runs on.
+  userId: string;
 }): Promise<LabelOcrDraft> {
   const { images, userId } = opts;
 
@@ -208,7 +209,7 @@ export async function parseLabelImage(opts: {
   // the modal pre-fill is best-effort.
   try {
     const t0 = Date.now();
-    const llmDraft = await parseLabelImageWithLLM({ imagePaths, knownUnits });
+    const llmDraft = await parseLabelImageWithLLM({ userId, imagePaths, knownUnits });
     console.log(`[ForageOCR] LLM draft in ${Date.now() - t0}ms`);
     // Prefer the zbar-decoded barcode; fall back to the LLM's printed-digit read.
     llmDraft.barcode_upc = scannedBarcode ?? llmDraft.barcode_upc ?? null;

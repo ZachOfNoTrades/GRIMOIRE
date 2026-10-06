@@ -1,8 +1,12 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
-import { spawn } from 'child_process';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { extractJson, generateText, generateWithTools, usesOpenRouter } from '@/lib/llm/generate';
+import type { LlmTaskId } from '@/lib/llm/tasks';
+import { makeSqlTools } from '@/lib/llm/tools/sql';
 import { CreateProgramPayload } from '../types/program';
+import { getGolemConnection } from './db';
+import { MAX_RESULT_CHARS, MAX_ROWS, QUERY_TIMEOUT_MS, validateSqlQuery } from './sql_query_tool/sqlValidation.mjs';
 import { GeneratedSegment } from '../types/segment';
 import { GenerateProgramResult, ValidationResult } from '../types/llm';
 import { getAllExercises } from './exerciseFunctions';
@@ -17,13 +21,16 @@ export function buildPrompt(templateContext: string | null, profileContext: stri
   return assemblePrompt('generateProgram.md', templateContext, profileContext);
 }
 
-export async function callLLM(userId: string, taskPrompt: string): Promise<string> {
-  const provider = process.env.LLM_PROVIDER;
+// Ten minutes: a program generation reads the profile, exercises and history and
+// writes the whole structure in one agentic run.
+const TIMEOUT_MS = 600000;
 
-  if (!provider) {
-    throw new Error('LLM_PROVIDER environment variable is not set');
-  }
-
+// An agentic golem call on the user's backend for `task`. On the Claude CLI the model
+// gets Write + Bash (the user-scoped SQL script) and writes its answer to a file; on
+// OpenRouter it gets the in-process run_sql / read_schema tools and answers with the
+// JSON itself. Either way the answer lands in a temp file whose path is returned,
+// which is what every caller already expects.
+export async function callLLM(userId: string, taskPrompt: string, task: LlmTaskId = 'golem_program'): Promise<string> {
   // Prepare output file path for the LLM to write to
   const tmpDir = join(process.cwd(), '.tmp');
   if (!existsSync(tmpDir)) {
@@ -33,122 +40,47 @@ export async function callLLM(userId: string, taskPrompt: string): Promise<strin
   const outputFile = join(tmpDir, `llm-output-${randomUUID()}.json`);
   const outputFilePosix = outputFile.replace(/\\/g, '/'); // Replace backslashes with forward slashes for better readability by LLM
 
-  // Wrap task prompt in base prompt template
-  const basePrompt = loadPromptFile('basePrompt.md');
-  const prompt = basePrompt
-    .replace('{{TASK_PROMPT}}', taskPrompt)
-    .replace(/\{\{USER_ID\}\}/g, userId)
-    .replace('{{OUTPUT_FILE}}', outputFilePosix);
-
-  switch (provider) {
-    case 'claude-code':
-      return callClaudeCode(prompt, outputFile);
-    case 'local':
-      return callLocalLLM(prompt, outputFile);
-    default:
-      throw new Error(`Unsupported LLM_PROVIDER: '${provider}'`);
-  }
-}
-
-async function callClaudeCode(prompt: string, outputFile: string): Promise<string> {
-  const timeoutMs = 600000; // 600-second timeout
-
-  return new Promise((resolve, reject) => {
-    const proc = spawn(
-      'claude',
-      [
-        '-p', // Print mode: accepts prompt from stdin, outputs response, then exits
-        '--output-format', 'text', // Output plain text instead of JSON/streaming format
-        '--no-session-persistence', // Don't save conversation to session history
-        '--tools', 'Write,Bash', // Write for output file, Bash for SQL queries
-        '--permission-mode', 'bypassPermissions', // Auto-accept all tool use (scoped by --tools above)
-      ], {
-      timeout: timeoutMs,
-      shell: true,
-      env: { ...process.env },
+  let text: string;
+  if (await usesOpenRouter(userId, task)) {
+    const prompt = loadPromptFile('basePrompt.openrouter.md').replace('{{TASK_PROMPT}}', taskPrompt);
+    const reply = await generateWithTools(userId, task, {
+      prompt,
+      json: true,
+      timeoutMs: TIMEOUT_MS,
+      maxRounds: 12,
+      tools: makeSqlTools({
+        userId,
+        getPool: getGolemConnection,
+        validate: validateSqlQuery,
+        limits: { QUERY_TIMEOUT_MS, MAX_ROWS, MAX_RESULT_CHARS },
+        databaseLabel: 'the training database',
+        guidance: 'User-owned tables (programs, blocks, weeks, workout_sessions, session_segments, session_segment_sets, target_session_segments, target_session_segment_sets, program_templates, user_profiles, user_exercise_overrides) must be filtered with user_id = @userId; exercises holds system rows (user_id IS NULL) and the user\'s own.',
+      }),
     });
-
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', (data: Buffer) => {
-      stdout += data.toString();
+    // A chat reply may wrap the JSON in a sentence or a fence; the file must hold
+    // bare JSON for the structured tasks. The session analysis is prose and is
+    // kept as the model wrote it.
+    text = task === 'golem_analysis' ? reply : JSON.stringify(extractJson(reply));
+  } else {
+    // Wrap task prompt in base prompt template
+    const prompt = loadPromptFile('basePrompt.md')
+      .replace('{{TASK_PROMPT}}', taskPrompt)
+      .replace(/\{\{USER_ID\}\}/g, userId)
+      .replace('{{OUTPUT_FILE}}', outputFilePosix);
+    text = await generateText(userId, task, {
+      prompt,
+      timeoutMs: TIMEOUT_MS,
+      cli: {
+        tools: 'Write,Bash', // Write for output file, Bash for SQL queries
+        permissionMode: 'bypassPermissions', // Auto-accept all tool use (scoped by --tools above)
+        shell: true,
+        outputFile,
+      },
     });
-
-    proc.stderr.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on('error', (error) => {
-      reject(new Error(`Failed to start Claude CLI: ${error.message}`));
-    });
-
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`Claude CLI exited with code ${code}: ${stderr.trim()}`));
-        return;
-      }
-
-      // Log stdout for debugging
-      const stdoutTrimmed = stdout.trim();
-      if (stdoutTrimmed.length > 0) {
-        console.log(`[CallClaudeCode] stdout (${stdoutTrimmed.length} chars):\n${stdoutTrimmed}`);
-      }
-
-      // Verify the LLM wrote the output file
-      if (!existsSync(outputFile)) {
-        reject(new Error(`Claude CLI completed but did not write output file: ${outputFile}`));
-        return;
-      }
-
-      console.log(`[CallClaudeCode] Output file written by LLM: ${outputFile}`);
-      resolve(outputFile);
-    });
-
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
-}
-
-async function callLocalLLM(prompt: string, outputFile: string): Promise<string> {
-  const serverUrl = process.env.LLM_SERVER_URL;
-  const model = process.env.LLM_MODEL;
-
-  if (!serverUrl) {
-    throw new Error('LLM_SERVER_URL environment variable is not set');
-  }
-  if (!model) {
-    throw new Error('LLM_MODEL environment variable is not set');
   }
 
-  // Auto-prepend http:// if no protocol specified
-  const baseUrl = serverUrl.match(/^https?:\/\//) ? serverUrl : `http://${serverUrl}`;
-
-  // OpenAI-compatible chat completions endpoint
-  const url = `${baseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Local LLM request failed (${response.status}): ${errorText}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-
-  // Write response to file
-  writeFileSync(outputFile, content, 'utf-8');
-  console.log(`[CallLocalLLM] Response written to: ${outputFile}`);
-
+  writeFileSync(outputFile, text, 'utf-8');
+  console.log(`[CallLLM] Output written: ${outputFile}`);
   return outputFile;
 }
 
@@ -213,14 +145,14 @@ export async function generateProgram(
   profileContext: string | null = null,
 ): Promise<GenerateProgramResult> {
   const prompt = buildPrompt(templateContext, profileContext);
-  const outputFile = await callLLM(userId, prompt);
+  const outputFile = await callLLM(userId, prompt, 'golem_program');
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
   const programPayload = parseLLMResponse(rawContent);
 
   return {
     programPayload,
-    modelUsed: process.env.LLM_PROVIDER || 'unknown',
+    modelUsed: (await usesOpenRouter(userId, 'golem_program')) ? 'openrouter' : 'claude-code',
   };
 }
 
@@ -243,7 +175,7 @@ export async function generateSessionTargetsWithLlm(
     .replace('{{USER_DESCRIPTION}}', sessionDescription);
 
   console.log(`[GenerateSessionTargets] Calling LLM for session '${sessionName}'`);
-  const outputFile = await callLLM(userId, prompt);
+  const outputFile = await callLLM(userId, prompt, 'golem_session');
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -295,7 +227,7 @@ export async function generateSessionAnalysisWithLlm(
     .replace('{{SESSION_REVIEW}}', sessionReview || 'None provided');
 
   console.log(`[GenerateSessionAnalysis] Calling LLM for session '${sessionId}'`);
-  const outputFile = await callLLM(userId, prompt);
+  const outputFile = await callLLM(userId, prompt, 'golem_analysis');
   const analysis = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 
@@ -316,7 +248,7 @@ export async function regenerateSessionPlanWithLlm(
   const prompt = basePrompt.replace('{{SESSION_ID}}', sessionId);
 
   console.log(`[RegenerateSessionPlan] Calling LLM for session '${sessionId}'`);
-  const outputFile = await callLLM(userId, prompt);
+  const outputFile = await callLLM(userId, prompt, 'golem_regenerate');
   const rawContent = readLLMOutput(outputFile);
   try { unlinkSync(outputFile); } catch { } // Clear temp file
 

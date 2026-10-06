@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     writeFileSync(imagePath, buffer);
 
-    const items = await identifyRecipePhoto(imagePath);
+    const items = await identifyRecipePhoto(userId, imagePath);
     if (items.length === 0) {
       return NextResponse.json({ ingredients: [] });
     }

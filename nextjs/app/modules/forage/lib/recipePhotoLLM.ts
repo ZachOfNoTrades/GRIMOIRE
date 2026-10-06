@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import { spawn } from 'child_process';
+import { extractJson, generateJson, generateText, usesOpenRouter } from '@/lib/llm/generate';
 
-const CLAUDE_TIMEOUT_MS = 60_000;
+const LLM_TIMEOUT_MS = 60_000;
 
 export interface RecipePhotoItem {
   name: string;
@@ -12,10 +12,21 @@ export interface RecipePhotoItem {
   grams: number;
 }
 
-function buildPrompt(imagePath: string, outputPath: string): string {
-  return `Look at the food photo at ${imagePath}. Identify every distinct food ingredient visible. For each one, estimate the amount that appears in the photo using the food's most natural real-world measure.
+// Two openings for the same task: on the Claude CLI the model Reads the file at
+// `imagePath` and Writes its answer to `outputPath`; on OpenRouter the photo is
+// attached to the request and the answer is the reply itself (outputPath null).
+function buildPrompt(imagePath: string, outputPath: string | null): string {
+  const intro = outputPath
+    ? `Look at the food photo at ${imagePath}. Identify every distinct food ingredient visible. For each one, estimate the amount that appears in the photo using the food's most natural real-world measure.
 
-Write a JSON array to ${outputPath}.
+Write a JSON array to ${outputPath}.`
+    : `Look at the attached food photo. Identify every distinct food ingredient visible. For each one, estimate the amount that appears in the photo using the food's most natural real-world measure.
+
+Reply with a JSON array.`;
+  const outro = outputPath
+    ? `Write valid JSON only — no prose, no markdown fences, no explanation. After writing the file, output the single word "done".`
+    : `Reply with valid JSON only — no prose, no markdown fences, no explanation.`;
+  return `${intro}
 
 JSON shape (strict):
 [
@@ -34,57 +45,33 @@ Rules:
 - Order from most prominent to least prominent ingredient.
 - If you cannot identify any food in the image, write an empty array [].
 
-Write valid JSON only — no prose, no markdown fences, no explanation. After writing the file, output the single word "done".`;
+${outro}`;
 }
 
-export async function identifyRecipePhoto(imagePath: string): Promise<RecipePhotoItem[]> {
-  const tmpDir = join(process.cwd(), '.tmp');
-  if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
-
-  const outputPath = join(tmpDir, `forage-recipe-photo-${randomUUID()}.json`);
-  const prompt = buildPrompt(imagePath, outputPath);
-
-  return new Promise<RecipePhotoItem[]>((resolve, reject) => {
-    const proc = spawn(
-      'claude',
-      [
-        '-p',
-        '--output-format', 'text',
-        '--no-session-persistence',
-        '--permission-mode', 'bypassPermissions',
-        '--allowedTools', 'Read,Write',
-      ],
-      { timeout: CLAUDE_TIMEOUT_MS, shell: false, env: { ...process.env } }
-    );
-    let stdout = '';
-    let stderr = '';
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.on('error', (err) => reject(new Error(`Failed to start claude CLI: ${err.message}`)));
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`claude CLI exited ${code}: ${(stderr || stdout).trim().slice(0, 400)}`));
-        return;
-      }
-      if (!existsSync(outputPath)) {
-        reject(new Error(`claude CLI finished but did not write ${outputPath}. stdout: ${stdout.trim().slice(0, 400)}`));
-        return;
-      }
-      try {
-        const raw = readFileSync(outputPath, 'utf8');
-        const cleaned = raw.replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/i, '').trim();
-        const parsed = JSON.parse(cleaned);
-        const items = coerceItems(parsed);
-        try { unlinkSync(outputPath); } catch {}
-        console.log(`[ForageRecipePhoto-LLM] identified ${items.length} items`);
-        resolve(items);
-      } catch (err: any) {
-        reject(new Error(`Invalid JSON in ${outputPath}: ${err?.message ?? err}`));
-      }
+// Identify the ingredients in a photo on the user's `forage_recipe_photo` backend.
+export async function identifyRecipePhoto(userId: string, imagePath: string): Promise<RecipePhotoItem[]> {
+  let parsed: unknown;
+  if (await usesOpenRouter(userId, 'forage_recipe_photo')) {
+    parsed = await generateJson(userId, 'forage_recipe_photo', {
+      prompt: buildPrompt(imagePath, null),
+      images: [{ path: imagePath }],
+      timeoutMs: LLM_TIMEOUT_MS,
     });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
+  } else {
+    const tmpDir = join(process.cwd(), '.tmp');
+    if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+    const outputPath = join(tmpDir, `forage-recipe-photo-${randomUUID()}.json`);
+    const raw = await generateText(userId, 'forage_recipe_photo', {
+      prompt: buildPrompt(imagePath, outputPath),
+      timeoutMs: LLM_TIMEOUT_MS,
+      cli: { permissionMode: 'bypassPermissions', allowedTools: 'Read,Write', outputFile: outputPath },
+    });
+    // Tolerate accidental ```json fences and a "done" tail inside the file.
+    parsed = extractJson(raw);
+  }
+  const items = coerceItems(parsed);
+  console.log(`[ForageRecipePhoto-LLM] identified ${items.length} items`);
+  return items;
 }
 
 function coerceItems(raw: unknown): RecipePhotoItem[] {

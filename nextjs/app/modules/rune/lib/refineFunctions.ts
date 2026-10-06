@@ -56,7 +56,7 @@ export async function proposeDeckRefinement(
 
     // Call LLM
     console.log(`[RefineDeck] Calling LLM for deck '${deck.name}'`);
-    const outputFile = await callLLM(taskPrompt);
+    const outputFile = await callLLM(userId, taskPrompt);
     const rawContent = readLLMOutput(outputFile);
     try { unlinkSync(outputFile); } catch { } // Clear temp file
 
