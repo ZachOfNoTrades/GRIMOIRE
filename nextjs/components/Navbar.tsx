@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect, useRef, ReactNode } from "react";
 import Image from "next/image";
-import { Settings, LogOut, CircleUser, KeyRound, ShieldCheck } from "lucide-react";
+import { Settings, LogOut, CircleUser, BarChart3, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PermissionGuardClient from "@/components/PermissionGuardClient";
 import MainNavDrawer from "@/components/MainNavDrawer";
@@ -262,14 +262,14 @@ export default function Navbar({ children }: NavbarProps) {
             </Link>
           </PermissionGuardClient>
 
-          {/* API KEYS LINK */}
+          {/* USAGE LINK — the caller's own model-call log (Settings → AI → Usage). */}
           <Link
-            href="/account/api-keys"
+            href="/settings/ui/usage"
             onClick={() => setIsMenuOpen(false)}
             className="popover-item"
           >
-            <KeyRound className="w-4 h-4 mr-3" />
-            API keys
+            <BarChart3 className="w-4 h-4 mr-3" />
+            Usage
           </Link>
 
           {/* SIGN OUT */}

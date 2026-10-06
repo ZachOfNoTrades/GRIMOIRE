@@ -1,6 +1,6 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610042000 (Oracle item entries, downed entries, companions)
+-- Version: 202610051500 (Per-user LLM keys, per-task backend choice, usage log)
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -99,6 +99,10 @@ BEGIN TRY
         CREATE TABLE user_preferences (
             user_id UNIQUEIDENTIFIER PRIMARY KEY,
             theme NVARCHAR(10) NOT NULL DEFAULT 'auto', -- auto | light | dark
+            -- Per-task LLM backend choice, JSON keyed by nextjs/lib/llm/tasks.ts:
+            -- { "<task>": { "backend": "claude"|"openrouter", "model": "<openrouter id>" } }.
+            -- A missing task means the default (the shared Claude CLI).
+            llm_tasks NVARCHAR(MAX) NULL,
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 
@@ -147,6 +151,58 @@ BEGIN TRY
             CONSTRAINT PK_user_google_tokens PRIMARY KEY (user_id),
             CONSTRAINT FK_user_google_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+    END
+
+    -- =============================
+    -- User LLM Keys (per-user OpenRouter keys)
+    -- =============================
+    -- Sealed with AES-256-GCM under the app-wide USER_SECRETS_KEY (Infisical) and
+    -- bound to their user_id (GCM additional data), so a row cannot be read for any
+    -- other user even by copying it. Only nextjs/lib/llm/userKeys.ts touches this
+    -- table; no API ever returns the key. There is no app-wide OpenRouter key.
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_llm_keys' AND xtype='U')
+    BEGIN
+        CREATE TABLE user_llm_keys (
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            provider NVARCHAR(32) NOT NULL CONSTRAINT DF_user_llm_keys_provider DEFAULT 'openrouter',
+            key_ciphertext VARBINARY(512) NOT NULL,
+            key_iv BINARY(12) NOT NULL,
+            key_tag BINARY(16) NOT NULL,
+            key_last4 CHAR(4) NOT NULL,
+            key_label NVARCHAR(100) NULL,
+            ts_created DATETIME2 NOT NULL CONSTRAINT DF_user_llm_keys_ts_created DEFAULT SYSUTCDATETIME(),
+            ts_updated DATETIME2 NOT NULL CONSTRAINT DF_user_llm_keys_ts_updated DEFAULT SYSUTCDATETIME(),
+
+            CONSTRAINT PK_user_llm_keys PRIMARY KEY (user_id, provider),
+            CONSTRAINT FK_user_llm_keys_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+    END
+
+    -- =============================
+    -- LLM Usage (one row per model call)
+    -- =============================
+    -- Both backends (shared Claude CLI, the user's own OpenRouter key). Counts, cost
+    -- and timing only — never prompt or reply text. Backs Settings → AI and Usage.
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='llm_usage' AND xtype='U')
+    BEGIN
+        CREATE TABLE llm_usage (
+            id UNIQUEIDENTIFIER NOT NULL CONSTRAINT DF_llm_usage_id DEFAULT NEWSEQUENTIALID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            task NVARCHAR(40) NOT NULL,
+            backend NVARCHAR(16) NOT NULL,          -- claude | openrouter
+            model NVARCHAR(120) NOT NULL,
+            prompt_tokens INT NOT NULL CONSTRAINT DF_llm_usage_prompt DEFAULT 0,
+            completion_tokens INT NOT NULL CONSTRAINT DF_llm_usage_completion DEFAULT 0,
+            cost_usd DECIMAL(12,6) NULL,            -- OpenRouter usage.cost / CLI total_cost_usd
+            duration_ms INT NOT NULL CONSTRAINT DF_llm_usage_duration DEFAULT 0,
+            ok BIT NOT NULL CONSTRAINT DF_llm_usage_ok DEFAULT 1,
+            error_code NVARCHAR(40) NULL,
+            ts DATETIME2 NOT NULL CONSTRAINT DF_llm_usage_ts DEFAULT SYSUTCDATETIME(),
+
+            CONSTRAINT PK_llm_usage PRIMARY KEY (id),
+            CONSTRAINT FK_llm_usage_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IX_llm_usage_user_ts ON llm_usage (user_id, ts DESC);
     END
 
     -- =============================

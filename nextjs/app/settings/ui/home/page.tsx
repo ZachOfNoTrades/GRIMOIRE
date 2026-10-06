@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Settings, SunMoon, ShieldCheck } from "lucide-react";
+import { Settings, SunMoon, ShieldCheck, Cpu, BarChart3, KeyRound } from "lucide-react";
 import PermissionGuardClient from "@/components/PermissionGuardClient";
 import { SettingsGroup, type SettingsRowItem } from "@/components/settings/SettingsList";
 
@@ -16,6 +16,27 @@ export default function UserSettingsPage() {
       icon: SunMoon,
       label: "Theme",
       onClick: () => router.push("/settings/ui/theme"),
+    },
+  ];
+
+  const aiRows: SettingsRowItem[] = [
+    {
+      icon: Cpu,
+      label: "Models",
+      onClick: () => router.push("/settings/ui/llm"),
+    },
+    {
+      icon: BarChart3,
+      label: "Usage",
+      onClick: () => router.push("/settings/ui/usage"),
+    },
+  ];
+
+  const accountRows: SettingsRowItem[] = [
+    {
+      icon: KeyRound,
+      label: "API keys",
+      onClick: () => router.push("/settings/ui/api-keys"),
     },
   ];
 
@@ -40,6 +61,14 @@ export default function UserSettingsPage() {
         {/* APPEARANCE SECTION */}
         <h2 className="settings-section-title">Appearance</h2>
         <SettingsGroup rows={appearanceRows} />
+
+        {/* AI SECTION — per-task model backend + the usage log */}
+        <h2 className="settings-section-title">AI</h2>
+        <SettingsGroup rows={aiRows} />
+
+        {/* ACCOUNT SECTION */}
+        <h2 className="settings-section-title">Account</h2>
+        <SettingsGroup rows={accountRows} />
 
         {/* ADMINISTRATION SECTION (admin only) */}
         <PermissionGuardClient>

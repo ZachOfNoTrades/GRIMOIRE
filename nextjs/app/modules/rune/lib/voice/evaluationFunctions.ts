@@ -1,20 +1,8 @@
-import { spawn } from "child_process";
 import { tmpdir } from "os";
-import { join } from "path";
-import { writeFileSync, existsSync } from "fs";
 import { getEvaluationPrompts } from "../settingsFunctions";
-import { EVAL_EFFORT, EVAL_MODEL, runEvalOnWorker } from "./evalWorker";
-
-// Empty MCP config so the CLI skips connecting to MCP servers (the grimoire MCP
-// connection alone adds ~2-3s of startup per spawn). Written once, passed by path
-// to avoid shell-quoting a JSON literal.
-const EMPTY_MCP_CONFIG_PATH = join(tmpdir(), "rune-eval-empty-mcp.json");
-function ensureEmptyMcpConfig(): string {
-  if (!existsSync(EMPTY_MCP_CONFIG_PATH)) {
-    writeFileSync(EMPTY_MCP_CONFIG_PATH, '{"mcpServers":{}}');
-  }
-  return EMPTY_MCP_CONFIG_PATH;
-}
+import { runEvalOnWorker } from "./evalWorker";
+import { generate, extractJson, usesOpenRouter } from "@/lib/llm/generate";
+import { recordUsage } from "@/lib/llm/usage";
 
 export interface EvaluationResult {
   correct: boolean;
@@ -26,8 +14,13 @@ export interface EvaluationResult {
 }
 
 /**
- * Evaluate a user's spoken answer against the expected answer using Claude Code CLI.
- * Returns an EvaluationResult with correctness, suggested rating, and explanation.
+ * Evaluate a user's spoken answer against the expected answer.
+ *
+ * The backend is the user's choice for the `rune_eval` task (Settings → AI): on
+ * OpenRouter it is one stateless request with the user's key; on the shared Claude
+ * CLI it runs on the persistent per-session worker when one is given (warmed at
+ * study-session start), else a one-shot CLI call. A worker error falls back to the
+ * one-shot CLI call — same backend, so a worker problem never blocks grading.
  */
 export async function evaluateAnswer(
   userId: string,
@@ -35,10 +28,6 @@ export async function evaluateAnswer(
   expectedAnswer: string,
   userAnswer: string,
   notes: string | null,
-  // When provided, the eval runs on a persistent per-session worker (warmed at
-  // study-session start) instead of a cold one-shot spawn — removing ~3s of CLI
-  // startup from the critical path. Falls back to a one-shot spawn if the worker
-  // errors, so a worker problem never blocks grading.
   sessionKey?: string | null
 ): Promise<EvaluationResult> {
   const { systemPrompt, personalityPrompt } = await getEvaluationPrompts(userId);
@@ -54,29 +43,40 @@ export async function evaluateAnswer(
   console.log(`[Evaluate] User said: '${userAnswer}'`);
 
   let responseText: string;
-  if (sessionKey) {
+  if (sessionKey && !(await usesOpenRouter(userId, "rune_eval"))) {
+    const started = Date.now();
     try {
       responseText = await runEvalOnWorker(sessionKey, prompt);
+      // The worker's stream-json result line carries no per-turn cost, so the row
+      // records the call and its latency only.
+      recordUsage({ userId, task: "rune_eval", backend: "claude", model: "claude-cli:worker", promptTokens: 0, completionTokens: 0, costUsd: null, durationMs: Date.now() - started, ok: true, errorCode: null });
     } catch (error) {
-      console.warn(`[Evaluate] Worker failed, falling back to one-shot spawn: ${error instanceof Error ? error.message : error}`);
-      responseText = await callClaude(prompt);
+      console.warn(`[Evaluate] Worker failed, falling back to one-shot CLI call: ${error instanceof Error ? error.message : error}`);
+      responseText = await callOneShot(userId, prompt);
     }
   } else {
-    responseText = await callClaude(prompt);
+    responseText = await callOneShot(userId, prompt);
   }
-  console.log(`[Evaluate] Claude response: ${responseText}`);
+  console.log(`[Evaluate] Model response: ${responseText}`);
 
   return parseEvaluation(responseText);
 }
 
+// One request on whichever backend the user chose. The CLI flags match the warm
+// worker (model + effort, no MCP, neutral cwd) so a fallback grades identically.
+async function callOneShot(userId: string, prompt: string): Promise<string> {
+  const result = await generate(userId, "rune_eval", {
+    prompt,
+    json: true,
+    timeoutMs: 30000,
+    cli: { cwd: tmpdir(), shell: true },
+  });
+  return result.text;
+}
+
 /** Parse the model's JSON response (may be wrapped in markdown fences) into an EvaluationResult. */
 function parseEvaluation(responseText: string): EvaluationResult {
-  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Failed to parse evaluation response as JSON");
-  }
-
-  const parsed = JSON.parse(jsonMatch[0]);
+  const parsed = extractJson(responseText) as { correct?: unknown; suggested_rating?: unknown; explanation?: unknown };
 
   const result: EvaluationResult = {
     correct: Boolean(parsed.correct),
@@ -88,60 +88,4 @@ function parseEvaluation(responseText: string): EvaluationResult {
   console.log(`[Evaluate] Result: correct=${result.correct}, rating=${result.suggestedRating}, explanation='${result.explanation}'`);
 
   return result;
-}
-
-/** Spawn Claude CLI with no tools, pipe prompt via stdin, read stdout. */
-function callClaude(prompt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(
-      "claude",
-      [
-        "-p",
-        "--output-format", "text",
-        "--no-session-persistence",
-        // Skip MCP server connections — biggest per-spawn startup cost (~2-3s).
-        "--strict-mcp-config",
-        "--mcp-config", ensureEmptyMcpConfig(),
-        // Same model and effort as the warm worker (see evalWorker.ts) so a fallback
-        // spawn grades identically to the fast path — only slower, since this one
-        // pays full CLI startup.
-        "--model", EVAL_MODEL,
-        "--effort", EVAL_EFFORT,
-      ],
-      {
-        timeout: 30000,
-        shell: true,
-        // Neutral cwd so the CLI doesn't load the large grimoire project CLAUDE.md (~1s).
-        cwd: tmpdir(),
-        env: { ...process.env },
-      }
-    );
-
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on("data", (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on("error", (error) => {
-      reject(new Error(`Claude CLI error: ${error.message}`));
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve(stdout.trim());
-      } else {
-        reject(new Error(`Claude CLI exited with code ${code}: ${stderr}`));
-      }
-    });
-
-    console.log("[Evaluate] Spawning Claude CLI...");
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
 }

@@ -1,5 +1,5 @@
 import { unlinkSync } from 'fs';
-import { spawn } from 'child_process';
+import { generateJson } from '@/lib/llm/generate';
 import { getDeckById } from './deckFunctions';
 import { getCardsByDeckId, updateCard } from './cardFunctions';
 import type { RequestChannel } from '@/lib/permissions';
@@ -151,22 +151,13 @@ export async function refineCard(
 
   console.log(`[RefineCard] Calling LLM for card '${card.front.substring(0, 50)}'`);
 
-  const responseText = await callClaudeLightweight(filledPrompt);
-  console.log(`[RefineCard] Claude response: ${responseText}`);
-
-  // Parse JSON from response
-  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error('Failed to parse card refinement response as JSON');
-  }
-
-  let parsed: RefineCardPayload;
-  try {
-    parsed = JSON.parse(jsonMatch[0]);
-  } catch {
-    const preview = jsonMatch[0].substring(0, 200);
-    throw new Error(`Failed to parse card refinement response as JSON. Preview: ${preview}`);
-  }
+  // No tools: the card text is the only input and a JSON object the only output.
+  // 60 s matches the one-shot CLI call this replaced.
+  const parsed = (await generateJson(userId, 'rune_refine', {
+    prompt: filledPrompt,
+    timeoutMs: 60000,
+    cli: { shell: true },
+  })) as RefineCardPayload;
 
   if (!parsed.front || !parsed.back) {
     throw new Error('Refined card must have front and back fields');
@@ -212,48 +203,3 @@ function parseRefineDeckResponse(rawContent: string): RefineDeckPayload {
   return payload;
 }
 
-// Spawn Claude CLI with no tools for lightweight single-card refinement
-function callClaudeLightweight(prompt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(
-      'claude',
-      [
-        '-p',
-        '--output-format', 'text',
-        '--no-session-persistence',
-      ],
-      {
-        timeout: 60000,
-        shell: true,
-        env: { ...process.env },
-      },
-    );
-
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on('error', (error) => {
-      reject(new Error(`Claude CLI error: ${error.message}`));
-    });
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve(stdout.trim());
-      } else {
-        reject(new Error(`Claude CLI exited with code ${code}: ${stderr}`));
-      }
-    });
-
-    console.log('[RefineCard] Spawning Claude CLI...');
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
-}

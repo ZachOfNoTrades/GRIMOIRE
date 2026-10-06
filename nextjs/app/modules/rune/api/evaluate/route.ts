@@ -3,6 +3,8 @@ import { getAuthorizedUser } from "@/lib/permissions";
 import { evaluateAnswer } from "../../lib/voice/evaluationFunctions";
 import { warmWorker, disposeWorker } from "../../lib/voice/evalWorker";
 import { warmSynthesizer } from "../../lib/voice/ttsFunctions";
+import { usesOpenRouter } from "@/lib/llm/generate";
+import { LlmBackendError } from "@/lib/llm/types";
 
 // Per-session worker keys are namespaced by the authenticated user so one user's
 // key can never address another user's worker.
@@ -21,7 +23,11 @@ export async function POST(request: NextRequest) {
 
     // Lifecycle actions (no eval): pre-warm a session worker, or tear it down.
     if (warm && sessionKey) {
-      warmWorker(workerKey(userId, sessionKey)); // fire-and-forget; startup hides behind card 1 TTS
+      // The CLI worker only serves the claude backend; an OpenRouter grader is a
+      // stateless request and has nothing to warm.
+      if (!(await usesOpenRouter(userId, "rune_eval"))) {
+        warmWorker(workerKey(userId, sessionKey)); // fire-and-forget; startup hides behind card 1 TTS
+      }
       // Study start is also the right moment to load the Piper voice, so the first
       // spoken explanation doesn't pay the model load on the critical path.
       warmSynthesizer();
@@ -51,6 +57,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result, { status: 200 });
 
   } catch (error) {
+    if (error instanceof LlmBackendError) {
+      return NextResponse.json({ error: error.message, code: error.code, fallback: true }, { status: error.status });
+    }
     console.error("Error in POST /modules/rune/api/evaluate:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Evaluation failed", fallback: true },
