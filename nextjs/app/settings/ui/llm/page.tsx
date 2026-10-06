@@ -83,12 +83,14 @@ function ctxLabel(ctx: number): string {
   return ctx >= 1_000_000 ? `${(ctx / 1_000_000).toFixed(1)}M` : `${Math.round(ctx / 1000)}K`;
 }
 
-// `{Model} | ~$cost | {seconds}s` — the estimate for THIS task on that model.
+// `{Model} | ~$cost | {seconds}s` — the estimate for THIS task on that model. A
+// figure that doesn't exist is left out rather than shown as a dash.
 function optionLabel(m: CatalogModel | undefined): string {
   if (!m) return "";
-  const cost = m.estCostUsd === null ? "—" : `~${money(m.estCostUsd)}`;
-  const secs = m.estSeconds === null ? "—" : `${m.estSeconds < 10 ? m.estSeconds.toFixed(1) : Math.round(m.estSeconds)}s`;
-  return `${m.name} | ${cost} | ${secs}`;
+  const parts = [m.name];
+  if (m.estCostUsd !== null) parts.push(`~${money(m.estCostUsd)}`);
+  if (m.estSeconds !== null) parts.push(`${m.estSeconds < 10 ? m.estSeconds.toFixed(1) : Math.round(m.estSeconds)}s`);
+  return parts.join(" | ");
 }
 
 // The footer under a dropdown: the catalog's facts, nothing else.
