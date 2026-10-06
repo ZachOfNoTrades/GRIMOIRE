@@ -91,25 +91,14 @@ function optionLabel(m: CatalogModel | undefined): string {
   return `${m.name} | ${cost} | ${secs}`;
 }
 
-// The footer under a dropdown: the catalog's facts plus where the estimate came from.
+// The footer under a dropdown: the catalog's facts, nothing else.
 function modelFooter(m: CatalogModel | undefined): string {
-  if (!m) return "";
-  const parts: string[] = [m.id];
-  if (m.info) {
-    parts.push(`${perM(m.info.promptPerM)} in / ${perM(m.info.completionPerM)} out per M tokens`);
-    if (m.info.ctx) parts.push(`${ctxLabel(m.info.ctx)} context`);
-    const caps = [m.info.imageIn && "reads images", m.info.tools && "tools", m.info.imageOut && "generates images"].filter(Boolean) as string[];
-    if (caps.length) parts.push(caps.join(", "));
-    if (m.info.created) parts.push(`released ${m.info.created.slice(0, 7)}`);
-  }
-  const { taskCalls, modelCalls } = m.basis;
-  parts.push(
-    modelCalls > 0
-      ? `estimate from ${modelCalls} call${modelCalls === 1 ? "" : "s"} on this model`
-      : taskCalls > 0
-        ? `estimate from ${taskCalls} call${taskCalls === 1 ? "" : "s"} of this task`
-        : "estimate from typical prompt size, no calls logged yet"
-  );
+  if (!m?.info) return "";
+  const parts: string[] = [m.id, `${perM(m.info.promptPerM)} in / ${perM(m.info.completionPerM)} out per M`];
+  if (m.info.ctx) parts.push(`${ctxLabel(m.info.ctx)} ctx`);
+  const caps = [m.info.imageIn && "reads images", m.info.tools && "tools", m.info.imageOut && "generates images"].filter(Boolean) as string[];
+  if (caps.length) parts.push(caps.join(", "));
+  if (m.info.created) parts.push(m.info.created.slice(0, 7));
   return parts.join(" · ");
 }
 
@@ -345,7 +334,8 @@ export default function LlmSettingsPage() {
               { heading: "Backends", body: "Claude is the shared Claude Code CLI. OpenRouter runs the same task on any model there, billed to your own OpenRouter account." },
               { heading: "Key", body: "Your key is checked with OpenRouter when saved, stored encrypted and bound to your account, and never shown again. Nothing runs on it except your own tasks." },
               { heading: "Tasks", body: "Each task picks its backend on its own. A task on OpenRouter with no key saved fails instead of using Claude." },
-              { heading: "Models", body: "The dropdown lists what fits the task — on OpenRouter, models that can read images, call tools or draw, as the task needs, cheapest first. The recommended one is the newest release of a proven family at the lowest price. Manual entry takes any other id; it's checked against the list before it can be saved." },
+              { heading: "Models", body: "The dropdown lists what fits the task — on OpenRouter, models that can read images, call tools or draw, as the task needs. The recommended one is the newest release of a proven family at the lowest price. Manual entry takes any other id; it's checked against the list before it can be saved." },
+              { heading: "Estimates", body: "~$ and seconds per call for that task: this task's logged token counts × the model's price, and the logged duration on that model. Before any calls, typical sizes stand in." },
             ]}
           />
         </div>
