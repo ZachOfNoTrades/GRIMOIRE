@@ -1425,8 +1425,20 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .orc-map-viewer .orc-feature { filter: saturate(1.8); }
 /* LABEL BACKDROPS — optional, from the map bar. They follow the black/white control: the theme's
    ground by default, black or white once the DM picks one. */
-.orc-feature-label-bg { fill: var(--solid-background); fill-opacity: 0.85; stroke: var(--card-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.orc-feature-label-bg { fill: var(--solid-background); fill-opacity: 1; stroke: var(--card-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .orc-map[data-ground="black"] .orc-feature-label-bg { fill: #000; stroke: rgba(255, 255, 255, 0.25); }
 .orc-map[data-ground="white"] .orc-feature-label-bg { fill: #fff; stroke: rgba(0, 0, 0, 0.2); }
-.orc-label-bg-toggle[aria-pressed="true"] { color: var(--color-primary); background: var(--hover-bg); }
+/* On, the label toggle is outlined in its own text color, so it reads on any ground and theme. */
+.orc-label-bg-toggle[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px currentColor; }
 .orc-map-prop-text { white-space: pre-wrap; }
+/* A backed name takes its color from its backdrop, not from the picture: light on black, dark on
+   white. The backdrop does the halo's job, so the halo is dropped. */
+.orc-map[data-label-bg] .orc-feature-label-group .orc-feature-label { stroke: none; }
+.orc-map[data-label-bg][data-ground="black"] .orc-feature-label[data-type="building"] { fill: color-mix(in srgb, var(--orc-good) 30%, #fff); }
+.orc-map[data-label-bg][data-ground="black"] .orc-feature-label[data-type="landmark"] { fill: color-mix(in srgb, var(--orc-cool) 30%, #fff); }
+.orc-map[data-label-bg][data-ground="black"] .orc-feature-label[data-state="burned"],
+.orc-map[data-label-bg][data-ground="black"] .orc-feature-label[data-state="ruined"] { fill: color-mix(in srgb, var(--orc-bad) 35%, #fff); }
+.orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-type="building"] { fill: color-mix(in srgb, var(--orc-good) 25%, #000); }
+.orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-type="landmark"] { fill: color-mix(in srgb, var(--orc-cool) 25%, #000); }
+.orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-state="burned"],
+.orc-map[data-label-bg][data-ground="white"] .orc-feature-label[data-state="ruined"] { fill: color-mix(in srgb, var(--orc-bad) 45%, #000); }
