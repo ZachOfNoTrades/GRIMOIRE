@@ -469,7 +469,9 @@ export default function LlmSettingsPage() {
                     const isManual = !!manual[task.id];
                     const check = checks[task.id];
                     // Blank selection = the recommendation; shown as such in the dropdown.
-                    const selectValue = isManual ? MANUAL : (row.model ?? "");
+                    // The recommended entry's option value is blank, so a saved pick that IS the
+                    // recommendation selects that entry rather than falling off the list.
+                    const selectValue = isManual ? MANUAL : (!row.model || row.model === list?.recommended ? "" : row.model);
                     return (
                       <SettingsControlRow key={task.id} label={task.label} divider={i > 0}>
                         {/* Two columns: the sort button's column and the dropdowns' column, so the
