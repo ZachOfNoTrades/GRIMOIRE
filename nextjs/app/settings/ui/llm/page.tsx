@@ -390,7 +390,7 @@ export default function LlmSettingsPage() {
                     const selectValue = isManual ? MANUAL : (row.model ?? "");
                     return (
                       <SettingsControlRow key={task.id} label={task.label} divider={i > 0}>
-                        <span style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", width: "100%", minWidth: "min(100%, 34rem)" }}>
+                        <span style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", width: "min(100%, 34rem)" }}>
 
                           {/* BACKEND */}
                           <select
@@ -405,18 +405,21 @@ export default function LlmSettingsPage() {
                             <option value="openrouter">{BACKEND_LABEL.openrouter}</option>
                           </select>
 
-                          {/* MODEL — catalog dropdown; "Manual entry…" opens the text field */}
+                          {/* MODEL — catalog dropdown; "Manual entry…" opens the text field. The
+                              blank value is the recommendation, listed once, as the default. Sized
+                              by the row, not by its option text, so it keeps its width across
+                              backends. */}
                           <select
                             className="input-field input-field-compact"
-                            style={{ flex: "1 1 12rem", minWidth: 0 }}
+                            style={{ flex: "1 1 0", width: 0, minWidth: "10rem" }}
                             value={selectValue}
                             aria-label={`${task.label} model`}
                             onChange={(e) => pickModel(task.id, e.target.value)}
                           >
                             <option value={MANUAL}>Manual entry…</option>
-                            <option value="">{list ? `Recommended · ${list.models.find((m) => m.recommended)?.name ?? list.recommended}` : "Recommended"}</option>
-                            {(list?.models ?? []).map((m) => (
-                              <option key={m.id} value={m.id}>{m.name} · {m.note}</option>
+                            <option value="">{list ? `${list.models.find((m) => m.recommended)?.name ?? list.recommended} (Recommended)` : "(Recommended)"}</option>
+                            {(list?.models ?? []).filter((m) => !m.recommended).map((m) => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
                             ))}
                           </select>
 

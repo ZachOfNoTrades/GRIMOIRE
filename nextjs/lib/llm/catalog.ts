@@ -37,9 +37,9 @@ export interface ValidationResult {
 // ---------------------------------------------------------------------------------------------
 
 const CLAUDE_MODELS: { id: string; name: string; note: string }[] = [
-  { id: "haiku", name: "Haiku", note: "fastest · cheapest" },
-  { id: "sonnet", name: "Sonnet", note: "balanced" },
-  { id: "opus", name: "Opus", note: "strongest · slowest" },
+  { id: "haiku", name: "Haiku", note: "" },
+  { id: "sonnet", name: "Sonnet", note: "" },
+  { id: "opus", name: "Opus", note: "" },
 ];
 const CLAUDE_ALIASES = new Set(CLAUDE_MODELS.map((m) => m.id));
 // Full ids the CLI accepts ("claude-sonnet-4-6", "claude-opus-5-5[1m]").
