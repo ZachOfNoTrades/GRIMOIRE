@@ -1,21 +1,24 @@
 "use client";
 
-import { ArrowLeft, Image as ImageIcon, Map as MapIcon, Pencil, Plus, RotateCcw, Save, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
+import { HeaderMenu } from "@/components/ui/HeaderMenu";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useAppHeight } from "@/lib/useAppHeight";
 import { useConfirm } from "@/lib/useConfirm";
-import MapPreview from "../../../../../components/MapPreview";
+import MapCanvas from "../../../../../components/MapCanvas";
+import RangeValue from "../../../../../components/RangeValue";
 import ImagePicker, { type ImageSource } from "../../../../../components/ImagePicker";
 import PictureAligner from "../../../../../components/PictureAligner";
 import SessionBar from "../../../../../components/SessionBar";
 import { MAP_HELP } from "../../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../../lib/client";
-import { MAP_DESCRIPTION_MAX, NAME_MAX, SCALE_UNITS, SCALE_VALUE_MAX, type ScaleUnit } from "../../../../../lib/constants";
+import { MAP_DESCRIPTION_MAX, MAP_GRID, NAME_MAX, SCALE_UNITS, SCALE_VALUE_MAX, type ScaleUnit } from "../../../../../lib/constants";
 import { saveOnShortcut, useUnsavedWarning } from "../../../../../lib/useUnsavedWarning";
 import type { OracleCampaign, OracleImage, OracleMap } from "../../../../../types/oracle";
 
@@ -49,7 +52,7 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
   const [rect, setRect] = useState(initialMap.data.background ?? null);
 
   // STATE
-  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [pictureOpacity, setPictureOpacity] = useState(1); // this screen only, like the Table's slider
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -102,7 +105,6 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
     setScaleUnit(map.data.scale_unit);
     setPictureId(map.background_image_id);
     setRect(map.data.background ?? null);
-    setIsLibraryOpen(false);
     setIsEditing(false);
   }
 
@@ -129,10 +131,10 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
   function choose(image: OracleImage) {
     setPictureId(image.id);
     setRect(null);
-    setIsLibraryOpen(false);
   }
 
-  const picture = pictureId ? images.find((image) => image.id === pictureId) ?? null : null;
+  const columns = Math.floor(map.data.width / MAP_GRID);
+  const rows = Math.floor(map.data.height / MAP_GRID);
 
   return (
     // PAGE — a locked full-height shell with one scrolling body
@@ -146,19 +148,19 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
 
       {/* SCROLLING BODY */}
       <div className="orc-page-body">
-        <div className="page-container">
+        <div className="page-container orc-map-page" data-editing={isEditing ? "true" : undefined}>
 
-          {/* MAP HEADER */}
-          <div className="orc-session-head">
-            <Link href={`/modules/oracle/ui/campaign/${campaignId}?tab=prep`} className="btn btn-link" title="Back to Prep">
-              <ArrowLeft className="w-4 h-4" /> Prep
-            </Link>
+          {/* BACK */}
+          <Link href={`/modules/oracle/ui/campaign/${campaignId}?tab=prep`} className="orc-map-back">
+            <ArrowLeft className="w-4 h-4" /> Prep
+          </Link>
 
-            {/* NAME */}
+          {/* HEADER — the name and its actions; editing swaps each in place */}
+          <div className="orc-map-head">
             {isEditing ? (
               <input
                 id="orc-map-name"
-                className="input-field orc-session-title"
+                className="input-field orc-map-name-input"
                 value={name}
                 maxLength={NAME_MAX}
                 aria-label="Map name"
@@ -166,147 +168,151 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
                 onKeyDown={saveOnShortcut(save)}
               />
             ) : (
-              <h1 id="orc-map-title" className="orc-session-title orc-map-title">{map.name}</h1>
+              <h1 id="orc-map-title" className="orc-map-title">{map.name}</h1>
             )}
+            <div className="orc-map-actions">
+              {isEditing ? (
+                <>
+                  <Button className="btn-off" disabled={isSaving} onClick={cancel}><X className="w-4 h-4" /> Cancel</Button>
+                  <Button id="orc-map-save" className={isDirty ? "btn-green" : "btn-off"} disabled={!canSave} onClick={save} title="Save the map (Ctrl+S)">
+                    <Save className="w-4 h-4" /> {isSaving ? "Saving…" : "Save"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <HeaderEditButton id="orc-map-edit" onClick={() => setIsEditing(true)} />
+                  <HeaderMenu
+                    id="orc-map-more"
+                    items={[
+                      { label: "Reset fog", icon: <RotateCcw className="w-4 h-4" />, onSelect: reset },
+                      { label: "Delete map", icon: <Trash2 className="w-4 h-4" />, danger: true, onSelect: remove },
+                    ]}
+                  />
+                </>
+              )}
+            </div>
+          </div>
 
-            {/* ACTIONS */}
-            {isEditing ? (
-              <>
-                <Button className="btn-off" disabled={isSaving} onClick={cancel}>Cancel</Button>
-                <Button id="orc-map-save" className={isDirty ? "btn-green" : "btn-off"} disabled={!canSave} onClick={save} title="Save the map (Ctrl+S)">
-                  <Save className="w-4 h-4" /> {isSaving ? "Saving…" : isDirty ? "Save" : "Saved"}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button id="orc-map-edit" className="btn-off" onClick={() => setIsEditing(true)}><Pencil className="w-4 h-4" /> Edit</Button>
-                <Button className="btn-off" onClick={reset} title="Reset map" aria-label={`Reset map ${map.name}`}><RotateCcw className="w-4 h-4" /></Button>
-                <Button className="btn-link-red" onClick={remove} title="Delete map" aria-label={`Delete map ${map.name}`}><Trash2 className="w-4 h-4" /></Button>
-              </>
+          <div className="orc-map-body">
+          <div className="orc-map-main">
+
+          {/* MAP — the page's subject; the same spot in both modes */}
+          <div className="orc-map-stage">
+            {/* The Table's map and its controls, without the party, fog and vision: this page shows the map, not the night. */}
+            {!isEditing && (
+              <div className="orc-map-viewer" style={{ aspectRatio: `${map.data.width} / ${map.data.height}` }}>
+                <MapCanvas
+                  data={map.data}
+                  partyX={map.party_x}
+                  partyY={map.party_y}
+                  visionRadius={0}
+                  explored={[]}
+                  tokens={[]}
+                  backgroundUrl={map.background_image_id ? `${base}/images/${map.background_image_id}?w=1600` : null}
+                  pictureOpacity={pictureOpacity}
+                  mode="dm"
+                  tool="move"
+                  barExtras={map.background_image_id ? (
+                    <div className="orc-bar-slider orc-vision" title="How strongly the map's background shows on this screen">
+                      <span className="orc-label">Background</span>
+                      <input type="range" min={0} max={100} value={Math.round(pictureOpacity * 100)} aria-label="Background opacity" onChange={(event) => setPictureOpacity(Number(event.target.value) / 100)} />
+                      <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Background opacity" onCommit={(value) => setPictureOpacity(value / 100)} />
+                    </div>
+                  ) : null}
+                />
+              </div>
+            )}
+            {isEditing && pictureId && (
+              <PictureAligner key={pictureId} url={`${base}/images/${pictureId}`} width={map.data.width} height={map.data.height} features={map.data.features} rect={rect} onChange={setRect} />
+            )}
+            {isEditing && !pictureId && (
+              <div className="empty-state">
+                <p className="empty-state-title">No picture</p>
+              </div>
             )}
           </div>
 
-          <div className="orc-map-page">
-
-            {/* CANVAS CARD */}
-            <div className="card orc-map-canvas">
-              <div className="card-header">
-                <h2 className="text-card-title"><MapIcon className="w-5 h-5" /> {isEditing ? "Picture" : "Map"}</h2>
-              </div>
-              <div className="card-content orc-stack">
-
-                {/* MAP — as the players' map draws it */}
-                {!isEditing && (
-                  <MapPreview data={map.data} pictureUrl={map.background_image_id ? `${base}/images/${map.background_image_id}` : null} />
-                )}
-
-                {/* ALIGNER */}
-                {isEditing && pictureId && (
-                  <PictureAligner key={pictureId} url={`${base}/images/${pictureId}`} width={map.data.width} height={map.data.height} features={map.data.features} rect={rect} onChange={setRect} />
-                )}
-
-                {/* EMPTY PLACEHOLDER */}
-                {isEditing && !pictureId && (
-                  <div className="empty-state">
-                    <p className="empty-state-title">No picture</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* SIDE COLUMN */}
-            <div className="orc-stack">
-
-              {/* DETAILS CARD */}
-              <div className="card">
-                <div className="card-header">
-                  <h2 className="text-card-title"><SlidersHorizontal className="w-5 h-5" /> Details</h2>
-                </div>
-                {!isEditing && (
-                  <div className="card-content orc-stack">
-                    {map.data.description && <p className="orc-section-text">{map.data.description}</p>}
-                    <span className="orc-small text-secondary">1 tile = {map.data.scale_value} {map.data.scale_unit}</span>
-                  </div>
-                )}
-                {isEditing && (
-                  <div className="card-content orc-form">
-
-                  {/* DESCRIPTION */}
-                  <label className="orc-field">
-                    <span className="orc-field-label">Description</span>
-                    <textarea
-                      id="orc-map-description"
-                      className="input-field orc-textarea"
-                      rows={5}
-                      value={description}
-                      maxLength={MAP_DESCRIPTION_MAX}
-                      placeholder="What this map shows"
-                      onChange={(event) => setDescription(event.target.value)}
-                      onKeyDown={saveOnShortcut(save)}
-                    />
-                  </label>
-
-                  {/* SCALE — what one tile stands for */}
-                  <div className="orc-field">
-                    <span className="orc-field-label">Scale</span>
-                    <div className="orc-scale-row">
-                      <span className="orc-small text-secondary">1 tile =</span>
-                      <input
-                        id="orc-map-scale-value"
-                        className="input-field orc-scale-value"
-                        inputMode="decimal"
-                        value={scaleValue}
-                        placeholder="5"
-                        aria-label="Distance one tile stands for"
-                        onChange={(event) => setScaleValue(event.target.value.replace(/[^0-9.]/g, "").slice(0, 8))}
-                        onKeyDown={saveOnShortcut(save)}
-                      />
-                      <select id="orc-map-scale-unit" className="input-field orc-scale-unit" value={scaleUnit} aria-label="Unit" onChange={(event) => setScaleUnit(event.target.value as ScaleUnit)}>
-                        {SCALE_UNITS.map((unit) => (
-                          <option key={unit} value={unit}>{unit}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  </div>
-                )}
-              </div>
-
-              {/* LIBRARY CARD — editing only */}
-              {isEditing && (
-              <div className="card">
-                <div className="card-header">
-                  <h2 className="text-card-title"><ImageIcon className="w-5 h-5" /> Library</h2>
-                </div>
-                <div className="card-content orc-stack">
-                  <div className="orc-row-actions">
-                    <span className="orc-small text-secondary orc-grow">{picture?.caption ?? ""}</span>
-                    <Button className="btn-off" onClick={() => setIsLibraryOpen((open) => !open)}><ImageIcon className="w-4 h-4" /> {pictureId ? "Change" : "Choose"}</Button>
-                    {pictureId && (
-                      <Button className="btn-off" onClick={() => { setPictureId(null); setRect(null); setIsLibraryOpen(false); }}><Trash2 className="w-4 h-4" /> Remove</Button>
-                    )}
-                  </div>
-
-                  {/* LIBRARY — the campaign's pictures, plus a way to bring in a new one */}
-                  {isLibraryOpen && (
-                    <div className="orc-library" role="listbox" aria-label="Pictures in the library">
-                      {images.map((image) => (
-                        <button key={image.id} type="button" role="option" aria-selected={image.id === pictureId} className="orc-library-item" onClick={() => choose(image)} title={image.caption}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={`${base}/images/${image.id}?w=160`} alt="" loading="lazy" />
-                          <span>{image.caption}</span>
-                        </button>
-                      ))}
-                      <button type="button" className="orc-library-item orc-library-add" onClick={() => setIsPickerOpen(true)}>
-                        <Plus className="w-5 h-5" aria-hidden />
-                        <span>Search or upload</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* LIBRARY STRIP — editing only: pick the picture under the map */}
+          {isEditing && (
+            <div className="orc-map-strip" role="listbox" aria-label="Pictures in the library">
+              {images.map((image) => (
+                <button key={image.id} type="button" role="option" aria-selected={image.id === pictureId} className="orc-library-item" onClick={() => choose(image)} title={image.caption}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`${base}/images/${image.id}?w=160`} alt="" loading="lazy" />
+                  <span>{image.caption}</span>
+                </button>
+              ))}
+              <button type="button" className="orc-library-item orc-library-add" onClick={() => setIsPickerOpen(true)}>
+                <Plus className="w-5 h-5" aria-hidden />
+                <span>Search or upload</span>
+              </button>
+              {pictureId && (
+                <button type="button" className="orc-library-item orc-library-add" onClick={() => { setPictureId(null); setRect(null); }}>
+                  <Trash2 className="w-5 h-5" aria-hidden />
+                  <span>Remove</span>
+                </button>
               )}
             </div>
+          )}
+
+
+          </div>
+
+          {/* DETAILS CARD — the map's properties; editing turns each into its field in place */}
+          <div className="card orc-map-details">
+            <div className="card-header">
+              <h2 className="text-card-title">Details</h2>
+            </div>
+            <dl className="card-content orc-map-props">
+              <dt>Scale</dt>
+              <dd>
+                {isEditing ? (
+                  <div className="orc-scale-row">
+                    <span className="orc-small text-secondary">1 tile =</span>
+                    <input
+                      id="orc-map-scale-value"
+                      className="input-field orc-scale-value"
+                      inputMode="decimal"
+                      value={scaleValue}
+                      placeholder="5"
+                      aria-label="Distance one tile stands for"
+                      onChange={(event) => setScaleValue(event.target.value.replace(/[^0-9.]/g, "").slice(0, 8))}
+                      onKeyDown={saveOnShortcut(save)}
+                    />
+                    <select id="orc-map-scale-unit" className="input-field orc-scale-unit" value={scaleUnit} aria-label="Unit" onChange={(event) => setScaleUnit(event.target.value as ScaleUnit)}>
+                      {SCALE_UNITS.map((unit) => (
+                        <option key={unit} value={unit}>{unit}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <span id="orc-map-scale">1 tile = {map.data.scale_value} {map.data.scale_unit}</span>
+                )}
+              </dd>
+
+              <dt>Size</dt>
+              <dd>{columns} × {rows} tiles</dd>
+
+              <dt>Description</dt>
+              <dd>
+                {isEditing ? (
+                  <textarea
+                    id="orc-map-description"
+                    className="input-field orc-textarea"
+                    rows={5}
+                    value={description}
+                    maxLength={MAP_DESCRIPTION_MAX}
+                    placeholder="What this map shows"
+                    aria-label="Description"
+                    onChange={(event) => setDescription(event.target.value)}
+                    onKeyDown={saveOnShortcut(save)}
+                  />
+                ) : (
+                  <span className="orc-section-text">{map.data.description || "None"}</span>
+                )}
+              </dd>
+            </dl>
+          </div>
           </div>
         </div>
       </div>

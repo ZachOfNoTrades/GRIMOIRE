@@ -1389,11 +1389,25 @@ body:has(.page-with-bottom-bar) > .orc-tab-panel[hidden],
 .card.orc-details .card-content { max-height: 26rem; overflow-y: auto; overscroll-behavior: contain; }
 .orc-details-row { contain: layout paint; }
 
-/* MAP PAGE — the canvas takes the width, the details sit beside it */
-.orc-map-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
-@media (min-width: 1024px) { .orc-map-page { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); } }
-.orc-map-canvas .orc-aligner-svg { max-height: min(70vh, 48rem); }
-.orc-map-canvas .orc-map-preview { width: 100%; max-height: min(70vh, 48rem); }
-.orc-map-title { margin: 0; font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; }
+/* MAP PAGE — one column: back, name + actions, facts, the map large, then the description */
+.orc-map-page { display: flex; flex-direction: column; gap: 0.75rem; max-width: 72rem; }
+.orc-map-back { display: inline-flex; align-items: center; gap: 0.35rem; align-self: flex-start; font-size: 0.875rem; color: var(--text-secondary); text-decoration: none; }
+.orc-map-back:hover, .orc-map-back:focus-visible { color: var(--color-primary); }
+.orc-map-head { display: flex; align-items: center; gap: 0.75rem; min-height: 2.5rem; }
+.orc-map-name-input { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.orc-map-actions { display: flex; gap: 0.5rem; margin-left: auto; flex: 0 0 auto; }
+.orc-map-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.orc-map-main { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+.orc-map-props { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 1.5rem; row-gap: 0.6rem; margin: 0; align-items: baseline; }
+.orc-map-props dt { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); }
+@media (max-width: 640px) { .orc-map-props { grid-template-columns: minmax(0, 1fr); row-gap: 0.25rem; } .orc-map-props dd { margin-bottom: 0.5rem; } }
+.orc-map-props dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.orc-map-stage .orc-aligner-svg { max-height: min(72vh, 52rem); }
+.orc-map-strip { display: grid; grid-auto-flow: column; grid-auto-columns: 7.5rem; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; }
+.orc-map-title { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 1.375rem; font-weight: 600; overflow-wrap: anywhere; }
 .orc-map-row { color: inherit; text-decoration: none; cursor: pointer; }
 .orc-map-row:hover, .orc-map-row:focus-visible { border-color: var(--color-primary); }
+.orc-preview-grid { stroke: rgba(0, 0, 0, 0.18); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.orc-map-stage .orc-map-preview .orc-feature { opacity: 0.45; }
+.orc-map-viewer { position: relative; width: 100%; min-height: 18rem; border: 1px solid var(--card-border); overflow: hidden; }
+.orc-map-viewer .orc-fog-dim, .orc-map-viewer .orc-fog-unexplored, .orc-map-viewer .orc-fog-outline, .orc-map-viewer .orc-party { display: none; }
