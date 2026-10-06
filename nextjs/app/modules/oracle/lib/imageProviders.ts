@@ -285,10 +285,18 @@ const IMAGE_STYLE = "Painted fantasy illustration, inked linework, muted palette
 // `kind` picks the framing: a portrait for a creature, person or item, a scene for a location.
 // Runs on the DM's own OpenRouter key with the model from their `oracle_image` task setting; the
 // key is decrypted inside withOpenRouterKey and used for this one request.
-export async function generateImage(userId: string, campaignId: string, prompt: string, world: string, caption: string, detail = "", kind: EntityKind | null = null): Promise<OracleImage> {
+// With `reference`, the model paints over that picture (a map's shape layout) using its own prompt
+// and aspect ratio instead of the portrait/scene framing.
+export interface ImageReference {
+  png: Buffer;
+  prompt: string;
+  aspectRatio: string;
+}
+
+export async function generateImage(userId: string, campaignId: string, prompt: string, world: string, caption: string, detail = "", kind: EntityKind | null = null, reference: ImageReference | null = null): Promise<OracleImage> {
   const { model } = await resolveBackend(userId, "oracle_image");
   const framing = kind === "place" ? "A view of the place." : kind === "item" ? "A single object, centered." : kind ? "A portrait, the subject filling the frame." : "";
-  const fullPrompt = `${prompt}.${detail ? ` ${detail.slice(0, 500)}` : ""} ${framing} ${IMAGE_STYLE}${world ? ` Setting: ${world.slice(0, 400)}` : ""}`.replace(/\s+/g, " ");
+  const fullPrompt = reference ? reference.prompt : `${prompt}.${detail ? ` ${detail.slice(0, 500)}` : ""} ${framing} ${IMAGE_STYLE}${world ? ` Setting: ${world.slice(0, 400)}` : ""}`.replace(/\s+/g, " ");
   const started = Date.now();
   const usage = (ok: boolean, errorCode: string | null, costUsd: number | null = null) =>
     recordUsage({ userId, task: "oracle_image", backend: "openrouter", model, promptTokens: 0, completionTokens: 0, costUsd, durationMs: Date.now() - started, ok, errorCode });
@@ -301,7 +309,15 @@ export async function generateImage(userId: string, campaignId: string, prompt: 
         response = await fetch("https://openrouter.ai/api/v1/images", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "HTTP-Referer": "https://grimoire.zsmith.io", "X-OpenRouter-Title": "GRIMOIRE" },
-          body: JSON.stringify({ model, prompt: fullPrompt, aspect_ratio: kind && kind !== "place" ? "1:1" : "4:3", n: 1, output_format: "jpeg", usage: { include: true } }),
+          body: JSON.stringify({
+            model,
+            prompt: fullPrompt,
+            ...(reference ? { input_references: [{ type: "image_url", image_url: { url: `data:image/png;base64,${reference.png.toString("base64")}` } }] } : {}),
+            aspect_ratio: reference ? reference.aspectRatio : kind && kind !== "place" ? "1:1" : "4:3",
+            n: 1,
+            output_format: "jpeg",
+            usage: { include: true },
+          }),
           signal: AbortSignal.timeout(120_000),
         });
       } catch (error) {

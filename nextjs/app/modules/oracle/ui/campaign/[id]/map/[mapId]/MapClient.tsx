@@ -499,6 +499,8 @@ export default function MapClient({ campaign, map: initialMap, images: initialIm
         campaignId={campaignId}
         sources={imageSources}
         subject={name.trim() ? `${name.trim()} map` : ""}
+        // The map as it stands in the editor, unsaved shapes included: a drawing is painted over it.
+        layout={{ ...map.data, width: draftWidth, height: draftHeight, features, description: description.trim() }}
         onAdded={(image) => {
           setImages((list) => (list.some((entry) => entry.id === image.id) ? list : [...list, image]));
           choose(image);

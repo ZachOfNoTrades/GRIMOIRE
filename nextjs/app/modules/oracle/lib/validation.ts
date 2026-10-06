@@ -279,6 +279,7 @@ export const imageGenerateSchema = z.object({
   detail: z.string().max(DETAILS_MAX).optional(),
   caption: line(CAPTION_MAX, "a caption"),
   kind: z.enum(ENTITY_KINDS as [string, ...string[]]).optional(), // the entry it is for; picks the framing
+  layout: z.unknown().optional(), // a map's data: the drawing is painted over its shapes. Coerced server-side.
 });
 
 export const generateWorldSchema = z.object({ seed: z.string().max(WORLD_MAX).default("") });
