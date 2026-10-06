@@ -83,6 +83,8 @@ export default function FeatureEditor({ width, height, features, pictureUrl, pic
   }
 
   function update(id: string, patch: Partial<MapFeature>, verb: string) {
+    const current = features.find((feature) => feature.id === id);
+    if (!current || (Object.keys(patch) as (keyof MapFeature)[]).every((key) => current[key] === patch[key])) return; // no change, no step
     const next = features.map((feature) => (feature.id === id ? { ...feature, ...patch } : feature));
     onChange(next, stepLabel(verb, next.find((feature) => feature.id === id)), `${verb}|${id}`);
   }

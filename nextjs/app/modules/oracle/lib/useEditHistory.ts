@@ -23,7 +23,7 @@ export function useEditHistory<T>(apply: (state: T) => void) {
   const lastRef = useRef<{ key: string; at: number } | null>(null);
 
   // Starts a fresh history at `state` (entering edit mode).
-  const begin = useCallback((state: T, label = "Start") => {
+  const begin = useCallback((state: T, label = "Opened editor") => {
     lastRef.current = null;
     setHistory({ entries: [{ label, state }], index: 0 });
   }, []);
@@ -43,6 +43,9 @@ export function useEditHistory<T>(apply: (state: T) => void) {
     lastRef.current = { key, at: now };
     setHistory((current) => {
       if (!current) return current;
+      // Nothing actually changed (a drag that snapped back to where it started, a click with no
+      // move): no step.
+      if (JSON.stringify(state) === JSON.stringify(current.entries[current.index].state)) return current;
       const isMerge = !!last && last.key === key && now - last.at < MERGE_MS && current.index === current.entries.length - 1 && current.index > 0;
       if (isMerge) {
         const entries = current.entries.slice();
