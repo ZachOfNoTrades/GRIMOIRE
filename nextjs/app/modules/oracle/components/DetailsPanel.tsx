@@ -221,7 +221,7 @@ export default function DetailsPanel(props: DetailsPanelProps) {
             id="orc-details-search"
             className="input-field"
             value={query}
-            placeholder="Search creatures, people, locations, items"
+            placeholder="Search entities"
             aria-label="Search creatures, people, locations, items"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {

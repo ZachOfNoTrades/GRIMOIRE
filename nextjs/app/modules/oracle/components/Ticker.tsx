@@ -181,6 +181,10 @@ export default function Ticker({ partyLevels, chips, secondsPerChip, isPaused, i
     );
   }
 
+  // An empty banner was a strip of chrome saying it was empty, which on a phone cost a row of the
+  // map to tell the DM nothing. It appears when there is something on it, or something coming.
+  if (chips.length === 0 && !isPreparing) return null;
+
   return (
     // BANNER
     <div className="orc-ticker">
@@ -226,7 +230,7 @@ export default function Ticker({ partyLevels, chips, secondsPerChip, isPaused, i
 
         {/* EMPTY PLACEHOLDER */}
         {moving.length === 0 && (
-          <p className="orc-ticker-empty">{isPreparing ? "Preparing ideas…" : isPaused ? "Banner paused" : "No ideas yet"}</p>
+          <p className="orc-ticker-empty">{isPreparing ? "Preparing ideas…" : "Banner paused"}</p>
         )}
       </div>
     </div>

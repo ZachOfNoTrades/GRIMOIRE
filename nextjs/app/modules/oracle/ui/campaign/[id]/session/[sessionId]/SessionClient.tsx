@@ -269,7 +269,7 @@ export default function SessionClient({ campaign: initialCampaign, session: init
                     <input
                       className="input-field"
                       value={entityQuery}
-                      placeholder="Search creatures, people, locations, items"
+                      placeholder="Search entities"
                       aria-label="Search creatures, people, locations, items"
                       onChange={(event) => setEntityQuery(event.target.value)}
                       onKeyDown={(event) => { if (event.key === "Escape") setEntityQuery(""); }}

@@ -955,6 +955,10 @@ export default function MapCanvas({
           zoom and background; on the player display follow, zoom and background opacity. */}
       <div className="orc-bar-float" data-mode={mode} data-open={isBarOpen ? "true" : undefined}>
         <div className="orc-bar-panel" role="group" aria-label="Map controls" aria-hidden={!isBarOpen} data-open={isBarOpen ? "true" : undefined} inert={!isBarOpen}>
+          {/* The closed panel is a zero-width box, but its controls were still laid out — off the
+              right edge of the phone, which is a real sideways overflow of the map whether or not
+              anything is painted there. They are only built while the panel is open. */}
+          {isBarOpen && (<>
           {isDm && barExtras}
           {!isDm && isFree && (
             <button type="button" className="orc-zoom-btn orc-zoom-follow" title="Center on the party" aria-label="Follow party" onClick={() => setIsFree(false)}>
@@ -996,6 +1000,7 @@ export default function MapCanvas({
               <RangeValue value={Math.round(pictureOpacity * 100)} min={0} max={100} suffix="%" label="Background opacity" onCommit={(value) => onPictureOpacity(value / 100)} />
             </label>
           )}
+          </>)}
         </div>
         <button type="button" className="orc-zoom-btn orc-bar-toggle" title={isBarOpen ? "Hide the controls" : "Map controls"} aria-label={isBarOpen ? "Hide the map controls" : "Show the map controls"} aria-expanded={isBarOpen} onClick={() => changeBarOpen(!isBarOpen)}>
           {isBarOpen ? <X className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4" />}

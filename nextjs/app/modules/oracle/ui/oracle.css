@@ -770,6 +770,16 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-campaign-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
 .orc-campaign-name { font-size: 0.95rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-campaign-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 0.35rem; }
+/* On a phone the two open buttons and the delete did not fit beside the campaign name, so the row
+   ran a hundred pixels past its own box. The actions take a line of their own below the name, as
+   an even grid rather than a ragged wrap: one button per row, the delete alongside both. */
+@media (max-width: 560px) {
+  .orc-campaign { flex-wrap: wrap; }
+  .orc-campaign-body { flex: 1 1 100%; }
+  .orc-campaign-actions { flex: 1 1 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem; align-items: stretch; }
+  .orc-campaign-actions .btn-blue { width: 100%; justify-content: center; }
+  .orc-shell .orc-campaign-actions .btn-link-red { grid-column: 2; grid-row: 1 / span 2; }
+}
 .orc-proposal { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.55rem 0.65rem; border: 1px solid var(--card-border); }
 .orc-proposal-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--color-primary); overflow-wrap: anywhere; }
 .orc-proposal-title .orc-muted { font-weight: 500; white-space: nowrap; }
@@ -1122,7 +1132,7 @@ body:has(.page) > .page.orc-shell:not(.orc-plain) {
 .orc-bar-panel .orc-zoom-follow { width: auto; height: 1.75rem; padding: 0 0.5rem; gap: 0.35rem; font-size: 0.75rem; }
 
 /* player controls: the bar slides open from the button and folds back */
-.orc-bar-panel { max-width: 0; padding-left: 0; padding-right: 0; opacity: 0; overflow: hidden; border-width: 0; visibility: hidden; transform: translateX(0.75rem); transition: max-width 0.28s ease, opacity 0.2s ease, transform 0.28s ease, padding 0.28s ease, visibility 0s linear 0.28s; white-space: nowrap; }
+.orc-bar-panel { max-width: 0; padding-left: 0; padding-right: 0; opacity: 0; overflow: hidden; border-width: 0; visibility: hidden; transform: translateX(-0.75rem); transition: max-width 0.28s ease, opacity 0.2s ease, transform 0.28s ease, padding 0.28s ease, visibility 0s linear 0.28s; white-space: nowrap; }
 .orc-bar-panel[data-open="true"] { max-width: 32rem; padding-left: 0.2rem; padding-right: 0.2rem; opacity: 1; border-width: 1px; visibility: visible; transform: none; transition-delay: 0s; }
 .orc-bar-toggle svg { transition: transform 0.28s ease; }
 .orc-bar-float[data-open="true"] .orc-bar-toggle svg { transform: rotate(90deg); }
