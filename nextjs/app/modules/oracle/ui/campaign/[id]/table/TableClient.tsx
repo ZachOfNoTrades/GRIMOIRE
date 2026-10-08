@@ -4,6 +4,8 @@ import { Brush, ChevronDown, CloudFog, Eraser, Eye, EyeOff, HeartPulse, MapPin, 
 import TabLink from "../../../../components/TabLink";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { preload } from "react-dom";
+import RouteLoading from "@/components/RouteLoading";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
@@ -120,6 +122,14 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
   // paint at once, so without this a map change shows the new layout over the old picture.
   const mapBackground = useCallback((map: OracleMap) => (map.background_image_id ? `${base}/images/${map.background_image_id}?w=1600` : null), [base]);
   const activeMap = useWhenPictureReady(chosenMap, mapBackground);
+  // FIRST PAINT — the map's picture is first-paint data. The server's HTML asks the browser for it
+  // at once, and the Table shows the page loading state until it has arrived (or the wait gives up),
+  // so it never paints "No map" and then fills in. A later map switch keeps the old map on screen.
+  const chosenPicture = chosenMap ? mapBackground(chosenMap) : null;
+  if (chosenPicture) preload(chosenPicture, { as: "image", fetchPriority: "high" });
+  const hasPaintedMapRef = useRef(false);
+  if (activeMap) hasPaintedMapRef.current = true;
+  const isFirstPictureLoading = !!chosenMap && !activeMap && !hasPaintedMapRef.current;
   const selected = entities.find((entity) => entity.id === selectedId) ?? null;
   const panelEntity = campaign.panel_kind === "entity" ? entities.find((entity) => entity.id === campaign.panel_entity_id) ?? null : null;
   const panelImage = campaign.panel_kind === "image" ? images.find((image) => image.id === campaign.panel_image_id) ?? null : null;
@@ -1007,6 +1017,8 @@ export default function TableClient({ snapshot, imageSources }: TableClientProps
       )}
     </>
   ) : null;
+
+  if (isFirstPictureLoading) return <RouteLoading />;
 
   return (
     // PAGE — a locked full-height shell: only the panes inside scroll

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { userCanAccessModule } from "@/lib/moduleAccess";
 import { getAuthorizedUser, type AuthUser } from "@/lib/permissions";
-import type { CampaignSummary, OracleCampaign, OracleEntity, OracleImage, OracleMap, OracleSession, OracleSettings, TableSnapshot } from "../types/oracle";
+import type { CampaignSummary, DisplaySnapshot, OracleCampaign, OracleEntity, OracleImage, OracleMap, OracleSession, OracleSettings, TableSnapshot } from "../types/oracle";
 import { getCampaign, listCampaigns, requireOwnedCampaign } from "./campaignFunctions";
 import { listEntities } from "./entityFunctions";
 import { listImages } from "./imageFunctions";
@@ -9,9 +9,10 @@ import { getMap } from "./mapFunctions";
 import { getSession } from "./sessionFunctions";
 import { MODULE_SLUG } from "./constants";
 import { OracleError } from "./errors";
+import { requireDisplayCode } from "./validation";
 import { listImageSources, type ImageSourceInfo } from "./imageProviders";
 import { getSettings } from "./settingsFunctions";
-import { getTableSnapshot } from "./snapshotFunctions";
+import { findCampaignIdByCode, getDisplaySnapshot, getTableSnapshot } from "./snapshotFunctions";
 
 // SERVER PRELOADS — each Oracle page is a server component that loads everything its first paint
 // reads here and hands it to its client component, so a page appears once, complete.
@@ -100,4 +101,19 @@ export function loadSessionPage(campaignIdParam: string, sessionIdParam: string)
     const [campaign, session, entities] = await Promise.all([getCampaign(campaignId), getSession(campaignId, sessionIdParam.toLowerCase()), listEntities(campaignId)]);
     return { campaign, session, entities };
   });
+}
+
+// The player display's first snapshot. Any signed-in account may view a display (the same rule as
+// its state route), so there is no module check. "missing" is an unknown code; null means the
+// preload could not run (not signed in yet, database unreachable) and the page loads it itself.
+export async function loadDisplayPage(code: string): Promise<DisplaySnapshot | "missing" | null> {
+  try {
+    if (!(await getAuthorizedUser(new Request("http://internal", { headers: await headers() })))) return null;
+    return await getDisplaySnapshot(await findCampaignIdByCode(requireDisplayCode(code)));
+  } catch (error) {
+    if ((error as { digest?: string } | null)?.digest === "DYNAMIC_SERVER_USAGE") throw error;
+    if (error instanceof OracleError && error.status === 404) return "missing";
+    console.error("Oracle display preload failed:", error);
+    return null;
+  }
 }

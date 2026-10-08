@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { preload } from "react-dom";
 import MapCanvas, { type MapToken } from "@/app/modules/oracle/components/MapCanvas";
 import AutoScroll from "@/app/modules/oracle/components/AutoScroll";
 import type { DisplayMap, DisplayPanel, DisplaySnapshot } from "@/app/modules/oracle/types/oracle";
@@ -10,15 +11,19 @@ import { loadPictures, usePictureSize, useWhenPictureReady } from "@/app/modules
 const POLL_MS = 1000;
 const KIND_LABELS = { creature: "You see", person: "You meet", place: "Location", item: "You find" } as const;
 
-// THE PLAYER DISPLAY — map on the left, a reference panel on the right. It asks the server once
-// a second whether anything changed (a version number), and reloads the view only when it did.
-export default function DisplayClient({ code }: { code: string }) {
+// THE PLAYER DISPLAY — map on the left, a reference panel on the right. The server preloads the
+// first snapshot (`initial`); after that it asks once a second whether anything changed (a version
+// number), and reloads the view only when it did. `initial` is null when the preload could not run
+// (the page then loads it here, behind the one loading state) and "missing" for an unknown code.
+export default function DisplayClient({ code, initial }: { code: string; initial: DisplaySnapshot | "missing" | null }) {
+  const seeded = initial && initial !== "missing" ? initial : null;
+
   // DATA
-  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(seeded);
 
   // STATE
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "offline" | "signedout">("loading");
-  const versionRef = useRef<number | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "offline" | "signedout">(initial === "missing" ? "missing" : seeded ? "ready" : "loading");
+  const versionRef = useRef<number | null>(seeded ? seeded.version : null);
   const [localId, setLocalId] = useState<string | null>(null); // an entry tapped on this screen, shown until the DM changes the panel
   const revealedRef = useRef<Set<string> | null>(null); // tokens the DM had revealed at the last snapshot
   const [revealFocus, setRevealFocus] = useState<{ id: string; x: number; y: number; nonce: number } | null>(null);
@@ -89,13 +94,16 @@ export default function DisplayClient({ code }: { code: string }) {
       }
       if (!stopped) timer = setTimeout(poll, POLL_MS);
     }
-    poll();
+    // Seeded by the server: the first ask waits a beat instead of re-reading what is on screen.
+    if (initial === "missing") return;
+    if (seeded) timer = setTimeout(poll, POLL_MS);
+    else poll();
 
     return () => {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [code]);
+  }, [code]); // eslint-disable-line react-hooks/exhaustive-deps -- `initial` only seeds the first ask
 
   // A fact that was not on the panel a moment ago animates in. The first load, and a switch to
   // another entry, only record what is there.
@@ -154,6 +162,13 @@ export default function DisplayClient({ code }: { code: string }) {
   // the table on the old map.
   const mapBackground = useCallback((value: NonNullable<DisplaySnapshot["map"]>) => (value.background_image_id ? imageUrl(value.background_image_id, MAP_BACKGROUND_WIDTH) : null), [imageUrl]);
   const drawableMap = useWhenPictureReady(snapshot?.map ?? null, mapBackground);
+  // FIRST PAINT — the map's picture is fetched from the server's HTML at once, and the display keeps
+  // its loading message until the picture has arrived, so the map never paints and then fills in.
+  const firstPicture = snapshot?.map ? mapBackground(snapshot.map) : null;
+  if (firstPicture) preload(firstPicture, { as: "image", fetchPriority: "high" });
+  const hasPaintedMapRef = useRef(false);
+  if (drawableMap) hasPaintedMapRef.current = true;
+  const isFirstPictureLoading = !!snapshot?.map && !snapshot.blank && !drawableMap && !hasPaintedMapRef.current;
 
   // The entries standing on this map are the ones the DM is most likely to put on screen next, so
   // they are fetched quietly once the map is up and are ready the moment one is shown.
@@ -166,7 +181,7 @@ export default function DisplayClient({ code }: { code: string }) {
     ]);
   }, [snapshot?.map, snapshot?.panel, imageUrl]);
 
-  if (status === "loading") {
+  if (status === "loading" || (status === "ready" && isFirstPictureLoading)) {
     return (
       <div className="orc-display">
         <p className="orc-display-message">Connecting…</p>
