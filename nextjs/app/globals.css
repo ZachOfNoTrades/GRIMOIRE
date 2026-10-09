@@ -390,6 +390,34 @@ body {
   --icon-mask-src: url("/forage-tree.png");
 }
 
+/* Oracle module icon: the full beholder from 30 px up, the frame and eye alone below it (its
+   stalks and gaps would fall under a pixel). Sized by the caller like a Lucide icon. */
+.oracle-icon {
+  display: inline-block;
+  flex: none;
+  container-type: size;
+}
+
+.oracle-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.oracle-icon-full {
+  display: none !important;
+}
+
+@container (min-width: 30px) {
+  .oracle-icon-full {
+    display: block !important;
+  }
+
+  .oracle-icon-small {
+    display: none !important;
+  }
+}
+
 /* ========================================
    CONTAINERS
    ======================================== */
