@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef, ReactNode } from "react";
 import { Settings, LogOut, CircleUser, BarChart3, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import GrimoireMark from "@/components/ui/GrimoireMark";
+import GrimoireIcon from "@/components/ui/GrimoireIcon";
 import PermissionGuardClient from "@/components/PermissionGuardClient";
 import MainNavDrawer from "@/components/MainNavDrawer";
 import PopoverMenu from "@/components/PopoverMenu";
@@ -201,7 +201,7 @@ export default function Navbar({ children }: NavbarProps) {
             className="btn-link text-h1 !pl-0 cursor-pointer flex items-center gap-2"
           >
             {/* LOGO */}
-            <GrimoireMark className="w-5 h-5 sm:w-7 sm:h-7" />
+            <GrimoireIcon className="w-5 h-5 sm:w-7 sm:h-7" />
             GRIMOIRE
           </Link>
 
