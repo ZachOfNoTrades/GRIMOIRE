@@ -6,6 +6,7 @@ import { Cpu, Trash2 } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
+import { SearchField } from "@/components/SearchField";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { SettingsControlRow } from "@/components/settings/SettingsList";
 import SortMenuButton from "@/components/settings/SortMenuButton";
@@ -46,6 +47,8 @@ interface ModelInfo {
   imageIn: boolean;
   imageOut: boolean;
   tools: boolean;
+  transcribes: boolean;
+  perMinute: number | null; // duration-priced transcription, $ per audio minute
 }
 interface CatalogModel {
   id: string;
@@ -122,9 +125,11 @@ function optionLabel(m: CatalogModel | undefined): string {
 // The footer under a dropdown: the catalog's facts, nothing else.
 function modelFooter(m: CatalogModel | undefined): string {
   if (!m?.info) return "";
-  const parts: string[] = [m.id, `${perM(m.info.promptPerM)} in / ${perM(m.info.completionPerM)} out per M`];
+  const parts: string[] = [m.id];
+  if (m.info.perMinute !== null) parts.push(`${money(m.info.perMinute)} per min audio`);
+  else parts.push(`${perM(m.info.promptPerM)} in / ${perM(m.info.completionPerM)} out per M`);
   if (m.info.ctx) parts.push(`${ctxLabel(m.info.ctx)} ctx`);
-  const caps = [m.info.imageIn && "reads images", m.info.tools && "tools", m.info.imageOut && "generates images"].filter(Boolean) as string[];
+  const caps = [m.info.imageIn && "reads images", m.info.tools && "tools", m.info.imageOut && "generates images", m.info.transcribes && "transcribes"].filter(Boolean) as string[];
   if (caps.length) parts.push(caps.join(", "));
   if (m.info.created) parts.push(m.info.created.slice(0, 7));
   return parts.join(" · ");
@@ -157,6 +162,8 @@ export default function LlmSettingsPage() {
 
   // INPUT
   const [keyInput, setKeyInput] = useState("");
+  // Filters the task list by task name or module name.
+  const [query, setQuery] = useState("");
   // Tasks whose model is typed in rather than picked, and the check result for each.
   const [manual, setManual] = useState<Partial<Record<LlmTaskId, boolean>>>({});
   const [checks, setChecks] = useState<Partial<Record<LlmTaskId, ManualCheck>>>({});
@@ -208,6 +215,14 @@ export default function LlmSettingsPage() {
     () => !!rows && !keyStatus?.configured && Object.values(rows).some((r) => r.backend === "openrouter"),
     [rows, keyStatus]
   );
+
+  const visibleTaskIds = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const groupLabel = Object.fromEntries(LLM_TASK_GROUPS.map((g) => [g.key, g.label.toLowerCase()]));
+    return new Set(
+      LLM_TASKS.filter((t) => !q || t.label.toLowerCase().includes(q) || groupLabel[t.group].includes(q)).map((t) => t.id)
+    );
+  }, [query]);
 
   async function saveKey() {
     const key = keyInput.trim();
@@ -268,12 +283,12 @@ export default function LlmSettingsPage() {
       if (!prev) return prev;
       const next = { ...prev };
       for (const task of LLM_TASKS) {
-        if (!task.openRouterOnly) next[task.id] = { backend, sort: next[task.id].sort };
+        if (!task.openRouterOnly && visibleTaskIds.has(task.id)) next[task.id] = { backend, sort: next[task.id].sort };
       }
       return next;
     });
-    setManual({});
-    setChecks({});
+    setManual((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !visibleTaskIds.has(id as LlmTaskId))));
+    setChecks((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !visibleTaskIds.has(id as LlmTaskId))));
   }
 
   // Dropdown change: "Manual entry…" reveals the text field; a listed id is taken as
@@ -349,10 +364,12 @@ export default function LlmSettingsPage() {
   }
 
   return (
-    /* PAGE */
-    <div className="page">
+    /* PAGE — the Save lives in a bottom action bar, so it stays in reach on a long
+       task list without scrolling to the end */
+    <div className="page-with-bottom-bar">
 
-      {/* PAGE CONTAINER */}
+      {/* PAGE SCROLL — the scroll surface; outside page-container's padding */}
+      <div className="page-scroll">
       <div className="page-container">
 
         {/* BREADCRUMBS */}
@@ -366,10 +383,11 @@ export default function LlmSettingsPage() {
           <HelpButton
             title="Models"
             sections={[
-              { heading: "Backends", body: "Claude is the shared Claude Code CLI. OpenRouter runs the same task on any model there, billed to your own OpenRouter account." },
+              { heading: "Backends", body: "Claude is the shared Claude Code CLI; Transcription's default is Whisper on this server. OpenRouter runs the same task on any model there, billed to your own OpenRouter account." },
               { heading: "Key", body: "Your key is checked with OpenRouter when saved, stored encrypted and bound to your account, and never shown again. Nothing runs on it except your own tasks." },
               { heading: "Tasks", body: "Each task picks its backend on its own. A task on OpenRouter with no key saved fails instead of using Claude." },
-              { heading: "Models", body: "The dropdown lists what fits the task — on OpenRouter, models that can read images, call tools or draw, as the task needs. The recommended one is the newest release of a proven family at the lowest price. Manual entry takes any other id; it's checked against the list before it can be saved." },
+              { heading: "Models", body: "The dropdown lists what fits the task — on OpenRouter, models that can read images, call tools, draw or transcribe speech, as the task needs. The recommended one is the newest release of a proven family at the lowest price. Manual entry takes any other id; it's checked against the list before it can be saved." },
+              { heading: "Search", body: "Filters tasks by task or module name. All Claude and All OpenRouter apply to the tasks shown." },
               { heading: "Estimates", body: "~$ and seconds per call for that task: this task's logged token counts × the model's price, and the logged duration on that model. Before any calls, typical sizes stand in." },
             ]}
           />
@@ -456,14 +474,22 @@ export default function LlmSettingsPage() {
               <Button className="btn-off" onClick={() => setAll("openrouter")}>All OpenRouter</Button>
             </div>
 
+            {/* SEARCH — filters tasks by task or module name */}
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder="Search tasks…"
+              style={{ marginTop: "0.75rem" }}
+            />
+
             {/* TASK GROUPS — one settings card per module; each row = task label +
                 backend select + model id. The control row stacks under the label on
                 phones (see .settings-control-row), so nothing scrolls sideways. */}
-            {LLM_TASK_GROUPS.map((group) => (
+            {LLM_TASK_GROUPS.filter((group) => LLM_TASKS.some((t) => t.group === group.key && visibleTaskIds.has(t.id))).map((group) => (
               <div key={group.key}>
                 <h3 className="settings-section-title" style={{ fontSize: "0.9rem" }}>{group.label}</h3>
                 <div className="settings-group">
-                  {LLM_TASKS.filter((t) => t.group === group.key).map((task, i) => {
+                  {LLM_TASKS.filter((t) => t.group === group.key && visibleTaskIds.has(t.id)).map((task, i) => {
                     const row = rows[task.id];
                     const list = catalog[row.backend]?.[task.id];
                     const isManual = !!manual[task.id];
@@ -487,7 +513,7 @@ export default function LlmSettingsPage() {
                             aria-label={`${task.label} backend`}
                             onChange={(e) => setBackend(task.id, e.target.value as LlmBackend)}
                           >
-                            {!task.openRouterOnly && <option value="claude">{BACKEND_LABEL.claude}</option>}
+                            {!task.openRouterOnly && <option value="claude">{task.localEngine ?? BACKEND_LABEL.claude}</option>}
                             <option value="openrouter">{BACKEND_LABEL.openrouter}</option>
                           </select>
 
@@ -510,7 +536,7 @@ export default function LlmSettingsPage() {
                             aria-label={`${task.label} model`}
                             onChange={(e) => pickModel(task.id, e.target.value)}
                           >
-                            <option value={MANUAL}>Manual entry…</option>
+                            {!(task.localEngine && row.backend === "claude") && <option value={MANUAL}>Manual entry…</option>}
                             {/* The recommendation sits in sorted order like any other entry; its
                                 value is blank, which is what "no pick" saves as. */}
                             {sortModels(list?.models ?? [], row.sort ?? "name").map((m) => (
@@ -557,18 +583,22 @@ export default function LlmSettingsPage() {
               </div>
             ))}
 
-            {/* SAVE TASKS */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
-              <Button className="btn-blue" onClick={saveTasks} disabled={!isDirty || isSavingTasks || hasBadManual}>
-                {isSavingTasks ? "Saving…" : "Save"}
-              </Button>
-            </div>
           </>
         )}
-
-        {/* TOAST */}
-        <Toaster position="bottom-center" />
       </div>
+      </div>
+
+      {/* BOTTOM ACTION BAR — saves the task table; grayed until something differs */}
+      {!isLoading && rows && (
+        <div className="bottom-action-bar">
+          <Button className="btn-blue w-full sm:w-auto" onClick={saveTasks} disabled={!isDirty || isSavingTasks || hasBadManual}>
+            {isSavingTasks ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      )}
+
+      {/* TOAST — lifted above the action bar */}
+      <Toaster position="bottom-center" containerStyle={{ bottom: "5rem" }} />
     </div>
   );
 }
