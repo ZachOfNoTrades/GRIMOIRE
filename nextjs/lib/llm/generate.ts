@@ -1,7 +1,7 @@
 import { getLlmTaskConfig } from "@/lib/userPreferences";
 import { recommendedOpenRouterModel } from "./catalog";
 import { runClaudeCli } from "./claudeCli";
-import { openRouterChat } from "./openrouter";
+import { openRouterChat, openRouterTranscribe, type OpenRouterTranscribeRequest } from "./openrouter";
 import { taskDef, type LlmTaskId } from "./tasks";
 import { recordUsage } from "./usage";
 import { withOpenRouterKey } from "./userKeys";
@@ -127,4 +127,32 @@ export async function generateJson(userId: string, task: LlmTaskId, req: LlmRequ
 
 export async function generateWithTools(userId: string, task: LlmTaskId, req: LlmRequest): Promise<string> {
   return (await generate(userId, task, req)).text;
+}
+
+// SPEECH TO TEXT — a task with a localEngine (rune_stt) runs `local` on the default
+// backend, or OpenRouter's transcription endpoint with the user's key. Only the
+// OpenRouter path writes an llm_usage row; the local engine is not a model call.
+export interface TranscribeRequest {
+  audio: Buffer;
+  format: OpenRouterTranscribeRequest["format"];
+  language?: string;
+  timeoutMs?: number;
+}
+
+export async function transcribe(userId: string, task: LlmTaskId, req: TranscribeRequest, local: (audio: Buffer) => Promise<string>): Promise<string> {
+  const resolved = await resolveBackend(userId, task);
+  if (resolved.backend !== "openrouter") return local(req.audio);
+
+  const started = Date.now();
+  try {
+    const result = await withOpenRouterKey(userId, (key) => openRouterTranscribe(key, { model: resolved.model, ...req }));
+    const durationMs = Date.now() - started;
+    recordUsage({ userId, task, backend: "openrouter", model: result.model, ...result.usage, durationMs, ok: true, errorCode: null });
+    console.log(`[llm] ${task} openrouter ${result.model} ${durationMs}ms $${(result.usage.costUsd ?? 0).toFixed(5)}`);
+    return result.text;
+  } catch (error) {
+    recordUsage({ userId, task, backend: "openrouter", model: resolved.model, promptTokens: 0, completionTokens: 0, costUsd: null, durationMs: Date.now() - started, ok: false, errorCode: errorCodeOf(error) });
+    if (error instanceof LlmBackendError) throw error;
+    throw new LlmBackendError("openrouter_error", redactSecrets(error instanceof Error ? error.message : String(error)));
+  }
 }

@@ -6,6 +6,7 @@ import type { LlmBackend, LlmTaskConfig } from "./types";
 
 export type LlmTaskId =
   | "rune_eval"
+  | "rune_stt"
   | "rune_refine"
   | "rune_deck"
   | "golem_program"
@@ -40,6 +41,12 @@ export interface LlmTaskDef {
   needsTools?: boolean;
   // Tasks with no CLI equivalent (image generation) are OpenRouter-only.
   openRouterOnly?: boolean;
+  // Speech-to-text: OpenRouter's /audio/transcriptions instead of chat completions.
+  needsAudio?: boolean;
+  // Tasks whose default backend is an engine on this server rather than the Claude
+  // CLI (transcription → whisper.cpp). The stored backend is still "claude" — it means
+  // "the shared default" — and the settings page shows this name for it.
+  localEngine?: string;
   // Seed for the cost estimate until the usage log has real calls for the task:
   // typical prompt and completion token counts.
   estTokens: [prompt: number, completion: number];
@@ -50,11 +57,14 @@ export interface LlmTaskDef {
 const FAST_TEXT = "qwen/qwen3-30b-a3b-instruct-2507";
 // Function calling + long structured JSON (program/deck generation).
 const TOOLS = "anthropic/claude-haiku-4.5";
+// Spoken answers (a few seconds of WAV); per-second priced, ~$0.0002/min.
+const TRANSCRIBE = "openai/whisper-large-v3-turbo";
 // Reads label / recipe photos.
 const VISION = "google/gemini-2.5-flash";
 
 export const LLM_TASKS: readonly LlmTaskDef[] = [
   { id: "rune_eval",          group: "rune",   label: "Spoken answer grading", openRouterModel: FAST_TEXT, cliModel: "sonnet", cliEffort: "low", estTokens: [1000, 70] },
+  { id: "rune_stt",           group: "rune",   label: "Transcription",         openRouterModel: TRANSCRIBE, needsAudio: true, localEngine: "Whisper", estTokens: [100, 20] },
   { id: "rune_refine",        group: "rune",   label: "Card refine",           openRouterModel: FAST_TEXT, estTokens: [600, 150] },
   { id: "rune_deck",          group: "rune",   label: "Deck generate / refine", openRouterModel: TOOLS, needsTools: true, estTokens: [3000, 900] },
   { id: "golem_program",      group: "golem",  label: "Program generation",    openRouterModel: TOOLS, needsTools: true, estTokens: [12000, 2500] },

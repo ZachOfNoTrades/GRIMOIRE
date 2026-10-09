@@ -103,7 +103,7 @@ export default function AdminLlmPage() {
             title="Recommended models"
             sections={[
               { heading: "Pins", body: "A pinned model becomes the task's recommended entry for every user and runs for anyone who left the choice blank. Blank keeps the automatic pick." },
-              { heading: "Checked", body: "An OpenRouter id must exist and fit the task (read images, call tools, draw) or Save refuses it." },
+              { heading: "Checked", body: "An OpenRouter id must exist and fit the task (read images, call tools, draw, transcribe) or Save refuses it." },
             ]}
           />
         </div>
@@ -128,7 +128,7 @@ export default function AdminLlmPage() {
                       <span style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", columnGap: "0.75rem", rowGap: "0.5rem", alignItems: "center", width: "34rem", maxWidth: "100%" }}>
 
                         {/* CLAUDE — one of the CLI aliases, or blank */}
-                        {!task.openRouterOnly && (
+                        {!task.openRouterOnly && !task.localEngine && (
                           <>
                             <span className="text-secondary" style={{ fontSize: "0.8rem" }}>Claude</span>
                             <select

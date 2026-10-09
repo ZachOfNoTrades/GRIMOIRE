@@ -1,3 +1,4 @@
+import { basename } from "path";
 import { LLM_TASKS, taskDef, type LlmTaskDef, type LlmTaskId } from "./tasks";
 import type { LlmBackend } from "./types";
 import { getModelTimingStats, getTaskTokenStats, type ModelTimingStats, type TaskTokenStats } from "./usage";
@@ -14,7 +15,11 @@ import { getRecommendedModels } from "./recommendations";
 //               filtered to what the task needs: images in, tools, images out. The
 //               recommendation is dynamic: a short list of known-good model FAMILIES
 //               per capability, the newest release of each, then the cheapest of those
-//               — so a new Haiku or Flash rolls in on its own.
+//               — so a new Haiku or Flash rolls in on its own. Transcription models
+//               are a separate list there (?output_modalities=transcription) and
+//               are merged in.
+//   local       a task with a localEngine (transcription → Whisper) lists that one
+//               engine in the "claude" slot instead of the CLI aliases.
 //
 // Every entry carries an ESTIMATE for this task — "~$ per call" and seconds — built
 // from the usage log: the task's average prompt/completion tokens × the model's list
@@ -30,6 +35,8 @@ export interface ModelInfo {
   imageIn: boolean;
   imageOut: boolean;
   tools: boolean;
+  transcribes: boolean;
+  perMinute: number | null; // duration-priced transcription: $ per audio minute
 }
 
 export interface CatalogModel {
@@ -86,7 +93,7 @@ function timingFor(h: TaskHistory, idOrAlias: string): ModelTimingStats | null {
 // A generation-side guess when neither a logged call nor OpenRouter's own stats are
 // available: a fixed round trip plus the completion at a typical streaming rate.
 function fallbackSeconds(def: LlmTaskDef, completionTokens: number): number {
-  const base = def.needsVision ? 2.5 : def.openRouterOnly ? 8 : 0.8;
+  const base = def.needsVision ? 2.5 : def.openRouterOnly ? 8 : def.needsAudio ? 1 : 0.8;
   return base + completionTokens / 60;
 }
 
@@ -185,7 +192,23 @@ function claudeEntry(task: LlmTaskId, id: string, name: string, recommended: boo
   };
 }
 
+// LOCAL ENGINE — the server's own whisper.cpp; its one entry is named after the
+// model file it loads (ggml-base.en.bin → "Whisper base.en").
+const LOCAL_MODEL_ID = "local";
+
+function localEngineName(def: LlmTaskDef): string {
+  const file = process.env.WHISPER_MODEL_PATH ? basename(process.env.WHISPER_MODEL_PATH) : "";
+  const model = file.replace(/^ggml-/, "").replace(/\.bin$/, "");
+  return model ? `${def.localEngine} ${model}` : def.localEngine ?? "Local";
+}
+
+function localEntry(def: LlmTaskDef): CatalogModel {
+  return { id: LOCAL_MODEL_ID, name: localEngineName(def), recommended: true, estCostUsd: null, estSeconds: null, basis: { taskCalls: 0, modelCalls: 0 }, info: null };
+}
+
 async function claudeList(task: LlmTaskId): Promise<TaskModelList> {
+  const def = taskDef(task);
+  if (def.localEngine) return { recommended: LOCAL_MODEL_ID, models: [localEntry(def)] };
   const [recommended, h] = await Promise.all([claudeRecommendation(task), historyFor(task, "claude")]);
   // A pinned full id that isn't one of the aliases is listed too, so it can be picked.
   const listed = CLAUDE_MODELS.some((m) => m.id === recommended) ? CLAUDE_MODELS : [...CLAUDE_MODELS, { id: recommended, name: recommended }];
@@ -196,6 +219,10 @@ async function claudeList(task: LlmTaskId): Promise<TaskModelList> {
 }
 
 async function validateClaudeModel(id: string, task: LlmTaskId): Promise<ValidationResult> {
+  const def = taskDef(task);
+  if (def.localEngine) {
+    return id === LOCAL_MODEL_ID ? { ok: true, name: localEngineName(def), model: localEntry(def) } : { ok: false, reason: `${def.localEngine} has no other models` };
+  }
   const alias = CLAUDE_MODELS.find((m) => m.id === id);
   if (!alias && !CLAUDE_ID_PATTERN.test(id)) {
     return { ok: false, reason: "Use haiku, sonnet, opus, or a full Claude model id like claude-sonnet-4-6" };
@@ -231,6 +258,10 @@ interface OrModel {
   imageOut: boolean;
   textOut: boolean;
   tools: boolean;
+  transcribes: boolean;
+  // Duration-priced transcription models carry $/second in pricing.prompt and 0 for
+  // completion; token-priced ones (gpt-4o-transcribe, gemini-*-transcribe) price both.
+  perSecond: number | null;
 }
 
 const CATALOG_TTL_MS = 60 * 60 * 1000;
@@ -242,21 +273,33 @@ function isPseudo(id: string): boolean {
   return id.startsWith("openrouter/") || id.startsWith("typesafe/") || id.startsWith("~") || id.includes(":");
 }
 
+async function fetchModelList(url: string, signal: AbortSignal): Promise<RawModel[]> {
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`OpenRouter models answered ${response.status}`);
+  const body = (await response.json()) as { data?: RawModel[] };
+  return body.data ?? [];
+}
+
 async function fetchCatalog(): Promise<OrModel[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/models", { signal: controller.signal });
-    if (!response.ok) throw new Error(`OpenRouter models answered ${response.status}`);
-    const body = (await response.json()) as { data?: RawModel[] };
+    // The default list leaves out transcription models; they come from their own query.
+    const [main, stt] = await Promise.all([
+      fetchModelList("https://openrouter.ai/api/v1/models", controller.signal),
+      fetchModelList("https://openrouter.ai/api/v1/models?output_modalities=transcription", controller.signal),
+    ]);
     const now = Date.now();
     const models: OrModel[] = [];
-    for (const raw of body.data ?? []) {
-      if (!raw.id || isPseudo(raw.id)) continue;
+    const seen = new Set<string>();
+    for (const raw of [...main, ...stt]) {
+      if (!raw.id || isPseudo(raw.id) || seen.has(raw.id)) continue;
+      seen.add(raw.id);
       if (raw.expiration_date && new Date(raw.expiration_date).getTime() < now) continue;
       const prompt = Number(raw.pricing?.prompt ?? NaN) * 1e6;
       const completion = Number(raw.pricing?.completion ?? NaN) * 1e6;
       if (!Number.isFinite(prompt) || !Number.isFinite(completion) || prompt < 0 || completion < 0) continue;
+      const transcribes = raw.architecture?.output_modalities?.includes("transcription") ?? false;
       models.push({
         id: raw.id,
         name: raw.name ?? raw.id,
@@ -268,6 +311,8 @@ async function fetchCatalog(): Promise<OrModel[]> {
         imageOut: raw.architecture?.output_modalities?.includes("image") ?? false,
         textOut: raw.architecture?.output_modalities?.includes("text") ?? true,
         tools: raw.supported_parameters?.includes("tools") ?? false,
+        transcribes,
+        perSecond: transcribes && completion === 0 ? prompt / 1e6 : null,
       });
     }
     return models;
@@ -295,9 +340,10 @@ export async function getOpenRouterCatalog(): Promise<OrModel[]> {
   }
 }
 
-type Capability = "text" | "tools" | "vision" | "image";
+type Capability = "text" | "tools" | "vision" | "image" | "transcription";
 
 function capabilityOf(def: LlmTaskDef): Capability {
+  if (def.needsAudio) return "transcription";
   if (def.openRouterOnly) return "image";
   if (def.needsVision) return "vision";
   if (def.needsTools) return "tools";
@@ -305,6 +351,7 @@ function capabilityOf(def: LlmTaskDef): Capability {
 }
 
 function fits(model: OrModel, cap: Capability): boolean {
+  if (cap === "transcription") return model.transcribes && (model.promptPerM > 0 || model.completionPerM > 0);
   if (cap === "image") return model.imageOut;
   if (!model.ctx || model.ctx < 16_000) return false;
   if (!model.textOut || model.imageOut) return false; // audio/image generators are not text models
@@ -343,7 +390,23 @@ const FAMILIES: Record<Capability, RegExp[]> = {
     /^google\/gemini-[\d.]+-flash-image$/,
     /^openai\/gpt-[\d.]+-image-mini$/,
   ],
+  transcription: [
+    /^openai\/whisper-large-v[\d.]+-turbo$/,
+    /^openai\/gpt-[\d.]+o?-mini-transcribe$/,
+    /^mistralai\/voxtral-mini-transcribe$/,
+  ],
 };
+
+// Length of a typical spoken Rune answer — what a duration-priced call is costed at.
+const EST_AUDIO_SECONDS = 4;
+
+// Projected list-price cost of one call. A transcription task always uses its seed
+// sizes: logged token counts mix duration- and token-priced models (the former log 0).
+function projectedCost(def: LlmTaskDef, m: OrModel, h: TaskHistory): number {
+  if (m.perSecond !== null) return EST_AUDIO_SECONDS * m.perSecond;
+  const [promptTokens, completionTokens] = def.needsAudio ? def.estTokens : tokenCounts(def, h);
+  return (promptTokens * m.promptPerM + completionTokens * m.completionPerM) / 1e6;
+}
 
 function blendedPrice(m: OrModel): number {
   return m.promptPerM * 0.75 + m.completionPerM * 0.25;
@@ -351,6 +414,11 @@ function blendedPrice(m: OrModel): number {
 
 // An admin pin wins when it is a model that fits the task; otherwise the family rule.
 function recommend(models: OrModel[], cap: Capability, fallback: string, pinned?: string): string {
+  // Duration- and token-priced transcription models only compare per call.
+  const price = (m: OrModel) =>
+    cap !== "transcription" ? blendedPrice(m)
+    : m.perSecond !== null ? EST_AUDIO_SECONDS * m.perSecond
+    : (100 * m.promptPerM + 20 * m.completionPerM) / 1e6;
   if (pinned && models.some((m) => m.id === pinned)) return pinned;
   const picks: OrModel[] = [];
   for (const family of FAMILIES[cap]) {
@@ -358,15 +426,15 @@ function recommend(models: OrModel[], cap: Capability, fallback: string, pinned?
     if (newest) picks.push(newest);
   }
   if (picks.length === 0) return models.some((m) => m.id === fallback) ? fallback : models[0]?.id ?? fallback;
-  picks.sort((a, b) => blendedPrice(a) - blendedPrice(b));
+  picks.sort((a, b) => price(a) - price(b));
   return picks[0].id;
 }
 
 function orEntry(def: LlmTaskDef, m: OrModel, recommended: boolean, h: TaskHistory, stats?: EndpointStats | null): CatalogModel {
-  const [promptTokens, completionTokens] = tokenCounts(def, h);
+  const [, completionTokens] = tokenCounts(def, h);
   const t = timingFor(h, m.id);
   // Logged cost on this very model beats a list-price projection.
-  const projected = (promptTokens * m.promptPerM + completionTokens * m.completionPerM) / 1e6;
+  const projected = projectedCost(def, m, h);
   // Time: a logged call on this model for this task, else OpenRouter's live endpoint
   // stats (first-token latency + the completion at the measured rate), else a guess.
   const estSeconds = t
@@ -389,6 +457,8 @@ function orEntry(def: LlmTaskDef, m: OrModel, recommended: boolean, h: TaskHisto
       imageIn: m.imageIn,
       imageOut: m.imageOut,
       tools: m.tools,
+      transcribes: m.transcribes,
+      perMinute: m.perSecond !== null ? m.perSecond * 60 : null,
     },
   };
 }
@@ -433,7 +503,7 @@ async function validateOpenRouterModel(id: string, task: LlmTaskId, userId?: str
   const model = all.find((m) => m.id === id);
   if (!model) return { ok: false, reason: "Not in OpenRouter's model list" };
   if (!fits(model, cap)) {
-    const need = cap === "image" ? "generate images" : cap === "vision" ? "read images" : cap === "tools" ? "call tools" : "handle text";
+    const need = cap === "transcription" ? "transcribe speech" : cap === "image" ? "generate images" : cap === "vision" ? "read images" : cap === "tools" ? "call tools" : "handle text";
     return { ok: false, reason: `${model.name} can't ${need}, which this task needs` };
   }
   const [h, stats] = await Promise.all([historyFor(task, "openrouter"), statsWithUserKey(userId, [model.id])]);

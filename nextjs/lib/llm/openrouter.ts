@@ -92,10 +92,10 @@ function errorFor(status: number, body: string): LlmBackendError {
   return new LlmBackendError("openrouter_error", `OpenRouter answered ${status}: ${detail}`, 502);
 }
 
-async function post(key: string, body: unknown, signal: AbortSignal): Promise<ChatResponse> {
+async function post<T extends { error?: { message?: string; code?: number | string } }>(key: string, path: string, body: unknown, signal: AbortSignal): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${OPENROUTER_API}/chat/completions`, {
+    response = await fetch(`${OPENROUTER_API}${path}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,
@@ -112,9 +112,9 @@ async function post(key: string, body: unknown, signal: AbortSignal): Promise<Ch
   }
   const text = await response.text();
   if (!response.ok) throw errorFor(response.status, text);
-  let parsed: ChatResponse;
+  let parsed: T;
   try {
-    parsed = JSON.parse(text) as ChatResponse;
+    parsed = JSON.parse(text) as T;
   } catch {
     throw new LlmBackendError("bad_response", "OpenRouter returned something that isn't JSON");
   }
@@ -124,14 +124,14 @@ async function post(key: string, body: unknown, signal: AbortSignal): Promise<Ch
 }
 
 // One request with a single retry on a rate limit or an upstream 5xx.
-async function postWithRetry(key: string, body: unknown, signal: AbortSignal): Promise<ChatResponse> {
+async function postWithRetry<T extends { error?: { message?: string; code?: number | string } }>(key: string, path: string, body: unknown, signal: AbortSignal): Promise<T> {
   try {
-    return await post(key, body, signal);
+    return await post<T>(key, path, body, signal);
   } catch (error) {
     const retryable = error instanceof LlmBackendError && (error.code === "openrouter_rate_limited" || (error.code === "openrouter_error" && /answered 5\d\d/.test(error.message)));
     if (!retryable || signal.aborted) throw error;
     await new Promise((r) => setTimeout(r, 1500));
-    return post(key, body, signal);
+    return post<T>(key, path, body, signal);
   }
 }
 
@@ -167,7 +167,7 @@ export async function openRouterChat(key: string, req: OpenRouterChatRequest): P
       if (req.json && !toolDefs.length) body.response_format = { type: "json_object" };
       if (toolDefs.length) body.tools = toolDefs;
 
-      const response = await postWithRetry(key, body, controller.signal);
+      const response = await postWithRetry<ChatResponse>(key, "/chat/completions", body, controller.signal);
       const choice = response.choices?.[0];
       if (!choice) throw new LlmBackendError("bad_response", "OpenRouter returned no choices");
       if (response.model) model = response.model;
@@ -208,6 +208,49 @@ export async function openRouterChat(key: string, req: OpenRouterChatRequest): P
       }
     }
     throw new LlmBackendError("openrouter_tool_rounds", `The model kept calling tools past ${maxRounds} rounds without answering`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// TRANSCRIPTION — POST /audio/transcriptions: base64 audio in a JSON body (the endpoint
+// is not OpenAI-compatible; no multipart). Duration-priced models report
+// usage.seconds, token-priced ones input/output tokens; usage.cost is always there.
+export interface OpenRouterTranscribeRequest {
+  model: string;
+  audio: Buffer;
+  format: "wav" | "mp3" | "flac" | "m4a" | "ogg" | "webm" | "aac";
+  language?: string;
+  timeoutMs?: number;
+}
+
+interface TranscriptionResponse {
+  text?: string;
+  usage?: { cost?: number; seconds?: number; input_tokens?: number; output_tokens?: number };
+  error?: { message?: string; code?: number | string };
+}
+
+export async function openRouterTranscribe(key: string, req: OpenRouterTranscribeRequest): Promise<OpenRouterChatResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), req.timeoutMs ?? 30_000);
+  try {
+    const body: Record<string, unknown> = {
+      model: req.model,
+      input_audio: { data: req.audio.toString("base64"), format: req.format },
+      provider: { sort: "latency" },
+    };
+    if (req.language) body.language = req.language;
+    const response = await postWithRetry<TranscriptionResponse>(key, "/audio/transcriptions", body, controller.signal);
+    if (typeof response.text !== "string") throw new LlmBackendError("bad_response", "OpenRouter returned no transcript");
+    return {
+      text: response.text,
+      model: req.model,
+      usage: {
+        promptTokens: response.usage?.input_tokens ?? 0,
+        completionTokens: response.usage?.output_tokens ?? 0,
+        costUsd: typeof response.usage?.cost === "number" ? response.usage.cost : null,
+      },
+    };
   } finally {
     clearTimeout(timer);
   }

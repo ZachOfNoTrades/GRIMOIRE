@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedUser } from "@/lib/permissions";
 import { transcribeAudio } from "../../lib/voice/sttFunctions";
+import { LlmBackendError } from "@/lib/llm/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,11 +24,15 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await audioFile.arrayBuffer();
     const audioBuffer = Buffer.from(arrayBuffer);
 
-    const transcript = await transcribeAudio(audioBuffer);
+    const transcript = await transcribeAudio(session.user.id!, audioBuffer);
 
     return NextResponse.json({ transcript }, { status: 200 });
 
   } catch (error) {
+    // OpenRouter backend failures (no key, out of credits…) keep their status and code.
+    if (error instanceof LlmBackendError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
     console.error("Error in POST /modules/rune/api/stt:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "STT transcription failed" },

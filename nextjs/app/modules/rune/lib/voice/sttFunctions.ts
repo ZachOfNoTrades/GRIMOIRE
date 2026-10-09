@@ -2,12 +2,23 @@ import { spawn } from "child_process";
 import { promises as fs } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
+import { transcribe } from "@/lib/llm/generate";
+
+/**
+ * Transcribe a spoken answer on the user's rune_stt backend: the server's Whisper
+ * (default) or an OpenRouter transcription model on their own key.
+ * Accepts a WAV audio Buffer and returns the transcribed text.
+ */
+export async function transcribeAudio(userId: string, audioBuffer: Buffer): Promise<string> {
+  const transcript = await transcribe(userId, "rune_stt", { audio: audioBuffer, format: "wav", language: "en" }, transcribeWithWhisper);
+  // Strip non-speech annotations like (muffled noises), (coughing), [BLANK_AUDIO], etc.
+  return transcript.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g, " ").trim();
+}
 
 /**
  * Transcribe an audio file using the Whisper CLI binary.
- * Accepts a WAV audio Buffer and returns the transcribed text.
  */
-export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
+async function transcribeWithWhisper(audioBuffer: Buffer): Promise<string> {
   const whisperBinary = process.env.WHISPER_BINARY_PATH;
   const whisperModel = process.env.WHISPER_MODEL_PATH;
 
@@ -78,9 +89,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       });
     });
 
-    // Strip non-speech annotations like (muffled noises), (coughing), [BLANK_AUDIO], etc.
-    const cleaned = transcript.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g, " ").trim();
-    return cleaned;
+    return transcript;
 
   } finally {
     // Clean up temp file
