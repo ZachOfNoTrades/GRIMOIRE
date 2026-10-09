@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo, useRef, useState } from "react";
-import { GripVertical, History, Plus, Sparkles, Trash2, Undo2, EllipsisVertical, StickyNote } from "lucide-react";
+import { GripVertical, History, Plus, Sparkles, Trash2, Undo2, EllipsisVertical, StickyNote, Forward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PopoverMenu from "@/components/PopoverMenu";
 import type { TableSelection } from "@/components/ExpandableRowList";
@@ -63,6 +63,7 @@ interface CardTableProps {
   // PER-CARD ACTIONS
   onHistory: (card: CardWithProgress) => void;
   onRefine: (card: CardWithProgress) => void;
+  onMove: (card: CardWithProgress) => void;
   onDelete: (card: CardWithProgress) => void;
 
   // REORDER — only offered in the deck's own manual order; every other sort would re-sort
@@ -93,7 +94,7 @@ export default function CardTable({
   cards, selection, existingCategories,
   sheetDrafts, onDraftChange, onRevertRow, isSaving,
   pendingRows, onInsertBelow, onPendingChange, onDiscardPending,
-  onHistory, onRefine, onDelete,
+  onHistory, onRefine, onMove, onDelete,
   canReorder, reorderHint, onReorder,
   readOnly = false,
 }: CardTableProps) {
@@ -539,6 +540,10 @@ export default function CardTable({
               <button type="button" className="popover-item" onClick={() => { setMenuCardId(null); onRefine(card); }}>
                 <Sparkles className="w-4 h-4 mr-3" />
                 Refine card
+              </button>
+              <button type="button" className="popover-item" onClick={() => { setMenuCardId(null); onMove(card); }}>
+                <Forward className="w-4 h-4 mr-3" />
+                Move to deck
               </button>
               <button type="button" className="popover-item popover-item-danger" onClick={() => { setMenuCardId(null); onDelete(card); }}>
                 <Trash2 className="w-4 h-4 mr-3" />

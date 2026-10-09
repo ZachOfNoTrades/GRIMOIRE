@@ -790,3 +790,90 @@ export async function reorderCards(userId: string, deckId: string, orderedIds: s
     }
   }
 }
+
+// Moves cards from one deck to another. A move re-homes the card rather than copying it:
+// the row keeps its id, so its schedule (card_progress) and review history (card_reviews)
+// — both keyed on card_id alone — travel with it, for every user who has studied it.
+//
+// The moved cards land at the END of the target deck, in the order they held in the
+// source, and the source deck is renumbered so its manual order stays a contiguous run.
+// `targetOwnerId` is written into user_id because cards always carry their deck owner's
+// id (see shareFunctions) — a move into a deck someone shared with you hands the card to
+// that deck's owner.
+//
+// The content is untouched, so modified_at/modified_via stay as they were — the deck view's
+// "Modified … via" line describes edits to the card, not where it is filed.
+//
+// All-or-nothing: if any id isn't a card of the source deck (a stale client list), nothing
+// moves and it throws "No card found", so the caller never half-applies a selection.
+export async function moveCards(sourceDeckId: string, targetDeckId: string, targetOwnerId: string, cardIds: string[]): Promise<number> {
+  const uniqueIds = [...new Set(cardIds.map((cardId) => cardId.toLowerCase()))];
+  if (uniqueIds.length === 0) return 0;
+
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      const idsJson = JSON.stringify(uniqueIds);
+
+      const found = await transaction.request()
+        .input('sourceDeckId', sourceDeckId)
+        .input('ids', idsJson)
+        .query(`
+          SELECT COUNT(*) AS n
+          FROM cards c
+          JOIN OPENJSON(@ids) j ON c.id = TRY_CAST(j.value AS uniqueidentifier)
+          WHERE c.deck_id = @sourceDeckId
+        `);
+      if (found.recordset[0].n !== uniqueIds.length) {
+        throw new Error(`No card found for one or more ids in deck '${sourceDeckId}'`);
+      }
+
+      await transaction.request()
+        .input('sourceDeckId', sourceDeckId)
+        .input('targetDeckId', targetDeckId)
+        .input('targetOwnerId', targetOwnerId)
+        .input('ids', idsJson)
+        .query(`
+          DECLARE @base INT = (SELECT ISNULL(MAX(order_index), -1) + 1 FROM cards WHERE deck_id = @targetDeckId);
+
+          WITH moving AS (
+            SELECT c.id, ROW_NUMBER() OVER (ORDER BY c.order_index, c.created_at) - 1 AS pos
+            FROM cards c
+            JOIN OPENJSON(@ids) j ON c.id = TRY_CAST(j.value AS uniqueidentifier)
+            WHERE c.deck_id = @sourceDeckId
+          )
+          UPDATE c
+          SET deck_id = @targetDeckId,
+              user_id = @targetOwnerId,
+              order_index = @base + m.pos
+          FROM cards c
+          JOIN moving m ON m.id = c.id;
+
+          -- Close the gaps the moved cards left behind.
+          WITH remaining AS (
+            SELECT order_index, ROW_NUMBER() OVER (ORDER BY order_index, created_at) - 1 AS pos
+            FROM cards
+            WHERE deck_id = @sourceDeckId
+          )
+          UPDATE remaining SET order_index = pos WHERE order_index <> pos;
+        `);
+
+      await transaction.commit();
+      return uniqueIds.length;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error moving cards:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}

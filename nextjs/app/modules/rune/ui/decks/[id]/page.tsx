@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, use } from "react";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload, Download, Share2, LogOut } from "lucide-react";
+import { Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload, Download, Share2, LogOut, Forward } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import ExpandableRowList from "@/components/ExpandableRowList";
@@ -20,6 +20,7 @@ import StudySession, { StudyPreferences } from "../../../components/StudySession
 import CardTable, { CardSheetDraft, PendingRow, draftFromCard, isDirty as isDraftDirty } from "./cards/CardTable";
 import ManageCardModal from "./cards/ManageCardModal";
 import DeleteCardModal from "./cards/DeleteCardModal";
+import MoveCardsModal, { MoveTarget } from "./cards/MoveCardsModal";
 import RefineCardModal from "./cards/RefineCardModal";
 import CardHistoryModal from "./cards/CardHistoryModal";
 import ImportCardsModal from "./ImportCardsModal";
@@ -143,6 +144,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteCards, setShowBulkDeleteCards] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  // Cards the move picker is open for — one card from its own actions, or the selection.
+  // `fromSelection` says which, so a finished move only clears the selection it came from.
+  const [moving, setMoving] = useState<{ cards: CardWithProgress[]; fromSelection: boolean } | null>(null);
   const [showEditDeck, setShowEditDeck] = useState(false);
   const [showDeleteDeck, setShowDeleteDeck] = useState(false);
   const [showShareDeck, setShowShareDeck] = useState(false);
@@ -785,6 +789,50 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     } finally {
       setIsBulkDeleting(false);
     }
+  // Move cards to another deck. Optimistic like delete — they leave this deck's list at once
+  // and the server move runs behind it. It is one request for any number of cards, and
+  // all-or-nothing on the server, so a failure means nothing moved: the refetch puts them back.
+  const handleMoveCards = async (target: MoveTarget) => {
+    if (!moving) return;
+    const idsToMove = new Set(moving.cards.map((c) => c.id));
+    const count = idsToMove.size;
+
+    // Client update first
+    setAllCards((prev) => prev.filter((c) => !idsToMove.has(c.id)));
+    setDueCards((prev) => prev.filter((c) => !idsToMove.has(c.id)));
+    setExpandedCardId((cur) => (cur && idsToMove.has(cur) ? null : cur));
+    if (moving.fromSelection) {
+      setSelectedCardIds(new Set());
+    } else {
+      setSelectedCardIds((prev) => {
+        if (![...idsToMove].some((cardId) => prev.has(cardId))) return prev;
+        const next = new Set(prev);
+        idsToMove.forEach((cardId) => next.delete(cardId));
+        return next;
+      });
+    }
+    setMoving(null);
+
+    // Background DB move
+    const noun = `${count} card${count === 1 ? "" : "s"}`;
+    try {
+      const response = await fetch(`/modules/rune/api/decks/${id}/cards/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardIds: [...idsToMove], targetDeckId: target.id }),
+      });
+      if (response.ok) {
+        toast.success(`Moved ${count === 1 ? "card" : noun} to ${target.name}`);
+      } else {
+        const data = await response.json().catch(() => null);
+        toast.error(data?.error ? `Couldn't move ${noun}: ${data.error}` : `Couldn't move ${noun}`);
+      }
+    } catch {
+      toast.error(`Couldn't move ${noun}`);
+    }
+    refetchCards();
+  };
+
   };
 
   // Handle card-level refinement result
@@ -1051,6 +1099,20 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   too, matching the deck list, the Rune home total and the dashboard badge. */}
               <div className="stat-card">
                 <p className="stat-label">Due</p>
+                  {/* BULK MOVE BUTTON — beside bulk delete; both act on the list's selection, whose
+                      count already rides on the delete button */}
+                  {canEdit && (
+                  <Button
+                    onClick={() => setMoving({ cards: allCards.filter((c) => selectedCardIds.has(c.id)), fromSelection: true })}
+                    disabled={selectedCardIds.size === 0}
+                    className="btn-off !p-2"
+                    title={selectedCardIds.size > 0 ? `Move ${selectedCardIds.size} card${selectedCardIds.size === 1 ? "" : "s"} to another deck` : "Select cards to move"}
+                    aria-label={selectedCardIds.size > 0 ? `Move ${selectedCardIds.size} card${selectedCardIds.size === 1 ? "" : "s"} to another deck` : "Move cards to another deck"}
+                  >
+                    <Forward className="w-4 h-4" />
+                  </Button>
+                  )}
+
                 <p className="stat-value">
                   {deck.is_disabled ? <span className="text-subtle">—</span> : dueCards.length}
                 </p>
@@ -1157,6 +1219,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 {/* ADD CARD BUTTON — list view only. The table has its own last line for
                     this, and a per-row insert besides; a full-width button above the search
                     field would be a third way to do the same thing, pushing the cards
+                        onMove={(card) => setMoving({ cards: [card], fromSelection: false })}
                     themselves further down a view whose whole point is showing them.
                     An empty deck renders no table at all (so no last line either), so the
                     button shows in both views until the first card exists. */}
@@ -1228,6 +1291,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                       <CardTable
                         cards={cards}
                         selection={selection}
+                              <Button className="btn-link" aria-label="Move to deck" title="Move to deck" onClick={() => setMoving({ cards: [card], fromSelection: false })}>
+                                <Forward className="w-4 h-4" />
+                              </Button>
                         existingCategories={existingCategories}
                         sheetDrafts={sheetDrafts}
                         onDraftChange={updateSheetDraft}
@@ -1345,6 +1411,16 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                           <div>
                             <p className="text-subtle text-xs mb-1">Source</p>
                             <CardContent text={card.source_ref} className="text-secondary rune-card-source-text" />
+            {/* MOVE CARDS MODAL (single or bulk) */}
+            <MoveCardsModal
+              isOpen={!!moving}
+              sourceDeckId={id}
+              sourceDeckName={deck.name}
+              cards={moving?.cards ?? []}
+              onClose={() => setMoving(null)}
+              onMove={handleMoveCards}
+            />
+
                           </div>
                         )}
                         {(card.is_draft || card.category || (card.source && card.source !== "manual")) && (

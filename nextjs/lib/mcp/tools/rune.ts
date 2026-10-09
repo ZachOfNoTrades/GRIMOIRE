@@ -4,7 +4,8 @@ import type { McpContext } from '@/lib/mcp/context';
 import { json, text } from '@/lib/mcp/format';
 
 import { getAllDecks, getDeckById, createDeck, updateDeck, deleteDeck } from '@/app/modules/rune/lib/deckFunctions';
-import { getCardsByDeckId, getCardById, insertCard, updateCard, deleteCard, upsertCards } from '@/app/modules/rune/lib/cardFunctions';
+import { getCardsByDeckId, getCardById, insertCard, updateCard, deleteCard, upsertCards, moveCards } from '@/app/modules/rune/lib/cardFunctions';
+import { requireDeckAccess } from '@/app/modules/rune/lib/shareFunctions';
 import { CARD_SOURCE_REF_MAX, CARD_CATEGORY_MAX } from '@/app/modules/rune/types/card';
 import {
   createStudySession,
@@ -191,6 +192,27 @@ export function registerRuneTools(server: McpServer, ctx: McpContext) {
     async ({ cardId }) => {
       await deleteCard(userId, cardId);
       return text(`Deleted card ${cardId}.`);
+    },
+  );
+
+  server.registerTool(
+    'rune_move_cards',
+    {
+      description: 'Move cards from one deck to another. Each card keeps its id, schedule and review history, and lands at the end of the target deck. Requires edit access to both decks; all-or-nothing if any card is not in the source deck.',
+      inputSchema: {
+        sourceDeckId: z.string(),
+        targetDeckId: z.string(),
+        cardIds: z.array(z.string()).min(1).max(2000),
+      },
+    },
+    async ({ sourceDeckId, targetDeckId, cardIds }) => {
+      if (sourceDeckId.toLowerCase() === targetDeckId.toLowerCase()) {
+        throw new Error('Cards are already in this deck');
+      }
+      await requireDeckAccess(ctx.user, sourceDeckId, 'edit');
+      const target = await requireDeckAccess(ctx.user, targetDeckId, 'edit');
+      const moved = await moveCards(sourceDeckId, targetDeckId, target.ownerId, cardIds);
+      return text(`Moved ${moved} card${moved === 1 ? '' : 's'} to deck ${targetDeckId}.`);
     },
   );
 
