@@ -15,6 +15,23 @@ export async function transcribeAudio(userId: string, audioBuffer: Buffer): Prom
   return transcript.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g, " ").trim();
 }
 
+const FAILED_DIR = join(process.cwd(), ".tmp", "stt-failed");
+const FAILED_KEEP = 10;
+
+async function keepFailedRecording(path: string): Promise<void> {
+  try {
+    await fs.mkdir(FAILED_DIR, { recursive: true });
+    await fs.rename(path, join(FAILED_DIR, path.split("/").pop()!));
+    const files = await Promise.all(
+      (await fs.readdir(FAILED_DIR)).map(async (name) => ({ name, at: (await fs.stat(join(FAILED_DIR, name))).mtimeMs }))
+    );
+    files.sort((a, b) => b.at - a.at);
+    await Promise.all(files.slice(FAILED_KEEP).map((f) => fs.unlink(join(FAILED_DIR, f.name)).catch(() => {})));
+  } catch {
+    console.warn(`Failed to keep failed STT recording: '${path}'`);
+  }
+}
+
 /**
  * Transcribe an audio file using the Whisper CLI binary.
  */
@@ -33,6 +50,7 @@ async function transcribeWithWhisper(audioBuffer: Buffer): Promise<string> {
   const tempDir = join(process.cwd(), ".tmp");
   await fs.mkdir(tempDir, { recursive: true });
   const inputPath = join(tempDir, `stt-${randomUUID()}.wav`);
+  let failed = false;
 
   try {
     await fs.writeFile(inputPath, audioBuffer);
@@ -80,11 +98,12 @@ async function transcribeWithWhisper(audioBuffer: Buffer): Promise<string> {
         reject(new Error(`Whisper process error: ${error.message}`));
       });
 
-      proc.on("close", (code) => {
+      proc.on("close", (code, signal) => {
         if (code === 0) {
           resolve(stdout.trim());
         } else {
-          reject(new Error(`Whisper exited with code ${code}: ${stderr}`));
+          failed = true;
+          reject(new Error(`Whisper exited with code ${code}${signal ? ` (${signal})` : ""}: ${stderr}`));
         }
       });
     });
@@ -92,8 +111,10 @@ async function transcribeWithWhisper(audioBuffer: Buffer): Promise<string> {
     return transcript;
 
   } finally {
+    // A recording Whisper couldn't handle is kept (newest few) for diagnosis.
+    if (failed) await keepFailedRecording(inputPath);
     // Clean up temp file
-    if (process.env.KEEP_TEMP_FILES !== "true") {
+    else if (process.env.KEEP_TEMP_FILES !== "true") {
       try {
         await fs.unlink(inputPath);
       } catch {

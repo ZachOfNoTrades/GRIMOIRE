@@ -1,5 +1,17 @@
 const SAMPLE_RATE = 16000; // Whisper expects 16kHz
 
+// What the device actually delivered, sent with each transcription so a recording
+// that misbehaves (Bluetooth headsets) can be diagnosed from the server log.
+export interface RecorderDiagnostics {
+  track: { label: string; settings: MediaTrackSettings } | null;
+  contextRate: number | null;
+  chunks: number;
+  seconds: number;
+  rmsMin: number | null; // noise floor seen by silence detection (threshold is 5)
+  rmsMax: number | null;
+  speechDetected: boolean;
+}
+
 export class AudioRecorder {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
@@ -12,6 +24,7 @@ export class AudioRecorder {
   private onSilenceStop: (() => void) | null = null;
   private onSpeechEnd: ((audio: Blob) => void) | null = null;
   private onSpeechResume: (() => void) | null = null;
+  private diag: Omit<RecorderDiagnostics, "chunks" | "seconds"> = { track: null, contextRate: null, rmsMin: null, rmsMax: null, speechDetected: false };
 
   /**
    * Start recording audio from the microphone.
@@ -45,6 +58,14 @@ export class AudioRecorder {
     this.onSpeechResume = hooks?.onSpeechResume ?? null;
 
     this.audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+    const track = this.stream.getAudioTracks()[0];
+    this.diag = {
+      track: track ? { label: track.label, settings: track.getSettings() } : null,
+      contextRate: this.audioContext.sampleRate,
+      rmsMin: null,
+      rmsMax: null,
+      speechDetected: false,
+    };
     this.sourceNode = this.audioContext.createMediaStreamSource(this.stream);
 
     // Capture raw PCM samples via ScriptProcessorNode
@@ -104,6 +125,11 @@ export class AudioRecorder {
     }
 
     return this.encodeWav(pcm, SAMPLE_RATE);
+  }
+
+  getDiagnostics(): RecorderDiagnostics {
+    const samples = this.pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    return { ...this.diag, chunks: this.pcmChunks.length, seconds: Math.round((samples / SAMPLE_RATE) * 10) / 10 };
   }
 
   isRecording(): boolean {
@@ -196,9 +222,12 @@ export class AudioRecorder {
         sum += sample * sample;
       }
       const rms = Math.sqrt(sum / dataArray.length) * 100;
+      this.diag.rmsMin = this.diag.rmsMin === null ? rms : Math.min(this.diag.rmsMin, rms);
+      this.diag.rmsMax = this.diag.rmsMax === null ? rms : Math.max(this.diag.rmsMax, rms);
 
       if (rms >= silenceThreshold) {
         speechDetected = true;
+        this.diag.speechDetected = true;
         if (this.silenceTimer) {
           clearTimeout(this.silenceTimer);
           this.silenceTimer = null;

@@ -24,9 +24,20 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await audioFile.arrayBuffer();
     const audioBuffer = Buffer.from(arrayBuffer);
 
-    const transcript = await transcribeAudio(session.user.id!, audioBuffer);
-
-    return NextResponse.json({ transcript }, { status: 200 });
+    // Recorder diagnostics (device label/settings, rates, noise floor) — logged with
+    // the outcome so a misbehaving input device can be told apart from the server.
+    const rawDiag = formData.get("diag");
+    const diag = typeof rawDiag === "string" ? rawDiag.slice(0, 2000) : "-";
+    const wavSeconds = Math.max(0, audioBuffer.length - 44) / 32000;
+    const started = Date.now();
+    try {
+      const transcript = await transcribeAudio(session.user.id!, audioBuffer);
+      console.log(`[stt] ok user=${session.user.id} bytes=${audioBuffer.length} wav=${wavSeconds.toFixed(1)}s ms=${Date.now() - started} chars=${transcript.length} diag=${diag}`);
+      return NextResponse.json({ transcript }, { status: 200 });
+    } catch (error) {
+      console.error(`[stt] failed user=${session.user.id} bytes=${audioBuffer.length} wav=${wavSeconds.toFixed(1)}s ms=${Date.now() - started} diag=${diag}`);
+      throw error;
+    }
 
   } catch (error) {
     // OpenRouter backend failures (no key, out of credits…) keep their status and code.

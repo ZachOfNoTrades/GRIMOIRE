@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
-import { AudioRecorder } from "./audioRecorder";
+import { AudioRecorder, type RecorderDiagnostics } from "./audioRecorder";
 import { SpeechToTextService } from "./sttService";
 
 interface UseListenerReturn {
@@ -57,7 +57,7 @@ export function useListener(): UseListenerReturn {
    * when there is no valid head start (a manual stop mid-sentence, or a resume that
    * invalidated the snapshot).
    */
-  const processAudio = useCallback(async (audioBlob: Blob) => {
+  const processAudio = useCallback(async (audioBlob: Blob, diagnostics?: RecorderDiagnostics) => {
     const recordingDuration = Date.now() - recordingStartRef.current;
     const headStart = headStartRef.current;
     headStartRef.current = null;
@@ -65,7 +65,7 @@ export function useListener(): UseListenerReturn {
 
     setIsTranscribing(true);
     try {
-      const text = await (headStart ?? getStt().transcribe(audioBlob));
+      const text = await (headStart ?? getStt().transcribe(audioBlob, diagnostics));
       setTranscript(text);
     } catch (error) {
       console.error("STT transcription error:", error);
@@ -89,8 +89,9 @@ export function useListener(): UseListenerReturn {
       await recorder.startRecording(
         async () => {
           setIsRecording(false);
+          const diagnostics = recorder.getDiagnostics();
           const blob = await recorder.stopRecording();
-          processAudio(blob);
+          processAudio(blob, diagnostics);
         },
         undefined, // keep the configured silence timeout
         {
@@ -98,7 +99,7 @@ export function useListener(): UseListenerReturn {
           // countdown runs, so the result is waiting when the countdown expires.
           onSpeechEnd: (audio: Blob) => {
             if (audio.size === 0) return;
-            const pending = getStt().transcribe(audio);
+            const pending = getStt().transcribe(audio, recorder.getDiagnostics());
             // Mark the rejection handled on a derived promise so a failure that is
             // never awaited (speaker resumed, recording cancelled) can't surface as
             // an unhandled rejection. `pending` itself still rejects for processAudio.
@@ -122,8 +123,9 @@ export function useListener(): UseListenerReturn {
     if (!recorder || !recorder.isRecording()) return;
 
     setIsRecording(false);
+    const diagnostics = recorder.getDiagnostics();
     const blob = await recorder.stopRecording();
-    processAudio(blob);
+    processAudio(blob, diagnostics);
   }, [processAudio]);
 
   /** Stop recording and discard audio without transcribing. */
