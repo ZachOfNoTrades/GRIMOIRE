@@ -3,21 +3,36 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "@/components/Toaster";
-import { ArrowLeft, Camera, ChefHat, Plus, Trash2, Save, RotateCcw, Pencil, ChevronRight } from "lucide-react";
+import { ArrowLeft, Camera, Plus, Trash2, Save, RotateCcw, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
 import { selectOnFocus, blurOnEnter } from "@/lib/inputBehavior";
 import Modal from "@/components/Modal";
 import { Recipe, RecipeIngredient, RecipeIngredientInput } from "../../../types/recipe";
-import { Food, FoodServing, FoodNutrient } from "../../../types/food";
+import { Food, FoodNutrient } from "../../../types/food";
 import { resolveFoodIcon, FOOD_ICONS } from "../../../lib/foodIcons";
 import { FoodAvatar } from "../../../components/FoodAvatar";
-import { RECIPE_NAME_MAX } from "../../../lib/recipeConstants";
+import { RECIPE_NAME_MAX, RECIPE_SERVINGS_MAX } from "../../../lib/recipeConstants";
 import { parseAmount } from "../../../lib/format";
 import { AmountField } from "../../../components/AmountField";
 import { expandVirtualServings, resolveServingForSave } from "../../../lib/virtualUnits";
 import { ServingUnitOptions } from "../../../components/ServingUnitOptions";
-import { AddEntryModal, FoodNutrientBreakdown, RecipeUsageList, useNutrients, prefetchNutrientTargets } from "../../_diary";
+import { AddEntryModal, FoodNutrientBreakdown, MacroTiles, RecipeUsageList, useNutrients, prefetchNutrientTargets } from "../../_diary";
 import UpLink from "@/components/UpLink";
+import SegmentedToggle from "@/components/ui/SegmentedToggle";
+
+// Nutrition of ONE canonical serving of an ingredient's food. Every row's
+// kcal/macros/nutrients are derived from this × (quantity ÷ units_per_serving),
+// so an amount edit, a unit switch, a replace and a fresh add all land on the
+// same numbers the server computes on save. `nutrients` is null while the
+// food's per-nutrient rows are still being fetched (picker rows carry macros only).
+interface ServingBase {
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  nutrients: FoodNutrient[] | null;
+}
 
 interface DraftIngredient extends RecipeIngredient {
   __clientId: string;
@@ -25,16 +40,84 @@ interface DraftIngredient extends RecipeIngredient {
   // the field (showing empty rather than snapping to 0); undefined means the
   // field mirrors the numeric `quantity`. Reconciled back to a number on blur.
   __quantityText?: string;
+  // null on placeholders, and on a resolved row whose base couldn't be derived
+  // from the server's totals (quantity 0) until the food fetch fills it.
+  __base: ServingBase | null;
+}
+
+// Serving multiplier for a row: quantity in <unit> ÷ how many <unit> make one serving.
+function servingsOf(quantity: number, unitsPerServing: number | null | undefined): number {
+  const ups = Number(unitsPerServing);
+  if (!Number.isFinite(ups) || ups <= 0 || !Number.isFinite(quantity)) return 0;
+  return quantity / ups;
+}
+
+// Re-derive a row's contribution from its serving base at its current amount + unit.
+function withNutrition(row: DraftIngredient): DraftIngredient {
+  const base = row.__base;
+  if (!base || !row.ingredient_food_id) return row;
+  const k = servingsOf(row.quantity, row.units_per_serving);
+  return {
+    ...row,
+    kcal: base.kcal * k,
+    protein_g: base.protein_g * k,
+    carbs_g: base.carbs_g * k,
+    fat_g: base.fat_g * k,
+    nutrients: base.nutrients ? base.nutrients.map((n) => ({ nutrient_id: n.nutrient_id, amount: n.amount * k })) : [],
+  };
+}
+
+function baseFromFood(food: Food): ServingBase {
+  return {
+    kcal: Number(food.kcal_per_serving) || 0,
+    protein_g: Number(food.protein_g_per_serving) || 0,
+    carbs_g: Number(food.carbs_g_per_serving) || 0,
+    fat_g: Number(food.fat_g_per_serving) || 0,
+    nutrients: food.nutrients ? food.nutrients.map((n) => ({ nutrient_id: n.nutrient_id, amount: Number(n.amount) || 0 })) : null,
+  };
+}
+
+function newClientId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function toDraft(r: RecipeIngredient, i: number): DraftIngredient {
-  // Expand the food's stored servings with the standard units of its mass/volume
-  // family so the unit picker offers related units (e.g. a gram-based food → lb/oz/kg).
+  // The server hydrates each row's totals at its saved amount; divide back out to
+  // the per-serving base so later edits rescale from it instead of compounding ratios.
+  const k = servingsOf(Number(r.quantity), r.units_per_serving);
+  const base: ServingBase | null =
+    r.ingredient_food_id && k > 0
+      ? {
+          kcal: (r.kcal ?? 0) / k,
+          protein_g: (r.protein_g ?? 0) / k,
+          carbs_g: (r.carbs_g ?? 0) / k,
+          fat_g: (r.fat_g ?? 0) / k,
+          nutrients: (r.nutrients ?? []).map((n) => ({ nutrient_id: n.nutrient_id, amount: (Number(n.amount) || 0) / k })),
+        }
+      : null;
   return {
     ...r,
+    quantity: Number(r.quantity) || 0,
     __clientId: `${r.id}-${i}`,
+    __base: base,
+    // Expand the food's stored servings with the standard units of its mass/volume
+    // family so the unit picker offers related units (e.g. a gram-based food → lb/oz/kg).
     food_servings: expandVirtualServings(r.ingredient_food_id ?? "", r.food_servings ?? []),
   };
+}
+
+// The persisted shape of an ingredient list, for dirty-checking the draft
+// against the saved recipe (client-only fields and derived totals excluded).
+function ingredientKey(rows: RecipeIngredient[]): string {
+  return JSON.stringify(
+    rows.map((r) => [r.ingredient_food_id, r.serving_id, Number(r.quantity), r.placeholder_name, r.placeholder_quantity_text])
+  );
+}
+
+// Servings as typed → a usable yield, or null when it isn't one.
+function parseServings(text: string): number | null {
+  const n = Number(text.trim());
+  return Number.isFinite(n) && n > 0 && n <= RECIPE_SERVINGS_MAX ? n : null;
 }
 
 export default function ForageRecipeDetailPage() {
@@ -117,27 +200,9 @@ export default function ForageRecipeDetailPage() {
         const food: Food = ing.food;
         const serving = food.servings?.find((s) => s.id === ing.serving_id) ?? food.servings?.[0];
         if (!serving) continue;
-        const newRow: DraftIngredient = {
-          __clientId: `photo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          id: "",
-          display_order: 0,
-          ingredient_food_id: food.id,
-          serving_id: serving.id,
-          quantity: ing.quantity,
-          placeholder_name: null,
-          placeholder_quantity_text: null,
-          food_name: food.name,
-          food_brand: food.brand,
-          food_icon: food.icon,
-          serving_unit: serving.unit,
-          units_per_serving: serving.units_per_serving,
-          kcal: (food.kcal_per_serving * ing.quantity) / (serving.units_per_serving || 1),
-          protein_g: (food.protein_g_per_serving * ing.quantity) / (serving.units_per_serving || 1),
-          carbs_g: (food.carbs_g_per_serving * ing.quantity) / (serving.units_per_serving || 1),
-          fat_g: (food.fat_g_per_serving * ing.quantity) / (serving.units_per_serving || 1),
-          food_servings: expandVirtualServings(food.id, food.servings ?? []),
-        };
+        const newRow = buildRow(newClientId("photo"), food, serving.id, Number(ing.quantity) || Number(serving.units_per_serving) || 1);
         setIngredients((prev) => [...prev, newRow]);
+        if (!newRow.__base?.nutrients) hydrateNutrients(newRow.__clientId, food.id);
         added++;
       }
       toast.success(`Added ${added} ingredient${added === 1 ? "" : "s"}`, { id: toastId });
@@ -263,10 +328,13 @@ export default function ForageRecipeDetailPage() {
     router.push("/modules/forage/ui/recipes");
   }
 
-  // Live per-serving macro recompute from the resolved ingredient rows. Mirrors
-  // what the server does on save — placeholders contribute 0 until resolved.
-  const computed = useMemo(() => {
-    const n = Math.max(0.001, Number(servingCount) || 1);
+  // Yield used for the per-serving math: the typed servings when valid, else the
+  // saved count, so a half-typed field ("", "0.") never divides by ~0.
+  const yieldCount = parseServings(servingCount) ?? recipe?.serving_count ?? 1;
+
+  // Live whole-recipe totals from the resolved rows. Mirrors what the server
+  // does on save — placeholders contribute 0 until resolved.
+  const totals = useMemo(() => {
     let kcal = 0, protein = 0, carbs = 0, fat = 0;
     for (const row of ingredients) {
       if (!row.ingredient_food_id) continue;
@@ -275,24 +343,17 @@ export default function ForageRecipeDetailPage() {
       carbs += row.carbs_g ?? 0;
       fat += row.fat_g ?? 0;
     }
-    return {
-      kcal: kcal / n,
-      protein: protein / n,
-      carbs: carbs / n,
-      fat: fat / n,
-      totalKcal: kcal,
-    };
-  }, [ingredients, servingCount]);
+    return { kcal, protein, carbs, fat };
+  }, [ingredients]);
+  const scopeDivisor = nutritionScope === "serving" ? yieldCount : 1;
 
   // Full nutrient catalog (for the micronutrient breakdown labels/order).
   const nutrientCatalog = useNutrients();
 
-  // Aggregate each ingredient's hydrated per-nutrient contribution into one
-  // recipe-level list, scaled to the active scope (whole recipe vs per serving),
-  // so the breakdown can render the shared banded bars like the food detail.
+  // Aggregate each ingredient's per-nutrient contribution into one recipe-level
+  // list, scaled to the active scope (whole recipe vs per serving), so the
+  // breakdown renders the shared banded bars like the food detail.
   const aggregatedNutrients = useMemo<FoodNutrient[]>(() => {
-    const n = Math.max(0.001, Number(servingCount) || 1);
-    const perServing = nutritionScope === "serving" ? 1 / n : 1;
     const byId = new Map<string, number>();
     for (const row of ingredients) {
       if (!row.ingredient_food_id) continue;
@@ -300,11 +361,77 @@ export default function ForageRecipeDetailPage() {
         byId.set(nu.nutrient_id, (byId.get(nu.nutrient_id) ?? 0) + (Number(nu.amount) || 0));
       }
     }
-    return Array.from(byId, ([nutrient_id, amount]) => ({ nutrient_id, amount: amount * perServing }));
-  }, [ingredients, servingCount, nutritionScope]);
+    return Array.from(byId, ([nutrient_id, amount]) => ({ nutrient_id, amount: amount / scopeDivisor }));
+  }, [ingredients, scopeDivisor]);
 
+  const placeholderCount = ingredients.filter((r) => !r.ingredient_food_id).length;
+
+  // Unsaved changes — Save stays disabled until the draft differs from the saved recipe.
+  const isDirty = useMemo(() => {
+    if (!recipe) return false;
+    return (
+      name.trim() !== recipe.name ||
+      parseServings(servingCount) !== Number(recipe.serving_count) ||
+      (icon ?? null) !== (recipe.icon ?? null) ||
+      ingredientKey(ingredients) !== ingredientKey(recipe.ingredients)
+    );
+  }, [recipe, name, servingCount, icon, ingredients]);
+
+  // Build a resolved row for `food` at `quantity` of serving `servingId`.
+  function buildRow(clientId: string, food: Food, servingId: string, quantity: number): DraftIngredient {
+    const servings = expandVirtualServings(food.id, food.servings ?? []);
+    const serving = servings.find((s) => s.id === servingId) ?? servings[0];
+    return withNutrition({
+      __clientId: clientId,
+      id: "",
+      display_order: 0,
+      ingredient_food_id: food.id,
+      serving_id: serving?.id ?? null,
+      quantity,
+      placeholder_name: null,
+      placeholder_quantity_text: null,
+      food_name: food.name,
+      food_brand: food.brand,
+      food_icon: food.icon,
+      food_image_updated_at: food.image_updated_at,
+      serving_unit: serving?.unit ?? null,
+      units_per_serving: serving?.units_per_serving ?? null,
+      food_servings: servings,
+      __base: baseFromFood(food),
+    });
+  }
+
+  // Picker and photo rows arrive with macros only; fetch the food's full
+  // nutrient rows so the micronutrient breakdown includes the new ingredient.
+  async function hydrateNutrients(clientId: string, foodId: string) {
+    try {
+      const res = await fetch(`/modules/forage/api/foods/${foodId}`);
+      if (!res.ok) return;
+      const food: Food = await res.json();
+      const base = baseFromFood(food);
+      setIngredients((prev) =>
+        prev.map((r) =>
+          r.__clientId === clientId && r.ingredient_food_id === foodId
+            ? withNutrition({ ...r, __base: { ...base, nutrients: base.nutrients ?? [] } })
+            : r
+        )
+      );
+    } catch {
+      // Macros are already right; the breakdown just omits this row's micros.
+    }
+  }
+
+  // A loaded row saved at quantity 0 has no totals to derive a base from.
+  useEffect(() => {
+    for (const row of ingredients) {
+      if (row.ingredient_food_id && !row.__base) hydrateNutrients(row.__clientId, row.ingredient_food_id);
+    }
+    // Only on load/save — rows created in the editor always carry a base.
+  }, [recipe]);
+
+  // Patch a row and re-derive its nutrition, so amount and unit edits can't drift from the totals.
   function updateRow(clientId: string, patch: Partial<DraftIngredient>) {
-    setIngredients((prev) => prev.map((r) => (r.__clientId === clientId ? { ...r, ...patch } : r)));
+    setIngredients((prev) => prev.map((r) => (r.__clientId === clientId ? withNutrition({ ...r, ...patch }) : r)));
   }
 
   function removeRow(clientId: string) {
@@ -334,35 +461,16 @@ export default function ForageRecipeDetailPage() {
       seedServing && selection?.quantity != null && Number.isFinite(selection.quantity) && selection.quantity > 0
         ? selection.quantity
         : ups;
-    const rowShape = {
-      ingredient_food_id: food.id,
-      serving_id: chosen.id,
-      quantity,
-      placeholder_name: null,
-      placeholder_quantity_text: null,
-      food_name: food.name,
-      food_brand: food.brand,
-      food_icon: food.icon,
-      serving_unit: chosen.unit,
-      units_per_serving: chosen.units_per_serving,
-      // Macros scale with the chosen amount: per_serving × quantity ÷ units_per_serving.
-      kcal: (food.kcal_per_serving * quantity) / ups,
-      protein_g: (food.protein_g_per_serving * quantity) / ups,
-      carbs_g: (food.carbs_g_per_serving * quantity) / ups,
-      fat_g: (food.fat_g_per_serving * quantity) / ups,
-      food_servings: expandVirtualServings(food.id, servings),
-    };
+    // A replace keeps the row's place in the list but takes nothing else from
+    // the old food — its serving base and nutrients are rebuilt from the new one.
+    const clientId = picker?.mode === "replace" ? picker.clientId : newClientId("new");
+    const row = buildRow(clientId, food, chosen.id, quantity);
     if (picker?.mode === "replace") {
-      updateRow(picker.clientId, rowShape);
+      setIngredients((prev) => prev.map((r) => (r.__clientId === clientId ? { ...row, id: r.id, display_order: r.display_order } : r)));
     } else {
-      const newRow: DraftIngredient = {
-        __clientId: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        id: "",
-        display_order: 0,
-        ...rowShape,
-      };
-      setIngredients((prev) => [...prev, newRow]);
+      setIngredients((prev) => [...prev, row]);
     }
+    if (!row.__base?.nutrients) hydrateNutrients(clientId, food.id);
     setPicker(null);
   }
 
@@ -371,11 +479,16 @@ export default function ForageRecipeDetailPage() {
       toast.error("Recipe name is required");
       return;
     }
+    const servings = parseServings(servingCount);
+    if (servings == null) {
+      toast.error(`Servings must be a number between 0 and ${RECIPE_SERVINGS_MAX}`);
+      return;
+    }
     setIsSaving(true);
     try {
       const payload = {
         name: name.trim(),
-        serving_count: Number(servingCount) || 1,
+        serving_count: servings,
         icon,
         ingredients: ingredients.map<RecipeIngredientInput>((r) => {
           // A virtual-unit selection (e.g. lb on a gram-based food) is converted
@@ -396,18 +509,40 @@ export default function ForageRecipeDetailPage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        toast.error("Failed to save");
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to save recipe");
         return;
       }
       const updated: Recipe = await res.json();
       setRecipe(updated);
+      setName(updated.name);
+      setServingCount(String(updated.serving_count));
+      setIcon(updated.icon);
       setIngredients(updated.ingredients.map(toDraft));
       // Drop back to the read-only view once the changes are persisted.
       setIsEditing(false);
-      toast.success("Saved");
+      toast.success("Recipe saved");
+    } catch {
+      toast.error("Failed to save recipe");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  // Discard the draft and return to the saved recipe. A still-blank new recipe
+  // has nothing to return to, so Cancel leaves the page (and disposes it).
+  function handleCancel() {
+    if (!recipe) return;
+    if (isBlank(recipe.name, recipe.ingredients.length, recipe.icon)) {
+      goBack();
+      return;
+    }
+    setName(recipe.name);
+    setServingCount(String(recipe.serving_count));
+    setIcon(recipe.icon);
+    setIngredients(recipe.ingredients.map(toDraft));
+    setPicker(null);
+    setIsEditing(false);
   }
 
   function handleDelete() {
@@ -475,30 +610,41 @@ export default function ForageRecipeDetailPage() {
               whiteSpace: "nowrap",
             }}
           >
-            {isEditing ? "Edit Recipe" : recipe?.name || "Recipe"}
+            {isEditing ? "Edit Recipe" : "Recipe"}
           </h1>
 
-          {/* PRIMARY ACTION — Save while editing, Edit while viewing */}
+          {/* PRIMARY ACTIONS — Cancel + Save while editing, Edit while viewing */}
           {isEditing ? (
-            <Button
-              className="btn-blue"
-              onClick={handleSave}
-              disabled={isSaving || isLoading}
-              aria-label="Save recipe"
-              style={{ padding: "0.4rem 0.7rem", flexShrink: 0 }}
-            >
-              <Save className="w-4 h-4" /> {isSaving ? "…" : "Save"}
-            </Button>
+            <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
+
+              {/* CANCEL */}
+              <Button
+                className="btn-off"
+                onClick={handleCancel}
+                disabled={isSaving || isLoading}
+                style={{ padding: "0.4rem 0.7rem" }}
+              >
+                Cancel
+              </Button>
+
+              {/* SAVE — disabled until the draft differs from the saved recipe */}
+              <Button
+                className="btn-blue"
+                onClick={handleSave}
+                disabled={isSaving || isLoading || !isDirty}
+                aria-label="Save recipe"
+                style={{ padding: "0.4rem 0.7rem" }}
+              >
+                <Save className="w-4 h-4" /> {isSaving ? "Saving…" : "Save"}
+              </Button>
+            </div>
           ) : (
-            <Button
-              className="btn-blue"
+            <HeaderEditButton
               onClick={() => setIsEditing(true)}
               disabled={isLoading || !recipe}
               aria-label="Edit recipe"
-              style={{ padding: "0.4rem 0.7rem", flexShrink: 0 }}
-            >
-              <Pencil className="w-4 h-4" /> Edit
-            </Button>
+              style={{ flexShrink: 0 }}
+            />
           )}
         </div>
 
@@ -544,7 +690,12 @@ export default function ForageRecipeDetailPage() {
 
                 {/* SERVINGS FIELD */}
                 <div className="flex flex-col gap-1">
-                  <label htmlFor="recipe-servings" className="text-label" style={{ margin: 0 }}>Servings</label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="recipe-servings" className="text-label" style={{ margin: 0 }}>Servings</label>
+                    {servingCount.trim() !== "" && parseServings(servingCount) == null && (
+                      <span className="text-muted" style={{ fontSize: "0.75rem" }}>Must be more than 0</span>
+                    )}
+                  </div>
                   <input
                     id="recipe-servings"
                     type="number"
@@ -556,7 +707,8 @@ export default function ForageRecipeDetailPage() {
                     onChange={(e) => setServingCount(e.target.value)}
                     onFocus={selectOnFocus}
                     onKeyDown={blurOnEnter}
-                    onBlur={(e) => { if (e.target.value.trim() === "") setServingCount("1"); }}
+                    aria-invalid={parseServings(servingCount) == null}
+                    onBlur={(e) => { if (e.target.value.trim() === "") setServingCount(String(recipe?.serving_count ?? 1)); }}
                   />
                 </div>
               </div>
@@ -575,11 +727,42 @@ export default function ForageRecipeDetailPage() {
 
                   {/* SERVINGS */}
                   <div className="text-muted" style={{ fontSize: "0.8125rem", marginTop: "0.125rem" }}>
-                    {Number(servingCount) || 1} {(Number(servingCount) || 1) === 1 ? "serving" : "servings"}
+                    {yieldCount} {yieldCount === 1 ? "serving" : "servings"}
                   </div>
                 </div>
               </div>
             )}
+
+            {/* NUTRITION SUMMARY — sits above the ingredients so amount edits read
+                back immediately, without scrolling past the list. */}
+            <div className="sub-card fg-recipe-sum">
+
+              {/* SCOPE — per serving vs whole recipe */}
+              <SegmentedToggle
+                options={[
+                  { value: "serving", label: "Per serving" },
+                  { value: "recipe", label: "Whole recipe" },
+                ]}
+                value={nutritionScope}
+                onChange={setNutritionScope}
+                ariaLabel="Nutrition scope"
+              />
+
+              {/* MACRO TILES */}
+              <MacroTiles
+                kcal={totals.kcal / scopeDivisor}
+                protein={totals.protein / scopeDivisor}
+                fat={totals.fat / scopeDivisor}
+                carbs={totals.carbs / scopeDivisor}
+              />
+
+              {/* UNRESOLVED — placeholders count as zero until a food is picked */}
+              {placeholderCount > 0 && (
+                <div className="fg-recipe-unresolved">
+                  {placeholderCount} {placeholderCount === 1 ? "ingredient isn't" : "ingredients aren't"} counted until matched to a food
+                </div>
+              )}
+            </div>
 
             {/* INGREDIENTS SECTION — MF shape: bold label + small circular "+" + helper text, then cards */}
             <div className="flex flex-col gap-2" style={{ marginBottom: "1.25rem" }}>
@@ -592,9 +775,7 @@ export default function ForageRecipeDetailPage() {
                   </div>
                   <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.125rem" }}>
                     {ingredients.length === 0
-                      ? isEditing
-                        ? "No ingredients yet — tap 📷 or paste an image"
-                        : "No ingredients"
+                      ? "No ingredients"
                       : `${ingredients.length} ingredient${ingredients.length === 1 ? "" : "s"}`}
                   </div>
                 </div>
@@ -644,9 +825,14 @@ export default function ForageRecipeDetailPage() {
               {/* LIST CONTAINER */}
               <div className="flex flex-col gap-2">
                 {ingredients.length === 0 && isEditing && (
-                  /* EMPTY INGREDIENT LIST */
-                  <div className="text-muted" style={{ textAlign: "center", padding: "1rem 0", fontSize: "0.875rem" }}>
-                    Tap <strong>+</strong> to add your first ingredient.
+                  /* EMPTY INGREDIENT LIST — the two ways in, full width */
+                  <div className="fg-recipe-empty">
+                    <Button className="btn-blue" onClick={() => setPicker({ mode: "add" })}>
+                      <Plus className="w-4 h-4" /> Add ingredient
+                    </Button>
+                    <Button className="btn-off" onClick={() => photoInputRef.current?.click()} disabled={isScanning}>
+                      <Camera className="w-4 h-4" /> From photo
+                    </Button>
                   </div>
                 )}
 
@@ -678,8 +864,8 @@ export default function ForageRecipeDetailPage() {
                         {/* BODY — name/brand stacked above the derived macros */}
                         <div className="fg-ing-titles">
 
-                          {/* FOOD NAME */}
-                          <div className="fg-ing-name">{row.food_name}</div>
+                          {/* FOOD NAME — an unmatched import line shows its own text */}
+                          <div className="fg-ing-name">{row.food_name ?? row.placeholder_name}</div>
 
                           {/* BRAND */}
                           {row.food_brand && (
@@ -687,6 +873,7 @@ export default function ForageRecipeDetailPage() {
                           )}
 
                           {/* MACRO TIER — derived kcal + coloured P/F/C */}
+                          {navigable ? (
                           <div className="fg-ing-macros">
 
                             {/* CALORIES */}
@@ -701,6 +888,9 @@ export default function ForageRecipeDetailPage() {
                             {/* CARBS */}
                             <span className="fg-ing-c">{Math.round(row.carbs_g ?? 0)}C</span>
                           </div>
+                          ) : (
+                            <div className="fg-ing-macros">Not matched to a food</div>
+                          )}
                         </div>
 
                         {/* TRAILING — amount/unit summary + chevron affordance */}
@@ -708,7 +898,9 @@ export default function ForageRecipeDetailPage() {
 
                           {/* QTY / UNIT */}
                           <span className="fg-ing-qty-view">
-                            {Math.round((row.quantity ?? 0) * 1000) / 1000} {row.serving_unit}
+                            {navigable
+                              ? `${Math.round((row.quantity ?? 0) * 1000) / 1000} ${row.serving_unit ?? ""}`
+                              : row.placeholder_quantity_text}
                           </span>
 
                           {/* CHEVRON — only when the row opens a detail page */}
@@ -718,9 +910,48 @@ export default function ForageRecipeDetailPage() {
                     );
                   }
 
+                  if (!row.ingredient_food_id) {
+                    return (
+                      /* PLACEHOLDER ROW (edit) — an imported line awaiting a library food */
+                      <div key={row.__clientId} className="fg-ing fg-ing-editing fg-ing-placeholder">
+
+                        {/* IMPORTED TEXT */}
+                        <div className="fg-ing-titles">
+                          <div className="fg-ing-name">{row.placeholder_name}</div>
+                          {row.placeholder_quantity_text && (
+                            <div className="fg-ing-brand">{row.placeholder_quantity_text}</div>
+                          )}
+                        </div>
+
+                        {/* ACTIONS */}
+                        <div className="fg-ing-controls">
+
+                          {/* MATCH */}
+                          <Button
+                            className="btn-blue"
+                            onClick={() => setPicker({ mode: "replace", clientId: row.__clientId })}
+                            style={{ padding: "0.3rem 0.6rem", fontSize: "0.8rem" }}
+                          >
+                            <Search className="w-3.5 h-3.5" /> Choose food
+                          </Button>
+
+                          {/* DELETE */}
+                          <Button
+                            className="btn-link-red"
+                            onClick={() => removeRow(row.__clientId)}
+                            aria-label={`Remove ${row.placeholder_name ?? "ingredient"}`}
+                            style={{ padding: "0.25rem" }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     /* INGREDIENT ROW (edit) — full editable card */
-                    <div key={row.__clientId} className="sub-card fg-ing">
+                    <div key={row.__clientId} className="fg-ing fg-ing-editing">
 
                       {/* NAME TIER — icon + full-width food name (wraps for readability) */}
                       <div className="fg-ing-head">
@@ -774,7 +1005,7 @@ export default function ForageRecipeDetailPage() {
                             value={String(row.__quantityText ?? row.quantity)}
                             onFocus={selectOnFocus}
                             onKeyDown={blurOnEnter}
-                            aria-label="Amount"
+                            aria-label={`Amount of ${row.food_name ?? "ingredient"}`}
                             onValueChange={(raw) => {
                               // Keep the raw text so the field can be empty/partial
                               // ("", ".", "1.", "1/") instead of snapping to 0 mid-edit.
@@ -785,18 +1016,7 @@ export default function ForageRecipeDetailPage() {
                                 updateRow(row.__clientId, { __quantityText: raw });
                                 return;
                               }
-                              const ratio = row.quantity > 0 ? newQ / row.quantity : 1;
-                              updateRow(row.__clientId, {
-                                __quantityText: raw,
-                                quantity: newQ,
-                                kcal: (row.kcal ?? 0) * ratio,
-                                protein_g: (row.protein_g ?? 0) * ratio,
-                                carbs_g: (row.carbs_g ?? 0) * ratio,
-                                fat_g: (row.fat_g ?? 0) * ratio,
-                                // Keep the per-nutrient contribution in step so the
-                                // micronutrient breakdown rescales live like the macros.
-                                nutrients: (row.nutrients ?? []).map((nu) => ({ ...nu, amount: nu.amount * ratio })),
-                              });
+                              updateRow(row.__clientId, { __quantityText: raw, quantity: newQ });
                             }}
                             onBlur={() => {
                               // Drop the text override so the field re-syncs to the
@@ -812,7 +1032,8 @@ export default function ForageRecipeDetailPage() {
                               className="input-field fg-ing-unit"
                               value={row.serving_id ?? ""}
                               onChange={(e) => {
-                                // Unit switch keeps the typed amount verbatim — no conversion.
+                                // Unit switch keeps the typed amount verbatim (no conversion);
+                                // updateRow re-derives the nutrition for the new unit.
                                 const next = row.food_servings?.find((s) => s.id === e.target.value);
                                 if (!next) return;
                                 updateRow(row.__clientId, {
@@ -838,20 +1059,22 @@ export default function ForageRecipeDetailPage() {
                           <Button
                             className="btn-link"
                             onClick={() => setPicker({ mode: "replace", clientId: row.__clientId })}
-                            aria-label="Replace ingredient"
-                            style={{ padding: "0.25rem", fontSize: "0.7rem" }}
+                            aria-label={`Replace ${row.food_name ?? "ingredient"}`}
+                            title="Replace"
+                            style={{ padding: "0.35rem" }}
                           >
-                            <RotateCcw className="w-3 h-3" />
+                            <RotateCcw className="w-4 h-4" />
                           </Button>
 
                           {/* DELETE */}
                           <Button
                             className="btn-link-red"
                             onClick={() => removeRow(row.__clientId)}
-                            aria-label="Remove ingredient"
-                            style={{ padding: "0.25rem" }}
+                            aria-label={`Remove ${row.food_name ?? "ingredient"}`}
+                            title="Remove"
+                            style={{ padding: "0.35rem" }}
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -861,75 +1084,10 @@ export default function ForageRecipeDetailPage() {
               </div>
             </div>
 
-            {/* NUTRITION SECTION — MF style: bold label + segmented [Serving|Recipe] toggle inline */}
-            <div className="flex flex-col gap-2" style={{ marginBottom: "1.25rem" }}>
-
-              {/* HEADER */}
-              <div className="flex items-center justify-between">
-                <div className="text-label" style={{ margin: 0, fontSize: "1rem", textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>
-                  Nutrition
-                </div>
-                <div className="flex" style={{ gap: "0.25rem" }}>
-                  <Button
-                    className={nutritionScope === "serving" ? "btn-blue" : "btn-off"}
-                    onClick={() => setNutritionScope("serving")}
-                    style={{ padding: "0.25rem 0.6rem", fontSize: "0.75rem" }}
-                  >
-                    Serving
-                  </Button>
-                  <Button
-                    className={nutritionScope === "recipe" ? "btn-blue" : "btn-off"}
-                    onClick={() => setNutritionScope("recipe")}
-                    style={{ padding: "0.25rem 0.6rem", fontSize: "0.75rem" }}
-                  >
-                    Recipe
-                  </Button>
-                </div>
-              </div>
-
-              {/* MACRO ROW */}
-              <div className="sub-card" style={{ padding: "0.75rem" }}>
-                {(() => {
-                  // Either per-serving or whole-recipe totals depending on the toggle.
-                  const scale = nutritionScope === "recipe" ? (Number(servingCount) || 1) : 1;
-                  const cal = computed.kcal * scale;
-                  const p = computed.protein * scale;
-                  const c = computed.carbs * scale;
-                  const f = computed.fat * scale;
-                  return (
-                    <div className="flex" style={{ gap: "0.75rem", flexDirection: "row", alignItems: "center", justifyContent: "space-between", fontVariantNumeric: "tabular-nums" }}>
-
-                      {/* CALORIES (big number, left) */}
-                      <div style={{ minWidth: 0 }}>
-                        <div className="text-primary" style={{ fontWeight: 700, fontSize: "1.5rem", lineHeight: 1 }}>{Math.round(cal)}</div>
-                        <div className="text-muted" style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Calories</div>
-                      </div>
-
-                      {/* PROTEIN */}
-                      <div style={{ textAlign: "center" }}>
-                        <div className="text-primary" style={{ fontWeight: 600 }}>{Math.round(p)}g</div>
-                        <div className="text-muted" style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Protein</div>
-                      </div>
-
-                      {/* FAT */}
-                      <div style={{ textAlign: "center" }}>
-                        <div className="text-primary" style={{ fontWeight: 600 }}>{Math.round(f)}g</div>
-                        <div className="text-muted" style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fat</div>
-                      </div>
-
-                      {/* CARBS */}
-                      <div style={{ textAlign: "center" }}>
-                        <div className="text-primary" style={{ fontWeight: 600 }}>{Math.round(c)}g</div>
-                        <div className="text-muted" style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Carbs</div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* MICRONUTRIENT BREAKDOWN — shared banded bars (floor/target/ceiling
-                  + program-target glyph), aggregated across ingredients and scaled
-                  to the active [Serving | Recipe] scope, matching the food detail. */}
+            {/* MICRONUTRIENTS — shared banded bars (floor/target/ceiling + program-target
+                glyph), aggregated across ingredients and scaled to the [Serving | Recipe]
+                scope chosen on the nutrition summary above. */}
+            <div style={{ marginBottom: "1.25rem" }}>
               <FoodNutrientBreakdown nutrients={nutrientCatalog} foodNutrients={aggregatedNutrients} />
             </div>
 

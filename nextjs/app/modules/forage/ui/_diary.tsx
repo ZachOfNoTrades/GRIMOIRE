@@ -8167,6 +8167,69 @@ export function sourceUrlHost(url: string): string {
   }
 }
 
+// Calories + P/F/C tiles with each macro's share of energy. Shared by the food
+// detail and the recipe page so a food and a recipe read the same way.
+export function MacroTiles({
+  kcal,
+  protein,
+  fat,
+  carbs,
+}: {
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}) {
+  // Macro distribution percentages (energy share of each macro).
+  const pKcal = protein * 4;
+  const fKcal = fat * 9;
+  const cKcal = carbs * 4;
+  const total = pKcal + fKcal + cKcal;
+  const pct = (part: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
+  const grams = (g: number) => (Math.round(g * 10) / 10).toFixed(1);
+  const tiles = [
+    { label: "Calories", value: Math.round(kcal).toString(), pct: null as number | null, color: "var(--fg-cal)" },
+    { label: "Protein", value: grams(protein), pct: pct(pKcal), color: "var(--fg-protein)" },
+    { label: "Fat", value: grams(fat), pct: pct(fKcal), color: "var(--fg-fat)" },
+    { label: "Carbs", value: grams(carbs), pct: pct(cKcal), color: "var(--fg-carb)" },
+  ];
+
+  return (
+    /* MACRO TILES */
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem" }}>
+      {tiles.map((tile) => (
+
+        /* MACRO TILE */
+        <div key={tile.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem" }}>
+
+          {/* DISTRIBUTION CHIP — reserves its height on Calories too so the values align */}
+          <span
+            style={{
+              fontSize: "0.6875rem",
+              fontWeight: 600,
+              padding: "0.125rem 0.5rem",
+              borderRadius: "999px",
+              background: tile.pct != null ? `color-mix(in srgb, ${tile.color} 30%, transparent)` : "transparent",
+              color: tile.color,
+              visibility: tile.pct != null ? "visible" : "hidden",
+            }}
+          >
+            {tile.pct ?? 0}%
+          </span>
+
+          {/* VALUE */}
+          <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--color-primary)", fontVariantNumeric: "tabular-nums" }}>
+            {tile.value}
+          </div>
+
+          {/* LABEL */}
+          <div style={{ fontSize: "0.75rem", color: "var(--color-secondary)" }}>{tile.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FoodDetailContent({
   food,
   nutrients,
@@ -8182,19 +8245,6 @@ export function FoodDetailContent({
 }) {
   // DATA
   const foodNutrients = food.nutrients ?? [];
-
-  // Macro distribution percentages (energy share of each macro).
-  const macroDist = useMemo(() => {
-    const pKcal = food.protein_g_per_serving * 4;
-    const fKcal = food.fat_g_per_serving * 9;
-    const cKcal = food.carbs_g_per_serving * 4;
-    const total = pKcal + fKcal + cKcal;
-    return {
-      pPct: total > 0 ? Math.round((pKcal / total) * 100) : 0,
-      fPct: total > 0 ? Math.round((fKcal / total) * 100) : 0,
-      cPct: total > 0 ? Math.round((cKcal / total) * 100) : 0,
-    };
-  }, [food]);
 
   return (
     <>
@@ -8259,42 +8309,13 @@ export function FoodDetailContent({
       </div>
 
       {/* MACRO TILES */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem", marginBottom: "1.25rem" }}>
-        {[
-          { label: "Calories", value: Math.round(food.kcal_per_serving).toString(), pct: null as number | null, color: "var(--fg-cal)" },
-          { label: "Protein", value: (Math.round(food.protein_g_per_serving * 10) / 10).toFixed(1), pct: macroDist.pPct, color: "var(--fg-protein)" },
-          { label: "Fat", value: (Math.round(food.fat_g_per_serving * 10) / 10).toFixed(1), pct: macroDist.fPct, color: "var(--fg-fat)" },
-          { label: "Carbs", value: (Math.round(food.carbs_g_per_serving * 10) / 10).toFixed(1), pct: macroDist.cPct, color: "var(--fg-carb)" },
-        ].map((tile) => (
-
-          /* MACRO TILE */
-          <div key={tile.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem" }}>
-
-            {/* DISTRIBUTION CHIP */}
-            {tile.pct != null && (
-              <span
-                style={{
-                  fontSize: "0.6875rem",
-                  fontWeight: 600,
-                  padding: "0.125rem 0.5rem",
-                  borderRadius: "999px",
-                  background: `color-mix(in srgb, ${tile.color} 30%, transparent)`,
-                  color: tile.color,
-                }}
-              >
-                {tile.pct}%
-              </span>
-            )}
-
-            {/* VALUE */}
-            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--color-primary)" }}>
-              {tile.value}
-            </div>
-
-            {/* LABEL */}
-            <div style={{ fontSize: "0.75rem", color: "var(--color-secondary)" }}>{tile.label}</div>
-          </div>
-        ))}
+      <div style={{ marginBottom: "1.25rem" }}>
+        <MacroTiles
+          kcal={food.kcal_per_serving}
+          protein={food.protein_g_per_serving}
+          fat={food.fat_g_per_serving}
+          carbs={food.carbs_g_per_serving}
+        />
       </div>
 
       {/* SERVINGS SECTION — only for serving-based foods. Foods referenced

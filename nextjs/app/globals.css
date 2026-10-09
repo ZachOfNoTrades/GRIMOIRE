@@ -4819,6 +4819,38 @@ button.list-row:disabled {
 }
 .fg-ing-row-static:active { opacity: 1; }
 
+/* EDITING ROW — at rest a recipe's rows are sharp; in the editor each row
+   rounds its corners (animated on entry) to mark it as editable.
+   Carries its own surface instead of .sub-card, whose sharp-corner reset is
+   !important and would block both the radius and its animation. */
+.fg-ing-editing {
+  display: flex;
+  flex-direction: column;
+  background: var(--hover-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  animation: fg-ing-round 200ms ease-out;
+}
+@keyframes fg-ing-round { from { border-radius: 0; } to { border-radius: 0.5rem; } }
+@media (prefers-reduced-motion: reduce) { .fg-ing-editing { animation: none; } }
+
+/* PLACEHOLDER ROW — an imported line with no library food yet. Dashed edge
+   so it reads as incomplete next to the resolved rows. */
+.fg-ing-placeholder { border-style: dashed; border-color: var(--input-border); }
+
+/* EMPTY INGREDIENT LIST — the two ways to add, side by side. */
+.fg-recipe-empty { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.fg-recipe-empty .btn { justify-content: center; }
+
+/* RECIPE NUTRITION SUMMARY — scope header over the shared macro tiles. */
+.fg-recipe-sum { gap: 0.75rem; padding: 0.75rem; margin-bottom: 1.25rem; }
+.fg-recipe-unresolved {
+  font-size: 0.75rem;
+  color: var(--color-secondary);
+  border-top: 1px dashed var(--input-border);
+  padding-top: 0.5rem;
+}
+
 /* ============================================================
    QUICK ADD — three tidy method groups (Describe / USDA / Manual),
    each a subtle card with a label, full-width controls + commit button.
