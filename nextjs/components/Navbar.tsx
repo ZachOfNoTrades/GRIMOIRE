@@ -4,9 +4,9 @@ import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect, useRef, ReactNode } from "react";
-import Image from "next/image";
 import { Settings, LogOut, CircleUser, BarChart3, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import GrimoireMark from "@/components/ui/GrimoireMark";
 import PermissionGuardClient from "@/components/PermissionGuardClient";
 import MainNavDrawer from "@/components/MainNavDrawer";
 import PopoverMenu from "@/components/PopoverMenu";
@@ -201,14 +201,7 @@ export default function Navbar({ children }: NavbarProps) {
             className="btn-link text-h1 !pl-0 cursor-pointer flex items-center gap-2"
           >
             {/* LOGO */}
-            <Image
-              src="/grimoire-logo.svg"
-              alt=""
-              width={28}
-              height={28}
-              priority
-              className="w-5 h-5 sm:w-7 sm:h-7"
-            />
+            <GrimoireMark className="w-5 h-5 sm:w-7 sm:h-7" />
             GRIMOIRE
           </Link>
 

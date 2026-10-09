@@ -1,0 +1,18 @@
+/**
+ * The GRIMOIRE mark (the diamond G with the sword). Inline so it paints in `currentColor` and
+ * follows the theme set in the app; an <img> can't inherit color. The favicon (app/icon.svg)
+ * is the same geometry but follows the browser theme instead, since the browser renders it
+ * outside the page. Construction: design-docs/iconography-instrument.md §12.2.
+ */
+export default function GrimoireMark({ className }: { className?: string }) {
+  return (
+    // MARK
+    <svg viewBox="21 21 470 470" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M335.33 215 L386.6 215 L256 28.48 L96.69 256 L217 427.82 L217 354.6 L147.96 256 L256 101.7 Z" />
+      <path d="M187.08 235 L400.61 235 L415.31 256 L295 427.82 L295 354.6 L349.34 277 L187.08 277 L172.38 256 Z" />
+      <path d="M256 297 L275 324.13 L275 456.39 L256 483.52 L237 456.39 L237 324.13 Z" />
+      <path d="M256 146.45 L280 180.72 L256 215 L232 180.72 Z" />
+      <path d="M159.89 130.86 L72.27 256 L159.89 381.14 L108.62 381.14 L21 256 L108.62 130.86 Z M352.11 130.86 L439.73 256 L352.11 381.14 L403.38 381.14 L491 256 L403.38 130.86 Z" />
+    </svg>
+  );
+}

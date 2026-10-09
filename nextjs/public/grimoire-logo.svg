@@ -1,25 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="21 21 470 470" fill="currentColor">
   <title>Grimoire</title>
-
-  <!-- ARCANE RING -->
-  <circle cx="64" cy="64" r="58" opacity="0.35"/>
-  <circle cx="64" cy="64" r="52"/>
-
-  <!-- TICK MARKS (cardinal points on the inner ring) -->
-  <line x1="64" y1="12" x2="64" y2="20" opacity="0.6"/>
-  <line x1="64" y1="108" x2="64" y2="116" opacity="0.6"/>
-  <line x1="12" y1="64" x2="20" y2="64" opacity="0.6"/>
-  <line x1="108" y1="64" x2="116" y2="64" opacity="0.6"/>
-
-  <!-- OPEN BOOK (two pages meeting at a center spine) -->
-  <path d="M28 78 Q46 66 62 72 L62 92 Q46 86 28 96 Z"/>
-  <path d="M100 78 Q82 66 66 72 L66 92 Q82 86 100 96 Z"/>
-  <line x1="64" y1="72" x2="64" y2="92"/>
-
-  <!-- RUNE GLYPH (stylised G — vertical stem + inward hook) -->
-  <path d="M54 36 L54 60 L74 60 L74 50 L66 50"/>
-
-  <!-- SPARKLES -->
-  <path d="M30 38 l3 3 M36 32 l-3 3" opacity="0.7"/>
-  <path d="M98 38 l-3 3 M92 32 l3 3" opacity="0.7"/>
+  <path d="M335.33 215 L386.6 215 L256 28.48 L96.69 256 L217 427.82 L217 354.6 L147.96 256 L256 101.7 Z"/>
+  <path d="M187.08 235 L400.61 235 L415.31 256 L295 427.82 L295 354.6 L349.34 277 L187.08 277 L172.38 256 Z"/>
+  <path d="M256 297 L275 324.13 L275 456.39 L256 483.52 L237 456.39 L237 324.13 Z"/>
+  <path d="M256 146.45 L280 180.72 L256 215 L232 180.72 Z"/>
+  <path d="M159.89 130.86 L72.27 256 L159.89 381.14 L108.62 381.14 L21 256 L108.62 130.86 Z M352.11 130.86 L439.73 256 L352.11 381.14 L403.38 381.14 L491 256 L403.38 130.86 Z"/>
 </svg>
