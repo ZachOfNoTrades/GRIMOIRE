@@ -10,25 +10,102 @@ import { transcribe } from "@/lib/llm/generate";
  * Accepts a WAV audio Buffer and returns the transcribed text.
  */
 export async function transcribeAudio(userId: string, audioBuffer: Buffer): Promise<string> {
-  const transcript = await transcribe(userId, "rune_stt", { audio: audioBuffer, format: "wav", language: "en" }, transcribeWithWhisper);
-  // Strip non-speech annotations like (muffled noises), (coughing), [BLANK_AUDIO], etc.
-  return transcript.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g, " ").trim();
+  const run = (audio: Buffer) =>
+    transcribe(userId, "rune_stt", { audio, format: "wav", language: "en" }, (wav) => withWhisperSlot(userId, () => transcribeWithWhisper(wav)));
+  let transcript = cleanTranscript(await run(audioBuffer));
+  // SPEED FALLBACK — Firefox for Android hands a page the microphone's samples at the
+  // wrong rate once Android moves the mic to a Bluetooth headset (an 8 kHz hands-free
+  // stream delivered as 16 kHz plays 2× fast and comes back as nothing or "[SOUND]").
+  // The page can't see the real rate, so when the transcript is empty the same bytes
+  // are re-run with the WAV header at half and then double speed and the first real
+  // transcript wins.
+  if (isNoSpeech(transcript)) {
+    for (const factor of [0.5, 2]) {
+      const retry = cleanTranscript(await run(relabelWav(audioBuffer, factor)));
+      if (!isNoSpeech(retry)) {
+        console.log(`[stt] speed fallback ×${factor} succeeded`);
+        return retry;
+      }
+    }
+  }
+  return transcript;
 }
 
-const FAILED_DIR = join(process.cwd(), ".tmp", "stt-failed");
-const FAILED_KEEP = 10;
+// Strip non-speech annotations like (muffled noises), (coughing), [BLANK_AUDIO], etc.
+function cleanTranscript(text: string): string {
+  return text.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g, " ").trim();
+}
 
-async function keepFailedRecording(path: string): Promise<void> {
+// Whisper's output for silence or noise: nothing, or its one-word hallucination.
+function isNoSpeech(text: string): boolean {
+  return text.replace(/[.\s]/g, "").toLowerCase().length === 0 || /^you\.?$/i.test(text.trim());
+}
+
+// Same samples, declared at `factor` × the header's rate: ×0.5 plays a 2×-fast
+// recording at normal speed.
+function relabelWav(wav: Buffer, factor: number): Buffer {
+  if (wav.length < 44 || wav.toString("ascii", 0, 4) !== "RIFF") return wav;
+  const out = Buffer.from(wav);
+  const rate = Math.round(out.readUInt32LE(24) * factor);
+  const blockAlign = out.readUInt16LE(32) || 2;
+  out.writeUInt32LE(rate, 24);
+  out.writeUInt32LE(rate * blockAlign, 28);
+  return out;
+}
+
+const KEEP_MAX = 10;
+
+// Recordings worth a listen are kept (newest few per folder): ones Whisper failed on
+// (stt-failed), and ones that came back near-empty or took unusually long
+// (stt-suspect) — the Bluetooth-headset bug produces both.
+async function keepRecording(path: string, folder: string): Promise<void> {
+  const dir = join(process.cwd(), ".tmp", folder);
   try {
-    await fs.mkdir(FAILED_DIR, { recursive: true });
-    await fs.rename(path, join(FAILED_DIR, path.split("/").pop()!));
+    await fs.mkdir(dir, { recursive: true });
+    await fs.rename(path, join(dir, path.split("/").pop()!));
     const files = await Promise.all(
-      (await fs.readdir(FAILED_DIR)).map(async (name) => ({ name, at: (await fs.stat(join(FAILED_DIR, name))).mtimeMs }))
+      (await fs.readdir(dir)).map(async (name) => ({ name, at: (await fs.stat(join(dir, name))).mtimeMs }))
     );
     files.sort((a, b) => b.at - a.at);
-    await Promise.all(files.slice(FAILED_KEEP).map((f) => fs.unlink(join(FAILED_DIR, f.name)).catch(() => {})));
+    await Promise.all(files.slice(KEEP_MAX).map((f) => fs.unlink(join(dir, f.name)).catch(() => {})));
   } catch {
-    console.warn(`Failed to keep failed STT recording: '${path}'`);
+    console.warn(`Failed to keep STT recording: '${path}'`);
+  }
+}
+
+const SUSPECT_MAX_CHARS = 5;
+const SUSPECT_MIN_MS = 10_000;
+
+// WHISPER CONCURRENCY — the box has 4 cores and one run wants them all; more than two
+// at once and every run crawls into the 30 s timeout. Beyond the cap, requests wait,
+// and a waiting request is dropped as soon as a newer one from the same user arrives
+// (a hands-free session only ever wants its latest snapshot).
+const MAX_CONCURRENT = 2;
+let running = 0;
+const waiting: { userId: string; start: () => void; drop: () => void }[] = [];
+
+export class SttSupersededError extends Error {
+  constructor() {
+    super("Superseded by a newer recording");
+    this.name = "SttSupersededError";
+  }
+}
+
+async function withWhisperSlot<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  for (let i = waiting.length - 1; i >= 0; i -= 1) {
+    if (waiting[i].userId === userId) waiting.splice(i, 1)[0].drop();
+  }
+  if (running >= MAX_CONCURRENT) {
+    await new Promise<void>((resolve, reject) => {
+      waiting.push({ userId, start: resolve, drop: () => reject(new SttSupersededError()) });
+    });
+  }
+  running += 1;
+  try {
+    return await fn();
+  } finally {
+    running -= 1;
+    waiting.shift()?.start();
   }
 }
 
@@ -50,7 +127,8 @@ async function transcribeWithWhisper(audioBuffer: Buffer): Promise<string> {
   const tempDir = join(process.cwd(), ".tmp");
   await fs.mkdir(tempDir, { recursive: true });
   const inputPath = join(tempDir, `stt-${randomUUID()}.wav`);
-  let failed = false;
+  let keep: string | null = null;
+  const started = Date.now();
 
   try {
     await fs.writeFile(inputPath, audioBuffer);
@@ -102,17 +180,21 @@ async function transcribeWithWhisper(audioBuffer: Buffer): Promise<string> {
         if (code === 0) {
           resolve(stdout.trim());
         } else {
-          failed = true;
+          keep = "stt-failed";
           reject(new Error(`Whisper exited with code ${code}${signal ? ` (${signal})` : ""}: ${stderr}`));
         }
       });
     });
 
+    const ms = Date.now() - started;
+    const cleaned = transcript.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*/g, " ").trim();
+    if (cleaned.length <= SUSPECT_MAX_CHARS || ms >= SUSPECT_MIN_MS) keep = "stt-suspect";
+    console.log(`[stt] whisper ${ms}ms chars=${cleaned.length} file=${inputPath.split("/").pop()}${keep ? ` kept=${keep}` : ""}`);
     return transcript;
 
   } finally {
     // A recording Whisper couldn't handle is kept (newest few) for diagnosis.
-    if (failed) await keepFailedRecording(inputPath);
+    if (keep) await keepRecording(inputPath, keep);
     // Clean up temp file
     else if (process.env.KEEP_TEMP_FILES !== "true") {
       try {

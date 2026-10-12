@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedUser } from "@/lib/permissions";
-import { transcribeAudio } from "../../lib/voice/sttFunctions";
+import { transcribeAudio, SttSupersededError } from "../../lib/voice/sttFunctions";
 import { LlmBackendError } from "@/lib/llm/types";
 
 export async function POST(request: NextRequest) {
@@ -28,7 +28,9 @@ export async function POST(request: NextRequest) {
     // the outcome so a misbehaving input device can be told apart from the server.
     const rawDiag = formData.get("diag");
     const diag = typeof rawDiag === "string" ? rawDiag.slice(0, 2000) : "-";
-    const wavSeconds = Math.max(0, audioBuffer.length - 44) / 32000;
+    // Byte rate from the WAV header (recordings carry the device's own rate).
+    const byteRate = audioBuffer.length >= 44 ? audioBuffer.readUInt32LE(28) : 0;
+    const wavSeconds = byteRate > 0 ? Math.max(0, audioBuffer.length - 44) / byteRate : 0;
     const started = Date.now();
     try {
       const transcript = await transcribeAudio(session.user.id!, audioBuffer);
@@ -40,6 +42,10 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
+    // A queued run dropped for a newer recording from the same user: not an error.
+    if (error instanceof SttSupersededError) {
+      return NextResponse.json({ error: error.message, code: "superseded" }, { status: 409 });
+    }
     // OpenRouter backend failures (no key, out of credits…) keep their status and code.
     if (error instanceof LlmBackendError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });

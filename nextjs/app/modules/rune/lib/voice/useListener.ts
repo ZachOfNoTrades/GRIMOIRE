@@ -32,6 +32,8 @@ export function useListener(): UseListenerReturn {
   // with the silence countdown. Nulled if they resume speaking, which makes the
   // snapshot it was given an incomplete answer.
   const headStartRef = useRef<Promise<string> | null>(null);
+  // Cancels the in-flight head start; only one transcription runs per recording.
+  const headStartAbortRef = useRef<AbortController | null>(null);
 
   // Get or create instances
   const getRecorder = useCallback(() => {
@@ -99,7 +101,11 @@ export function useListener(): UseListenerReturn {
           // countdown runs, so the result is waiting when the countdown expires.
           onSpeechEnd: (audio: Blob) => {
             if (audio.size === 0) return;
-            const pending = getStt().transcribe(audio, recorder.getDiagnostics());
+            // A newer snapshot supersedes the one still in flight.
+            headStartAbortRef.current?.abort();
+            const controller = new AbortController();
+            headStartAbortRef.current = controller;
+            const pending = getStt().transcribe(audio, recorder.getDiagnostics(), controller.signal);
             // Mark the rejection handled on a derived promise so a failure that is
             // never awaited (speaker resumed, recording cancelled) can't surface as
             // an unhandled rejection. `pending` itself still rejects for processAudio.
@@ -108,7 +114,11 @@ export function useListener(): UseListenerReturn {
           },
           // Speaking resumed: that snapshot was mid-answer, so discard it and let
           // the next speech-end (or the final blob) drive transcription.
-          onSpeechResume: () => { headStartRef.current = null; },
+          onSpeechResume: () => {
+            headStartRef.current = null;
+            headStartAbortRef.current?.abort();
+            headStartAbortRef.current = null;
+          },
         },
       );
     } catch {
@@ -135,6 +145,8 @@ export function useListener(): UseListenerReturn {
 
     setIsRecording(false);
     headStartRef.current = null; // Drop any in-flight head-start transcription too
+    headStartAbortRef.current?.abort();
+    headStartAbortRef.current = null;
     recorder.stopRecording(); // Discard the blob
   }, []);
 

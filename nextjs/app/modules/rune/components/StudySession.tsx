@@ -10,6 +10,7 @@ import { generateUUID } from "@/lib/uuid";
 import { CardWithProgress, CardReview } from "../types/card";
 import { useSpeaker } from "../lib/voice/useSpeaker";
 import { useListener } from "../lib/voice/useListener";
+import { holdMediaFocus } from "../lib/voice/mediaFocus";
 import type { EvaluationResult } from "../lib/voice/evaluationFunctions";
 import { playEvaluationChime } from "../lib/evaluationChime";
 import { preloadCardImages } from "../lib/imagePreload";
@@ -318,6 +319,16 @@ export default function StudySession({
       }
     };
   }, [handsFree, isActive]);
+
+  // Pause other apps' media (music, podcasts) for the whole hands-free session and
+  // whenever a question is spoken or an answer recorded outside it. Firefox for
+  // Android takes audio focus permanently, so paused media does not resume when
+  // the hold is released — by design.
+  const needsMediaFocus = (handsFree && isActive) || isSpeaking || isRecording;
+  useEffect(() => {
+    if (!needsMediaFocus) return;
+    return holdMediaFocus();
+  }, [needsMediaFocus]);
 
   // Reflect the currently-viewed card in the URL (?card=<id>) while studying,
   // so the card being shown is directly observable/shareable instead of only
