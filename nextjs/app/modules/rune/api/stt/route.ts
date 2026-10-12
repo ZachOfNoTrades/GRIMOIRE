@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { promises as fs } from "fs";
+import { join } from "path";
 import { getAuthorizedUser } from "@/lib/permissions";
 import { transcribeAudio, SttSupersededError } from "../../lib/voice/sttFunctions";
 import { LlmBackendError } from "@/lib/llm/types";
@@ -35,6 +37,9 @@ export async function POST(request: NextRequest) {
     try {
       const transcript = await transcribeAudio(session.user.id!, audioBuffer);
       console.log(`[stt] ok user=${session.user.id} bytes=${audioBuffer.length} wav=${wavSeconds.toFixed(1)}s ms=${Date.now() - started} chars=${transcript.length} diag=${diag}`);
+      // Diagnostic: every recording + its transcript, newest few, while the Bluetooth
+      // headset accuracy is being looked at (RUNE_STT_KEEP_RECENT=1 in the env).
+      if (process.env.RUNE_STT_KEEP_RECENT === "1") void keepRecent(audioBuffer, transcript, diag);
       return NextResponse.json({ transcript }, { status: 200 });
     } catch (error) {
       console.error(`[stt] failed user=${session.user.id} bytes=${audioBuffer.length} wav=${wavSeconds.toFixed(1)}s ms=${Date.now() - started} diag=${diag}`);
@@ -55,5 +60,21 @@ export async function POST(request: NextRequest) {
       { error: error instanceof Error ? error.message : "STT transcription failed" },
       { status: 500 }
     );
+  }
+}
+
+const RECENT_DIR = join(process.cwd(), ".tmp", "stt-recent");
+const RECENT_KEEP = 12;
+
+async function keepRecent(wav: Buffer, transcript: string, diag: string): Promise<void> {
+  try {
+    await fs.mkdir(RECENT_DIR, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    await fs.writeFile(join(RECENT_DIR, `${stamp}.wav`), wav);
+    await fs.writeFile(join(RECENT_DIR, `${stamp}.txt`), `${transcript}\n\n${diag}\n`);
+    const names = (await fs.readdir(RECENT_DIR)).sort().reverse();
+    await Promise.all(names.slice(RECENT_KEEP * 2).map((name) => fs.unlink(join(RECENT_DIR, name)).catch(() => {})));
+  } catch (error) {
+    console.warn("[stt] recent recording not kept:", error instanceof Error ? error.message : error);
   }
 }

@@ -82,9 +82,14 @@ export class AudioRecorder {
   ): Promise<void> {
     if (this.recording) return;
 
-    // Request mic each time so the browser indicator tracks recording accurately
+    // Request mic each time so the browser indicator tracks recording accurately.
+    // No voice processing on purpose: with echo cancellation / noise suppression on,
+    // Firefox for Android opens the capture as a "voice" stream and Android then
+    // routes it to a connected Bluetooth headset's hands-free mic — the 8 kHz stream
+    // Firefox mislabels (see the header comment). A plain capture stays on the phone
+    // mic. Echo is not a concern: the question has finished playing before this runs.
     this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
 
     this.chunks = [];
