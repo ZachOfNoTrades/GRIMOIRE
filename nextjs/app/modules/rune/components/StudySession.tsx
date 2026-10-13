@@ -320,17 +320,15 @@ export default function StudySession({
     };
   }, [handsFree, isActive]);
 
-  // Pause other apps' media (music, podcasts) for the hands-free session and
-  // whenever a question is spoken outside it. Firefox for Android takes audio focus
-  // permanently, so paused media does not resume when the hold is released — by
-  // design, and it is why the hold can drop while the mic is open: a page that plays
-  // audio while capturing gets the voice-call path on Firefox for Android, which
-  // routes the capture to a Bluetooth headset's hands-free mic (see audioRecorder.ts).
-  const needsMediaFocus = !isRecording && ((handsFree && isActive) || isSpeaking);
+  // Pause other apps' media (music, podcasts) while a question is spoken, and only
+  // then: never while the mic is open — a page that plays audio while capturing gets
+  // the voice-call path on Firefox for Android, which routes the capture to a
+  // Bluetooth headset's hands-free mic (see audioRecorder.ts). Whether the music
+  // comes back afterwards is up to the music app.
   useEffect(() => {
-    if (!needsMediaFocus) return;
+    if (!isSpeaking) return;
     return holdMediaFocus();
-  }, [needsMediaFocus]);
+  }, [isSpeaking]);
 
   // Reflect the currently-viewed card in the URL (?card=<id>) while studying,
   // so the card being shown is directly observable/shareable instead of only

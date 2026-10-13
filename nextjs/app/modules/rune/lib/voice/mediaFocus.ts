@@ -1,5 +1,5 @@
 // MEDIA FOCUS HOLD — pauses other apps' media (music, podcasts) while Rune is speaking
-// or listening. Firefox for Android takes Android audio focus only for AUDIBLE page
+// a question (never while it is listening — see StudySession). Firefox for Android takes Android audio focus only for AUDIBLE page
 // media, never for getUserMedia, so a page that just records leaves the user's music playing over
 // their answer. Playing a looping 20 Hz tone at -48 dBFS makes Firefox take focus
 // (measured on Firefox Android: a 0.001-amplitude tone takes focus, 0.0001 does not)
