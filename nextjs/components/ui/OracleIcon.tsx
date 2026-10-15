@@ -2,7 +2,7 @@
  * The Oracle module icon: an eye in a hexagon frame (one battlemap cell), a crystal pupil, and
  * four floating hexes. Paints in `currentColor`, so it follows the app's theme like a Lucide icon;
  * the pupil's light center is a cut-out. Sized by the caller.
- * Source: Designer project Diamond Sword, artboard oracle_final (artboards/artboard-72-copy-9.svg).
+ * Source: Designer project Oracle icon, artboard oracle_final (artboards/artboard-72-copy-9.svg).
  */
 export default function OracleIcon({ className }: { className?: string }) {
   return (
