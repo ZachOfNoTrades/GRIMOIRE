@@ -1,33 +1,20 @@
 /**
- * The Oracle module icon: an eye in a hexagon (one battlemap cell) with six eyestalks, a beholder.
- * Two forms in one element: the full icon, and below about 30 px (where the stalks and gaps fall
- * under a pixel) the frame and eye alone. A container query picks one by the rendered size. Both
- * paint in `currentColor`, so the icon follows the app's theme like a Lucide icon.
- * Construction: design-docs/product-icons.md §5; generator: Designer project Diamond Sword,
- * source/oracle-beholder.cjs (SMALL=1 for the small form).
+ * The Oracle module icon: an eye in a hexagon frame (one battlemap cell), a crystal pupil, and
+ * four floating hexes. Paints in `currentColor`, so it follows the app's theme like a Lucide icon;
+ * the pupil's light center is a cut-out. Sized by the caller.
+ * Source: Designer project Diamond Sword, artboard oracle_final (artboards/artboard-72-copy-9.svg).
  */
 export default function OracleIcon({ className }: { className?: string }) {
   return (
     // ICON
-    <span aria-hidden="true" className={`oracle-icon${className ? ` ${className}` : ""}`}>
-      {/* FULL */}
-      <svg className="oracle-icon-full" viewBox="2.2 2.2 507.6 507.6" fill="currentColor" fillRule="evenodd">
-        <path d="M375.28,187.14v42.03h-24.1v-28.11l-89.58,-51.72v-27.83zM375.28,324.86l-113.68,65.63v-27.83l89.58,-51.72l0,-28.11l24.1,0zM136.72,324.86v-42.03l24.1,0v28.11l89.58,51.72l0,27.83zM136.72,187.14l113.68,-65.63v27.83l-89.58,51.72v28.11l-24.1,0z" />
-        <path d="M136.72,256l119.28,-68.86l119.28,68.86l-119.28,68.86zM256,297.03l71.07,-41.03l-71.07,-41.03l-71.07,41.03z" />
-        <path d="M256,227.89l16.23,28.11l-16.23,28.11l-16.23,-28.11z" />
-        <path d="M243.95,100.62v-37.88l-12.05,-20.87l12.05,-20.87l24.1,0l12.05,20.87l-12.05,20.87v37.88z" />
-        <path d="M384.54,167.87l32.8,-18.94l12.05,-20.87h24.1l12.05,20.87l-12.05,20.87h-24.1l-32.8,18.94z" />
-        <path d="M396.59,323.25l32.8,18.94h24.1l12.05,20.87l-12.05,20.87h-24.1l-12.05,-20.87l-32.8,-18.94z" />
-        <path d="M268.05,411.38v37.88l12.05,20.87l-12.05,20.87h-24.1l-12.05,-20.87l12.05,-20.87v-37.88z" />
-        <path d="M127.46,344.13l-32.8,18.94l-12.05,20.87h-24.1l-12.05,-20.87l12.05,-20.87h24.1l32.8,-18.94z" />
-        <path d="M115.41,188.75l-32.8,-18.94h-24.1l-12.05,-20.87l12.05,-20.87h24.1l12.05,20.87l32.8,18.94z" />
-      </svg>
-      {/* SMALL */}
-      <svg className="oracle-icon-small" viewBox="2.2 2.2 507.6 507.6" fill="currentColor" fillRule="evenodd">
-        <path d="M464.4,135.68v73.43h-42.11v-49.12l-156.52,-90.36v-48.63zM464.4,376.32l-198.63,114.68v-48.63l156.52,-90.36v-49.12h42.11zM47.6,376.32v-73.43h42.11v49.12l156.52,90.36l0,48.63zM47.6,135.68l198.63,-114.68v48.63l-156.52,90.36v49.12l-42.11,0z" />
-        <path d="M47.6,256l208.4,-120.32l208.4,120.32l-208.4,120.32zM256,327.69l124.18,-71.69l-124.18,-71.69l-124.18,71.69z" />
-        <path d="M256,206.88l28.36,49.12l-28.36,49.12l-28.36,-49.12z" />
-      </svg>
-    </span>
+    <svg aria-hidden="true" className={`oracle-icon${className ? ` ${className}` : ""}`} viewBox="-0.5 0 512 512" fill="currentColor" fillRule="evenodd">
+      <path d="M445.98 402.03 L255.5 512 L65.02 402.03 L65.12 330.43 L107.08 354.74 L107.05 377.84 L255.5 463.5 L403.95 377.84 L403.92 354.74 L445.88 330.43 Z M65.33 182.61 L255.5 73.17 L445.68 182.61 L445.77 254.21 L403.74 230.02 L403.71 206.92 L255.5 121.67 L107.29 206.92 L107.26 230.02 L65.22 254.21 Z" />
+      <path d="M255.33 417.5 L39.17 293 L75.48 271.99 L75.48 271.98 L255.07 168.05 L434.88 271.62 L434.88 271.62 L471.23 292.56 Z M387.23 292.64 L255.12 216.55 L123.17 292.92 L255.28 369.01 Z" />
+      <path d="M285.54,269.38v50.61l-30,29.02l-30,-29.02v-50.61l30,-32.83zM255.54,266.19l-10,10.95v34.37l10,9.68l10,-9.68v-34.37z" />
+      <path d="M196.67 0 L160.3 20.97 L160.24 62.97 L196.58 84 L232.98 63.05 L233.04 21.05 Z" />
+      <path d="M314.33 0 L277.96 21.05 L278.02 63.05 L314.42 84 L350.76 62.97 L350.7 20.97 Z" />
+      <path d="M474.55 92.22 L438.2 113.27 L438.26 155.27 L474.66 176.22 L511 155.17 L510.94 113.17 Z" />
+      <path d="M36.45 92.22 L0.06 113.17 L0 155.17 L36.34 176.22 L72.74 155.27 L72.8 113.27 Z" />
+    </svg>
   );
 }

@@ -8,6 +8,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
+import OracleIcon from "@/components/ui/OracleIcon";
 import { useConfirm } from "@/lib/useConfirm";
 import { HOME_HELP } from "../../components/help";
 import { api, errorMessage } from "../../lib/client";
@@ -96,7 +97,7 @@ export default function HomeClient({ campaigns: initialCampaigns }: { campaigns:
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title">
-          <Dices className="w-7 h-7" /> Oracle
+          <OracleIcon className="w-7 h-7" /> Oracle
         </h1>
 
         {/* PAGE SUBTITLE */}
