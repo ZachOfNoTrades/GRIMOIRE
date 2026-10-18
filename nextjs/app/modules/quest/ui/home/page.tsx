@@ -4125,13 +4125,14 @@ function SubtaskChecklist({
         <div key={s.id} className="flex items-center gap-2 text-sm">
           <button
             onClick={() => onToggle(s.id, s.done)}
-            className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer ${
+            className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 cursor-pointer ${
               s.done ? "bg-green-500/30 border-green-500/50 text-green-500" : "quest-control"
             }`}
           >
             {s.done && <Check className="w-3 h-3" />}
           </button>
-          <span className={`flex-1 ${s.done ? "line-through text-secondary" : ""}`}>{s.title}</span>
+          {/* Wrap the title to avoid an unbreakable one (e.g. a pasted URL) widening the row past the screen and crushing the checkbox */}
+          <span className={`flex-1 min-w-0 break-words ${s.done ? "line-through text-secondary" : ""}`}>{s.title}</span>
           {!readOnly && (
             <button
               onClick={() => onDelete(s.id)}
