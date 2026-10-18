@@ -155,12 +155,13 @@ export function useListener(): UseListenerReturn {
     setTranscript(null);
   }, []);
 
-  // Clean up on unmount
+  // Load the voice activity model on mount, and release everything on unmount
   useEffect(() => {
+    getRecorder().prepare();
     return () => {
       recorderRef.current?.dispose();
     };
-  }, []);
+  }, [getRecorder]);
 
   return {
     isRecording,

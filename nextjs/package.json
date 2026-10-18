@@ -6,11 +6,13 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node scripts/copy-vad-assets.mjs"
   },
   "dependencies": {
     "@infisical/sdk": "^5.0.2",
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@ricky0123/vad-web": "0.0.31",
     "@tiptap/extension-image": "^3.27.1",
     "@tiptap/extension-link": "^3.27.1",
     "@tiptap/extension-paragraph": "^3.27.1",

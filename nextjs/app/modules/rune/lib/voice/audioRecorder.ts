@@ -1,6 +1,8 @@
+import type { MicVAD } from "@ricky0123/vad-web";
+
 // Spoken-answer capture. The audio is RECORDED with MediaRecorder straight off the
-// microphone track and decoded to 16 kHz PCM in the browser; the Web Audio graph is
-// used only to watch the level for silence detection. Capturing PCM through the graph
+// microphone track and decoded to 16 kHz PCM in the browser; the Web Audio graph only
+// feeds the Silero voice activity model that detects when the speaker stops. Capturing PCM through the graph
 // (ScriptProcessorNode on an AudioContext) broke on Firefox for Android the moment
 // Android moved the mic to a Bluetooth headset: the headset stream runs at a lower
 // rate and Firefox fed its samples into the graph unresampled — a 16 kHz context got
@@ -8,15 +10,24 @@
 // MediaRecorder encodes the track at its own rate, and decodeAudioData resamples the
 // result to the rate the WAV declares, so what reaches Whisper is always right.
 const WAV_RATE = 16000; // Whisper's native rate
-// A hands-free answer that never goes quiet (a noisy mic above the threshold) is cut
+// A hands-free answer that never goes quiet (speech the model never sees end) is cut
 // here rather than growing until transcription times out.
 const MAX_RECORD_MS = 60_000;
-// The level must stay below the threshold this long before the speaker counts as
-// done. A Bluetooth mic sits close to the threshold, and without this every dip
-// between words fired a "speech ended" snapshot — one answer spawned ten
-// transcriptions at once and they all timed out.
+// The model must report quiet this long before the speaker counts as done, to avoid
+// every pause between words firing a "speech ended" snapshot and its transcription.
 const SILENCE_CONFIRM_MS = 400;
-const SILENCE_THRESHOLD = 5; // RMS ×100 over [-1, 1]
+// Silero speech probability per 96 ms frame. Speech is one frame at or above
+// SPEECH_PROBABILITY or the last SPEECH_WINDOW_FRAMES summing to SPEECH_WINDOW_SUM;
+// quiet is a frame below QUIET_PROBABILITY. A voice model instead of a level
+// threshold avoids missing speech that is barely louder than road noise on a car
+// hands-free mic, and the window sum avoids missing speech the model scores low
+// for a second (0.15-0.2 a frame) while road noise only blips. The legacy (v4)
+// model scores narrowband hands-free speech higher than v5 and v6.
+const SPEECH_PROBABILITY = 0.3;
+const SPEECH_WINDOW_FRAMES = 8;
+const SPEECH_WINDOW_SUM = 0.8;
+const QUIET_PROBABILITY = 0.1;
+const VAD_ASSET_PATH = "/vad/"; // Model, worklet and ONNX runtime files copied by scripts/copy-vad-assets.mjs
 const TIMESLICE_MS = 250;
 const MIME_TYPES = ["audio/ogg;codecs=opus", "audio/webm;codecs=opus", "audio/webm", "audio/ogg", "audio/mp4"];
 
@@ -30,8 +41,10 @@ export interface RecorderDiagnostics {
   encodedBytes: number;
   chunks: number;
   seconds: number;
-  rmsMin: number | null; // noise floor seen by silence detection (threshold is 5)
-  rmsMax: number | null;
+  vadFrames: number;          // frames the voice activity model scored
+  speechProbabilityMax: number | null;
+  vadError: string | null;    // why the voice activity model failed to start
+  vadStartMs: number | null;  // recording start to the model's first scored frame
   speechDetected: boolean;
   speechEnds: number;    // confirmed speech-end snapshots this recording
   // Track mute/unmute while recording: an OS switching a Bluetooth headset between
@@ -44,14 +57,18 @@ export interface RecorderDiagnostics {
 type Diag = Omit<RecorderDiagnostics, "chunks" | "seconds" | "encodedBytes">;
 
 function emptyDiag(): Diag {
-  return { track: null, contextRate: null, mimeType: null, decodedRate: null, rmsMin: null, rmsMax: null, speechDetected: false, speechEnds: 0, mutedAtStart: null, muteEvents: 0, unmuteEvents: 0 };
+  return { track: null, contextRate: null, mimeType: null, decodedRate: null, vadFrames: 0, speechProbabilityMax: null, vadError: null, vadStartMs: null, speechDetected: false, speechEnds: 0, mutedAtStart: null, muteEvents: 0, unmuteEvents: 0 };
 }
 
 export class AudioRecorder {
   private stream: MediaStream | null = null;
-  private audioContext: AudioContext | null = null;
-  private sourceNode: MediaStreamAudioSourceNode | null = null;
-  private analyser: AnalyserNode | null = null;
+  // Voice activity model, loaded once by prepare() and reused for every recording, to
+  // avoid its ~2 s start-up missing the first words of an answer.
+  private vadContext: AudioContext | null = null;
+  private vadReady: Promise<MicVAD | null> | null = null;
+  private vadError: string | null = null;
+  private vadIdle: Promise<void> = Promise.resolve(); // Settles once the previous recording's pause finishes
+  private onVadFrame: ((probability: number) => void) | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
   private startedAt = 0;
@@ -118,18 +135,11 @@ export class AudioRecorder {
     };
     this.mediaRecorder.start(TIMESLICE_MS);
 
-    // Level monitor only: nothing is captured through the graph.
     if (onStop) {
-      this.audioContext = new AudioContext();
-      this.diag.contextRate = this.audioContext.sampleRate;
-      this.sourceNode = this.audioContext.createMediaStreamSource(this.stream);
-      this.analyser = this.audioContext.createAnalyser();
-      this.analyser.fftSize = 2048;
-      this.sourceNode.connect(this.analyser);
-      this.startSilenceDetection(silenceMs);
       this.maxTimer = setTimeout(() => {
         if (this.recording && this.onSilenceStop) this.onSilenceStop();
       }, MAX_RECORD_MS);
+      await this.startSilenceDetection(silenceMs);
     }
   }
 
@@ -150,7 +160,6 @@ export class AudioRecorder {
     }
     this.mediaRecorder = null;
 
-    this.teardownGraph();
     this.releaseStream();
 
     const wav = await this.snapshotWav();
@@ -199,18 +208,47 @@ export class AudioRecorder {
   /** Release all resources. */
   dispose(): void {
     this.stopSilenceDetection();
+    this.vadReady?.then((vad) => vad?.destroy()).catch(() => {});
+    this.vadReady = null;
+    this.vadContext?.close().catch(() => {});
+    this.vadContext = null;
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") this.mediaRecorder.stop();
     this.mediaRecorder = null;
-    this.teardownGraph();
     this.releaseStream();
     this.recording = false;
   }
 
-  private teardownGraph(): void {
-    this.sourceNode?.disconnect();
-    this.sourceNode = null;
-    this.audioContext?.close().catch(() => {});
-    this.audioContext = null;
+  /** Load the voice activity model ahead of the first recording. */
+  prepare(): Promise<MicVAD | null> {
+    this.vadReady ??= this.loadVad();
+    return this.vadReady;
+  }
+
+  private async loadVad(): Promise<MicVAD | null> {
+    try {
+      const { MicVAD } = await import("@ricky0123/vad-web"); // Load on demand to avoid shipping the model runtime with every page
+      this.vadContext = new AudioContext();
+      return await MicVAD.new({
+        model: "legacy",
+        baseAssetPath: VAD_ASSET_PATH,
+        onnxWASMBasePath: VAD_ASSET_PATH,
+        audioContext: this.vadContext,
+        startOnLoad: false,
+        getStream: async () => this.requireStream(),
+        resumeStream: async () => this.requireStream(),
+        pauseStream: async () => {}, // Leave the stream to releaseStream
+        onFrameProcessed: (probabilities) => this.onVadFrame?.(probabilities.isSpeech),
+      });
+    } catch (error) {
+      this.vadError = error instanceof Error ? error.message : String(error);
+      console.warn("Voice activity model failed to load:", error);
+      return null;
+    }
+  }
+
+  private requireStream(): MediaStream {
+    if (!this.stream) throw new Error("No microphone stream to analyze");
+    return this.stream;
   }
 
   /** Stop mic stream tracks so the browser indicator disappears. */
@@ -270,32 +308,25 @@ export class AudioRecorder {
   }
 
   /**
-   * Monitor audio levels and auto-stop after sustained silence,
-   * but only once speech has been detected first.
+   * Run the Silero voice activity model on the mic and auto-stop after sustained
+   * silence, but only once speech has been detected first.
    */
-  private startSilenceDetection(silenceMs: number): void {
-    if (!this.analyser) return;
-
-    const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+  private async startSilenceDetection(silenceMs: number): Promise<void> {
     let speechDetected = false;
     let quietSince: number | null = null;
+    const recent: number[] = [];
 
-    const checkLevel = () => {
-      if (!this.recording || !this.analyser) return;
+    this.onVadFrame = (probability: number) => {
+      if (!this.recording) return;
+      this.diag.vadFrames += 1;
+      this.diag.vadStartMs ??= Date.now() - this.startedAt;
+      this.diag.speechProbabilityMax = Math.max(this.diag.speechProbabilityMax ?? 0, probability);
 
-      this.analyser.getByteTimeDomainData(dataArray);
+      recent.push(probability);
+      if (recent.length > SPEECH_WINDOW_FRAMES) recent.shift();
+      const windowSum = recent.reduce((sum, p) => sum + p, 0);
 
-      // Calculate RMS
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        const sample = (dataArray[i] - 128) / 128;
-        sum += sample * sample;
-      }
-      const rms = Math.sqrt(sum / dataArray.length) * 100;
-      this.diag.rmsMin = this.diag.rmsMin === null ? rms : Math.min(this.diag.rmsMin, rms);
-      this.diag.rmsMax = this.diag.rmsMax === null ? rms : Math.max(this.diag.rmsMax, rms);
-
-      if (rms >= SILENCE_THRESHOLD) {
+      if (probability >= SPEECH_PROBABILITY || windowSum >= SPEECH_WINDOW_SUM) {
         speechDetected = true;
         this.diag.speechDetected = true;
         quietSince = null;
@@ -306,7 +337,7 @@ export class AudioRecorder {
           // now an incomplete answer, so whoever is transcribing it must drop it.
           this.onSpeechResume?.();
         }
-      } else if (speechDetected && !this.silenceTimer) {
+      } else if (probability < QUIET_PROBABILITY && speechDetected && !this.silenceTimer) {
         // Quiet after speech: only a sustained quiet counts as the end of the answer.
         quietSince ??= Date.now();
         if (Date.now() - quietSince >= SILENCE_CONFIRM_MS) {
@@ -324,11 +355,23 @@ export class AudioRecorder {
           });
         }
       }
-
-      requestAnimationFrame(checkLevel);
     };
 
-    checkLevel();
+    const vad = await this.prepare();
+    if (!vad || !this.vadContext) {
+      this.diag.vadError = this.vadError;
+      return;
+    }
+    if (!this.recording) return; // Stopped while the model loaded
+    this.diag.contextRate = this.vadContext.sampleRate;
+    try {
+      await this.vadIdle; // Wait for the last pause to avoid it landing after this start
+      await this.vadContext.resume();
+      await vad.start();
+    } catch (error) {
+      this.diag.vadError = error instanceof Error ? error.message : String(error);
+      console.warn("Voice activity model failed to start:", error);
+    }
   }
 
   // Ask the encoder for its buffered data, then decode everything so far.
@@ -353,7 +396,14 @@ export class AudioRecorder {
       clearTimeout(this.silenceTimer);
       this.silenceTimer = null;
     }
-    this.analyser = null;
+    this.onVadFrame = null;
+    const vadReady = this.vadReady;
+    if (vadReady) {
+      this.vadIdle = vadReady
+        .then((vad) => vad?.pause())
+        .then(() => this.vadContext?.suspend()) // Suspend between recordings to avoid holding the audio hardware
+        .catch(() => {});
+    }
     this.onSpeechEnd = null;
     this.onSpeechResume = null;
   }

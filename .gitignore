@@ -40,3 +40,6 @@ TODO.md
 # Local voice engine binaries + models (RUNE hands-free mode, machine-specific)
 /piper/
 /whisper/
+
+# Silero voice activity assets, copied from node_modules on install
+/nextjs/public/vad/

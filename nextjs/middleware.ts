@@ -74,13 +74,14 @@ export const config = {
     // Protect all routes except NextAuth's own endpoints, the MCP endpoint (which does
     // its own bearer-token auth and must return JSON 401 instead of redirecting to signin),
     // the email unsubscribe page + endpoint (authorized by the HMAC token in the link, and
-    // useless if it redirected a signed-out recipient to a Google login), static assets, and
-    // public files. API-key requests on other routes are handled in-callback above.
+    // useless if it redirected a signed-out recipient to a Google login), static assets, the
+    // Rune voice activity model files under /vad (an audio worklet fetch can't follow a
+    // signin redirect), and public files. API-key requests on other routes are handled in-callback above.
     // Damnation's guest surface (`/damnation`, `/damnation/<code>`, `/api/damnation/<code>/…`) is
     // public too: guests have no account and authorize with the X-Damnation-Token issued at join.
     // Public module surfaces live under the module's own top-level name, so each one is excluded
     // explicitly; the entries are anchored (`damnation$`, `damnation/`) so other paths stay gated
     // (the host UI and API under /modules/damnation are unaffected).
-    "/((?!api/auth|api/mcp|api/email/unsubscribe|unsubscribe|damnation$|damnation/|api/damnation/|\\.well-known|_next/static|_next/image|favicon.ico|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.ico$).*)",
+    "/((?!api/auth|api/mcp|api/email/unsubscribe|unsubscribe|damnation$|damnation/|api/damnation/|vad/|\\.well-known|_next/static|_next/image|favicon.ico|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.ico$).*)",
   ],
 };
