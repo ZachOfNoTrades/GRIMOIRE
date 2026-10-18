@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef, use } from "react";
+import { useState, useEffect, useMemo, useCallback, use } from "react";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, EllipsisVertical, Check, Upload, Download, Share2, LogOut, Forward } from "lucide-react";
+import { Plus, Pencil, Power, PowerOff, Trash2, Sparkles, History, Check, Upload, Download, Share2, LogOut, Forward } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import ExpandableRowList from "@/components/ExpandableRowList";
-import PopoverMenu from "@/components/PopoverMenu";
+import { HeaderMenu } from "@/components/ui/HeaderMenu";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress, CardReview } from "../../../types/card";
 import { DEFAULT_AUTO_ADVANCE_SECONDS, DEFAULT_DAILY_GOAL, DEFAULT_DAILY_MAX_RENEW } from "../../../types/settings";
@@ -159,7 +159,6 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // time, never one per card in the deck. Kept with the id it was loaded for so a
   // fast second expand can't paint the previous card's trend under the new card.
   const [expandedCardReviews, setExpandedCardReviews] = useState<{ cardId: string; reviews: CardReview[] } | null>(null);
-  const [isDeckMenuOpen, setIsDeckMenuOpen] = useState(false); // the header's deck-actions popover
   // SHEET EDIT — the table view's single-Edit-button mode. `sheetDrafts` is keyed by card
   // id and holds every row's working copy while it's on; null means the table is in read
   // mode. Keyed rather than positional so a mid-edit search/filter (which changes which
@@ -180,7 +179,6 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   // Bumped when a study session ends so the history section refetches the session that
   // just finished — its rows are server-derived, so there is nothing to update locally.
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-  const deckMenuAnchorRef = useRef<HTMLDivElement>(null);
 
   // Soft daily-target progress. Both thresholds are soft — goalMet is motivational,
   // overMaxRenew only warns; neither hides or blocks any due card.
@@ -978,113 +976,33 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               {/* DECK ACTIONS — every deck-level action lives in one overflow menu. They used to be
                   four naked icon buttons crowding the title; the menu labels each action in words
                   (an icon alone can't say what "power" does to a deck) and leaves the header calm. */}
-              <div ref={deckMenuAnchorRef}>
-                <Button
-                  className="btn-link !p-2"
-                  onClick={() => setIsDeckMenuOpen((open) => !open)}
-                  title="Deck actions"
-                  aria-label="Deck actions"
-                  aria-haspopup="menu"
-                  aria-expanded={isDeckMenuOpen}
-                >
-                  <EllipsisVertical className="w-5 h-5" />
-                </Button>
-              </div>
-
-              {/* DECK ACTIONS MENU */}
-              <PopoverMenu open={isDeckMenuOpen} onClose={() => setIsDeckMenuOpen(false)} anchorRef={deckMenuAnchorRef} className="popover-menu--wide">
-
-                {/* SHARE ITEM — owner only */}
-                {isOwner && (
-                  <button
-                    onClick={() => { setIsDeckMenuOpen(false); setShowShareDeck(true); }}
-                    className="popover-item"
-                  >
-                    <Share2 className="w-4 h-4 mr-3" />
-                    Share deck
-                  </button>
-                )}
-
-                {/* REFINE ITEM */}
-                {canEdit && (
-                  <button
-                    onClick={() => { setIsDeckMenuOpen(false); setShowRefineDeck(true); }}
-                    className="popover-item"
-                    disabled={allCards.length === 0}
-                  >
-                    <Sparkles className="w-4 h-4 mr-3" />
-                    Refine with AI
-                  </button>
-                )}
-
-                {/* EDIT ITEM */}
-                {canEdit && (
-                  <button
-                    onClick={() => { setIsDeckMenuOpen(false); setShowEditDeck(true); }}
-                    className="popover-item"
-                  >
-                    <Pencil className="w-4 h-4 mr-3" />
-                    Edit deck
-                  </button>
-                )}
-
-                {/* DISABLE / ENABLE ITEM — pauses the deck's scheduling without touching its cards */}
-                <button
-                  onClick={() => { setIsDeckMenuOpen(false); toggleDeckDisabled(); }}
-                  className="popover-item"
-                  title={deck.is_disabled ? "Count this deck's cards as due again" : "Stop counting this deck toward due totals, the daily review email and collection sessions"}
-                >
-                  {deck.is_disabled ? <Power className="w-4 h-4 mr-3" /> : <PowerOff className="w-4 h-4 mr-3" />}
-                  {deck.is_disabled ? "Enable deck" : "Disable deck"}
-                </button>
-
-                {/* IMPORT ITEM — bulk-adds cards from a spreadsheet export, appended to the
-                    end of the deck. Sits with the deck-level actions because it writes many
-                    cards at once; the table's own "Add card" row is the one-at-a-time path. */}
-                {canEdit && (
-                  <button
-                    onClick={() => { setIsDeckMenuOpen(false); setShowImportCards(true); }}
-                    className="popover-item"
-                    title="Add cards in bulk from a CSV file"
-                  >
-                    <Upload className="w-4 h-4 mr-3" />
-                    Import cards from CSV
-                  </button>
-                )}
-
-                {/* EXPORT ITEM — every card to a CSV the importer reads back as-is */}
-                <button
-                  onClick={() => { setIsDeckMenuOpen(false); handleExportCsv(); }}
-                  className="popover-item"
-                  disabled={allCards.length === 0}
-                  title="Download every card as a CSV file"
-                >
-                  <Download className="w-4 h-4 mr-3" />
-                  Export cards to CSV
-                </button>
-
-                <div className="popover-separator" />
-
-                {/* DELETE ITEM — owner only. A sharee removes the deck from their own list instead. */}
-                {isOwner ? (
-                  <button
-                    onClick={() => { setIsDeckMenuOpen(false); setShowDeleteDeck(true); }}
-                    className="popover-item popover-item-danger"
-                  >
-                    <Trash2 className="w-4 h-4 mr-3" />
-                    Delete deck
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { setIsDeckMenuOpen(false); handleLeaveDeck(); }}
-                    className="popover-item popover-item-danger"
-                    title="Remove this shared deck from your list — the owner keeps it"
-                  >
-                    <LogOut className="w-4 h-4 mr-3" />
-                    Remove from my decks
-                  </button>
-                )}
-              </PopoverMenu>
+              <HeaderMenu
+                label="Deck actions"
+                wide
+                items={[
+                  // SHARE — owner only
+                  isOwner && { label: "Share deck", icon: <Share2 className="w-4 h-4" />, onSelect: () => setShowShareDeck(true) },
+                  canEdit && { label: "Refine with AI", icon: <Sparkles className="w-4 h-4" />, disabled: allCards.length === 0, onSelect: () => setShowRefineDeck(true) },
+                  canEdit && { label: "Edit deck", icon: <Pencil className="w-4 h-4" />, onSelect: () => setShowEditDeck(true) },
+                  // DISABLE / ENABLE — pauses the deck's scheduling without touching its cards
+                  {
+                    label: deck.is_disabled ? "Enable deck" : "Disable deck",
+                    icon: deck.is_disabled ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />,
+                    title: deck.is_disabled ? "Count this deck's cards as due again" : "Stop counting this deck toward due totals, the daily review email and collection sessions",
+                    onSelect: toggleDeckDisabled,
+                  },
+                  // IMPORT — bulk-adds cards from a spreadsheet export, appended to the end of the deck. Sits
+                  // with the deck-level actions because it writes many cards at once; the table's own
+                  // "Add card" row is the one-at-a-time path.
+                  canEdit && { label: "Import cards from CSV", icon: <Upload className="w-4 h-4" />, title: "Add cards in bulk from a CSV file", onSelect: () => setShowImportCards(true) },
+                  // EXPORT — every card to a CSV the importer reads back as-is
+                  { label: "Export cards to CSV", icon: <Download className="w-4 h-4" />, disabled: allCards.length === 0, title: "Download every card as a CSV file", onSelect: handleExportCsv },
+                  // DELETE — owner only. A sharee removes the deck from their own list instead.
+                  isOwner
+                    ? { label: "Delete deck", icon: <Trash2 className="w-4 h-4" />, danger: true, separatorBefore: true, onSelect: () => setShowDeleteDeck(true) }
+                    : { label: "Remove from my decks", icon: <LogOut className="w-4 h-4" />, danger: true, separatorBefore: true, title: "Remove this shared deck from your list — the owner keeps it", onSelect: handleLeaveDeck },
+                ]}
+              />
             </div>
 
             {/* STATS */}

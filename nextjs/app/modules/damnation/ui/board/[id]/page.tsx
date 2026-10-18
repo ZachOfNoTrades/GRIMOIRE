@@ -2,7 +2,6 @@
 
 import {
   BookOpen,
-  EllipsisVertical,
   HelpCircle,
   LayoutGrid,
   Expand,
@@ -13,13 +12,12 @@ import {
   Trash2,
   WifiOff,
 } from "lucide-react";
-import PopoverMenu from "@/components/PopoverMenu";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import ConfirmModal from "@/components/ConfirmModal";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
-import { Button } from "@/components/ui/button";
+import { HeaderMenu } from "@/components/ui/HeaderMenu";
 import HelpButton from "@/components/ui/HelpButton";
 import GameCard from "../../../components/GameCard";
 import LayoutPicker from "../../../components/LayoutPicker";
@@ -64,12 +62,10 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
   // At most one card's Commander damage / Status section is open, so opening one never stacks
   // extra height onto the board.
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showWiki, setShowWiki] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   // Game Setup on the side card, while the game is under way: shows the setup face instead of the activity.
   const [isEditingGame, setIsEditingGame] = useState(false);
-  const menuButtonRef = useRef<HTMLSpanElement>(null);
   const [isBusy, setIsBusy] = useState(false);
 
   const { snapshot: serverSnapshot, connection, acceptSnapshot } = useSessionStream<HostSnapshot>({
@@ -194,57 +190,27 @@ export default function DamnationBoardPage({ params }: { params: Promise<{ id: s
 
           {/* BOARD MENU — every board action except the table layout, which sits with the game setup */}
           <div className="flex items-center">
-            <span ref={menuButtonRef}>
-              <Button className="btn-link" onClick={() => setIsMenuOpen((open) => !open)} disabled={!snapshot} title="More" aria-label="More actions" aria-expanded={isMenuOpen}>
-                <EllipsisVertical className="w-5 h-5" />
-              </Button>
-            </span>
+            <HeaderMenu
+              disabled={!snapshot}
+              wide
+              items={[
+                { label: "Wiki", icon: <BookOpen className="w-4 h-4" />, onSelect: () => setShowWiki(true) },
+                // TABLE LAYOUT — only while the game setup (and its layout button) is hidden
+                snapshot?.status !== "lobby" && { label: "Table layout", icon: <LayoutGrid className="w-4 h-4" />, onSelect: () => setShowLayoutPicker(true) },
+                {
+                  label: isFullscreen ? "Exit full screen" : "Full screen",
+                  icon: isFullscreen ? <Shrink className="w-4 h-4" /> : <Expand className="w-4 h-4" />,
+                  onSelect: toggleFullscreen,
+                },
+                { label: "Settings", icon: <Settings className="w-4 h-4" />, onSelect: () => router.push("/modules/damnation/ui/settings") },
+                { label: "Help", icon: <HelpCircle className="w-4 h-4" />, onSelect: () => setShowHelp(true) },
+                // RESET — same players and settings, everyone back to the starting life
+                snapshot?.status !== "finished" && { label: "Reset game", icon: <RotateCcw className="w-4 h-4" />, disabled: isBusy, onSelect: () => setConfirm({ kind: "reset" }) },
+                { label: "Delete game", icon: <Trash2 className="w-4 h-4" />, danger: true, disabled: isBusy, onSelect: () => setConfirm({ kind: "delete" }) },
+              ]}
+            />
           </div>
         </div>
-
-        {/* MENU POPOVER */}
-        <PopoverMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} anchorRef={menuButtonRef} className="popover-menu--wide">
-
-          {/* WIKI ITEM */}
-          <button className="popover-item" onClick={() => { setIsMenuOpen(false); setShowWiki(true); }}>
-            <BookOpen className="w-4 h-4 mr-3" /> Wiki
-          </button>
-
-          {/* TABLE LAYOUT ITEM — only while the game setup (and its layout button) is hidden */}
-          {snapshot?.status !== "lobby" && (
-            <button className="popover-item" onClick={() => { setIsMenuOpen(false); setShowLayoutPicker(true); }}>
-              <LayoutGrid className="w-4 h-4 mr-3" /> Table layout
-            </button>
-          )}
-
-          {/* FULL SCREEN ITEM */}
-          <button className="popover-item" onClick={() => { setIsMenuOpen(false); toggleFullscreen(); }}>
-            {isFullscreen ? <Shrink className="w-4 h-4 mr-3" /> : <Expand className="w-4 h-4 mr-3" />}
-            {isFullscreen ? "Exit full screen" : "Full screen"}
-          </button>
-
-          {/* SETTINGS ITEM */}
-          <button className="popover-item" onClick={() => { setIsMenuOpen(false); router.push("/modules/damnation/ui/settings"); }}>
-            <Settings className="w-4 h-4 mr-3" /> Settings
-          </button>
-
-          {/* HELP ITEM */}
-          <button className="popover-item" onClick={() => { setIsMenuOpen(false); setShowHelp(true); }}>
-            <HelpCircle className="w-4 h-4 mr-3" /> Help
-          </button>
-
-          {/* RESET ITEM — same players and settings, everyone back to the starting life */}
-          {snapshot?.status !== "finished" && (
-            <button className="popover-item" disabled={isBusy} onClick={() => { setIsMenuOpen(false); setConfirm({ kind: "reset" }); }}>
-              <RotateCcw className="w-4 h-4 mr-3" /> Reset game
-            </button>
-          )}
-
-          {/* DELETE ITEM */}
-          <button className="popover-item" disabled={isBusy} onClick={() => { setIsMenuOpen(false); setConfirm({ kind: "delete" }); }}>
-            <Trash2 className="w-4 h-4 mr-3" /> Delete game
-          </button>
-        </PopoverMenu>
 
         {/* WIKI + HELP MODALS — opened from the menu */}
         {snapshot && <WikiSearch template={snapshot.wiki_search_template} embed={snapshot.wiki_embed} open={showWiki} onOpenChange={setShowWiki} />}

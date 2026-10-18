@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
-import { Archive, ArchiveRestore, Calendar, Circle, CircleCheck, CircleDot, EllipsisVertical, Layers, Loader2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Calendar, Circle, CircleCheck, CircleDot, Layers, Loader2, Play, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import PopoverMenu from "@/components/PopoverMenu";
+import { HeaderMenu } from "@/components/ui/HeaderMenu";
 import toast from "react-hot-toast";
 import { Program, getStatusLabel, getStatusBadge } from "../../../types/program";
 import SessionTimer from "../../../components/SessionTimer";
@@ -25,8 +25,6 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
   const [isArchiving, setIsArchiving] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuButtonRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
 
@@ -208,13 +206,13 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
           <Breadcrumbs label={program.name} />
 
           {/* TITLE ROW */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
 
-            {/* TITLE AND BADGES */}
-            <div className="flex items-center gap-3">
+            {/* TITLE AND BADGES — wrap and shrink on a narrow screen so the menu stays on it */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
 
               {/* PROGRAM NAME */}
-              <h1 className="text-page-title">{program.name}</h1>
+              <h1 className="text-page-title min-w-0 break-words">{program.name}</h1>
 
               {/* PROGRAM STATUS BADGE */}
               <span className={getStatusBadge(program.is_current, program.is_completed)}>
@@ -228,58 +226,30 @@ export default function ProgramPage({ params }: { params: Promise<{ id: string }
             </div>
 
             {/* ACTIONS MENU */}
-            <div ref={menuButtonRef}>
-
-              {/* MENU TRIGGER */}
-              <Button
-                className="btn-link"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-              >
-                <EllipsisVertical className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* MENU POPOVER */}
-            <PopoverMenu open={isMenuOpen} onClose={() => setIsMenuOpen(false)} anchorRef={menuButtonRef}>
-
-              {/* SET AS CURRENT ITEM */}
-              {!program.is_current && (
-                <button
-                  onClick={() => { setIsMenuOpen(false); handleSetCurrent(); }}
-                  className="popover-item"
-                  disabled={isActivating}
-                >
-                  <Play className="w-4 h-4 mr-3" />
-                  {isActivating ? "Saving..." : "Set as Current"}
-                </button>
-              )}
-
-              {/* ARCHIVE ITEM */}
-              <button
-                onClick={() => { setIsMenuOpen(false); handleArchive(); }}
-                className="popover-item"
-                disabled={isArchiving}
-              >
-                {program.is_archived ? (
-                  <ArchiveRestore className="w-4 h-4 mr-3" />
-                ) : (
-                  <Archive className="w-4 h-4 mr-3" />
-                )}
-                {isArchiving ? "Saving..." : program.is_archived ? "Unarchive" : "Archive"}
-              </button>
-
-              {/* DELETE ITEM */}
-              {!hasCompletedSessions && (
-                <button
-                  onClick={() => { setIsMenuOpen(false); handleDelete(); }}
-                  className="popover-item"
-                  disabled={isDeleting}
-                >
-                  <Trash2 className="w-4 h-4 mr-3" />
-                  {isDeleting ? "Deleting..." : "Delete"}
-                </button>
-              )}
-            </PopoverMenu>
+            <HeaderMenu
+              wide
+              items={[
+                !program.is_current && {
+                  label: isActivating ? "Saving..." : "Set as Current",
+                  icon: <Play className="w-4 h-4" />,
+                  disabled: isActivating,
+                  onSelect: handleSetCurrent,
+                },
+                {
+                  label: isArchiving ? "Saving..." : program.is_archived ? "Unarchive" : "Archive",
+                  icon: program.is_archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />,
+                  disabled: isArchiving,
+                  onSelect: handleArchive,
+                },
+                !hasCompletedSessions && {
+                  label: isDeleting ? "Deleting..." : "Delete",
+                  icon: <Trash2 className="w-4 h-4" />,
+                  danger: true,
+                  disabled: isDeleting,
+                  onSelect: handleDelete,
+                },
+              ]}
+            />
           </div>
 
           {/* DESCRIPTION */}
