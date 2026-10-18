@@ -7,7 +7,7 @@ function DigitTiles({ value }: { value: string }) {
   return (
 
     // TILE ROW
-    <div className="flex gap-1.5">
+    <div className="bagel-guess-tiles">
       {value.split("").map((d, i) => (
         <span key={i} className="bagel-tile">{d}</span>
       ))}

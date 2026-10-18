@@ -5800,6 +5800,12 @@ button.list-row:disabled {
   text-align: right;
 }
 
+/* Row of digit tiles for one guess. */
+.bagel-guess-tiles {
+  display: flex;
+  gap: 0.375rem;
+}
+
 /* Row of Fermi/Pico/Bagels badges for one guess. */
 .bagel-guess-clues {
   display: flex;
@@ -5818,6 +5824,16 @@ button.list-row:disabled {
   .bagel-guess-row {
     flex-wrap: wrap;
     row-gap: 0.5rem;
+  }
+  .bagel-guess-tiles {
+    flex: 1;
+    min-width: 0;
+  }
+  .bagel-guess-tiles .bagel-tile {
+    flex: 0 1 2.5rem; /* Shrink tiles to keep 5 digits beside the sequence number in narrow modals */
+    min-width: 0;
+    height: auto;
+    aspect-ratio: 1;
   }
   .bagel-guess-clues {
     flex-basis: 100%;
