@@ -5807,6 +5807,12 @@ button.list-row:disabled {
   gap: 0.375rem;
 }
 
+/* Size every clue badge to the widest word (BAGELS): six characters plus letter spacing, padding and border. */
+.bagel-guess-clues > * {
+  justify-content: center;
+  width: calc(6ch + 0.3em + 1.5rem + 2px);
+}
+
 /* Move the clues under the tiles on phones to avoid 4-5 digit rows running off the card. */
 @media (max-width: 640px) {
   .bagel-guess-row {
