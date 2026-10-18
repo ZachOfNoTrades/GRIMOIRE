@@ -867,17 +867,18 @@ export default function QuestSettingsPage() {
             </table>
           </div>
 
-          {/* STREAK + NEGLECT — paired Factor / Cap rows (simple mode only) */}
+          {/* STREAK + NEGLECT — paired Factor / Cap rows (simple mode only).
+              Below sm the row name takes its own line so the inputs keep a readable width. */}
           {!advancedMode && (<>
           <div className="mt-6 space-y-3 max-w-xl">
             {!advancedMode && (
-              <div className="grid grid-cols-[7rem_1fr_1fr] items-center gap-2 sm:gap-3">
-                <span className="text-sm font-semibold flex items-center gap-1 text-orange-400">
+              <div className="grid grid-cols-2 sm:grid-cols-[7rem_1fr_1fr] items-center gap-2 sm:gap-3">
+                <span className="col-span-2 sm:col-span-1 text-sm font-semibold flex items-center gap-1 text-orange-400">
                   <Flame className="w-4 h-4" />
                   Streak
                 </span>
                 <label className="flex items-center gap-2">
-                  <span className="text-xs text-secondary w-12 shrink-0">Factor</span>
+                  <span className="text-xs text-secondary shrink-0">Factor</span>
                   <input
                     type="number"
                     onFocus={(e) => e.currentTarget.select()}
@@ -889,7 +890,7 @@ export default function QuestSettingsPage() {
                   />
                 </label>
                 <label className="flex items-center gap-2">
-                  <span className="text-xs text-secondary w-12 shrink-0">Cap</span>
+                  <span className="text-xs text-secondary shrink-0">Cap</span>
                   <input
                     type="number"
                     onFocus={(e) => e.currentTarget.select()}
@@ -903,13 +904,13 @@ export default function QuestSettingsPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-[7rem_1fr_1fr] items-center gap-2 sm:gap-3">
-              <span className="text-sm font-semibold flex items-center gap-1 text-red-400">
+            <div className="grid grid-cols-2 sm:grid-cols-[7rem_1fr_1fr] items-center gap-2 sm:gap-3">
+              <span className="col-span-2 sm:col-span-1 text-sm font-semibold flex items-center gap-1 text-red-400">
                 <Skull className="w-4 h-4" />
                 Neglect
               </span>
               <label className="flex items-center gap-2">
-                <span className="text-xs text-secondary w-12 shrink-0">Factor</span>
+                <span className="text-xs text-secondary shrink-0">Factor</span>
                 <input
                   type="number"
                   onFocus={(e) => e.currentTarget.select()}
@@ -921,7 +922,7 @@ export default function QuestSettingsPage() {
                 />
               </label>
               <label className="flex items-center gap-2">
-                <span className="text-xs text-secondary w-12 shrink-0">Cap</span>
+                <span className="text-xs text-secondary shrink-0">Cap</span>
                 <input
                   type="number"
                   onFocus={(e) => e.currentTarget.select()}
