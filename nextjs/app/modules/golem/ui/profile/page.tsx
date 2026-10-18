@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Pencil } from "lucide-react";
+import { User } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
 import { SettingsToggleRow } from "@/components/settings/SettingsList";
 import { UserProfile } from "../../types/userProfile";
 import { DEFAULT_SHORT_UNIT, DEFAULT_LONG_UNIT } from "../../utils/units";
@@ -244,13 +245,7 @@ export default function ProfilePage() {
               ) : (
 
                 // EDIT BUTTON
-                <Button
-                  onClick={handleStartEdit}
-                  className="btn-link"
-                >
-                  <Pencil className="w-4 h-4" />
-                  <span>Edit</span>
-                </Button>
+                <HeaderEditButton onClick={handleStartEdit} />
               )}
             </div>
           </div>

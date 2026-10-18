@@ -2,9 +2,10 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Pencil } from "lucide-react";
+import { FileText } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
 import { ProgramTemplate } from "../../../types/programTemplate";
 import DeleteTemplateModal from "./DeleteTemplateModal";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -261,13 +262,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
                     </Button>
 
                     {/* EDIT BUTTON */}
-                    <Button
-                      onClick={handleStartEdit}
-                      className="btn-link"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      <span>Edit</span>
-                    </Button>
+                    <HeaderEditButton onClick={handleStartEdit} />
                   </>
                 )}
               </div>

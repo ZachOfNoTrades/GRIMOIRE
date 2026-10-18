@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, Edit2, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { StickyNote, Plus, Circle, CircleCheck, RotateCcw, Play, Loader2, Timer, Save, Trash2, X, Sparkles, ArrowLeftRight, ClipboardList, Dumbbell, MapPin, Flame, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
 import { WorkoutSession } from "../../../types/workoutSession";
 import { SegmentWithSets, TargetSegment, SuggestedExercise } from "../../../types/segment";
 import { ExerciseSummary } from "../../../types/exercise";
@@ -1123,10 +1124,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     </Button>
 
                     {/* EDIT BUTTON */}
-                    <Button className="btn-blue w-full sm:w-auto" onClick={handleStartEditSession}>
-                      <Edit2 className="w-4 h-4" />
-                      <span>Edit</span>
-                    </Button>
+                    <HeaderEditButton className="w-full sm:w-auto" onClick={handleStartEditSession} />
                   </>
                 ) : (
 

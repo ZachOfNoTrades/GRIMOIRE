@@ -2,9 +2,10 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Dumbbell, History, Pencil } from "lucide-react";
+import { BarChart3, Dumbbell, History } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
 import { ExerciseWithMuscleGroups, MuscleGroup } from "../../../types/muscleGroup";
 import { ExerciseHistoryEntry } from "../../../types/exercise";
 import { Location, Equipment } from "../../../types/location";
@@ -417,13 +418,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
                     )}
 
                     {/* EDIT BUTTON */}
-                    <Button
-                      onClick={handleStartEdit}
-                      className="btn-link"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      <span>Edit</span>
-                    </Button>
+                    <HeaderEditButton onClick={handleStartEdit} />
                   </>
                 )}
               </div>

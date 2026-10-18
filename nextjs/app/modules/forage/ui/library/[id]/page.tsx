@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "@/components/Toaster";
-import { ArrowLeft, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Trash2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
 import { useConfirm } from "@/lib/useConfirm";
 import { FoodWithIngredients } from "../../../types/recipe";
 import { FoodForm, FoodDetailContent, useNutrients, prefetchNutrientTargets, sourceUrlHost } from "../../_diary";
@@ -221,15 +222,12 @@ export default function ForageFoodDetailPage() {
           {/* EDIT — hidden while editing; the inline form carries its own
               Save/Cancel action bar. */}
           {!isEditing && (
-            <Button
-              className="btn-blue"
+            <HeaderEditButton
               onClick={() => setIsEditing(true)}
               disabled={isLoading || !food}
               aria-label="Edit food"
-              style={{ padding: "0.4rem 0.7rem", flexShrink: 0 }}
-            >
-              <Pencil className="w-4 h-4" /> Edit
-            </Button>
+              style={{ flexShrink: 0 }}
+            />
           )}
         </div>
 
