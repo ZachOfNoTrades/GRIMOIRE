@@ -18,12 +18,18 @@ function DigitTiles({ value }: { value: string }) {
 // Renders a clue's Fermi/Pico/Bagels words as colored badges.
 function ClueBadges({ clue }: { clue: string }) {
   if (clue === "Bagels") {
-    return <span className="badge-gray">Bagels</span>;
+    return (
+
+      // CLUE BADGE ROW
+      <div className="bagel-guess-clues">
+        <span className="badge-gray">Bagels</span>
+      </div>
+    );
   }
   return (
 
     // CLUE BADGE ROW
-    <div className="flex flex-wrap gap-1.5">
+    <div className="bagel-guess-clues">
       {clue.split(" ").map((word, i) => (
         <span key={i} className={word === "Fermi" ? "badge-green" : "badge-yellow"}>{word}</span>
       ))}
