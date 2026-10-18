@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import toast, { Toaster } from "@/components/Toaster";
+import { Button } from "@/components/ui/button";
 import {
   Coins,
   Plus,
@@ -565,6 +566,10 @@ export default function QuestHomePage() {
 
   // STATE
   const [loading, setLoading] = useState(true);
+  // Initial load failed on balance/tasks/state — render an error instead of the useState
+  // defaults (0.00 coins, full HP, empty task list), which would read as real data.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const hasLoadedRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deathInfo, setDeathInfo] = useState<{ reason: string; coins_lost: number } | null>(null);
@@ -780,8 +785,16 @@ export default function QuestHomePage() {
           setReviewPriorSelections(null);
         }
       }
+      // Later refreshes keep the last good data on failure; only the first load has nothing real to show.
+      if (bRes.ok && tRes.ok && stRes.ok) {
+        hasLoadedRef.current = true;
+        setLoadFailed(false);
+      } else if (!hasLoadedRef.current) {
+        setLoadFailed(true);
+      }
     } catch (e) {
       console.error(e);
+      if (!hasLoadedRef.current) setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -2341,6 +2354,33 @@ export default function QuestHomePage() {
         <div className="page-container">
           <div className="loading-container">
             <div className="loading-spinner" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="page">
+        <div className="page-container">
+          {/* LOAD FAILURE */}
+          <div className="empty-state">
+            <p className="empty-state-title">Couldn&apos;t load Quest</p>
+
+            {/* RETRY ROW */}
+            <div className="flex justify-center mt-4">
+              {/* RETRY BUTTON */}
+              <Button
+                className="btn-blue"
+                onClick={() => {
+                  setLoading(true);
+                  refresh();
+                }}
+              >
+                Retry
+              </Button>
+            </div>
           </div>
         </div>
       </div>
