@@ -11,7 +11,17 @@ import {
   createStudySession,
   submitCardReview,
   completeStudySession,
+  getDeckStudySessions,
+  getStudySessionHistory,
 } from '@/app/modules/rune/lib/studyFunctions';
+
+// ISO 8601 date or date-time → Date; a bare date is midnight UTC.
+function parseIsoDate(value: string | undefined, field: string): Date | null {
+  if (value === undefined) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`${field} is not a valid ISO 8601 date`);
+  return date;
+}
 
 export function registerRuneTools(server: McpServer, ctx: McpContext) {
   const userId = ctx.user.id;
@@ -257,6 +267,35 @@ export function registerRuneTools(server: McpServer, ctx: McpContext) {
     async ({ studySessionId, durationSeconds }) => {
       await completeStudySession(userId, studySessionId, durationSeconds);
       return text('Study session completed.');
+    },
+  );
+
+  server.registerTool(
+    'rune_list_study_sessions',
+    {
+      description: 'Past study sessions, newest first: deck or collection, start time, completion time and duration in seconds, plus reviews / distinct cards / correct (rated Good or Easy). Without deckId it lists every session the user ran, each with the names of the decks it reviewed. With deckId it lists that deck\'s history the way the deck page shows it: collection sessions that touched the deck are included but report only this deck\'s share, plus an Again/Hard/Good/Easy tally and average response time. duration_seconds is the recorded duration when is_duration_exact is true, otherwise measured from the review timestamps (null when an abandoned session rated nothing). since/until filter on start time (until is exclusive).',
+      inputSchema: {
+        deckId: z.string().optional(),
+        since: z.string().optional(),
+        until: z.string().optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      },
+    },
+    async ({ deckId, since, until, limit }) => {
+      const sinceDate = parseIsoDate(since, 'since');
+      const untilDate = parseIsoDate(until, 'until');
+      const max = limit ?? 50;
+
+      if (deckId) {
+        await requireDeckAccess(ctx.user, deckId, 'view');
+        const sessions = (await getDeckStudySessions(userId, deckId)).filter((s) => {
+          const started = new Date(s.started_at);
+          return (!sinceDate || started >= sinceDate) && (!untilDate || started < untilDate);
+        });
+        return json(sessions.slice(0, max));
+      }
+
+      return json(await getStudySessionHistory(userId, { since: sinceDate, until: untilDate, limit: max }));
     },
   );
 }

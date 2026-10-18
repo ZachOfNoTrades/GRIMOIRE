@@ -1,5 +1,6 @@
+import sql from 'mssql';
 import { getRuneConnection, closeRuneConnection } from './db';
-import { DeckStudySession } from '../types/study';
+import { DeckStudySession, StudySessionHistoryEntry } from '../types/study';
 
 // Anki-style interval fuzz: spreads intervals by a small random amount so cards
 // learned together in one session don't all resurface on the exact same day
@@ -311,6 +312,86 @@ export async function getDeckStudySessions(userId: string, deckId: string): Prom
     })) as DeckStudySession[];
   } catch (error) {
     console.error('Error fetching deck study sessions:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Every study session the user has run, deck and collection alike, newest first — the
+// MCP rune_list_study_sessions feed. since/until bound started_at (until is exclusive).
+//
+// Counts come from card_reviews like getDeckStudySessions, not the cards_studied counter,
+// so reviews of since-deleted cards drop out the same way on both views.
+export async function getStudySessionHistory(
+  userId: string,
+  options: { since?: Date | null; until?: Date | null; limit: number },
+): Promise<StudySessionHistoryEntry[]> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('since', sql.DateTime2, options.since ?? null)
+      .input('until', sql.DateTime2, options.until ?? null)
+      .input('limit', sql.Int, options.limit)
+      .query(`
+        SELECT TOP (@limit)
+          ss.id,
+          ss.started_at,
+          ss.completed_at,
+          ss.deck_id,
+          d.name AS deck_name,
+          ss.collection_id,
+          col.name AS collection_name,
+          dr.decks_reviewed,
+          ISNULL(r.reviews, 0) AS reviews,
+          ISNULL(r.cards, 0) AS cards,
+          ISNULL(r.correct, 0) AS correct,
+          -- Recorded duration when the session was finished; otherwise start to last rating
+          -- (NULL when nothing was rated).
+          COALESCE(ss.duration, DATEDIFF(SECOND, ss.started_at, r.last_review_at)) AS duration_seconds,
+          CASE WHEN ss.duration IS NOT NULL THEN 1 ELSE 0 END AS is_duration_exact
+        FROM study_sessions ss
+        LEFT JOIN decks d ON d.id = ss.deck_id
+        LEFT JOIN collections col ON col.id = ss.collection_id
+        OUTER APPLY (
+          SELECT
+            COUNT(*) AS reviews,
+            COUNT(DISTINCT cr.card_id) AS cards,
+            SUM(CASE WHEN cr.rating >= 3 THEN 1 ELSE 0 END) AS correct,
+            MAX(cr.created_at) AS last_review_at
+          FROM card_reviews cr
+          JOIN cards c ON c.id = cr.card_id
+          WHERE cr.study_session_id = ss.id AND cr.user_id = @userId
+        ) r
+        OUTER APPLY (
+          SELECT STRING_AGG(names.name, CHAR(31)) WITHIN GROUP (ORDER BY names.name) AS decks_reviewed
+          FROM (
+            SELECT DISTINCT rd.name
+            FROM card_reviews cr
+            JOIN cards c ON c.id = cr.card_id
+            JOIN decks rd ON rd.id = c.deck_id
+            WHERE cr.study_session_id = ss.id AND cr.user_id = @userId
+          ) names
+        ) dr
+        WHERE ss.user_id = @userId
+          AND (@since IS NULL OR ss.started_at >= @since)
+          AND (@until IS NULL OR ss.started_at < @until)
+        ORDER BY ss.started_at DESC
+      `);
+
+    // Deck names come back joined on CHAR(31) (unit separator) so a comma in a name
+    // can't split it; coerce the BIT the same way getDeckStudySessions does.
+    return result.recordset.map((row) => ({
+      ...row,
+      decks_reviewed: row.decks_reviewed ? String(row.decks_reviewed).split('\x1f') : [],
+      is_duration_exact: !!row.is_duration_exact,
+    })) as StudySessionHistoryEntry[];
+  } catch (error) {
+    console.error('Error fetching study session history:', error);
     throw error;
   } finally {
     if (pool) {

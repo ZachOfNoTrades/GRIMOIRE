@@ -33,3 +33,32 @@ export interface DeckStudySession {
   // before response times were captured).
   avg_response_ms: number | null;
 }
+
+// One past study session across all of the user's study, newest first — the MCP
+// rune_list_study_sessions feed. Unlike DeckStudySession every number covers the whole
+// session, collection sessions included.
+export interface StudySessionHistoryEntry {
+  id: string;
+  started_at: Date;
+  // Null when the session was left without finishing (quit, closed tab, phone locked).
+  completed_at: Date | null;
+  // Set for a session started from a deck; null for a collection session.
+  deck_id: string | null;
+  deck_name: string | null;
+  // Set for a session started from a collection; null for a deck session.
+  collection_id: string | null;
+  collection_name: string | null;
+  // Every deck the session actually reviewed cards from, by name. One entry for a deck
+  // session, any number for a collection session; empty when nothing was rated.
+  decks_reviewed: string[];
+  // Ratings submitted in the session, and how many distinct cards they cover.
+  reviews: number;
+  cards: number;
+  // Good or better — the same rating >= 3 cut the study session scores "correct" on.
+  correct: number;
+  // Wall-clock seconds. Exact when the session was finished (study_sessions.duration);
+  // for an abandoned one it is the span from its start to its last rating, and null if
+  // it was abandoned before any rating.
+  duration_seconds: number | null;
+  is_duration_exact: boolean;
+}
