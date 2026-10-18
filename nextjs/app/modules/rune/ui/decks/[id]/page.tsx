@@ -789,6 +789,8 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     } finally {
       setIsBulkDeleting(false);
     }
+  };
+
   // Move cards to another deck. Optimistic like delete — they leave this deck's list at once
   // and the server move runs behind it. It is one request for any number of cards, and
   // all-or-nothing on the server, so a failure means nothing moved: the refetch puts them back.
@@ -831,8 +833,6 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
       toast.error(`Couldn't move ${noun}`);
     }
     refetchCards();
-  };
-
   };
 
   // Handle card-level refinement result
@@ -1099,20 +1099,6 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   too, matching the deck list, the Rune home total and the dashboard badge. */}
               <div className="stat-card">
                 <p className="stat-label">Due</p>
-                  {/* BULK MOVE BUTTON — beside bulk delete; both act on the list's selection, whose
-                      count already rides on the delete button */}
-                  {canEdit && (
-                  <Button
-                    onClick={() => setMoving({ cards: allCards.filter((c) => selectedCardIds.has(c.id)), fromSelection: true })}
-                    disabled={selectedCardIds.size === 0}
-                    className="btn-off !p-2"
-                    title={selectedCardIds.size > 0 ? `Move ${selectedCardIds.size} card${selectedCardIds.size === 1 ? "" : "s"} to another deck` : "Select cards to move"}
-                    aria-label={selectedCardIds.size > 0 ? `Move ${selectedCardIds.size} card${selectedCardIds.size === 1 ? "" : "s"} to another deck` : "Move cards to another deck"}
-                  >
-                    <Forward className="w-4 h-4" />
-                  </Button>
-                  )}
-
                 <p className="stat-value">
                   {deck.is_disabled ? <span className="text-subtle">—</span> : dueCards.length}
                 </p>
@@ -1195,6 +1181,20 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
 
                 <div className="flex items-center gap-2">
 
+                  {/* BULK MOVE BUTTON — beside bulk delete; both act on the list's selection, whose
+                      count already rides on the delete button */}
+                  {canEdit && (
+                  <Button
+                    onClick={() => setMoving({ cards: allCards.filter((c) => selectedCardIds.has(c.id)), fromSelection: true })}
+                    disabled={selectedCardIds.size === 0}
+                    className="btn-off !p-2"
+                    title={selectedCardIds.size > 0 ? `Move ${selectedCardIds.size} card${selectedCardIds.size === 1 ? "" : "s"} to another deck` : "Select cards to move"}
+                    aria-label={selectedCardIds.size > 0 ? `Move ${selectedCardIds.size} card${selectedCardIds.size === 1 ? "" : "s"} to another deck` : "Move cards to another deck"}
+                  >
+                    <Forward className="w-4 h-4" />
+                  </Button>
+                  )}
+
                   {/* BULK DELETE BUTTON */}
                   {canEdit && (
                   <Button
@@ -1219,7 +1219,6 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                 {/* ADD CARD BUTTON — list view only. The table has its own last line for
                     this, and a per-row insert besides; a full-width button above the search
                     field would be a third way to do the same thing, pushing the cards
-                        onMove={(card) => setMoving({ cards: [card], fromSelection: false })}
                     themselves further down a view whose whole point is showing them.
                     An empty deck renders no table at all (so no last line either), so the
                     button shows in both views until the first card exists. */}
@@ -1291,9 +1290,6 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                       <CardTable
                         cards={cards}
                         selection={selection}
-                              <Button className="btn-link" aria-label="Move to deck" title="Move to deck" onClick={() => setMoving({ cards: [card], fromSelection: false })}>
-                                <Forward className="w-4 h-4" />
-                              </Button>
                         existingCategories={existingCategories}
                         sheetDrafts={sheetDrafts}
                         onDraftChange={updateSheetDraft}
@@ -1305,6 +1301,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                         onDiscardPending={discardPendingRow}
                         onHistory={setHistoryCard}
                         onRefine={setRefiningCard}
+                        onMove={(card) => setMoving({ cards: [card], fromSelection: false })}
                         onDelete={setDeletingCard}
                         canReorder={sortKey === "category"}
                         reorderHint="Switch the sort to Category to drag cards into a new order."
@@ -1376,6 +1373,9 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                               <Button className="btn-link" aria-label="Refine card" onClick={() => setRefiningCard(card)}>
                                 <Sparkles className="w-4 h-4" />
                               </Button>
+                              <Button className="btn-link" aria-label="Move to deck" title="Move to deck" onClick={() => setMoving({ cards: [card], fromSelection: false })}>
+                                <Forward className="w-4 h-4" />
+                              </Button>
                               <Button className="btn-link-red" aria-label="Delete card" onClick={() => setDeletingCard(card)}>
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -1411,16 +1411,6 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                           <div>
                             <p className="text-subtle text-xs mb-1">Source</p>
                             <CardContent text={card.source_ref} className="text-secondary rune-card-source-text" />
-            {/* MOVE CARDS MODAL (single or bulk) */}
-            <MoveCardsModal
-              isOpen={!!moving}
-              sourceDeckId={id}
-              sourceDeckName={deck.name}
-              cards={moving?.cards ?? []}
-              onClose={() => setMoving(null)}
-              onMove={handleMoveCards}
-            />
-
                           </div>
                         )}
                         {(card.is_draft || card.category || (card.source && card.source !== "manual")) && (
@@ -1501,6 +1491,16 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
               bulkCount={selectedCardIds.size}
               onClose={() => setShowBulkDeleteCards(false)}
               onConfirm={handleBulkDeleteCards}
+            />
+
+            {/* MOVE CARDS MODAL (single or bulk) */}
+            <MoveCardsModal
+              isOpen={!!moving}
+              sourceDeckId={id}
+              sourceDeckName={deck.name}
+              cards={moving?.cards ?? []}
+              onClose={() => setMoving(null)}
+              onMove={handleMoveCards}
             />
 
             {/* REFINE DECK MODAL */}
