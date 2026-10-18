@@ -45,7 +45,9 @@ interface NutrientRow {
   key: string;
   name: string;
   unit: string;
-  value: number;          // consumed for the day
+  // Consumed for the day. null = nothing in the window records this nutrient —
+  // "not tracked", which is NOT the same claim as a recorded 0 against a goal.
+  value: number | null;
   color: string | null;   // per-row fill override (macros); null → use section color
   // Effective target band — each optional (null = no marker).
   floor: number | null;
@@ -53,8 +55,8 @@ interface NutrientRow {
   ceiling: number | null;
 }
 
-// Shared band shape for the meter/display helpers.
-const rowBand = (row: NutrientRow) => ({ value: row.value, floor: row.floor, target: row.target, ceiling: row.ceiling });
+// Shared band shape for the meter/display helpers (only called for tracked rows).
+const rowBand = (row: NutrientRow) => ({ value: row.value ?? 0, floor: row.floor, target: row.target, ceiling: row.ceiling });
 
 const fmt = fmtNutrient;
 
@@ -199,7 +201,10 @@ export default function NutritionClient({ initialDate }: { initialDate: string }
   }
 
   function microRow(n: Nutrient): NutrientRow {
-    const value = totals.micros[n.code] ?? 0;
+    // The summary omits a code when no logged food records it (food_nutrients
+    // stores explicit zeros, so a missing row means unknown) — keep that as null
+    // rather than painting it as 0% of the goal.
+    const value = totals.micros[n.code] ?? null;
     // Resolved per-user band when it loaded; otherwise fall back to the
     // nutrient's FDA defaults (carried on /api/nutrients) so a floor/ceiling
     // nutrient STILL gets a bar even if the resolved-targets fetch failed.
@@ -392,7 +397,10 @@ function NutrientGroup({ title, rows, delay, navCodes, customCodes, onNavigate }
    floor/target/ceiling per the headroom model (see Meter). No band at all →
    "No Target", no bar. */
 function NutrientRow({ row, accent, isCustom, onNavigate }: { row: NutrientRow; accent: string; isCustom: boolean; onNavigate?: () => void }) {
-  const d = bandDisplay(rowBand(row), row.unit);
+  // Untracked → no figure, no percent, no bar; tracked → the band display.
+  const d = row.value == null
+    ? { targetText: ` ${row.unit}`, pctText: "No Data", pctColor: C.textDim, showBar: false }
+    : bandDisplay(rowBand(row), row.unit);
 
   return (
     /* NUTRIENT ROW — drills into the per-nutrient target editor when navigable */
@@ -424,10 +432,10 @@ function NutrientRow({ row, accent, isCustom, onNavigate }: { row: NutrientRow; 
 
           {/* VALUE */}
           <span className="nutr-value">
-            <b>{fmt(row.value)}</b>{d.targetText}
+            <b>{row.value == null ? "—" : fmt(row.value)}</b>{d.targetText}
           </span>
 
-          {/* PERCENT / NO TARGET */}
+          {/* PERCENT / NO TARGET / NO DATA */}
           <span className="nutr-pct" data-bar={d.showBar ? "true" : "false"} style={{ color: d.pctColor }}>{d.pctText}</span>
         </div>
       </div>
