@@ -94,7 +94,7 @@ export class AudioRecorder {
    */
   async startRecording(
     onStop?: () => void,
-    silenceMs = Number(process.env.NEXT_PUBLIC_SILENCE_TIMEOUT_MS) || 5000,
+    silenceMs = Number(process.env.NEXT_PUBLIC_SILENCE_TIMEOUT_MS) || 3000,
     hooks?: { onSpeechEnd?: (audio: Blob) => void; onSpeechResume?: () => void },
   ): Promise<void> {
     if (this.recording) return;
