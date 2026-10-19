@@ -213,6 +213,7 @@ export default function StudySession({
   const [answerModified, setAnswerModified] = useState(false); // true when userAnswer changed since last evaluation
   const [autoRateCountdown, setAutoRateCountdown] = useState(false);
   const [speakingSource, setSpeakingSource] = useState<SpeakingSource | null>(null); // tracks which button triggered TTS
+  const speakIdRef = useRef(0); // Latest speakFrom call, to avoid a superseded call clearing the newer one's source
   const [editingCard, setEditingCard] = useState<StudyCard | null>(null);
   // Rating history per card id, filled in by the preload below. A missing entry means
   // "not here yet" (loading); an entry in cardHistoryFailed means the fetch failed.
@@ -808,9 +809,10 @@ export default function StudySession({
 
   // Speak with source tracking so only the active button shows stop icon
   const speakFrom = async (source: SpeakingSource, text: string) => {
+    const speakId = ++speakIdRef.current;
     setSpeakingSource(source);
     await speakQuestion(text);
-    setSpeakingSource(null);
+    if (speakIdRef.current === speakId) setSpeakingSource(null);
   };
 
   // Stop speaking and clear source

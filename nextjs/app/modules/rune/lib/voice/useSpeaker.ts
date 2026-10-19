@@ -24,6 +24,7 @@ export function useSpeaker(): UseSpeakerReturn {
   // Refs
   const ttsServiceRef = useRef<TextToSpeechService | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const speakIdRef = useRef(0); // Latest speakQuestion call, to avoid a superseded call clearing isSpeaking
 
   // Get or create TTS service instance
   const getTtsService = useCallback(() => {
@@ -42,6 +43,7 @@ export function useSpeaker(): UseSpeakerReturn {
   const speakQuestion = useCallback(async (text: string) => {
     if (!audioRef.current) return;
 
+    const speakId = ++speakIdRef.current;
     setIsSpeaking(true);
     try {
       await getTtsService().speak(text, audioRef.current);
@@ -49,7 +51,7 @@ export function useSpeaker(): UseSpeakerReturn {
       console.error("TTS playback error:", error);
       toast.error("Text-to-speech generation failed");
     } finally {
-      setIsSpeaking(false);
+      if (speakIdRef.current === speakId) setIsSpeaking(false);
     }
   }, [getTtsService]);
 
