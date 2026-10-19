@@ -12,7 +12,7 @@ import { useSpeaker } from "../lib/voice/useSpeaker";
 import { useListener } from "../lib/voice/useListener";
 import { holdMediaFocus } from "../lib/voice/mediaFocus";
 import type { EvaluationResult } from "../lib/voice/evaluationFunctions";
-import { playEvaluationChime } from "../lib/evaluationChime";
+import { playEvaluationChime, playRecordingTone } from "../lib/evaluationChime";
 import { preloadCardImages } from "../lib/imagePreload";
 import CardContent from "./CardContent";
 import CardHistoryPanel from "./CardHistoryPanel";
@@ -207,7 +207,10 @@ export default function StudySession({
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
   const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
-  const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener(preferences.handsFreeSilenceSeconds * 1000);
+  const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener(
+    preferences.handsFreeSilenceSeconds * 1000,
+    () => { if (handsFreeRef.current) playRecordingTone("stop"); },
+  );
   const [isEvaluating, setIsEvaluating] = useState(false);
   const evaluateIdRef = useRef(0); // Latest evaluation, to avoid a late result landing on the next card
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
@@ -709,6 +712,8 @@ export default function StudySession({
       // Speak the question
       await speakFrom(SpeakingSource.Question, currentCard.front);
       if (cancelled || !handsFreeRef.current) return;
+      await playRecordingTone("start");
+      if (cancelled || !handsFreeRef.current) return;
 
       // Auto-start recording after TTS finishes
       try {
@@ -832,6 +837,8 @@ export default function StudySession({
   const handleSpeakAndRecord = async () => {
     if (!currentCard) return;
     await speakFrom(SpeakingSource.Question, currentCard.front);
+    if (!handsFreeRef.current) return;
+    await playRecordingTone("start");
     if (!handsFreeRef.current) return;
 
     try {

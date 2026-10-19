@@ -1,8 +1,9 @@
 "use client";
 
-// Plays a short, pleasant chime whose motif reflects the evaluated rating, using
-// the Web Audio API (no audio assets to ship or fetch). Ratings follow the study
-// UI's scale: 1=Again, 2=Hard, 3=Good, 4=Easy, and 0=Unscorable (garbled/empty).
+// Plays short, pleasant chimes using the Web Audio API (no audio assets to ship or
+// fetch): a motif that reflects the evaluated rating, and the hands-free recording
+// start and stop tones. Ratings follow the study UI's scale: 1=Again, 2=Hard,
+// 3=Good, 4=Easy, and 0=Unscorable (garbled/empty).
 // Best-effort — silently no-ops if Web Audio is unavailable or blocked.
 
 let sharedContext: AudioContext | null = null;
@@ -36,12 +37,39 @@ const RATING_MOTIFS: Record<number, number[]> = {
   4: [523.25, 659.25, 783.99], // easy — happy ascending triad (C5, E5, G5)
 };
 
+// Recording tones: rising when the mic opens, falling when it closes.
+const RECORDING_MOTIFS = {
+  start: [659.25, 880.0], // E5 → A5
+  stop: [880.0, 659.25], // A5 → E5
+};
+const RECORDING_NOTE_SECONDS = 0.1;
+
 export function playEvaluationChime(rating: number): void {
   const context = getAudioContext();
   if (!context) return;
+  playNotes(context, RATING_MOTIFS[rating] ?? RATING_MOTIFS[0], 0.14);
+}
 
-  const notes = RATING_MOTIFS[rating] ?? RATING_MOTIFS[0];
-  const noteDuration = 0.14; // seconds per note
+// Play the hands-free recording start or stop tone. Resolves once the tone has
+// finished and the audio output is suspended, to avoid playing audio while the mic
+// is open: Firefox for Android then routes capture to a Bluetooth headset's
+// hands-free mic (see audioRecorder.ts).
+export async function playRecordingTone(kind: keyof typeof RECORDING_MOTIFS): Promise<void> {
+  const context = getAudioContext();
+  if (!context) return;
+  try {
+    await context.resume();
+    const notes = RECORDING_MOTIFS[kind];
+    playNotes(context, notes, RECORDING_NOTE_SECONDS);
+    await new Promise((resolve) => setTimeout(resolve, (notes.length * RECORDING_NOTE_SECONDS + 0.05) * 1000));
+    await context.suspend();
+  } catch {
+    // Web Audio blocked; the recording goes ahead without the tone
+  }
+}
+
+// Schedule a sequence of soft sine notes, each noteDuration seconds long.
+function playNotes(context: AudioContext, notes: number[], noteDuration: number): void {
   const startAt = context.currentTime;
 
   notes.forEach((frequency, index) => {

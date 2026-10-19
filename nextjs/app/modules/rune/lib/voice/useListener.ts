@@ -18,7 +18,7 @@ interface UseListenerReturn {
   clearTranscript: () => void;
 }
 
-export function useListener(silenceMs: number): UseListenerReturn {
+export function useListener(silenceMs: number, onRecordingStopped?: () => void): UseListenerReturn {
   // STATE
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -28,6 +28,7 @@ export function useListener(silenceMs: number): UseListenerReturn {
   const recorderRef = useRef<AudioRecorder | null>(null);
   const sttRef = useRef<SpeechToTextService | null>(null);
   const recordingStartRef = useRef<number>(0);
+  const onRecordingStoppedRef = useRef(onRecordingStopped); // Latest callback, to avoid rebuilding the recording callbacks each render
   const recordingIdRef = useRef(0); // Latest recording, to avoid a canceled recording's transcript landing later
   // Transcription started the moment the speaker went quiet, running in parallel
   // with the silence countdown. Nulled if they resume speaking, which makes the
@@ -88,6 +89,7 @@ export function useListener(silenceMs: number): UseListenerReturn {
     setIsTranscribing(true); // Set with isRecording to avoid the button showing Record while the audio decodes
     const diagnostics = recorder.getDiagnostics();
     const blob = await recorder.stopRecording();
+    onRecordingStoppedRef.current?.(); // Run once the mic is released
     processAudio(blob, diagnostics);
   }, [processAudio]);
 
@@ -163,6 +165,10 @@ export function useListener(silenceMs: number): UseListenerReturn {
   const clearTranscript = useCallback(() => {
     setTranscript(null);
   }, []);
+
+  useEffect(() => {
+    onRecordingStoppedRef.current = onRecordingStopped;
+  }, [onRecordingStopped]);
 
   // Load the voice activity model on mount, and release everything on unmount
   useEffect(() => {
