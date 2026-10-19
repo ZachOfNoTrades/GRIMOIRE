@@ -93,5 +93,3 @@ RUNE voice controls require two local CLI binaries: Piper (TTS) and Whisper (STT
 1. Set the following environment variables:
    - _**RUNE Whisper Binary Path**_ (`WHISPER_BINARY_PATH`): Full path to the Whisper executable.
    - _**RUNE Whisper Model Path**_ (`WHISPER_MODEL_PATH`): Full path to the `.bin` model file.
-1. Optional:
-   - `NEXT_PUBLIC_SILENCE_TIMEOUT_MS`: Auto-stop recording after this many milliseconds of silence. Default `5000`.

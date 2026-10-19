@@ -106,6 +106,7 @@ export interface StudyPreferences {
   evaluationSoundEnabled: boolean;
   dailyGoal: number;
   dailyMaxRenew: number;
+  handsFreeSilenceSeconds: number;
   // Distinct cards reviewed today across ALL decks, as of page load. Live count =
   // this baseline + cards rated in the running session.
   reviewedTodayBaseline: number;
@@ -206,7 +207,7 @@ export default function StudySession({
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
   const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
-  const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener();
+  const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener(preferences.handsFreeSilenceSeconds * 1000);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const evaluateIdRef = useRef(0); // Latest evaluation, to avoid a late result landing on the next card
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);

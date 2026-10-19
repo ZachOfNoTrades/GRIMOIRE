@@ -19,6 +19,9 @@ import {
   DEFAULT_DAILY_MAX_RENEW,
   MIN_DAILY_TARGET,
   MAX_DAILY_TARGET,
+  DEFAULT_HANDS_FREE_SILENCE_SECONDS,
+  MIN_HANDS_FREE_SILENCE_SECONDS,
+  MAX_HANDS_FREE_SILENCE_SECONDS,
 } from "../../types/settings";
 
 function calendarTodayYMD(): string {
@@ -41,6 +44,7 @@ export default function RuneSettingsPage() {
   const [evaluationSoundEnabled, setEvaluationSoundEnabled] = useState<boolean>(DEFAULT_EVALUATION_SOUND_ENABLED);
   const [dailyGoal, setDailyGoal] = useState<number>(DEFAULT_DAILY_GOAL);
   const [dailyMaxRenew, setDailyMaxRenew] = useState<number>(DEFAULT_DAILY_MAX_RENEW);
+  const [handsFreeSilenceSeconds, setHandsFreeSilenceSeconds] = useState<number>(DEFAULT_HANDS_FREE_SILENCE_SECONDS);
 
   // STATE
   const [loading, setLoading] = useState(true);
@@ -80,6 +84,7 @@ export default function RuneSettingsPage() {
         setEvaluationSoundEnabled(data.evaluationSoundEnabled !== false);
         setDailyGoal(Number.isFinite(data.dailyGoal) ? data.dailyGoal : DEFAULT_DAILY_GOAL);
         setDailyMaxRenew(Number.isFinite(data.dailyMaxRenew) ? data.dailyMaxRenew : DEFAULT_DAILY_MAX_RENEW);
+        setHandsFreeSilenceSeconds(Number.isFinite(data.handsFreeSilenceSeconds) ? data.handsFreeSilenceSeconds : DEFAULT_HANDS_FREE_SILENCE_SECONDS);
         setDefaultEvaluationSystemPrompt(typeof data.defaultEvaluationSystemPrompt === "string" ? data.defaultEvaluationSystemPrompt : "");
         setDefaultEvaluationPersonalityPrompt(typeof data.defaultEvaluationPersonalityPrompt === "string" ? data.defaultEvaluationPersonalityPrompt : "");
       } catch (e) {
@@ -115,6 +120,10 @@ export default function RuneSettingsPage() {
       MAX_DAILY_TARGET,
       Math.max(MIN_DAILY_TARGET, Math.round(dailyMaxRenew) || DEFAULT_DAILY_MAX_RENEW),
     );
+    const clampedSilence = Math.min(
+      MAX_HANDS_FREE_SILENCE_SECONDS,
+      Math.max(MIN_HANDS_FREE_SILENCE_SECONDS, handsFreeSilenceSeconds || DEFAULT_HANDS_FREE_SILENCE_SECONDS),
+    );
     setSaving(true);
     try {
       const res = await fetch("/modules/rune/api/settings", {
@@ -130,6 +139,7 @@ export default function RuneSettingsPage() {
           evaluationSoundEnabled,
           dailyGoal: clampedGoal,
           dailyMaxRenew: clampedMaxRenew,
+          handsFreeSilenceSeconds: clampedSilence,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -147,6 +157,7 @@ export default function RuneSettingsPage() {
       setEvaluationSoundEnabled(body.evaluationSoundEnabled !== false);
       setDailyGoal(Number.isFinite(body.dailyGoal) ? body.dailyGoal : clampedGoal);
       setDailyMaxRenew(Number.isFinite(body.dailyMaxRenew) ? body.dailyMaxRenew : clampedMaxRenew);
+      setHandsFreeSilenceSeconds(Number.isFinite(body.handsFreeSilenceSeconds) ? body.handsFreeSilenceSeconds : clampedSilence);
       toast.success("Settings saved");
     } catch (e) {
       console.error(e);
@@ -349,6 +360,20 @@ export default function RuneSettingsPage() {
             onChange={setEvaluationSoundEnabled}
           />
 
+          {/* HANDS-FREE SILENCE */}
+          <div className="settings-time-row" style={{ borderTop: "1px solid var(--card-border)" }}>
+            <span className="settings-time-label">Hands-free silence (seconds)</span>
+            <input
+              type="number"
+              className="settings-time-input"
+              min={MIN_HANDS_FREE_SILENCE_SECONDS}
+              max={MAX_HANDS_FREE_SILENCE_SECONDS}
+              step={0.5}
+              value={handsFreeSilenceSeconds}
+              onChange={(e) => setHandsFreeSilenceSeconds(Number(e.target.value))}
+            />
+          </div>
+
           {/* DAILY GOAL */}
           <div className="settings-time-row" style={{ borderTop: "1px solid var(--card-border)" }}>
             <span className="settings-time-label">Daily goal (cards)</span>
@@ -383,7 +408,8 @@ export default function RuneSettingsPage() {
           Auto-advance mirrors hands-free mode for typed or tapped answers, but only for answers
           judged <strong>Easy</strong>: the Easy rating is accepted and the next card loads after
           the delay. Anything less than Easy waits for you to rate it manually. The same delay
-          drives the hands-free countdown. Remember to Save.
+          drives the hands-free countdown. <strong>Hands-free silence</strong> is how long you stay
+          quiet after answering before hands-free stops recording. Remember to Save.
         </p>
 
         {/* DAILY TARGETS NOTE */}

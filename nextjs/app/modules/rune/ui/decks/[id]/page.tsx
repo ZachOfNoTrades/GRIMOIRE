@@ -11,7 +11,7 @@ import ExpandableRowList from "@/components/ExpandableRowList";
 import { HeaderMenu } from "@/components/ui/HeaderMenu";
 import { Deck } from "../../../types/deck";
 import { CardWithProgress, CardReview } from "../../../types/card";
-import { DEFAULT_AUTO_ADVANCE_SECONDS, DEFAULT_DAILY_GOAL, DEFAULT_DAILY_MAX_RENEW } from "../../../types/settings";
+import { DEFAULT_AUTO_ADVANCE_SECONDS, DEFAULT_DAILY_GOAL, DEFAULT_DAILY_MAX_RENEW, DEFAULT_HANDS_FREE_SILENCE_SECONDS } from "../../../types/settings";
 import { formatRelativePast } from "@/lib/format";
 import { generateUUID } from "@/lib/uuid";
 import CardContent from "../../../components/CardContent";
@@ -136,6 +136,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
   const [evaluationSoundEnabled, setEvaluationSoundEnabled] = useState(true);
   const [dailyGoal, setDailyGoal] = useState<number>(DEFAULT_DAILY_GOAL);
   const [dailyMaxRenew, setDailyMaxRenew] = useState<number>(DEFAULT_DAILY_MAX_RENEW);
+  const [handsFreeSilenceSeconds, setHandsFreeSilenceSeconds] = useState<number>(DEFAULT_HANDS_FREE_SILENCE_SECONDS);
   // Distinct cards reviewed today across all decks/sessions, as of the last load.
   const [reviewedToday, setReviewedToday] = useState<number>(0);
   const [isAddingCard, setIsAddingCard] = useState(false);
@@ -191,6 +192,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
     evaluationSoundEnabled,
     dailyGoal,
     dailyMaxRenew,
+    handsFreeSilenceSeconds,
     reviewedTodayBaseline: reviewedToday,
   };
 
@@ -349,6 +351,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
       setEvaluationSoundEnabled(data.evaluationSoundEnabled !== false);
       if (Number.isFinite(data.dailyGoal)) setDailyGoal(data.dailyGoal);
       if (Number.isFinite(data.dailyMaxRenew)) setDailyMaxRenew(data.dailyMaxRenew);
+      if (Number.isFinite(data.handsFreeSilenceSeconds)) setHandsFreeSilenceSeconds(data.handsFreeSilenceSeconds);
       if (Number.isFinite(data.reviewedToday)) setReviewedToday(data.reviewedToday);
     } catch {
       // best-effort — fall back to defaults on failure

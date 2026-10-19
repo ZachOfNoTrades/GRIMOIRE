@@ -19,6 +19,8 @@ export interface RuneSettings {
   // ceiling that only warns. Neither limits the study queue.
   daily_goal: number | null;
   daily_max_renew: number | null;
+  // Silence after speech that ends a hands-free recording. NULL = DEFAULT_HANDS_FREE_SILENCE_SECONDS.
+  hands_free_silence_seconds: number | null;
   ts_created: Date;
   ts_modified: Date;
 }
@@ -34,6 +36,9 @@ export const DEFAULT_AUTO_ADVANCE_SECONDS = 5;
 export const MIN_AUTO_ADVANCE_SECONDS = 1;
 export const MAX_AUTO_ADVANCE_SECONDS = 30;
 export const DEFAULT_EVALUATION_SOUND_ENABLED = true;
+export const DEFAULT_HANDS_FREE_SILENCE_SECONDS = 2.5;
+export const MIN_HANDS_FREE_SILENCE_SECONDS = 1;
+export const MAX_HANDS_FREE_SILENCE_SECONDS = 10;
 
 // Soft daily study targets. Defaults mirror Anki's conventional new/review limits
 // (20 / 200) but here they only drive a progress indicator + a soft warning —

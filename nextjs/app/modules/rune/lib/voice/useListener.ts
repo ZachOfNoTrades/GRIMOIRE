@@ -18,7 +18,7 @@ interface UseListenerReturn {
   clearTranscript: () => void;
 }
 
-export function useListener(): UseListenerReturn {
+export function useListener(silenceMs: number): UseListenerReturn {
   // STATE
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -105,7 +105,7 @@ export function useListener(): UseListenerReturn {
       // Mic permission is requested inside startRecording
       await recorder.startRecording(
         () => finishRecording(recorder),
-        undefined, // keep the configured silence timeout
+        silenceMs,
         {
           // Speaker went quiet: transcribe the answer-so-far while the silence
           // countdown runs, so the result is waiting when the countdown expires.
@@ -135,7 +135,7 @@ export function useListener(): UseListenerReturn {
       toast.error("Microphone permission denied");
       setIsRecording(false);
     }
-  }, [getRecorder, getStt, finishRecording]);
+  }, [getRecorder, getStt, finishRecording, silenceMs]);
 
   /** Stop recording and transcribe. */
   const stopRecording = useCallback(async () => {

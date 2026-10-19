@@ -206,6 +206,7 @@ BEGIN TRY
             evaluation_sound_enabled BIT NOT NULL DEFAULT 1, -- play a pleasant chime on evaluation, pitched to the rating
             daily_goal INT NULL, -- soft motivational target: cards to review per day (NULL = use app default)
             daily_max_renew INT NULL, -- soft ceiling: warn (don't block) once the day's reviews pass this (NULL = use app default)
+            hands_free_silence_seconds DECIMAL(3,1) NULL, -- silence after speech that ends a hands-free recording (NULL = use app default)
             ts_created DATETIME2 NOT NULL DEFAULT GETDATE(),
             ts_modified DATETIME2 NOT NULL DEFAULT GETDATE()
         );

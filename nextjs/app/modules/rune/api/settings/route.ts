@@ -18,6 +18,8 @@ import {
   MAX_AUTO_ADVANCE_SECONDS,
   MIN_DAILY_TARGET,
   MAX_DAILY_TARGET,
+  MIN_HANDS_FREE_SILENCE_SECONDS,
+  MAX_HANDS_FREE_SILENCE_SECONDS,
 } from '../../types/settings';
 
 export async function GET(request: Request) {
@@ -41,6 +43,7 @@ export async function GET(request: Request) {
       evaluationSoundEnabled: study.evaluationSoundEnabled,
       dailyGoal: study.dailyGoal,
       dailyMaxRenew: study.dailyMaxRenew,
+      handsFreeSilenceSeconds: study.handsFreeSilenceSeconds,
       reviewedToday,
     });
   } catch (error) {
@@ -148,12 +151,25 @@ export async function PUT(request: NextRequest) {
       dailyMaxRenew = parsed;
     }
 
+    let handsFreeSilenceSeconds = existingStudy.handsFreeSilenceSeconds;
+    if (body?.handsFreeSilenceSeconds !== undefined) {
+      const parsed = Number(body.handsFreeSilenceSeconds);
+      if (!Number.isFinite(parsed) || parsed < MIN_HANDS_FREE_SILENCE_SECONDS || parsed > MAX_HANDS_FREE_SILENCE_SECONDS) {
+        return NextResponse.json(
+          { error: `handsFreeSilenceSeconds must be a number in [${MIN_HANDS_FREE_SILENCE_SECONDS}, ${MAX_HANDS_FREE_SILENCE_SECONDS}]` },
+          { status: 400 },
+        );
+      }
+      handsFreeSilenceSeconds = Math.round(parsed * 10) / 10; // Round to the column's one decimal place
+    }
+
     const savedStudy = await upsertStudyPreferences(session.user.id!, {
       autoAdvanceOnEvaluate: body?.autoAdvanceOnEvaluate === undefined ? existingStudy.autoAdvanceOnEvaluate : Boolean(body.autoAdvanceOnEvaluate),
       autoAdvanceSeconds,
       evaluationSoundEnabled: body?.evaluationSoundEnabled === undefined ? existingStudy.evaluationSoundEnabled : Boolean(body.evaluationSoundEnabled),
       dailyGoal,
       dailyMaxRenew,
+      handsFreeSilenceSeconds,
     });
 
     return NextResponse.json({
@@ -169,6 +185,7 @@ export async function PUT(request: NextRequest) {
       evaluationSoundEnabled: savedStudy.evaluationSoundEnabled,
       dailyGoal: savedStudy.dailyGoal,
       dailyMaxRenew: savedStudy.dailyMaxRenew,
+      handsFreeSilenceSeconds: savedStudy.handsFreeSilenceSeconds,
     });
   } catch (error) {
     console.error('Error in PUT /rune/api/settings:', error);

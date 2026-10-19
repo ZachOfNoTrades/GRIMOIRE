@@ -93,8 +93,8 @@ export class AudioRecorder {
    * again before the countdown expires, which makes that snapshot stale.
    */
   async startRecording(
-    onStop?: () => void,
-    silenceMs = Number(process.env.NEXT_PUBLIC_SILENCE_TIMEOUT_MS) || 3000,
+    onStop: (() => void) | undefined,
+    silenceMs: number,
     hooks?: { onSpeechEnd?: (audio: Blob) => void; onSpeechResume?: () => void },
   ): Promise<void> {
     if (this.recording) return;

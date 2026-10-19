@@ -11,6 +11,7 @@ import {
   DEFAULT_EVALUATION_SOUND_ENABLED,
   DEFAULT_DAILY_GOAL,
   DEFAULT_DAILY_MAX_RENEW,
+  DEFAULT_HANDS_FREE_SILENCE_SECONDS,
 } from '../types/settings';
 
 export async function getSettings(userId: string): Promise<RuneSettings | null> {
@@ -29,6 +30,7 @@ export async function getSettings(userId: string): Promise<RuneSettings | null> 
               evaluation_sound_enabled,
               daily_goal,
               daily_max_renew,
+              hands_free_silence_seconds,
               ts_created,
               ts_modified
        FROM rune_settings WHERE user_id = @userId`
@@ -96,6 +98,7 @@ export interface StudyPreferences {
   // Soft daily targets — a progress goal and a soft ceiling. Neither caps the queue.
   dailyGoal: number;
   dailyMaxRenew: number;
+  handsFreeSilenceSeconds: number;
 }
 
 export async function getStudyPreferences(userId: string): Promise<StudyPreferences> {
@@ -107,6 +110,7 @@ export async function getStudyPreferences(userId: string): Promise<StudyPreferen
       evaluationSoundEnabled: DEFAULT_EVALUATION_SOUND_ENABLED,
       dailyGoal: DEFAULT_DAILY_GOAL,
       dailyMaxRenew: DEFAULT_DAILY_MAX_RENEW,
+      handsFreeSilenceSeconds: DEFAULT_HANDS_FREE_SILENCE_SECONDS,
     };
   }
   return {
@@ -115,6 +119,7 @@ export async function getStudyPreferences(userId: string): Promise<StudyPreferen
     evaluationSoundEnabled: Boolean(settings.evaluation_sound_enabled),
     dailyGoal: settings.daily_goal ?? DEFAULT_DAILY_GOAL,
     dailyMaxRenew: settings.daily_max_renew ?? DEFAULT_DAILY_MAX_RENEW,
+    handsFreeSilenceSeconds: settings.hands_free_silence_seconds ?? DEFAULT_HANDS_FREE_SILENCE_SECONDS,
   };
 }
 
@@ -127,7 +132,8 @@ export async function upsertStudyPreferences(userId: string, input: StudyPrefere
     .input('soundEnabled', sql.Bit, input.evaluationSoundEnabled)
     .input('dailyGoal', sql.Int, input.dailyGoal)
     .input('dailyMaxRenew', sql.Int, input.dailyMaxRenew)
-    .query<{ auto_advance_on_evaluate: boolean; auto_advance_seconds: number; evaluation_sound_enabled: boolean; daily_goal: number | null; daily_max_renew: number | null }>(
+    .input('silenceSeconds', sql.Decimal(3, 1), input.handsFreeSilenceSeconds)
+    .query<{ auto_advance_on_evaluate: boolean; auto_advance_seconds: number; evaluation_sound_enabled: boolean; daily_goal: number | null; daily_max_renew: number | null; hands_free_silence_seconds: number | null }>(
       `MERGE INTO rune_settings AS dest
        USING (SELECT @userId AS user_id) AS src
          ON dest.user_id = src.user_id
@@ -137,15 +143,17 @@ export async function upsertStudyPreferences(userId: string, input: StudyPrefere
                     evaluation_sound_enabled = @soundEnabled,
                     daily_goal = @dailyGoal,
                     daily_max_renew = @dailyMaxRenew,
+                    hands_free_silence_seconds = @silenceSeconds,
                     ts_modified = GETDATE()
        WHEN NOT MATCHED THEN
-         INSERT (user_id, auto_advance_on_evaluate, auto_advance_seconds, evaluation_sound_enabled, daily_goal, daily_max_renew)
-         VALUES (@userId, @autoAdvance, @autoAdvanceSeconds, @soundEnabled, @dailyGoal, @dailyMaxRenew)
+         INSERT (user_id, auto_advance_on_evaluate, auto_advance_seconds, evaluation_sound_enabled, daily_goal, daily_max_renew, hands_free_silence_seconds)
+         VALUES (@userId, @autoAdvance, @autoAdvanceSeconds, @soundEnabled, @dailyGoal, @dailyMaxRenew, @silenceSeconds)
        OUTPUT inserted.auto_advance_on_evaluate,
               inserted.auto_advance_seconds,
               inserted.evaluation_sound_enabled,
               inserted.daily_goal,
-              inserted.daily_max_renew;`
+              inserted.daily_max_renew,
+              inserted.hands_free_silence_seconds;`
     );
   const row = result.recordset[0];
   return {
@@ -154,6 +162,7 @@ export async function upsertStudyPreferences(userId: string, input: StudyPrefere
     evaluationSoundEnabled: Boolean(row.evaluation_sound_enabled),
     dailyGoal: row.daily_goal ?? DEFAULT_DAILY_GOAL,
     dailyMaxRenew: row.daily_max_renew ?? DEFAULT_DAILY_MAX_RENEW,
+    handsFreeSilenceSeconds: row.hands_free_silence_seconds ?? DEFAULT_HANDS_FREE_SILENCE_SECONDS,
   };
 }
 

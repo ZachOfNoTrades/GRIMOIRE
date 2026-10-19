@@ -8,7 +8,7 @@ import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { CardWithProgress } from "../../../types/card";
 import { CollectionWithDecks } from "../../../types/collection";
-import { DEFAULT_AUTO_ADVANCE_SECONDS, DEFAULT_DAILY_GOAL, DEFAULT_DAILY_MAX_RENEW } from "../../../types/settings";
+import { DEFAULT_AUTO_ADVANCE_SECONDS, DEFAULT_DAILY_GOAL, DEFAULT_DAILY_MAX_RENEW, DEFAULT_HANDS_FREE_SILENCE_SECONDS } from "../../../types/settings";
 import { formatRelativePast } from "@/lib/format";
 import StudySession, { StudyPreferences } from "../../../components/StudySession";
 import ManageCollectionModal from "../ManageCollectionModal";
@@ -38,6 +38,7 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
   const [evaluationSoundEnabled, setEvaluationSoundEnabled] = useState(true);
   const [dailyGoal, setDailyGoal] = useState<number>(DEFAULT_DAILY_GOAL);
   const [dailyMaxRenew, setDailyMaxRenew] = useState<number>(DEFAULT_DAILY_MAX_RENEW);
+  const [handsFreeSilenceSeconds, setHandsFreeSilenceSeconds] = useState<number>(DEFAULT_HANDS_FREE_SILENCE_SECONDS);
   // Distinct cards reviewed today across all decks/sessions, as of the last load.
   const [reviewedToday, setReviewedToday] = useState<number>(0);
 
@@ -51,6 +52,7 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
     evaluationSoundEnabled,
     dailyGoal,
     dailyMaxRenew,
+    handsFreeSilenceSeconds,
     reviewedTodayBaseline: reviewedToday,
   };
 
@@ -89,6 +91,7 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
       setEvaluationSoundEnabled(data.evaluationSoundEnabled !== false);
       if (Number.isFinite(data.dailyGoal)) setDailyGoal(data.dailyGoal);
       if (Number.isFinite(data.dailyMaxRenew)) setDailyMaxRenew(data.dailyMaxRenew);
+      if (Number.isFinite(data.handsFreeSilenceSeconds)) setHandsFreeSilenceSeconds(data.handsFreeSilenceSeconds);
       if (Number.isFinite(data.reviewedToday)) setReviewedToday(data.reviewedToday);
     } catch {
       // best-effort — fall back to defaults on failure
