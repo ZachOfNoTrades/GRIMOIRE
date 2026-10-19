@@ -64,7 +64,7 @@ import QuestTaskModal from "../../components/QuestTaskModal";
 import PopoverMenu from "@/components/PopoverMenu";
 import QuestCalendarMenu from "../../components/QuestCalendarMenu";
 import { CALENDAR_PREF_DEFAULTS, CalendarView, readCalendarPrefs, writeCalendarPrefs } from "../../lib/calendarPrefs";
-import { REWARD_OVERRIDE_MAX, TITLE_MAX_LENGTH } from "../../lib/valueLimits";
+import { REWARD_COST_MAX, REWARD_OVERRIDE_MAX, TITLE_MAX_LENGTH } from "../../lib/valueLimits";
 import {
   DIFF_LABELS,
   FREQ_LABELS,
@@ -1979,6 +1979,10 @@ export default function QuestHomePage() {
       setError("Reward needs a name and positive integer cost");
       return;
     }
+    if (cost > REWARD_COST_MAX) {
+      setError(`Reward cost must be ${REWARD_COST_MAX} or less`);
+      return;
+    }
 
     // OPTIMISTIC CREATE — paint the reward row and clear the form now, POST in the background.
     // Mirrors submitTaskForm: a `tmp-` row stands in until the server row replaces it, and a
@@ -3260,6 +3264,7 @@ export default function QuestHomePage() {
                   type="number"
                   placeholder="Cost"
                   min={1}
+                  max={REWARD_COST_MAX}
                   value={newRewardCost}
                   onChange={(e) => setNewRewardCost(e.target.value)}
                   onFocus={selectOnFocus}

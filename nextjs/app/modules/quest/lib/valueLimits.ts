@@ -9,6 +9,7 @@
 
 export const TITLE_MAX_LENGTH = 500;
 export const REWARD_OVERRIDE_MAX = 99999999.99;
+export const REWARD_COST_MAX = 2147483647; // quest_rewards.cost is INT
 
 // Trim a request title and check it against the column width. Returns the trimmed title, or an
 // error message for the caller to return as a 400.

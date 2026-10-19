@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { listRewards, createReward } from '../../lib/rewardFunctions';
+import { REWARD_COST_MAX } from '../../lib/valueLimits';
 
 export async function GET(request: Request) {
   const session = await getAuthorizedUser(request);
@@ -29,6 +30,9 @@ export async function POST(request: NextRequest) {
     }
     if (!Number.isInteger(cost) || cost <= 0) {
       return NextResponse.json({ error: 'Cost must be a positive integer' }, { status: 400 });
+    }
+    if (cost > REWARD_COST_MAX) { // Reject here to avoid a driver EPARAM 500 on the INT column
+      return NextResponse.json({ error: `Cost must be ${REWARD_COST_MAX} or less` }, { status: 400 });
     }
     const reward = await createReward(session.user.id!, name, cost);
     return NextResponse.json(reward, { status: 201 });
