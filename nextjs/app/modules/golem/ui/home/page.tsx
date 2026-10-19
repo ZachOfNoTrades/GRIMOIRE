@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRowNav } from "@/lib/useRowNav";
+import { toLocalDateString } from "@/lib/dateRange";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/linkButton";
@@ -67,7 +68,7 @@ export default function GolemHomePage() {
   const handleAddSession = async () => {
     setIsCreatingSession(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = toLocalDateString(new Date());
       const response = await fetch("/modules/golem/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -1,5 +1,6 @@
 import { ModuleBadge } from '@/types/dashboardBadge';
 import { getGolemConnection } from './db';
+import { toLocalDateString } from '@/lib/dateRange';
 
 // Homepage badge for the Golem card: which workout today is.
 //
@@ -20,11 +21,9 @@ function clip(name: string): string {
   return trimmed.length > MAX_LABEL ? `${trimmed.slice(0, MAX_LABEL - 1)}…` : trimmed;
 }
 
-// Server-local calendar date — matches the anchor CONVERT(...COALESCE(started_at, created_at))
-// comparisons the calendar and history surfaces already use.
+// Server-local calendar date — matches the local-day bucketing getSessionsForCalendar uses.
 function todayIsoLocal(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return toLocalDateString(new Date());
 }
 
 interface SessionRow {
@@ -38,20 +37,24 @@ export async function getGolemBadges(userId: string): Promise<ModuleBadge[]> {
 
   // WORKED TODAY — a session started today, or an ad-hoc session created today. An unfinished one
   // wins over a finished one: after logging a second workout, "still going" beats "already done".
+  // NOTE: started_at/created_at hold UTC, so the window is padded a day each side and the local day is matched in JS.
+  const today = todayIsoLocal();
   const todayRes = await pool
     .request()
     .input('userId', userId)
-    .input('today', todayIsoLocal())
-    .query<SessionRow>(
-      `SELECT TOP 1 ws.name, da.name AS archetype_name, ws.is_completed
+    .input('today', today)
+    .query<SessionRow & { anchor_at: Date }>(
+      `SELECT ws.name, da.name AS archetype_name, ws.is_completed,
+              COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END) AS anchor_at
        FROM workout_sessions ws
        LEFT JOIN day_archetypes da ON da.id = ws.day_archetype_id
        WHERE ws.user_id = @userId
-         AND CONVERT(VARCHAR(10), COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END), 23) = @today
+         AND COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END) >= DATEADD(DAY, -1, CAST(@today AS DATE))
+         AND COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END) < DATEADD(DAY, 2, CAST(@today AS DATE))
        ORDER BY ws.is_completed ASC, ws.modified_at DESC`
     );
 
-  const worked = todayRes.recordset[0];
+  const worked = todayRes.recordset.find((row) => toLocalDateString(row.anchor_at) === today);
   if (worked) {
     const name = worked.name || worked.archetype_name || 'Workout';
     return [

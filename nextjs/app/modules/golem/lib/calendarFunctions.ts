@@ -1,5 +1,6 @@
 import { getGolemConnection, closeGolemConnection } from './db';
 import { GolemCalendarSession } from '../types/calendar';
+import { toLocalDateString } from '@/lib/dateRange';
 
 // Fetch the user's workout sessions that fall on a calendar day within [fromYMD, toYMD]
 // (both inclusive, YYYY-MM-DD). Each session is anchored on its real workout day —
@@ -16,7 +17,8 @@ export async function getSessionsForCalendar(
   try {
     pool = await getGolemConnection();
 
-    // CONVERT(..., 23) yields 'YYYY-MM-DD'; ISO date strings compare correctly with BETWEEN.
+    // Fetch a UTC window padded one day each side, then bucket on the local day below.
+    // NOTE: started_at/created_at hold UTC, so a SQL-side date would put an evening workout on the next day.
     // The COALESCE expression is the session's calendar anchor (see the function comment).
     const result = await pool.request()
       .input('userId', userId)
@@ -26,7 +28,7 @@ export async function getSessionsForCalendar(
         SELECT
           ws.id,
           ws.name,
-          CONVERT(VARCHAR(10), COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END), 23) AS calendar_date,
+          COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END) AS anchor_at,
           ws.is_completed,
           ws.is_current,
           CAST(CASE WHEN ws.week_id IS NULL THEN 1 ELSE 0 END AS BIT) AS is_standalone,
@@ -39,15 +41,21 @@ export async function getSessionsForCalendar(
         LEFT JOIN programs p ON b.program_id = p.id
         LEFT JOIN day_archetypes da ON da.id = ws.day_archetype_id
         WHERE ws.user_id = @userId
-          AND CONVERT(VARCHAR(10), COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END), 23) BETWEEN @from AND @to
-        ORDER BY calendar_date ASC, ws.order_index ASC, ws.created_at ASC
+          AND COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END) >= DATEADD(DAY, -1, CAST(@from AS DATE))
+          AND COALESCE(ws.started_at, CASE WHEN ws.week_id IS NULL THEN ws.created_at END) < DATEADD(DAY, 2, CAST(@to AS DATE))
+        ORDER BY ws.order_index ASC, ws.created_at ASC
       `);
 
-    if (result.recordset.length === 0) {
+    const sessions: GolemCalendarSession[] = result.recordset
+      .map(({ anchor_at, ...row }) => ({ ...row, calendar_date: toLocalDateString(anchor_at) }))
+      .filter((s) => s.calendar_date >= fromYMD && s.calendar_date <= toYMD)
+      .sort((a, b) => a.calendar_date.localeCompare(b.calendar_date)); // Stable sort keeps order_index order within a day
+
+    if (sessions.length === 0) {
       console.warn(`No golem sessions found for calendar range '${fromYMD}'..'${toYMD}'`);
     }
 
-    return result.recordset as GolemCalendarSession[];
+    return sessions;
   } catch (error) {
     console.error('Error fetching golem calendar sessions:', error);
     throw error;
