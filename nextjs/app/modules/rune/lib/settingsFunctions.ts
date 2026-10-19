@@ -166,17 +166,20 @@ export async function upsertStudyPreferences(userId: string, input: StudyPrefere
   };
 }
 
-// Count how many cards the user has reviewed *today* (server-local calendar day).
+// Count how many cards the user has reviewed *today* (Node process calendar day).
 // Used to drive the soft daily-goal progress indicator and the max-renew warning.
 // Counts distinct cards so rating the same card twice in a session isn't double-counted.
 export async function countReviewsToday(userId: string): Promise<number> {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0); // Start at local midnight, to avoid a UTC database clock counting the previous evening as today
   const pool = await getRuneConnection();
   const res = await pool.request()
     .input('userId', sql.UniqueIdentifier, userId)
+    .input('startOfToday', sql.DateTime2, startOfToday)
     .query<{ reviewed_today: number }>(
       `SELECT COUNT(DISTINCT card_id) AS reviewed_today
        FROM card_reviews
-       WHERE user_id = @userId AND created_at >= CAST(GETDATE() AS DATE)`
+       WHERE user_id = @userId AND created_at >= @startOfToday`
     );
   return Number(res.recordset[0]?.reviewed_today ?? 0);
 }
