@@ -208,6 +208,7 @@ export default function StudySession({
   const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
   const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener();
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const evaluateIdRef = useRef(0); // Latest evaluation, to avoid a late result landing on the next card
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [userAnswer, setUserAnswer] = useState("");
   const [answerModified, setAnswerModified] = useState(false); // true when userAnswer changed since last evaluation
@@ -259,6 +260,7 @@ export default function StudySession({
   // just watched finish. A ref is current in every closure; null still means "no row
   // was ever created", which is the case the guard is actually for.
   const studySessionIdRef = useRef<string | null>(null);
+  const studySessionRequestRef = useRef<Promise<string | null> | null>(null); // Shared by ratings made while the row is being created
 
   // Wake Lock ref for hands-free mode
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -689,6 +691,8 @@ export default function StudySession({
     cancelRecording();
     stopSpeakingTracked();
     clearTranscript();
+    evaluateIdRef.current += 1; // Drop any evaluation still in flight for the previous card
+    setIsEvaluating(false);
     setEvaluationResult(null);
     setUserAnswer("");
     setAnswerModified(false);
@@ -732,6 +736,7 @@ export default function StudySession({
   useEffect(() => {
     if (!handsFreeRef.current || !evaluationResult) return;
 
+    let cancelled = false;
     let rateTimer: ReturnType<typeof setTimeout>;
 
     const run = async () => {
@@ -740,7 +745,7 @@ export default function StudySession({
       if (evaluationResult.explanation?.trim()) {
         await speakFrom(SpeakingSource.Evaluation, evaluationResult.explanation);
       }
-      if (!handsFreeRef.current) return;
+      if (cancelled || !handsFreeRef.current) return; // Skip the timer once the card changed
 
       // Start countdown, then auto-rate with suggested rating — or auto-skip if the
       // answer wasn't a genuine attempt (garbled/unrelated/empty), so it doesn't get
@@ -761,6 +766,7 @@ export default function StudySession({
     run();
 
     return () => {
+      cancelled = true;
       setAutoRateCountdown(false);
       clearTimeout(rateTimer);
     };
@@ -843,6 +849,7 @@ export default function StudySession({
     // asking for a meaningless verdict.
     if (!currentCard.back.trim()) { flipTo(true); return; }
 
+    const evaluateId = ++evaluateIdRef.current;
     setIsEvaluating(true);
     try {
       const response = await fetch(`/modules/rune/api/evaluate`, {
@@ -863,6 +870,7 @@ export default function StudySession({
       }
 
       const result: EvaluationResult = await response.json();
+      if (evaluateIdRef.current !== evaluateId) return; // Skip a result for a card that is no longer shown
       setEvaluationResult(result);
       setAnswerModified(false);
 
@@ -874,7 +882,7 @@ export default function StudySession({
     } catch (error) {
       console.error("Evaluation error:", error);
     } finally {
-      setIsEvaluating(false);
+      if (evaluateIdRef.current === evaluateId) setIsEvaluating(false);
     }
   };
 
@@ -930,18 +938,21 @@ export default function StudySession({
   // and it also stops two closely-spaced first ratings from each creating a row.
   const ensureStudySession = useCallback(async (): Promise<string | null> => {
     if (studySessionIdRef.current) return studySessionIdRef.current;
-    try {
-      const response = await fetch(`${studyApiBase}/study`, { method: "POST" });
-      if (response.ok) {
-        const data = await response.json();
-        studySessionIdRef.current = data.sessionId;
-        setStudySessionId(data.sessionId);
-        return data.sessionId;
+    studySessionRequestRef.current ??= (async () => {
+      try {
+        const response = await fetch(`${studyApiBase}/study`, { method: "POST" });
+        if (response.ok) {
+          const data = await response.json();
+          studySessionIdRef.current = data.sessionId;
+          setStudySessionId(data.sessionId);
+          return data.sessionId;
+        }
+      } catch (error) {
+        console.error("Error starting study session:", error);
       }
-    } catch (error) {
-      console.error("Error starting study session:", error);
-    }
-    return null;
+      return null;
+    })().finally(() => { studySessionRequestRef.current = null; });
+    return studySessionRequestRef.current;
   }, [studyApiBase]);
 
   // Complete the study session

@@ -28,6 +28,7 @@ export function useListener(): UseListenerReturn {
   const recorderRef = useRef<AudioRecorder | null>(null);
   const sttRef = useRef<SpeechToTextService | null>(null);
   const recordingStartRef = useRef<number>(0);
+  const recordingIdRef = useRef(0); // Latest recording, to avoid a canceled recording's transcript landing later
   // Transcription started the moment the speaker went quiet, running in parallel
   // with the silence countdown. Nulled if they resume speaking, which makes the
   // snapshot it was given an incomplete answer.
@@ -60,6 +61,7 @@ export function useListener(): UseListenerReturn {
    * invalidated the snapshot). Expects isTranscribing already set by the caller.
    */
   const processAudio = useCallback(async (audioBlob: Blob, diagnostics?: RecorderDiagnostics) => {
+    const recordingId = recordingIdRef.current;
     const recordingDuration = Date.now() - recordingStartRef.current;
     const headStart = headStartRef.current;
     headStartRef.current = null;
@@ -70,12 +72,13 @@ export function useListener(): UseListenerReturn {
 
     try {
       const text = await (headStart ?? getStt().transcribe(audioBlob, diagnostics));
-      setTranscript(text);
+      if (recordingIdRef.current === recordingId) setTranscript(text); // Skip a transcript for a canceled recording
     } catch (error) {
+      if (recordingIdRef.current !== recordingId) return;
       console.error("STT transcription error:", error);
       toast.error("Speech-to-text generation failed");
     } finally {
-      setIsTranscribing(false);
+      if (recordingIdRef.current === recordingId) setIsTranscribing(false);
     }
   }, [getStt]);
 
@@ -92,6 +95,7 @@ export function useListener(): UseListenerReturn {
   const startRecording = useCallback(async () => {
     const recorder = getRecorder();
 
+    recordingIdRef.current += 1;
     setTranscript(null);
     setIsRecording(true);
     recordingStartRef.current = Date.now();
@@ -141,15 +145,17 @@ export function useListener(): UseListenerReturn {
     await finishRecording(recorder);
   }, [finishRecording]);
 
-  /** Stop recording and discard audio without transcribing. */
+  /** Stop recording and discard its audio and any transcription still running. */
   const cancelRecording = useCallback(() => {
-    const recorder = recorderRef.current;
-    if (!recorder || !recorder.isRecording()) return;
-
-    setIsRecording(false);
-    headStartRef.current = null; // Drop any in-flight head-start transcription too
+    recordingIdRef.current += 1; // Drop the result of a transcription still in flight
+    setIsTranscribing(false);
+    headStartRef.current = null;
     headStartAbortRef.current?.abort();
     headStartAbortRef.current = null;
+
+    const recorder = recorderRef.current;
+    if (!recorder || !recorder.isRecording()) return;
+    setIsRecording(false);
     recorder.stopRecording(); // Discard the blob
   }, []);
 
