@@ -57,15 +57,17 @@ export function useListener(): UseListenerReturn {
    * already resolved by the time the silence countdown expires — so the user waits
    * ~0ms here instead of a full Whisper pass. Falls back to transcribing `audioBlob`
    * when there is no valid head start (a manual stop mid-sentence, or a resume that
-   * invalidated the snapshot).
+   * invalidated the snapshot). Expects isTranscribing already set by the caller.
    */
   const processAudio = useCallback(async (audioBlob: Blob, diagnostics?: RecorderDiagnostics) => {
     const recordingDuration = Date.now() - recordingStartRef.current;
     const headStart = headStartRef.current;
     headStartRef.current = null;
-    if (!headStart && (audioBlob.size === 0 || recordingDuration < 1000)) return;
+    if (!headStart && (audioBlob.size === 0 || recordingDuration < 1000)) {
+      setIsTranscribing(false);
+      return;
+    }
 
-    setIsTranscribing(true);
     try {
       const text = await (headStart ?? getStt().transcribe(audioBlob, diagnostics));
       setTranscript(text);
@@ -76,6 +78,15 @@ export function useListener(): UseListenerReturn {
       setIsTranscribing(false);
     }
   }, [getStt]);
+
+  /** Stop the recorder and transcribe what it captured. */
+  const finishRecording = useCallback(async (recorder: AudioRecorder) => {
+    setIsRecording(false);
+    setIsTranscribing(true); // Set with isRecording to avoid the button showing Record while the audio decodes
+    const diagnostics = recorder.getDiagnostics();
+    const blob = await recorder.stopRecording();
+    processAudio(blob, diagnostics);
+  }, [processAudio]);
 
   /** Start recording from the microphone. */
   const startRecording = useCallback(async () => {
@@ -89,12 +100,7 @@ export function useListener(): UseListenerReturn {
     try {
       // Mic permission is requested inside startRecording
       await recorder.startRecording(
-        async () => {
-          setIsRecording(false);
-          const diagnostics = recorder.getDiagnostics();
-          const blob = await recorder.stopRecording();
-          processAudio(blob, diagnostics);
-        },
+        () => finishRecording(recorder),
         undefined, // keep the configured silence timeout
         {
           // Speaker went quiet: transcribe the answer-so-far while the silence
@@ -125,18 +131,15 @@ export function useListener(): UseListenerReturn {
       toast.error("Microphone permission denied");
       setIsRecording(false);
     }
-  }, [getRecorder, getStt, processAudio]);
+  }, [getRecorder, getStt, finishRecording]);
 
   /** Stop recording and transcribe. */
   const stopRecording = useCallback(async () => {
     const recorder = recorderRef.current;
     if (!recorder || !recorder.isRecording()) return;
 
-    setIsRecording(false);
-    const diagnostics = recorder.getDiagnostics();
-    const blob = await recorder.stopRecording();
-    processAudio(blob, diagnostics);
-  }, [processAudio]);
+    await finishRecording(recorder);
+  }, [finishRecording]);
 
   /** Stop recording and discard audio without transcribing. */
   const cancelRecording = useCallback(() => {
