@@ -2991,6 +2991,22 @@ input[type="search"]::-webkit-search-results-decoration {
   text-align: center;
 }
 
+/* RUNE TROUBLE CARDS — on phones a row's three stat columns fold into an even grid under the front */
+.trouble-phone-stats {
+  display: none;
+}
+@media (max-width: 639px) {
+  .trouble-stat-col {
+    display: none;
+  }
+  .trouble-phone-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+}
+
 /* ============================================================
    RUNE CARD IMPORT — the deck's bulk card-add flow (ImportCardsModal)
    ============================================================ */

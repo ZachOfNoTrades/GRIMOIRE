@@ -20,6 +20,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   "dashboard-customize": "Customize Dashboard",
   "config-preview": "Design Preview",
   "check-in": "Check-in",
+  "trouble": "Trouble Cards",
 };
 
 // REAL PAGE ROUTES — every static (non-dynamic) page in the app. A crumb only becomes
@@ -73,6 +74,7 @@ const PAGE_ROUTES = new Set<string>([
   "/modules/rune/ui/decks/generate",
   "/modules/rune/ui/home",
   "/modules/rune/ui/settings",
+  "/modules/rune/ui/trouble",
   "/settings/ui/admin",
   "/settings/ui/home",
   "/settings/ui/theme",

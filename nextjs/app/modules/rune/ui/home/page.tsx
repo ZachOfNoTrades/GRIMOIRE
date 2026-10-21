@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, Boxes, Layers, Play, Settings, Zap } from "lucide-react";
+import { AlertTriangle, BookOpen, Boxes, Layers, Play, Settings, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/linkButton";
 import HelpButton from "@/components/ui/HelpButton";
 import { formatRelativePast } from "@/lib/format";
 import { DeckSummary } from "../../types/deck";
 import { DEFAULT_DAILY_GOAL, DEFAULT_DAILY_MAX_RENEW } from "../../types/settings";
+import { TROUBLE_MAX_EASE, TROUBLE_MIN_LAPSES, TROUBLE_MIN_RECENT_MISSES, TROUBLE_RECENT_WINDOW } from "../../types/trouble";
 
 export default function RuneHomePage() {
 
@@ -92,6 +93,7 @@ export default function RuneHomePage() {
             sections={[
               { heading: "Getting started", body: "Create a deck, then add cards manually or use Generate Cards to draft a set with the LLM from a topic or your notes." },
               { heading: "Studying", body: "Resume Studying jumps to the deck with cards due. Flip each card, then rate how well you knew it — spaced repetition schedules the next review automatically." },
+              { heading: "Trouble cards", body: `Trouble Cards lists the cards you keep missing, from every deck you own or that is shared with you. A card is listed when you rated it Again or Hard in ${TROUBLE_MIN_RECENT_MISSES} of its last ${TROUBLE_RECENT_WINDOW} reviews, rated it Again ${TROUBLE_MIN_LAPSES} times after already knowing it, or its ease dropped to ${TROUBLE_MAX_EASE.toFixed(2)} or below. The value that put it on the list shows in red. Nothing is moved or paused — the cards stay in their decks on their usual schedule.` },
               { heading: "Collections", body: "A collection groups several decks. Open it and start a study session to review every due card across those decks in one pass — useful for related decks you always study together." },
               { heading: "Pausing a deck", body: "Open a deck and press the power button to disable it. A disabled deck stops counting toward Cards Due here, the dashboard badge and the daily review email, and collection study sessions skip it — but nothing is reset, and you can still study it from its own page. Press the button again to bring it back." },
               { heading: "List or table view", body: "A deck's card list has a view toggle beside the sort control. The list shows one card's back at a time; the table lays every card's front and back out side by side (stacked on a phone) so you can read or proofread a whole deck in one pass. Search, filter and sort apply to both, and the page widens for the table. Your choice is remembered." },
@@ -211,6 +213,16 @@ export default function RuneHomePage() {
               <h2 className="text-card-title">
                 <Boxes className="w-5 h-5" />
                 Collections
+              </h2>
+            </div>
+          </Link>
+
+          {/* TROUBLE CARDS CARD */}
+          <Link href="/modules/rune/ui/trouble">
+            <div className="module-card">
+              <h2 className="text-card-title">
+                <AlertTriangle className="w-5 h-5" />
+                Trouble Cards
               </h2>
             </div>
           </Link>
