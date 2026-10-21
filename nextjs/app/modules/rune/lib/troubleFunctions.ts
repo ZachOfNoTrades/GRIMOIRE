@@ -51,7 +51,7 @@ export async function getTroubleCards(viewer: DeckViewer): Promise<TroubleCard[]
         )
         SELECT c.id, c.deck_id, ad.name AS deck_name, c.front, c.back, c.notes, c.category, c.source_ref,
           rs.review_count, rs.lapse_count, rs.recent_miss_count, rs.recent_ratings,
-          cp.ease_factor, cp.next_review_at, cp.last_reviewed_at
+          cp.ease_factor, cp.interval_days, cp.next_review_at, cp.last_reviewed_at
         FROM review_stats rs
         INNER JOIN cards c ON c.id = rs.card_id AND c.is_disabled = 0 AND c.is_draft = 0
         INNER JOIN accessible_decks ad ON ad.id = c.deck_id

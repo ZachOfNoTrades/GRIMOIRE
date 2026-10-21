@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRowNav } from "@/lib/useRowNav";
 import { AlertTriangle } from "lucide-react";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import CardContent from "../../components/CardContent";
+import TroubleCardModal from "./TroubleCardModal";
 import { TroubleCard, TROUBLE_RECENT_WINDOW, isEaseTrouble, isLapseTrouble, isRecentTrouble } from "../../types/trouble";
 
 // Show a value in a red badge when it put the card on the list
@@ -23,8 +23,7 @@ export default function TroubleClient({ initialCards }: TroubleClientProps) {
 
   // STATE
   const [isLoading, setIsLoading] = useState(initialCards === null);
-
-  const rowNav = useRowNav();
+  const [openCard, setOpenCard] = useState<TroubleCard | null>(null);
 
   // Fetch the list only when the server did not load it
   useEffect(() => {
@@ -115,7 +114,15 @@ export default function TroubleClient({ initialCards }: TroubleClientProps) {
                     <tr
                       key={card.id}
                       className="table-row-clickable"
-                      {...rowNav(`/modules/rune/ui/decks/${card.deck_id}`)}
+                      tabIndex={0}
+                      aria-label={`Open trouble card from ${card.deck_name}`}
+                      onClick={() => setOpenCard(card)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setOpenCard(card);
+                        }
+                      }}
                     >
 
                       {/* FRONT AND DECK */}
@@ -162,6 +169,9 @@ export default function TroubleClient({ initialCards }: TroubleClientProps) {
           </div>
         </div>
       </main>
+
+      {/* TROUBLE CARD MODAL */}
+      <TroubleCardModal card={openCard} onClose={() => setOpenCard(null)} />
     </div>
   );
 }

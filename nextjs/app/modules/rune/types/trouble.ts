@@ -13,6 +13,7 @@ export interface TroubleCard {
   recent_miss_count: number; // Again or Hard ratings among the most recent TROUBLE_RECENT_WINDOW
   recent_ratings: number[]; // Most recent first, up to TROUBLE_RECENT_WINDOW
   ease_factor: number | null;
+  interval_days: number | null;
   next_review_at: Date | null;
   last_reviewed_at: Date | null;
 }

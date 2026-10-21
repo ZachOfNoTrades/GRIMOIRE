@@ -15,7 +15,7 @@ import RatingTrendChart from "./RatingTrendChart";
 interface CardHistoryPanelProps {
   // The card the history belongs to — supplies the SRS summary (ease/interval/next
   // review), which lives on the card row rather than in the review log.
-  card: CardWithProgress | null;
+  card: Pick<CardWithProgress, "id" | "ease_factor" | "interval_days" | "next_review_at"> | null;
   // Reviews as the API returns them, newest first.
   reviews: CardReview[];
   isLoading: boolean;
