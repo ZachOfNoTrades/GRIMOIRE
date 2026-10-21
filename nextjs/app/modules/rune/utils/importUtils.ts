@@ -1,4 +1,4 @@
-import { CARD_CATEGORY_MAX } from "../types/card";
+import { CARD_CATEGORY_MAX, CARD_SOURCE_REF_MAX } from "../types/card";
 
 // CSV and Excel import for a deck's cards. Modelled on golem's history import
 // (app/modules/golem/utils/importUtils.ts + ui/history/ImportHistoryModal.tsx): same
@@ -21,6 +21,7 @@ export const IMPORT_FIELDS = [
   { key: "notes", label: "Notes", required: false },
   { key: "category", label: "Category", required: false },
   { key: "is_draft", label: "Draft", required: false },
+  { key: "source_ref", label: "Source", required: false },
 ] as const;
 
 export type ImportFieldKey = typeof IMPORT_FIELDS[number]["key"];
@@ -38,7 +39,11 @@ const SMART_MAPPING: Record<ImportFieldKey, string[]> = {
   notes: ["note", "notes", "comment", "extra"],
   category: ["category", "tag", "topic", "deck", "chapter", "section"],
   is_draft: ["draft", "is_draft"],
+  source_ref: ["source", "citation", "reference"],
 };
+
+// Fields whose keywords must match the whole header, to avoid mapping "Resource" or "Data source" to Source
+const EXACT_MATCH_FIELDS = new Set<ImportFieldKey>(["source_ref"]);
 
 // Maps a file's headers onto card fields by name. Anything unrecognised comes back
 // unmapped rather than guessed at — the user assigns it (or leaves it out) in the mapping
@@ -51,10 +56,10 @@ export function getSmartMappings(fileHeaders: string[]): ColumnMapping[] {
 
     for (const [fieldKey, keywords] of Object.entries(SMART_MAPPING) as [ImportFieldKey, string[]][]) {
       if (used.has(fieldKey)) continue;
-      // Whole-word-ish: a header of "a" should map to back, but "category" must not match
-      // it. Exact match first, then containment for the multi-character keywords.
+      // Match short keywords and exact-match fields against the whole header, to avoid "a"
+      // matching "category"; match other keywords anywhere in it
       const hit = keywords.some((keyword) =>
-        keyword.length <= 2 ? headerLower === keyword : headerLower.includes(keyword)
+        keyword.length <= 2 || EXACT_MATCH_FIELDS.has(fieldKey) ? headerLower === keyword : headerLower.includes(keyword)
       );
       if (hit) {
         used.add(fieldKey);
@@ -160,6 +165,7 @@ export interface ImportRow {
   notes: string | null;
   category: string | null;
   isDraft: boolean;
+  sourceRef: string | null;
   error: string | null;
 }
 
@@ -184,6 +190,7 @@ export function buildImportPreview(dataRows: string[][], mappings: ColumnMapping
   const notesIndex = indexOf("notes");
   const categoryIndex = indexOf("category");
   const draftIndex = indexOf("is_draft");
+  const sourceRefIndex = indexOf("source_ref");
 
   const at = (row: string[], index: number) => (index >= 0 ? (row[index] ?? "") : "");
 
@@ -192,10 +199,12 @@ export function buildImportPreview(dataRows: string[][], mappings: ColumnMapping
 
     const front = at(row, frontIndex).trim();
     const category = at(row, categoryIndex).trim();
+    const sourceRef = at(row, sourceRefIndex).trim();
 
     let error: string | null = null;
     if (!front) error = "No front — a card needs a question";
     else if (category.length > CARD_CATEGORY_MAX) error = `Category is longer than ${CARD_CATEGORY_MAX} characters`;
+    else if (sourceRef.length > CARD_SOURCE_REF_MAX) error = `Source is longer than ${CARD_SOURCE_REF_MAX} characters`;
 
     return [{
       rowNumber: i + 2, // +1 for zero-based, +1 for the header row
@@ -204,6 +213,7 @@ export function buildImportPreview(dataRows: string[][], mappings: ColumnMapping
       notes: at(row, notesIndex).trim() || null,
       category: category || null,
       isDraft: TRUTHY.has(at(row, draftIndex).trim().toLowerCase()),
+      sourceRef: sourceRef || null,
       error,
     }];
   });

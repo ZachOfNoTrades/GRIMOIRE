@@ -7,8 +7,6 @@ import { CardWithProgress } from "../types/card";
 //
 // Card text is exported without its embedded images/videos (see stripMedia).
 //
-// Source (the card's citation) is exported too even though the importer has no field for
-// it — it's the user's data, and the importer simply offers that column as "Skip".
 
 // Embedded images and videos (both markdown `![alt](url)` — see CardContent) are dropped:
 // their URLs point at auth-gated per-user uploads, so in a spreadsheet they are dead links,

@@ -153,6 +153,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
               notes: row.notes,
               category: row.category,
               is_draft: row.isDraft,
+              source_ref: row.sourceRef,
               // No anchor — imported cards go on the end of the deck, in file order.
               after_card_id: null,
             })),
@@ -253,7 +254,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
             <p className="text-secondary mb-4">
               One card per row, with a header row naming the columns. For a workbook, only the
               first sheet is read. Front, back, notes,
-              category and draft can each come from any column — you&rsquo;ll match them up next.
+              category, draft and source can each come from any column — you&rsquo;ll match them up next.
             </p>
 
             {/* BROWSE BUTTON */}
@@ -381,6 +382,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
                   <th className="table-header-cell">Front</th>
                   <th className="table-header-cell">Back</th>
                   <th className="table-header-cell">Category</th>
+                  <th className="table-header-cell">Source</th>
                 </tr>
               </thead>
               <tbody className="table-body">
@@ -388,7 +390,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
                 {/* EMPTY PLACEHOLDER */}
                 {preview.valid.length === 0 && (
                   <tr className="table-row">
-                    <td className="table-empty" colSpan={3}>Nothing in this file can be imported</td>
+                    <td className="table-empty" colSpan={4}>Nothing in this file can be imported</td>
                   </tr>
                 )}
 
@@ -399,6 +401,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
                       {row.back || <span className="text-subtle-italic">No answer</span>}
                     </td>
                     <td className="table-cell rune-import-preview-cell">{row.category ?? ""}</td>
+                    <td className="table-cell rune-import-preview-cell">{row.sourceRef ?? ""}</td>
                   </tr>
                 ))}
               </tbody>

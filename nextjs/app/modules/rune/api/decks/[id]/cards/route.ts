@@ -240,8 +240,7 @@ export async function PUT(
 // transaction. It exists instead of a loop of PUTs for two reasons: a half-applied batch
 // (some rows saved, the rest lost to a mid-flight failure) would leave the sheet the user
 // is looking at disagreeing with the deck, and PUT always writes `notes`, so replaying it
-// per row from a view that has no notes cell would silently clear them. Only the cells the
-// sheet shows are accepted here; everything else on the card is left alone.
+// per row from a view that has no notes cell would silently clear them.
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -280,6 +279,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'cards must be a non-empty array' }, { status: 400 });
     }
 
+    // EDITED ROWS — accept only the cells the sheet shows, leaving the rest of the card alone.
     // Every row is validated BEFORE any of them is written — the whole point of the
     // endpoint is that a sheet save either lands completely or not at all, so one bad
     // row has to 400 the batch rather than fail it halfway through the transaction.
@@ -324,7 +324,7 @@ export async function PATCH(
       if (!row || typeof row !== 'object') {
         return NextResponse.json({ error: 'each new card must be an object' }, { status: 400 });
       }
-      const { front, back, notes, category, is_draft, after_card_id } = row as Record<string, unknown>;
+      const { front, back, notes, category, is_draft, source_ref, after_card_id } = row as Record<string, unknown>;
       if (typeof front !== 'string' || !front.trim()) {
         return NextResponse.json({ error: 'front is required for every new card' }, { status: 400 });
       }
@@ -332,7 +332,8 @@ export async function PATCH(
         return NextResponse.json({ error: 'back must be a string' }, { status: 400 });
       }
       const invalidNew = badOptionalText(notes, 'notes')
-        ?? badOptionalText(category, 'category', CARD_CATEGORY_MAX);
+        ?? badOptionalText(category, 'category', CARD_CATEGORY_MAX)
+        ?? badOptionalText(source_ref, 'source_ref', CARD_SOURCE_REF_MAX);
       if (invalidNew) return invalidNew;
       if (is_draft !== undefined && typeof is_draft !== 'boolean') {
         return NextResponse.json({ error: 'is_draft must be a boolean' }, { status: 400 });
@@ -346,6 +347,7 @@ export async function PATCH(
         notes: (notes as string) || null,
         category: (category as string) || null,
         isDraft: !!is_draft,
+        sourceRef: (source_ref as string) || null,
         afterCardId: (after_card_id as string) || null,
       });
     }

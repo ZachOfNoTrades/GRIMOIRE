@@ -351,16 +351,15 @@ export interface CardSheetEdit {
   isDraft?: boolean;
 }
 
-// A brand-new row the sheet is saving. `afterCardId` is the row it was inserted below —
-// null means it goes to the end of the deck. Only the fields the table has cells for; a
-// sheet-created card gets no source ref, the same as one added from the table's trailing
-// "Add card" row.
+// A CardSheetInsert is a new card in a deck's bulk save. `afterCardId` is the card it goes
+// below; null puts it at the end of the deck.
 export interface CardSheetInsert {
   front: string;
   back?: string | null;
   notes?: string | null;
   category?: string | null;
   isDraft?: boolean;
+  sourceRef?: string | null; // The card's citation
   afterCardId?: string | null;
 }
 
@@ -439,12 +438,13 @@ export async function updateCardsBulk(userId: string, deckId: string, edits: Car
           .input('notes', normText(insert.notes))
           .input('category', normText(insert.category, CARD_CATEGORY_MAX))
           .input('isDraft', insert.isDraft ? 1 : 0)
+          .input('sourceRef', normText(insert.sourceRef, CARD_SOURCE_REF_MAX))
           .input('orderIndex', orderIndex)
           .input('via', via)
           .query(`
             INSERT INTO cards (user_id, deck_id, front, back, notes, category, is_draft, source_ref, source, order_index, created_via, modified_via)
             OUTPUT INSERTED.*
-            VALUES (@userId, @deckId, @front, @back, @notes, @category, @isDraft, NULL, 'manual', @orderIndex, @via, @via)
+            VALUES (@userId, @deckId, @front, @back, @notes, @category, @isDraft, @sourceRef, 'manual', @orderIndex, @via, @via)
           `);
         created.push({
           ...result.recordset[0],
