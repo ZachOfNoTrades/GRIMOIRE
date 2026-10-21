@@ -2992,7 +2992,7 @@ input[type="search"]::-webkit-search-results-decoration {
 }
 
 /* ============================================================
-   RUNE CSV IMPORT — the deck's bulk card-add flow (ImportCardsModal)
+   RUNE CARD IMPORT — the deck's bulk card-add flow (ImportCardsModal)
    ============================================================ */
 
 /* Dropzone. Dashed, like every other "nothing here yet, put something in" surface in the

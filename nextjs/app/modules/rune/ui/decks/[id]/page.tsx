@@ -997,7 +997,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                   // IMPORT — bulk-adds cards from a spreadsheet export, appended to the end of the deck. Sits
                   // with the deck-level actions because it writes many cards at once; the table's own
                   // "Add card" row is the one-at-a-time path.
-                  canEdit && { label: "Import cards from CSV", icon: <Upload className="w-4 h-4" />, title: "Add cards in bulk from a CSV file", onSelect: () => setShowImportCards(true) },
+                  canEdit && { label: "Import cards", icon: <Upload className="w-4 h-4" />, title: "Add cards in bulk from a CSV or Excel file", onSelect: () => setShowImportCards(true) },
                   // EXPORT — every card to a CSV the importer reads back as-is
                   { label: "Export cards to CSV", icon: <Download className="w-4 h-4" />, disabled: allCards.length === 0, title: "Download every card as a CSV file", onSelect: handleExportCsv },
                   // DELETE — owner only. A sharee removes the deck from their own list instead.

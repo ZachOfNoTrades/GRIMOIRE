@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, File as FileIcon, AlertTriangle, Check } from "lucide-react";
+import { Upload, File as FileIcon, AlertTriangle, Check, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import Modal from "@/components/Modal";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,10 @@ import {
   ImportPreview,
   buildImportPreview,
   getSmartMappings,
+  isBlankRow,
+  isSpreadsheetFile,
   parseCSV,
+  parseSpreadsheet,
 } from "../../../utils/importUtils";
 
 // How many cards go in one request. Each insert renumbers the deck's order indexes behind
@@ -48,14 +51,19 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [importedCount, setImportedCount] = useState(0);
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
+  const [isReading, setIsReading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readCount = useRef(0); // Counts file reads and resets, to drop a read that finishes after a newer one
 
   // Which fields the current mapping covers — front has to be one of them before the
   // import can go anywhere, since a card without a question isn't a card.
   const mappedFields = new Set(columnMappings.map((m) => m.cardField).filter(Boolean) as ImportFieldKey[]);
   const hasFront = mappedFields.has("front");
+  const cardRowCount = fileData.filter((row) => !isBlankRow(row)).length;
 
   const reset = () => {
+    readCount.current++;
+    setIsReading(false);
     setFileName("");
     setFileHeaders([]);
     setFileData([]);
@@ -71,27 +79,37 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
     onClose();
   };
 
-  const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onerror = () => toast.error("Couldn't read that file");
-    reader.onload = (event) => {
-      const text = (event.target?.result as string) ?? "";
-      const parsed = parseCSV(text);
-
-      if (parsed.length < 2) {
-        toast.error("That file needs a header row and at least one card");
-        return;
+  // Read a chosen file into rows and move to the mapping step
+  const handleFile = async (file: File) => {
+    const thisRead = ++readCount.current;
+    const isSpreadsheet = isSpreadsheetFile(file);
+    setIsReading(true);
+    let parsed: string[][];
+    try {
+      parsed = isSpreadsheet ? await parseSpreadsheet(await file.arrayBuffer()) : parseCSV(await file.text());
+    } catch (error) {
+      console.error(`Error reading import file ${file.name}:`, error);
+      if (thisRead === readCount.current) {
+        setIsReading(false);
+        toast.error(isSpreadsheet ? "Couldn't read that spreadsheet" : "Couldn't read that file");
       }
+      return;
+    }
+    if (thisRead !== readCount.current) return; // Drop a read the modal was closed or reset during
+    setIsReading(false);
 
-      const headers = parsed[0].map((h) => h.trim());
-      const dataRows = parsed.slice(1);
-      setFileName(file.name);
-      setFileHeaders(headers);
-      setFileData(dataRows);
-      setColumnMappings(getSmartMappings(headers));
-      setStep("mapping");
-    };
-    reader.readAsText(file);
+    if (parsed.length < 2) {
+      toast.error("That file needs a header row and at least one card");
+      return;
+    }
+
+    const headers = parsed[0].map((h) => h.trim());
+    const dataRows = parsed.slice(1);
+    setFileName(file.name);
+    setFileHeaders(headers);
+    setFileData(dataRows);
+    setColumnMappings(getSmartMappings(headers));
+    setStep("mapping");
   };
 
   // One column's target field. Assigning a field that another column already claims moves
@@ -169,7 +187,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
       disableClose={step === "importing"}
       wide
       tall
-      title="Import cards from CSV"
+      title="Import cards"
       subHeader={fileName ? <span className="text-subtle">{fileName}</span> : undefined}
       footer={
         <div className="flex gap-2 justify-end">
@@ -220,7 +238,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
             onDrop={(e) => {
               e.preventDefault();
               const file = e.dataTransfer.files?.[0];
-              if (file) handleFile(file);
+              if (file && !isReading) handleFile(file);
             }}
           >
 
@@ -228,18 +246,19 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
             <Upload className="text-secondary w-10 h-10 mx-auto mb-3" aria-hidden="true" />
 
             {/* INSTRUCTIONS */}
-            <p className="text-primary mb-1">Drop a CSV file here</p>
+            <p className="text-primary mb-1">Drop a CSV or Excel file here</p>
 
             {/* DESCRIPTION — says what the file needs to contain, before the user goes and
                 exports one from somewhere. */}
             <p className="text-secondary mb-4">
-              One card per row, with a header row naming the columns. Front, back, notes,
+              One card per row, with a header row naming the columns. For a workbook, only the
+              first sheet is read. Front, back, notes,
               category and draft can each come from any column — you&rsquo;ll match them up next.
             </p>
 
             {/* BROWSE BUTTON */}
-            <Button className="btn-blue" onClick={() => fileInputRef.current?.click()}>
-              <FileIcon className="w-4 h-4" />
+            <Button className="btn-blue" onClick={() => fileInputRef.current?.click()} disabled={isReading}>
+              {isReading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileIcon className="w-4 h-4" />}
               Choose a file
             </Button>
 
@@ -247,7 +266,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xls,application/vnd.ms-excel"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -266,7 +285,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
 
           {/* INSTRUCTIONS */}
           <p className="text-secondary mb-4">
-            {fileData.length} {fileData.length === 1 ? "row" : "rows"} found. Choose what each
+            {cardRowCount} {cardRowCount === 1 ? "row" : "rows"} found. Choose what each
             column holds; anything left as &ldquo;Skip&rdquo; is ignored.
           </p>
 
@@ -282,7 +301,7 @@ export default function ImportCardsModal({ isOpen, deckId, onClose, onImported }
                 </tr>
               </thead>
               <tbody className="table-body">
-                {fileData.slice(0, PREVIEW_ROWS).map((row, rowIndex) => (
+                {fileData.filter((row) => !isBlankRow(row)).slice(0, PREVIEW_ROWS).map((row, rowIndex) => (
                   <tr key={rowIndex} className="table-row">
                     {fileHeaders.map((_, cellIndex) => (
                       <td key={cellIndex} className="table-cell rune-import-preview-cell">{row[cellIndex] ?? ""}</td>

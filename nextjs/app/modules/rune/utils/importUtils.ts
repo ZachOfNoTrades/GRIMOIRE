@@ -1,6 +1,6 @@
 import { CARD_CATEGORY_MAX } from "../types/card";
 
-// CSV import for a deck's cards. Modelled on golem's history import
+// CSV and Excel import for a deck's cards. Modelled on golem's history import
 // (app/modules/golem/utils/importUtils.ts + ui/history/ImportHistoryModal.tsx): same
 // upload → map columns → preview → import flow, the same smart-mapping-by-keyword step,
 // and the same ColumnMapping shape, so the two importers read alike.
@@ -125,6 +125,33 @@ export function parseCSV(text: string): string[][] {
   return rows;
 }
 
+// Reads the first sheet of an Excel workbook (.xlsx or .xls) into rows of text fields, the
+// same shape parseCSV returns.
+export async function parseSpreadsheet(buffer: ArrayBuffer): Promise<string[][]> {
+  const XLSX = await import("xlsx"); // Load on demand to avoid adding xlsx to the deck page's bundle
+  const workbook = XLSX.read(buffer, { type: "array", sheets: 0, dense: true }); // Parse only the first sheet
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) return [];
+
+  // Read each cell as the text Excel shows, keeping blank rows so row numbers match the sheet
+  return XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: "", blankrows: true });
+}
+
+// Tells a spreadsheet file from a CSV by its extension or its media type
+export function isSpreadsheetFile(file: File): boolean {
+  return /\.(xlsx|xls)$/i.test(file.name) || SPREADSHEET_TYPES.has(file.type);
+}
+
+const SPREADSHEET_TYPES = new Set([
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+]);
+
+// Tells a row with no text in any cell, such as a spacer row in a spreadsheet
+export function isBlankRow(row: string[]): boolean {
+  return row.every((cell) => cell.trim() === "");
+}
+
 // A row as it would be written, plus why it wouldn't be.
 export interface ImportRow {
   rowNumber: number; // 1-based, counting the header as row 1, so it matches the file
@@ -160,7 +187,9 @@ export function buildImportPreview(dataRows: string[][], mappings: ColumnMapping
 
   const at = (row: string[], index: number) => (index >= 0 ? (row[index] ?? "") : "");
 
-  const rows: ImportRow[] = dataRows.map((row, i) => {
+  const rows: ImportRow[] = dataRows.flatMap((row, i) => {
+    if (isBlankRow(row)) return []; // Leave out blank rows, keeping the numbering of the rest
+
     const front = at(row, frontIndex).trim();
     const category = at(row, categoryIndex).trim();
 
@@ -168,7 +197,7 @@ export function buildImportPreview(dataRows: string[][], mappings: ColumnMapping
     if (!front) error = "No front — a card needs a question";
     else if (category.length > CARD_CATEGORY_MAX) error = `Category is longer than ${CARD_CATEGORY_MAX} characters`;
 
-    return {
+    return [{
       rowNumber: i + 2, // +1 for zero-based, +1 for the header row
       front,
       back: at(row, backIndex).trim(),
@@ -176,7 +205,7 @@ export function buildImportPreview(dataRows: string[][], mappings: ColumnMapping
       category: category || null,
       isDraft: TRUTHY.has(at(row, draftIndex).trim().toLowerCase()),
       error,
-    };
+    }];
   });
 
   return {
