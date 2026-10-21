@@ -7183,6 +7183,7 @@ body:has(.quest-cal-page) > .page {
   max-width: 100%;
   max-height: 12rem;
   border-radius: 0.375rem;
+  margin: 0.5rem 0; /* Match the gap between photos in a rendered card */
 }
 .rich-card-editor-content video.rich-card-editor-media {
   display: block;
