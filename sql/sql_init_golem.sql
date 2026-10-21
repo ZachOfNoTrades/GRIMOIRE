@@ -133,6 +133,7 @@ BEGIN TRY
             distance_unit_short NVARCHAR(10) NULL, -- preferred short-distance display unit: feet/yards/meters (NULL = meters)
             distance_unit_long NVARCHAR(10) NULL, -- preferred long-distance display unit: km/mi (NULL = km)
             rest_timer_enabled BIT NOT NULL DEFAULT 1, -- show the between-sets rest countdown (1 = on)
+            pre_workout_enabled BIT NOT NULL DEFAULT 1, -- open the pre-workout wizard on Start Workout (1 = on)
             created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
             modified_at DATETIME2 NOT NULL DEFAULT GETDATE()
         );

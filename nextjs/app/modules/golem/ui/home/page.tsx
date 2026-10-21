@@ -136,7 +136,7 @@ export default function GolemHomePage() {
             title="Workout Tracker"
             sections={[
               { heading: "Getting started", body: "Tap New Session to log a workout freehand, or Generate Program to build a structured multi-week plan the app fills in for you." },
-              { heading: "During a workout", body: "Open the active session to add exercises and log each set (weight × reps), then mark it complete. The pre-workout view suggests today's targets from your program. A session generated more than a week ago shows a warning — its exercises and loads came from your history as it was back then, so regenerate it for up-to-date targets." },
+              { heading: "During a workout", body: "Open the active session to add exercises and log each set (weight × reps), then mark it complete. The pre-workout view suggests today's targets from your program; turn it off under Settings → User Profile to start workouts straight away. A session generated more than a week ago shows a warning — its exercises and loads came from your history as it was back then, so regenerate it for up-to-date targets." },
               { heading: "Review & configure", body: "Browse the Exercise Library, Calendar, Workout History, and Weekly Volume (sets per muscle vs. landmarks). Locations, templates, archetypes, and your profile live in Settings." },
             ]}
           />

@@ -103,6 +103,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [preWorkoutInitialStep, setPreWorkoutInitialStep] = useState(0);
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null); // epoch ms the current rest ends; null = no rest running
   const [isRestTimerEnabled, setIsRestTimerEnabled] = useState(true); // user profile setting; assume on until the profile loads
+  const [isPreWorkoutEnabled, setIsPreWorkoutEnabled] = useState(true); // user profile setting; loaded before first paint
   const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
   const pendingCompletionDurationRef = useRef<number>(0);
   const segmentsForSaveRef = useRef<SegmentWithSets[]>([]);
@@ -283,7 +284,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     fetchExercises();
     fetchPreSurvey();
     loadLocations();
-    loadUserProfile();
   }, [id]);
 
   // STALE-CLOCK REFETCH — the abandoned-session case is a page left open while the phone sleeps, so
@@ -299,7 +299,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   }, [id]);
 
   // Load the session-relevant user profile settings: preferred distance display units (per band) for the
-  // per-set distance input, and whether the between-sets rest timer is enabled.
+  // per-set distance input, and whether the between-sets rest timer and the pre-workout wizard are enabled.
   const loadUserProfile = async () => {
     try {
       const resp = await fetch("/modules/golem/api/user-profile");
@@ -307,8 +307,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       const profile = await resp.json();
       setDistanceUnits({ short: profile.distance_unit_short ?? null, long: profile.distance_unit_long ?? null });
       setIsRestTimerEnabled(profile.rest_timer_enabled ?? true);
+      setIsPreWorkoutEnabled(profile.pre_workout_enabled ?? true);
     } catch {
-      // best-effort; the distance input falls back to default units (meters / km) and the rest timer stays on
+      // best-effort; the distance input falls back to default units (meters / km), the rest timer and pre-workout stay on
     }
   };
 
@@ -377,7 +378,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const fetchSessionData = async () => {
     setIsLoading(true);
     try {
-      await Promise.all([fetchSession(), fetchSegments()]);
+      await Promise.all([fetchSession(), fetchSegments(), loadUserProfile()]); // Load the profile before paint to avoid the Pre-Workout controls popping out
     } catch (error) {
       throw error;
     } finally {
@@ -619,8 +620,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  // Open the pre-workout wizard, which starts the session on Save/Skip; with pre-workout off, start right away.
   const handleStartSession = () => {
-    // Pre-workout wizard gates the session start — modal opens, then on Save/Skip the session actually starts.
+    if (!isPreWorkoutEnabled) {
+      updateSessionStatus({ is_current: true, started_at: new Date() });
+      return;
+    }
     setIsStartingViaPreWorkout(true);
     setPreWorkoutInitialStep(0);
     setIsPreWorkoutModalOpen(true);
@@ -1352,45 +1357,47 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   )}
 
-                  {/* PRE-WORKOUT SURVEY */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-secondary">Pre-Workout</label>
+                  {/* PRE-WORKOUT SURVEY — shown only while pre-workout is on in the user profile */}
+                  {isPreWorkoutEnabled && (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-secondary">Pre-Workout</label>
 
-                      {/* EDIT PRE-WORKOUT BUTTON */}
-                      <Button
-                        className="btn-link"
-                        onClick={() => openPreWorkout(0)}
-                      >
-                        <ClipboardList className="w-4 h-4" />
-                        <span>{preSurvey && (preSurvey.muscles.length > 0 || preSurvey.notes) ? "Edit" : "Add"}</span>
-                      </Button>
-                    </div>
-
-                    {/* SURVEY SUMMARY */}
-                    {preSurvey && (preSurvey.muscles.length > 0 || preSurvey.notes) ? (
-                      <div className="flex flex-col gap-1">
-
-                        {/* MUSCLE FATIGUE LIST */}
-                        {preSurvey.muscles.length > 0 && (
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                            {preSurvey.muscles.map((m) => (
-                              <span key={m.muscle_group_id} className="text-primary text-sm">
-                                {m.muscle_group_name}: <span className="font-mono">{m.fatigue}</span>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* SURVEY NOTES */}
-                        {preSurvey.notes && (
-                          <p className="text-primary whitespace-pre-wrap break-words">{preSurvey.notes}</p>
-                        )}
+                        {/* EDIT PRE-WORKOUT BUTTON */}
+                        <Button
+                          className="btn-link"
+                          onClick={() => openPreWorkout(0)}
+                        >
+                          <ClipboardList className="w-4 h-4" />
+                          <span>{preSurvey && (preSurvey.muscles.length > 0 || preSurvey.notes) ? "Edit" : "Add"}</span>
+                        </Button>
                       </div>
-                    ) : (
-                      <p className="text-secondary">No survey recorded</p>
-                    )}
-                  </div>
+
+                      {/* SURVEY SUMMARY */}
+                      {preSurvey && (preSurvey.muscles.length > 0 || preSurvey.notes) ? (
+                        <div className="flex flex-col gap-1">
+
+                          {/* MUSCLE FATIGUE LIST */}
+                          {preSurvey.muscles.length > 0 && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                              {preSurvey.muscles.map((m) => (
+                                <span key={m.muscle_group_id} className="text-primary text-sm">
+                                  {m.muscle_group_name}: <span className="font-mono">{m.fatigue}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* SURVEY NOTES */}
+                          {preSurvey.notes && (
+                            <p className="text-primary whitespace-pre-wrap break-words">{preSurvey.notes}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-secondary">No survey recorded</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* SESSION DESCRIPTION */}
                   <div>
@@ -1964,11 +1971,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         {/* ACTION GROUP — Pre-Workout paired with the primary start/finish/resume action. Mobile: stacked full-width so the labels never cramp at narrow phone widths; desktop: side by side, centered at natural width. */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto justify-center">
 
-          {/* PRE-WORKOUT BUTTON — high-traffic, used every session; opens the wizard at the warmup mini-session. */}
-          <Button className="btn-off w-full sm:w-auto" onClick={() => openPreWorkout(1)}>
-            <Dumbbell className="w-4 h-4" />
-            <span>Pre-Workout</span>
-          </Button>
+          {/* PRE-WORKOUT BUTTON — high-traffic, used every session; opens the wizard at the warmup mini-session. Shown only while pre-workout is on. */}
+          {isPreWorkoutEnabled && (
+            <Button className="btn-off w-full sm:w-auto" onClick={() => openPreWorkout(1)}>
+              <Dumbbell className="w-4 h-4" />
+              <span>Pre-Workout</span>
+            </Button>
+          )}
 
           {session.is_completed ? (
 

@@ -27,6 +27,7 @@ export default function ProfilePage() {
   const [distanceUnitShort, setDistanceUnitShort] = useState<string>(DEFAULT_SHORT_UNIT);
   const [distanceUnitLong, setDistanceUnitLong] = useState<string>(DEFAULT_LONG_UNIT);
   const [restTimerEnabled, setRestTimerEnabled] = useState(true);
+  const [preWorkoutEnabled, setPreWorkoutEnabled] = useState(true);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +35,7 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingUnits, setIsSavingUnits] = useState(false);
   const [isSavingRestTimer, setIsSavingRestTimer] = useState(false);
+  const [isSavingPreWorkout, setIsSavingPreWorkout] = useState(false);
 
 
   // LOAD DATA
@@ -55,6 +57,7 @@ export default function ProfilePage() {
         setDistanceUnitShort(data.distance_unit_short ?? DEFAULT_SHORT_UNIT);
         setDistanceUnitLong(data.distance_unit_long ?? DEFAULT_LONG_UNIT);
         setRestTimerEnabled(data.rest_timer_enabled ?? true);
+        setPreWorkoutEnabled(data.pre_workout_enabled ?? true);
       }
 
       if (landmarksResponse.ok) {
@@ -171,6 +174,35 @@ export default function ProfilePage() {
       console.error("Error saving rest timer setting:", error);
     } finally {
       setIsSavingRestTimer(false);
+    }
+  };
+
+  // Persist the pre-workout toggle immediately. Optimistically applies the new value and reverts on failure.
+  const handlePreWorkoutEnabledChange = async (next: boolean) => {
+    const previous = preWorkoutEnabled;
+    setPreWorkoutEnabled(next);
+
+    setIsSavingPreWorkout(true);
+    try {
+      const response = await fetch("/modules/golem/api/user-profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pre_workout_enabled: next }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update pre-workout setting");
+      }
+
+      const updatedProfile = await response.json();
+      setProfile(updatedProfile);
+      toast.success(next ? "Pre-workout enabled" : "Pre-workout disabled");
+    } catch (error) {
+      setPreWorkoutEnabled(previous); // Revert on failure
+      toast.error("Failed to update pre-workout setting");
+      console.error("Error saving pre-workout setting:", error);
+    } finally {
+      setIsSavingPreWorkout(false);
     }
   };
 
@@ -346,6 +378,35 @@ export default function ProfilePage() {
                 checked={restTimerEnabled}
                 disabled={isSavingRestTimer}
                 onChange={handleRestTimerEnabledChange}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* PRE-WORKOUT CARD */}
+        <div className="card mt-6">
+
+          {/* CARD HEADER */}
+          <div className="card-header">
+
+            {/* TITLE */}
+            <div>
+              <h2 className="text-card-title">Pre-Workout</h2>
+              <p className="text-secondary text-sm">Notes, warmups and muscle fatigue before each session</p>
+            </div>
+          </div>
+
+          {/* CARD CONTENT */}
+          <div className="card-content">
+
+            {/* TOGGLE GROUP */}
+            <div className="settings-group">
+              <SettingsToggleRow
+                label="Show pre-workout"
+                hint="Opens on Start Workout"
+                checked={preWorkoutEnabled}
+                disabled={isSavingPreWorkout}
+                onChange={handlePreWorkoutEnabledChange}
               />
             </div>
           </div>

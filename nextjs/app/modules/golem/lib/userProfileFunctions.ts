@@ -10,7 +10,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       .input('userId', userId)
       .query(`
         SELECT id, user_id, profile_prompt, distance_unit_short, distance_unit_long,
-               rest_timer_enabled, created_at, modified_at
+               rest_timer_enabled, pre_workout_enabled, created_at, modified_at
         FROM user_profiles
         WHERE user_id = @userId
       `);
@@ -32,7 +32,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
 
 // Partial update — only the fields present in `updates` are written; omitted fields are left unchanged.
 // `distanceUnitShort`/`distanceUnitLong` are the user's preferred display units for the two distance bands.
-// `restTimerEnabled` gates the between-sets rest countdown.
+// `restTimerEnabled` gates the between-sets rest countdown; `preWorkoutEnabled` gates the pre-workout wizard.
 export async function updateUserProfile(
   userId: string,
   updates: {
@@ -40,6 +40,7 @@ export async function updateUserProfile(
     distanceUnitShort?: string | null;
     distanceUnitLong?: string | null;
     restTimerEnabled?: boolean;
+    preWorkoutEnabled?: boolean;
   },
 ): Promise<UserProfile> {
   let pool;
@@ -73,6 +74,10 @@ export async function updateUserProfile(
       request.input('restTimerEnabled', updates.restTimerEnabled);
       setClauses.push('rest_timer_enabled = @restTimerEnabled');
     }
+    if (updates.preWorkoutEnabled !== undefined) {
+      request.input('preWorkoutEnabled', updates.preWorkoutEnabled);
+      setClauses.push('pre_workout_enabled = @preWorkoutEnabled');
+    }
     setClauses.push('modified_at = GETDATE()');
 
     const result = await request.query(`
@@ -80,7 +85,7 @@ export async function updateUserProfile(
       SET ${setClauses.join(', ')}
       OUTPUT INSERTED.id, INSERTED.user_id, INSERTED.profile_prompt,
              INSERTED.distance_unit_short, INSERTED.distance_unit_long,
-             INSERTED.rest_timer_enabled, INSERTED.created_at, INSERTED.modified_at
+             INSERTED.rest_timer_enabled, INSERTED.pre_workout_enabled, INSERTED.created_at, INSERTED.modified_at
       WHERE user_id = @userId;
     `);
 

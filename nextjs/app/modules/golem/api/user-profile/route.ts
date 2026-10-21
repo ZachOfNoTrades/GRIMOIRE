@@ -34,7 +34,17 @@ export async function PUT(request: NextRequest) {
     }
     const userId = session.user.id;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 });
+    }
+
+    // Refuse a non-boolean toggle to avoid saving nonsense such as "abc" as false
+    for (const key of ['rest_timer_enabled', 'pre_workout_enabled']) {
+      if (key in body && typeof body[key] !== 'boolean') {
+        return NextResponse.json({ error: `${key} must be true or false` }, { status: 400 });
+      }
+    }
 
     // Partial update: only forward the fields the client actually sent so a units-only save doesn't
     // clobber the profile prompt (and vice-versa).
@@ -43,12 +53,13 @@ export async function PUT(request: NextRequest) {
       distanceUnitShort?: string | null;
       distanceUnitLong?: string | null;
       restTimerEnabled?: boolean;
+      preWorkoutEnabled?: boolean;
     } = {};
     if ('profile_prompt' in body) updates.profilePrompt = body.profile_prompt?.trim() || null;
     if ('distance_unit_short' in body) updates.distanceUnitShort = body.distance_unit_short || null;
     if ('distance_unit_long' in body) updates.distanceUnitLong = body.distance_unit_long || null;
-    // Coerce to a real boolean rather than `|| null` — `false` is a meaningful value here, not "absent".
-    if ('rest_timer_enabled' in body) updates.restTimerEnabled = body.rest_timer_enabled === true;
+    if ('rest_timer_enabled' in body) updates.restTimerEnabled = body.rest_timer_enabled;
+    if ('pre_workout_enabled' in body) updates.preWorkoutEnabled = body.pre_workout_enabled;
 
     const profile = await updateUserProfile(userId!, updates);
     return NextResponse.json(profile);

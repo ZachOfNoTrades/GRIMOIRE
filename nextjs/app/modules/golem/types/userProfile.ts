@@ -4,6 +4,7 @@ export interface UserProfile {
   distance_unit_short: string | null; // preferred short-distance unit: 'meters' | 'yards' | 'feet' (null = meters)
   distance_unit_long: string | null; // preferred long-distance unit: 'km' | 'mi' (null = km)
   rest_timer_enabled: boolean; // show the between-sets rest countdown during a session
+  pre_workout_enabled: boolean; // open the pre-workout wizard on Start Workout and show its controls
   created_at: Date;
   modified_at: Date;
 }
