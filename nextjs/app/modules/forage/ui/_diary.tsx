@@ -5855,9 +5855,11 @@ export function CreateFoodWizard({
   // the source-link import), which all hand back the same LabelOcrDraft shape.
   // A numeric value (including 0) came from the source; `null` means the field
   // wasn't present, so the user's existing input is left alone.
-  function applyFoodDraft(draft: LabelOcrDraft) {
-    if (draft.name) setName(draft.name);
-    if (draft.brand) setBrand(draft.brand);
+  function applyFoodDraft(draft: LabelOcrDraft, replaceNameAndBrand = false) {
+    // Replace name and brand from a front scan, and otherwise fill them only when blank
+    // NOTE: A nutrition label rarely shows the product name, so a label read is often wrong ("CHEESE", "Natu")
+    if (draft.name) setName((prev) => (replaceNameAndBrand || !prev.trim() ? draft.name! : prev));
+    if (draft.brand) setBrand((prev) => (replaceNameAndBrand || !prev.trim() ? draft.brand! : prev));
     // UPC read off the barcode (front or back of the package) — zbar-decoded
     // server-side with the vision LLM's printed-digit read as a fallback.
     if (draft.barcode_upc) setBarcodeUpc(draft.barcode_upc);
@@ -6037,7 +6039,7 @@ export function CreateFoodWizard({
         return;
       }
       const draft: LabelOcrDraft = await res.json();
-      applyFoodDraft(draft);
+      applyFoodDraft(draft, kind === "front");
       // The green check on each tile shows exactly what landed, so the toast just
       // confirms the scan worked — or says so plainly when nothing usable was read.
       const captured = !!draft.name || !!draft.brand || !!draft.barcode_upc || draft.serving_size_stated;
@@ -7119,9 +7121,11 @@ export function FoodForm({
   // field wasn't there at all, so leave whatever the user already typed (or the
   // empty/dash-placeholder state) untouched. The server has already dropped any
   // nutrition that didn't come from a real facts panel.
-  function applyFoodDraft(draft: LabelOcrDraft) {
-    if (draft.name) setName(draft.name);
-    if (draft.brand) setBrand(draft.brand);
+  function applyFoodDraft(draft: LabelOcrDraft, replaceNameAndBrand = false) {
+    // Replace name and brand from a front scan, and otherwise fill them only when blank
+    // NOTE: A nutrition label rarely shows the product name, so a label read is often wrong ("CHEESE", "Natu")
+    if (draft.name) setName((prev) => (replaceNameAndBrand || !prev.trim() ? draft.name! : prev));
+    if (draft.brand) setBrand((prev) => (replaceNameAndBrand || !prev.trim() ? draft.brand! : prev));
     // Icon the model picked for this product (e.g. "cup-soda").
     if (draft.icon) setIcon(draft.icon);
     // UPC read off the barcode (front or back of the package) — zbar-decoded
@@ -7200,7 +7204,7 @@ export function FoodForm({
         return;
       }
       const draft: LabelOcrDraft = await res.json();
-      applyFoodDraft(draft);
+      applyFoodDraft(draft, kind === "front");
       const captured = !!draft.name || !!draft.brand || !!draft.barcode_upc || draft.serving_size_stated;
       if (captured) toast.success("Scanned", { id: toastId });
       else toast.error("Nothing found — try a clearer photo", { id: toastId });
