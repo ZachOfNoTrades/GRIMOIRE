@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, Pencil, Save, Ban, ChevronLeft, ChevronRight, X, LayoutGrid } from "lucide-react";
+import { ArrowLeftRight, Pencil, Trash2, Ban, ChevronLeft, ChevronRight, ChevronDown, X, LayoutGrid } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
@@ -584,35 +584,30 @@ export default function EditSegmentModal({
               <Ban className="w-4 h-4" />
             </Button>
 
-            {/* CLOSE BUTTON */}
+            {/* REMOVE EXERCISE BUTTON */}
+            <Button
+              onClick={onRemove}
+              disabled={isDeleting}
+              className="btn-link btn-link-red"
+              title="Remove exercise from session"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+
+            {/* CLOSE BUTTON — downward chevron on mobile (matches swipe down), X on desktop */}
             <Button
               onClick={handleClose}
               disabled={isDeleting}
               className="btn-link"
               title="Close"
             >
-              <X className="w-5 h-5" />
+              <ChevronDown className="w-5 h-5 sm:hidden" />
+              <X className="w-5 h-5 max-sm:hidden" />
             </Button>
           </div>
         }
         disableClose={isDeleting}
-        footer={
-          <>
-            <Button
-              onClick={onRemove}
-              disabled={isDeleting}
-              className="btn-red mr-auto"
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </Button>
-
-            {/* SAVE BUTTON */}
-            <Button onClick={handleClose} className="btn-blue">
-              <Save className="w-4 h-4" />
-              Save
-            </Button>
-          </>
-        }
+        swipeDownToClose
       >
 
         {/* TAB NAVIGATION */}

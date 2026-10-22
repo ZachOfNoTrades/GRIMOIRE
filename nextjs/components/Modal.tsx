@@ -1,7 +1,7 @@
 "use client"
 
 import { X } from 'lucide-react';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { useAppHeight } from '@/lib/useAppHeight';
@@ -34,6 +34,8 @@ interface ModalProps {
     // On mobile, the title takes its own full-width top row and modalActions wrap onto a row
     // beneath it, so a crowded controls group can never squeeze the title out.
     stackedHeader?: boolean;
+    // On mobile, dragging the header down closes the modal. Pair with fullScreenMobileOnly.
+    swipeDownToClose?: boolean;
     zIndex?: number;
     modalActions?: ReactNode;
 }
@@ -53,6 +55,7 @@ export default function Modal({
     wide = false,
     tall = false,
     stackedHeader = false,
+    swipeDownToClose = false,
     zIndex,
     modalActions,
 }: ModalProps) {
@@ -81,7 +84,52 @@ export default function Modal({
     // keyboard (the modal CSS sizes the backdrop + card from this var).
     useAppHeight();
 
+    // SWIPE DOWN TO CLOSE
+    const [dragOffset, setDragOffset] = useState(0); // px the card is pulled down
+    const [isDragging, setIsDragging] = useState(false);
+    const [isDismissing, setIsDismissing] = useState(false);
+    const dragStartYRef = useRef<number | null>(null);
+    const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const SWIPE_CLOSE_DISTANCE = 100; // px
+
+    // Reset drag state whenever the modal opens or closes; clear any pending dismiss timer on unmount
+    useEffect(() => {
+        setDragOffset(0);
+        setIsDragging(false);
+        setIsDismissing(false);
+        dragStartYRef.current = null;
+    }, [isOpen]);
+    useEffect(() => () => { if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current); }, []);
+
+    const handleHeaderTouchStart = (event: React.TouchEvent) => {
+        if (!swipeDownToClose || disableClose || isDismissing || window.innerWidth >= 640) return;
+        dragStartYRef.current = event.touches[0].clientY;
+        setIsDragging(true);
+    };
+
+    const handleHeaderTouchMove = (event: React.TouchEvent) => {
+        if (dragStartYRef.current === null) return;
+        setDragOffset(Math.max(0, event.touches[0].clientY - dragStartYRef.current));
+    };
+
+    const handleHeaderTouchEnd = () => {
+        if (dragStartYRef.current === null) return;
+        dragStartYRef.current = null;
+        setIsDragging(false);
+        if (dragOffset < SWIPE_CLOSE_DISTANCE) {
+            setDragOffset(0); // snap back
+            return;
+        }
+        setIsDismissing(true); // slide off screen, then close
+        setDragOffset(window.innerHeight);
+        dismissTimerRef.current = setTimeout(onClose, 200);
+    };
+
     if (!isOpen || !mounted) return null;
+
+    const dragStyle = dragOffset > 0 || isDismissing
+        ? { transform: `translateY(${dragOffset}px)`, transition: isDragging ? 'none' : 'transform 200ms ease-out' }
+        : undefined;
 
     return createPortal(
 
@@ -95,11 +143,19 @@ export default function Modal({
             {/* MODAL CARD */}
             <div
                 className={`modal-card${fullHeight ? ' modal-card-full' : ''}${sheet ? ' modal-card-sheet' : ''}${wide ? ' modal-card-wide' : ''}${tall ? ' modal-card-tall' : ''}${fullScreen ? ' modal-card-screen' : ''}${fullScreenMobileOnly ? ' modal-card-screen-mobile' : ''}`}
+                style={dragStyle}
                 onClick={sheet ? (e) => e.stopPropagation() : undefined}
             >
 
                 {/* MODAL HEADER */}
-                <div className={`modal-header${stackedHeader ? ' modal-header-stacked' : ''}`}>
+                <div
+                    className={`modal-header${stackedHeader ? ' modal-header-stacked' : ''}`}
+                    onTouchStart={handleHeaderTouchStart}
+                    onTouchMove={handleHeaderTouchMove}
+                    onTouchEnd={handleHeaderTouchEnd}
+                    onTouchCancel={handleHeaderTouchEnd}
+                    style={swipeDownToClose ? { touchAction: 'none' } : undefined}
+                >
                     <h2 className='text-modal-title'>{title}</h2>
 
                     {/* MODAL ACTIONS */}

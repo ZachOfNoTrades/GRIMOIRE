@@ -111,9 +111,9 @@ export default function SetTab({
 
   // Drop the draft so the inputs fall back to the decomposed total — i.e. resolve 90 sec to 1 min 30 sec.
   // Enter-advance focuses the next field, which re-seeds a draft from the freshly normalized value.
-  const handleTimeBlur = (setId: string) => {
+  const handleTimeBlur = () => {
     setTimeDraft(null);
-    handleSetFieldBlur(setId);
+    handleSetFieldBlur();
   };
 
   const handleNotesChange = (notes: string) => {
@@ -164,11 +164,8 @@ export default function SetTab({
     setEditedSegment({ ...editedSegment, sets: updatedSets });
   };
 
-  const handleSetFieldBlur = (setId: string) => {
-    const set = editedSegment.sets.find(s => s.id === setId);
-    if (set?.is_completed) {
-      onAutoSave(editedSegment);
-    }
+  const handleSetFieldBlur = () => {
+    onAutoSave(editedSegment);
   };
 
   const handleAddSet = (isWarmup: boolean) => {
@@ -570,7 +567,7 @@ export default function SetTab({
               className="input-field input-field-compact text-center"
               placeholder={weightPlaceholder}
               onFocus={(e) => e.target.select()}
-              onBlur={() => handleSetFieldBlur(set.id)}
+              onBlur={handleSetFieldBlur}
               onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
               step="0.5"
               min="0"
@@ -590,7 +587,7 @@ export default function SetTab({
               className="input-field input-field-compact text-center"
               placeholder={targetSet?.reps != null ? String(targetSet.reps) : "-"}
               onFocus={(e) => e.target.select()}
-              onBlur={() => handleSetFieldBlur(set.id)}
+              onBlur={handleSetFieldBlur}
               onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Reps)}
               min="0"
             />
@@ -609,7 +606,7 @@ export default function SetTab({
               className="input-field input-field-compact text-center"
               placeholder={targetSet?.time_seconds != null ? String(targetSet.time_seconds) : "-"}
               onFocus={(e) => e.target.select()}
-              onBlur={() => handleSetFieldBlur(set.id)}
+              onBlur={handleSetFieldBlur}
               onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.TimeSeconds)}
               min="0"
             />
@@ -632,7 +629,7 @@ export default function SetTab({
                 className="input-field input-field-compact text-center"
                 placeholder={targetTimeComponents.hours > 0 ? String(targetTimeComponents.hours) : "-"}
                 onFocus={(e) => { startTimeDraft(set.id); e.target.select(); }}
-                onBlur={() => handleTimeBlur(set.id)}
+                onBlur={handleTimeBlur}
                 onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.TimeHours)}
                 min="0"
               />
@@ -649,7 +646,7 @@ export default function SetTab({
                 className="input-field input-field-compact text-center"
                 placeholder={targetTimeComponents.minutes > 0 ? String(targetTimeComponents.minutes) : "-"}
                 onFocus={(e) => { startTimeDraft(set.id); e.target.select(); }}
-                onBlur={() => handleTimeBlur(set.id)}
+                onBlur={handleTimeBlur}
                 onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.TimeMinutes)}
                 min="0"
               />
@@ -666,7 +663,7 @@ export default function SetTab({
                 className="input-field input-field-compact text-center"
                 placeholder={targetTimeComponents.seconds > 0 ? String(targetTimeComponents.seconds) : "-"}
                 onFocus={(e) => { startTimeDraft(set.id); e.target.select(); }}
-                onBlur={() => handleTimeBlur(set.id)}
+                onBlur={handleTimeBlur}
                 onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.TimeSeconds)}
                 min="0"
               />
@@ -687,7 +684,7 @@ export default function SetTab({
               className="input-field input-field-compact text-center"
               placeholder={distancePlaceholder}
               onFocus={(e) => e.target.select()}
-              onBlur={() => handleSetFieldBlur(set.id)}
+              onBlur={handleSetFieldBlur}
               onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Distance)}
               step="0.01"
               min="0"
@@ -706,7 +703,7 @@ export default function SetTab({
             className="input-field input-field-compact text-center"
             placeholder={rpePlaceholder}
             onFocus={(e) => e.target.select()}
-            onBlur={() => handleSetFieldBlur(set.id)}
+            onBlur={handleSetFieldBlur}
             onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Rpe)}
             step="0.5"
             min="5"
