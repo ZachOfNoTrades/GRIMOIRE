@@ -182,7 +182,7 @@ export function registerForageTools(server: McpServer, ctx: McpContext) {
     'forage_update_food',
     {
       description:
-        'Update a food the user owns. This is a full replace of the editable fields, servings, and nutrients — pass the complete desired state, not a partial patch. Servings are reconciled by unit name so existing serving rows (and the log entries pointing at them) keep their ids.',
+        'Update a food the user owns, or a shared food. This is a full replace of the editable fields, servings, and nutrients — pass the complete desired state, not a partial patch. Servings are reconciled by unit name so existing serving rows (and the log entries pointing at them) keep their ids.',
       inputSchema: {
         foodId: z.string(),
         name: z.string().min(1).max(255),

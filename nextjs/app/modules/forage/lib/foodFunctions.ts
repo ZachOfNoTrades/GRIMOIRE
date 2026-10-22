@@ -754,7 +754,7 @@ export async function updateFood(userId: string, foodId: string, input: CreateFo
   let pool;
   try {
     pool = await getFoodConnection();
-    await pool
+    const update = await pool
       .request()
       .input('foodId', sql.UniqueIdentifier, foodId)
       .input('userId', sql.UniqueIdentifier, userId)
@@ -769,8 +769,12 @@ export async function updateFood(userId: string, foodId: string, input: CreateFo
         `UPDATE foods SET name=@name, brand=@brand,
            icon=@icon, barcode_upc=@barcode, source_url=@sourceUrl,
            ts_updated=GETDATE()
-         WHERE id=@foodId AND user_id=@userId`
+         WHERE id=@foodId AND (user_id=@userId OR user_id IS NULL)`
       );
+    // Refuse another user's private food before its servings and nutrients are touched
+    if (update.rowsAffected[0] === 0) {
+      throw new Error(`No food found for id: '${foodId}'`);
+    }
     // Reconcile servings by unit name so existing rows keep their UUIDs.
     // Wholesale DELETE+INSERT would orphan every food_entries.serving_id pointing here.
     const servings = normalizeServings(input.servings);

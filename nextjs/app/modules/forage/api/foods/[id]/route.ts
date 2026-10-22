@@ -62,7 +62,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         : [],
     });
     return NextResponse.json(food);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.startsWith('No food found')) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
     console.error('Error in PUT /forage/api/foods/[id]:', error);
     return NextResponse.json({ error: 'Failed to update food' }, { status: 500 });
   }
