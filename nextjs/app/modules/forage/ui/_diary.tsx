@@ -3474,11 +3474,12 @@ export function AddEntryModal({
     if (picker === "scan") setIsLiveScannerOpen(true);
   }, [picker]);
 
-  // Scrolling the results list drops the keyboard, so a raised keyboard doesn't
-  // eat half the list while the user is scanning it. Scoped to `.modal-body` (the
-  // modal's scroll surface) — the search field itself is anchored above that, and
-  // the diary's inline editors scroll `.page-scroll`, so neither is affected.
-  useBlurActiveInputOnScroll({ withinSelector: ".modal-body" });
+  // Drop the keyboard when the Search or Recipes results list scrolls, to avoid a raised keyboard covering half the list
+  // NOTE: Quick add, Create food and the food details sheet are forms, where scrolling to the next field must keep focus
+  useBlurActiveInputOnScroll({
+    withinSelector: ".modal-body",
+    enabled: (picker === "search" || picker === "recipes") && previewFood === null,
+  });
 
   // Pop the keyboard the instant the food logger lands on the search tab (create
   // flow only — editing an entry shouldn't fling the keyboard up). The shared
