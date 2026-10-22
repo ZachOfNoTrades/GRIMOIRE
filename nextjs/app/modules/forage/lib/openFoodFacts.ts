@@ -603,8 +603,17 @@ const SERVING_UNIT_WORDS: Array<[RegExp, string]> = [
   [/cans?|bottles?|pieces?|portions?|items?|bars?|packets?|pouches|pouch|containers?|sticks?|cookies?|crackers?|eggs?/i, 'piece'],
 ];
 
+// Read a serving amount written as a decimal ("2.5", "2,5"), a fraction ("1/4") or a mixed number ("1 1/2")
+function parseServingAmount(text: string): number {
+  const fraction = /^(?:(\d+)\s+)?(\d+)\s*\/\s*(\d+)$/.exec(text);
+  if (!fraction) return Number(text.replace(',', '.'));
+  const whole = fraction[1] ? Number(fraction[1]) : 0;
+  return whole + Number(fraction[2]) / Number(fraction[3]);
+}
+
 // Parse an Open Food Facts serving string into serving rows: "2 Tbsp (32 g)" →
-// [{tbsp,2},{g,32}], "237.0g" → [{g,237}], "1 can (226.8 g)" → [{piece,1},{g,226.8}].
+// [{tbsp,2},{g,32}], "237.0g" → [{g,237}], "1 can (226.8 g)" → [{piece,1},{g,226.8}],
+// "1 serving (125 g)" → [{g,125}], "1/4 cup (28 g)" → [{cup,0.25},{g,28}].
 // Only units the app actually knows survive; unparseable text yields [].
 export function parseServingSize(text: string | null, knownUnits: Set<string>): LabelOcrDraft['servings'] {
   if (!text) return [];
@@ -612,13 +621,13 @@ export function parseServingSize(text: string | null, knownUnits: Set<string>): 
   const seen = new Set<string>();
 
   // Each "<number><unit word>" pair in the string, in order.
-  for (const match of text.matchAll(/(\d+(?:[.,]\d+)?)\s*([a-zA-Z.\s]{1,20})/g)) {
-    const amount = Number(match[1].replace(',', '.'));
+  for (const match of text.matchAll(/((?:\d+\s+)?\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?)\s*([a-zA-Z.\s]{1,20})/g)) {
+    const amount = parseServingAmount(match[1]);
     if (!Number.isFinite(amount) || amount <= 0) continue;
     const word = match[2].trim();
     if (!word) continue;
 
-    const hit = SERVING_UNIT_WORDS.find(([re]) => re.test(word));
+    const hit = SERVING_UNIT_WORDS.find(([re]) => re.exec(word)?.index === 0); // Match from the word start, to avoid reading the g in "serving" as grams
     if (!hit) continue;
     const unit = hit[1];
     if (seen.has(unit) || !knownUnits.has(unit)) continue;
