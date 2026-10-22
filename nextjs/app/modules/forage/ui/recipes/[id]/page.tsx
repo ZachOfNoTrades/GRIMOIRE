@@ -13,7 +13,7 @@ import { Food, FoodNutrient } from "../../../types/food";
 import { resolveFoodIcon, FOOD_ICONS } from "../../../lib/foodIcons";
 import { FoodAvatar } from "../../../components/FoodAvatar";
 import { RECIPE_NAME_MAX, RECIPE_SERVINGS_MAX } from "../../../lib/recipeConstants";
-import { parseAmount } from "../../../lib/format";
+import { fmtServingAmount, parseAmount } from "../../../lib/format";
 import { AmountField } from "../../../components/AmountField";
 import { expandVirtualServings, resolveServingForSave } from "../../../lib/virtualUnits";
 import { ServingUnitOptions } from "../../../components/ServingUnitOptions";
@@ -899,7 +899,7 @@ export default function ForageRecipeDetailPage() {
                           {/* QTY / UNIT */}
                           <span className="fg-ing-qty-view">
                             {navigable
-                              ? `${Math.round((row.quantity ?? 0) * 1000) / 1000} ${row.serving_unit ?? ""}`
+                              ? `${fmtServingAmount(row.quantity ?? 0, row.serving_unit ?? "")} ${row.serving_unit ?? ""}`
                               : row.placeholder_quantity_text}
                           </span>
 
@@ -1002,7 +1002,7 @@ export default function ForageRecipeDetailPage() {
                               the way it reads on the card ("1/8", "1 1/2"); see AmountField */}
                           <AmountField
                             className="input-field fg-ing-amt"
-                            value={String(row.__quantityText ?? row.quantity)}
+                            value={row.__quantityText ?? fmtServingAmount(row.quantity, row.serving_unit ?? "")}
                             onFocus={selectOnFocus}
                             onKeyDown={blurOnEnter}
                             aria-label={`Amount of ${row.food_name ?? "ingredient"}`}
