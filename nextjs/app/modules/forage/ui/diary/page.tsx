@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Toaster } from "@/components/Toaster";
 import { Apple, CalendarClock, ChevronLeft, ChevronRight, Copy, ListChecks, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,18 +29,18 @@ export default function ForageDiaryPage() {
 }
 
 function ForageDiaryInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   // INPUT
-  // Honor a ?date=YYYY-MM-DD deep-link (e.g. navigated here right after logging
-  // food from another screen via ForageBottomBar) by opening on that day;
-  // otherwise default to today. Consumed once via the state initializer and
-  // stripped from the URL below so a later refresh doesn't re-pin it.
-  const initialDateParam = searchParams?.get("date");
-  const [date, setDate] = useState<string>(
-    initialDateParam && /^\d{4}-\d{2}-\d{2}$/.test(initialDateParam) ? initialDateParam : todayIso()
-  );
+  // Read the shown day from ?date=YYYY-MM-DD, falling back to today when it is missing or malformed
+  const dateParam = searchParams?.get("date");
+  const isDateParamValid = dateParam != null && /^\d{4}-\d{2}-\d{2}$/.test(dateParam);
+  const date = isDateParamValid ? dateParam : todayIso();
+
+  // Replace ?date= in the URL to show a day, to avoid a history entry and server request per step
+  function setDate(next: string) {
+    window.history.replaceState(null, "", `/modules/forage/ui/diary?date=${next}`);
+  }
 
   // STATE
   const [openAddSignal, setOpenAddSignal] = useState(0);
@@ -67,18 +67,14 @@ function ForageDiaryInner() {
 
   const dateLabel = dateRelativeLabel(date);
 
-  // Open the add modal when ?add=1 is in the URL (deep-link from elsewhere), and
-  // strip the consumed ?add / ?date params so they don't linger or re-pin on a
-  // later refresh (the ?date day was already captured in the state initializer).
+  // Open the add modal on ?add=1, then set the URL to ?date=<shown day> when ?add=1 is set or ?date= is missing or malformed, to avoid reopening the modal on refresh
+  // NOTE: Runs on each query change, so a Diary link without ?date= sets today even while on the diary
   useEffect(() => {
     const wantsAdd = searchParams?.get("add") === "1";
-    const hasDate = searchParams?.get("date") != null;
     if (wantsAdd) triggerAdd();
-    if (wantsAdd || hasDate) {
-      router.replace("/modules/forage/ui/diary");
-    }
+    if (wantsAdd || !isDateParamValid) setDate(date);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   return (
     /* PAGE — flex column with bottom bar in flow (not position:fixed) so the
