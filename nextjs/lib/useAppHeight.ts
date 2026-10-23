@@ -5,7 +5,7 @@ import { useEffect } from "react";
 /* ─── --app-height: real visible viewport height for locked app shells ───
 
    Full-height surfaces that lock the window (`body { overflow:hidden }`) — the
-   forage dashboard shell, the food-log `.page-with-bottom-bar`, and the fixed
+   forage dashboard shell, the diary `.page-with-bottom-bar`, and the fixed
    modal overlay — must fill the visible viewport exactly, with no dead band and
    no clipped bottom bar.
 

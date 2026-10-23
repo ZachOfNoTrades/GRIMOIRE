@@ -23,13 +23,13 @@ import "./ForageTabBar.css";
    the center (+) FAB drives — the Shortcuts sheet and the modals it opens
    (add-entry, weigh-in). Extracted from the dashboard so the (+) behaves
    IDENTICALLY everywhere (it used to open the Shortcuts sheet on the dashboard
-   but deep-link to the food log elsewhere).
+   but deep-link to the diary elsewhere).
 
    Pages pass `date` (where entries are logged) and refresh callbacks so the host
    can update after a log/weigh-in:
      - onLogged   — a food entry was saved
      - onWeighIn  — a weigh-in was saved or deleted
-   `showSearch` renders the search pill above the bar (dashboard + food log). */
+   `showSearch` renders the search pill above the bar (dashboard + diary). */
 
 export default function ForageBottomBar({
   active,
@@ -91,7 +91,7 @@ export default function ForageBottomBar({
   // RESUME AN INTERRUPTED CREATE-FOOD — tapping a scan tile hands the phone to
   // the system camera, and Android may reclaim the backgrounded browser while
   // it's up there; Firefox brings the tab back by reloading it, which used to
-  // land the user on a bare food log with the whole half-written food gone.
+  // land the user on a bare diary with the whole half-written food gone.
   // A draft parked in localStorage survives that, so reopen the logger on it.
   useEffect(() => {
     if (!isResumableDraft(readCreateFoodDraft("logger"))) return;
@@ -148,7 +148,7 @@ export default function ForageBottomBar({
     if (!showSearch) return;
 
     // The scroll region is a sibling of this bar inside the forage shell. Its
-    // class differs per shell (`.page-scroll` on the food log / nutrition; an
+    // class differs per shell (`.page-scroll` on the diary / nutrition; an
     // inline overflow:auto div on the dashboard), so find it generically: the
     // shell's `.page-scroll` if present, else its first vertically-scrollable
     // descendant.
@@ -307,15 +307,15 @@ export default function ForageBottomBar({
             clearCreateFoodDraft();
             setResumingCreateDraft(false);
             setAddPicker(null);
-            // After logging food from any screen, land the user on the food log
+            // After logging food from any screen, land the user on the diary
             // timeline (on the day the entry was logged) so they see what they
             // just added. When already on the timeline, just refresh in place
             // (handing off the new rows for an optimistic paint); navigating to
             // the same route would needlessly reset its state.
-            if (active === "foodlog") {
+            if (active === "diary") {
               onLogged?.(created);
             } else {
-              router.push(`/modules/forage/ui/foods?date=${date ?? todayIso()}`);
+              router.push(`/modules/forage/ui/diary?date=${date ?? todayIso()}`);
             }
           }}
         />

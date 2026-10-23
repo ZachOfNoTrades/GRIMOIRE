@@ -1,25 +1,25 @@
 /* ============================================================
-   Forage / Food log — page-scoped styles (imported from page.tsx).
+   Forage / Diary — page-scoped styles (imported from page.tsx).
 
-   Loaded only by the food-log route so the rest of the app doesn't
+   Loaded only by the diary route so the rest of the app doesn't
    parse these rules on every nav. Mirrors the home.css `.forage-shell`
    pattern: on desktop the whole page (scroll content + the in-flow
    bottom bar) is capped and centered into a framed lane instead of
    stretching to the global `.page-container` width (80rem), so the
-   Food Log tab matches the Dashboard tab's framed look. Mobile keeps
+   Diary tab matches the Dashboard tab's framed look. Mobile keeps
    the full-width behaviour untouched.
    ============================================================ */
 
 @media (min-width: 768px) {
   /* DESKTOP SURROUND — vignette behind the centered lane, matching
-     `.forage-home`. Scoped to `.forage-foodlog` so only the food-log
+     `.forage-home`. Scoped to `.forage-diary` so only the diary
      route's body picks it up (other `.page-with-bottom-bar` pages are
      unaffected). */
-  body:has(.forage-foodlog) {
+  body:has(.forage-diary) {
     background: var(--gradient-background);
   }
 
-  /* FOOD-LOG SHELL — capped + centered framed lane (64rem, matching the
+  /* DIARY SHELL — capped + centered framed lane (64rem, matching the
      dashboard's `.forage-shell`). `margin-inline: auto` centers it on the
      body's column cross-axis; the solid background keeps the interior flat
      against the gradient surround. The inner `.page-container` (max-width
@@ -32,7 +32,7 @@
      to its content's intrinsic width instead of the 64rem cap — which
      varied with whatever was mounted (loading skeleton vs. hydrated
      timeline), producing a visible narrow-then-wide resize on load. */
-  .forage-foodlog {
+  .forage-diary {
     width: 100%;
     max-width: 64rem;
     margin-inline: auto;

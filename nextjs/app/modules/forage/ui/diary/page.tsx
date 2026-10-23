@@ -15,20 +15,20 @@ import {
 import ForageBottomBar from "../ForageBottomBar";
 import ForageDiaryDashboard from "./DiaryDashboard";
 import { DailyTotals, FoodEntry } from "../../types/entry";
-import "./foodlog.css";
+import "./diary.css";
 
-export default function ForageFoodLogPage() {
+export default function ForageDiaryPage() {
   // Suspense boundary is required by Next 15: any client component that calls
   // useSearchParams() during static prerender must be wrapped, otherwise the
   // build bails out for this route.
   return (
     <Suspense fallback={<div className="loading-container"><div className="loading-spinner" /></div>}>
-      <ForageFoodLogInner />
+      <ForageDiaryInner />
     </Suspense>
   );
 }
 
-function ForageFoodLogInner() {
+function ForageDiaryInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -75,7 +75,7 @@ function ForageFoodLogInner() {
     const hasDate = searchParams?.get("date") != null;
     if (wantsAdd) triggerAdd();
     if (wantsAdd || hasDate) {
-      router.replace("/modules/forage/ui/foods");
+      router.replace("/modules/forage/ui/diary");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]);
@@ -83,9 +83,9 @@ function ForageFoodLogInner() {
   return (
     /* PAGE — flex column with bottom bar in flow (not position:fixed) so the
        bar stops jittering on mobile when the address bar collapses/expands.
-       `forage-foodlog` caps + centers the whole page into a framed lane on
-       desktop (see foodlog.css), matching the dashboard shell. */
-    <div className="page-with-bottom-bar forage-foodlog">
+       `forage-diary` caps + centers the whole page into a framed lane on
+       desktop (see diary.css), matching the dashboard shell. */
+    <div className="page-with-bottom-bar forage-diary">
 
       {/* PAGE SCROLL — the scroll surface; sits OUTSIDE page-container's padding so the scrollbar gutter doesn't make right padding > left padding. */}
       <div className="page-scroll">
@@ -94,7 +94,7 @@ function ForageFoodLogInner() {
       <div className="page-container">
 
         {/* PAGE TITLE */}
-        <h1 className="text-page-title"><Apple className="w-6 h-6" /> Food log</h1>
+        <h1 className="text-page-title"><Apple className="w-6 h-6" /> Diary</h1>
 
         {/* MINI DASHBOARD — weekly calorie rings + current-day macro bars. The
             timeline feeds its live day totals in so the current day's ring/bars
@@ -254,7 +254,7 @@ function ForageFoodLogInner() {
       {/* BOTTOM BAR — search pill (hidden during bulk-select) + tab bar + the
           shared quick-add flow. onLogged refreshes the timeline in place. */}
       <ForageBottomBar
-        active="foodlog"
+        active="diary"
         showSearch={!bulkActions}
         date={date}
         onLogged={(created) => {

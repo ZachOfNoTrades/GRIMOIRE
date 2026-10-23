@@ -64,7 +64,7 @@ export default function ForageSettingsPage() {
 
   return (
     /* PAGE — locked shell with an inner scroll region so the bottom tab bar
-       stays pinned (matches the dashboard / food-log layout). */
+       stays pinned (matches the dashboard / diary layout). */
     <div className="page-with-bottom-bar">
 
       {/* PAGE SCROLL — the only scrollable surface. */}

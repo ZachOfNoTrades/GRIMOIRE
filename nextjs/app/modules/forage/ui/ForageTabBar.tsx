@@ -7,17 +7,17 @@ import "./ForageTabBar.css";
 
 /* ─── FORAGE TAB BAR ───
    Shared bottom navigation (MacroFactor-style) used across the forage module:
-   Dashboard · Food Log · (+) · Strategy · More. Extracted from the dashboard so
+   Dashboard · Diary · (+) · Strategy · More. Extracted from the dashboard so
    every full-height forage screen renders the same bar. Self-contained styling
    in ForageTabBar.css — it does NOT depend on the `.forage-home` shell, so the
    FAB's radius rescue etc. work on any page. Navigation is handled internally;
-   the FAB "+" calls `onAdd` (defaults to deep-linking the food-log add modal). */
+   the FAB "+" calls `onAdd` (defaults to deep-linking the diary add modal). */
 
-export type ForageTab = "dashboard" | "foodlog" | "strategy" | "more";
+export type ForageTab = "dashboard" | "diary" | "strategy" | "more";
 
 const ROUTES: Record<ForageTab, string> = {
   dashboard: "/modules/forage/ui/home",
-  foodlog: "/modules/forage/ui/foods",
+  diary: "/modules/forage/ui/diary",
   strategy: "/modules/forage/ui/strategy",
   more: "/modules/forage/ui/settings",
 };
@@ -36,9 +36,9 @@ export default function ForageTabBar({
 }) {
   const router = useRouter();
 
-  // The FAB defaults to the food-log add modal via its ?add=1 deep link; pages
-  // with their own quick-add (dashboard shortcuts sheet, food-log add) override.
-  const handleAdd = onAdd ?? (() => router.push("/modules/forage/ui/foods?add=1"));
+  // The FAB defaults to the diary add modal via its ?add=1 deep link; pages
+  // with their own quick-add (dashboard shortcuts sheet, diary add) override.
+  const handleAdd = onAdd ?? (() => router.push("/modules/forage/ui/diary?add=1"));
 
   return (
     /* TAB BAR — paddingBottom (in CSS) honors safe-area so the tappable content
@@ -49,7 +49,7 @@ export default function ForageTabBar({
       <TabItem label="Dashboard" active={active === "dashboard"} icon={<DashboardIcon active={active === "dashboard"} />} href={ROUTES.dashboard} />
 
       {/* FOOD LOG */}
-      <TabItem label="Food Log" active={active === "foodlog"} icon={<Apple size={22} strokeWidth={1.8} />} href={ROUTES.foodlog} />
+      <TabItem label="Diary" active={active === "diary"} icon={<Apple size={22} strokeWidth={1.8} />} href={ROUTES.diary} />
 
       {/* FAB + */}
       <button type="button" aria-label="Quick add" className="fg-tabbar-fab" onClick={handleAdd}>

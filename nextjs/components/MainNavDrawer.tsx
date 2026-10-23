@@ -70,7 +70,7 @@ const MODULE_PAGES: Record<string, ModulePage[]> = {
   ],
   forage: [
     { label: "Home", sub: "home", icon: Home },
-    { label: "Food log", sub: "foods", icon: Apple },
+    { label: "Diary", sub: "diary", icon: Apple },
     { label: "Recipes", sub: "recipes", icon: ChefHat },
     { label: "Library", sub: "library", icon: BookOpen },
     { label: "Strategy", sub: "strategy", icon: Target },

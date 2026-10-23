@@ -108,12 +108,12 @@ const nextConfig: NextConfig = {
     middlewareClientMaxBodySize: "55mb",
   },
 
-  // Damnation's guest pages moved from /play to /damnation so each public module has its own
-  // namespace; links and QR codes from before the move still land on the right page.
+  // Redirect page URLs that no route serves to the page that does, to avoid broken saved links and QR codes
   async redirects() {
     return [
-      { source: "/play", destination: "/damnation", permanent: false },
+      { source: "/play", destination: "/damnation", permanent: false }, // Damnation guest pages
       { source: "/play/:code", destination: "/damnation/:code", permanent: false },
+      { source: "/modules/forage/ui/foods", destination: "/modules/forage/ui/diary", permanent: false }, // Forage diary, query kept
     ];
   },
 };

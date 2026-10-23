@@ -75,7 +75,7 @@ const GOAL_VERB: Record<string, string> = {
 export default function ForageStrategyPage() {
   // Suspense boundary is required by Next 15: any client component that calls
   // useSearchParams() during static prerender must be wrapped (matches
-  // ui/foods/page.tsx's ?date=/?add= deep-link pattern).
+  // ui/diary/page.tsx's ?date=/?add= deep-link pattern).
   return (
     <Suspense fallback={<div className="loading-container"><div className="loading-spinner" /></div>}>
       <ForageStrategyPageInner />
@@ -229,7 +229,7 @@ function ForageStrategyPageInner() {
 
   return (
     /* PAGE — locked shell with an inner scroll region so the bottom tab bar
-       stays pinned (matches the dashboard / food-log layout). */
+       stays pinned (matches the dashboard / diary layout). */
     <div className="page-with-bottom-bar">
 
       {/* PAGE SCROLL — the only scrollable surface. */}

@@ -37,7 +37,7 @@ const PAGE_ROUTES = new Set<string>([
   "/modules/damnation/ui/home",
   "/modules/damnation/ui/settings",
   "/modules/forage/ui/dashboard-customize",
-  "/modules/forage/ui/foods",
+  "/modules/forage/ui/diary",
   "/modules/forage/ui/home",
   "/modules/forage/ui/library",
   "/modules/forage/ui/library/new",

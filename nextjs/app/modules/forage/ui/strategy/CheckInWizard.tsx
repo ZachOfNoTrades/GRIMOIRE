@@ -250,7 +250,7 @@ export default function CheckInWizard({
 
   function goToDay(date: string) {
     onClose();
-    router.push(`/modules/forage/ui/foods?date=${date}`);
+    router.push(`/modules/forage/ui/diary?date=${date}`);
   }
 
   // AWAITS the confirm write before closing and signaling completion. The write

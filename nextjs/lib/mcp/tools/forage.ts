@@ -256,13 +256,13 @@ export function registerForageTools(server: McpServer, ctx: McpContext) {
     },
   );
 
-  // ─── Entries (the daily food log) ───────────────────────────────────────────
+  // ─── Entries (the daily diary) ──────────────────────────────────────────────
 
   server.registerTool(
     'forage_list_entries',
     {
       description:
-        "All food-log entries for one date, the rolled-up daily totals (kcal, macros, micros), the macro targets in force on that date, and the remaining budget against them. `remaining` is target minus logged: positive = still under target, negative = over. It is null when the user has no macro target set. Use this rather than inferring adherence from bodyweight; forage_get_strategy explains where the targets came from.",
+        "All diary entries for one date, the rolled-up daily totals (kcal, macros, micros), the macro targets in force on that date, and the remaining budget against them. `remaining` is target minus logged: positive = still under target, negative = over. It is null when the user has no macro target set. Use this rather than inferring adherence from bodyweight; forage_get_strategy explains where the targets came from.",
       inputSchema: { date: DATE },
     },
     async ({ date }) => {
@@ -287,7 +287,7 @@ export function registerForageTools(server: McpServer, ctx: McpContext) {
   server.registerTool(
     'forage_get_entry',
     {
-      description: 'A single food-log entry with its computed macros and micros.',
+      description: 'A single diary entry with its computed macros and micros.',
       inputSchema: { entryId: z.string() },
     },
     async ({ entryId }) => {
@@ -365,7 +365,7 @@ export function registerForageTools(server: McpServer, ctx: McpContext) {
   server.registerTool(
     'forage_delete_entry',
     {
-      description: 'Permanently delete a food-log entry.',
+      description: 'Permanently delete a diary entry.',
       inputSchema: { entryId: z.string() },
     },
     async ({ entryId }) => {
