@@ -1,8 +1,8 @@
-# DAMNATION
+# Damnation
 
-DAMNATION is a Magic: The Gathering (MTG) life tracker for a table of 2 to 6 players. A shared board shows every player's life total, commander damage, and status, and players join from their phones with a short code or QR code, without a GRIMOIRE account.
+Damnation is a Magic: The Gathering (MTG) life tracker for a table of 2 to 6 players. A shared board shows every player's life total, commander damage, and status, and players join from their phones with a short code or QR code, without a GRIMOIRE account.
 
-<img src="./images/damnation/board_game.png" alt="DAMNATION board during a four-player game, with the activity card beside the table" width="900">
+<img src="./images/damnation/board_game.png" alt="Damnation board during a four-player game, with the activity card beside the table" width="900">
 
 ## Key Features
 
@@ -17,7 +17,7 @@ DAMNATION is a Magic: The Gathering (MTG) life tracker for a table of 2 to 6 pla
 - **Guest Player Management**: A per-game switch lets players add, rename, recolor, move, and remove players from their phones.
 - **Activity Feed**: Every change is listed with its time; the entry's tooltip names who made it.
 - **Wiki Search**: Card and rules lookup in a panel; wiki links stay in the panel, Scryfall card links show the card, and other sites open in a browser tab.
-- **Game History**: One game runs at a time. A finished game keeps its final totals and activity and is listed under **Game history**, reached from the DAMNATION home page. **Reset game** starts the same table over at the starting life.
+- **Game History**: One game runs at a time. A finished game keeps its final totals and activity and is listed under **Game history**, reached from the Damnation home page. **Reset game** starts the same table over at the starting life.
 
 <img src="./images/damnation/live_updates.gif" alt="Taps on a phone reach the board, and taps on the board reach the phone" width="900">
 
@@ -33,7 +33,7 @@ DAMNATION_WIKI_EMBED=true
 | Key                            | Type    | Default           | Description                                                                                  |
 | ------------------------------ | ------- | ----------------- | -------------------------------------------------------------------------------------------- |
 | DAMNATION_WIKI_SEARCH_TEMPLATE | string  | mtg.wiki search † | Search address for the Wiki panel, with `{query}` where the search text goes.                |
-| DAMNATION_WIKI_EMBED           | boolean | true              | Shows results in a panel inside DAMNATION when `true`, or opens them in a browser tab when `false`. |
+| DAMNATION_WIKI_EMBED           | boolean | true              | Shows results in a panel inside Damnation when `true`, or opens them in a browser tab when `false`. |
 
 † _used when blank or invalid_
 
@@ -44,7 +44,7 @@ DAMNATION_WIKI_EMBED=true
 
 ### Hosting a Game
 
-1. Open DAMNATION and select **Start game & open board**.
+1. Open Damnation and select **Start game & open board**.
 1. Choose the starting life, player count, table layout, commander damage, and guest player management on the setup card:
 
    <img src="./images/damnation/board_lobby.png" alt="Board before the game, with the setup card showing the QR code, join code, and game options" width="900">

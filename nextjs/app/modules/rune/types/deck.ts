@@ -1,4 +1,4 @@
-// Column widths of dbo.decks in the RUNE database. Over-long values used to reach the
+// Column widths of dbo.decks in the Rune database. Over-long values used to reach the
 // INSERT/UPDATE and come back as a 500 ("String or binary data would be truncated"), so
 // both write routes check against these and return a 400 instead.
 export const DECK_NAME_MAX_LENGTH = 255;

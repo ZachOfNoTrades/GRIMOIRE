@@ -1,6 +1,6 @@
-# GOLEM
+# Golem
 
-GOLEM is a LLM-backed workout program generator and tracking app. Spanning full month-long programs down to recommended set RPE, all facets of exercise are configurable via templates, prompts, and conversation with the desired AI of choice.
+Golem is a LLM-backed workout program generator and tracking app. Spanning full month-long programs down to recommended set RPE, all facets of exercise are configurable via templates, prompts, and conversation with the desired AI of choice.
 
 ## Key Features
 

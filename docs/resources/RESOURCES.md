@@ -12,21 +12,21 @@ The following lists all credentials that will be created during this setup. Use 
 - [_**SQL Server URL**_](#create-sql-server-instance)
 - [_**SQL Server User**_](#create-sql-server-instance)
 - [_**SQL Server Password**_](#create-sql-server-instance)
-- [_**SQL GOLEM Database**_](#create-golem-database)
+- [_**SQL Golem Database**_](#create-golem-database)
 
 ### Modules
 
-- [_**GOLEM LLM Provider**_](#golem)
-- ~~[_**GOLEM LLM Server URL**_]()~~
-- ~~[_**GOLEM LLM Model**_]()~~
-- [_**RUNE Piper Binary Path**_](#piper-tts)
-- [_**RUNE Piper Model Path**_](#piper-tts)
-- [_**RUNE Piper Length Scale**_](#piper-tts)
-- [_**RUNE Piper Sentence Silence**_](#piper-tts)
-- [_**RUNE Whisper Binary Path**_](#whisper-stt)
-- [_**RUNE Whisper Model Path**_](#whisper-stt)
-- [_**RUNE Silence Timeout**_](#whisper-stt)
-- [_**RUNE Keep Temp Files**_](#whisper-stt)
+- [_**Golem LLM Provider**_](#golem)
+- ~~[_**Golem LLM Server URL**_]()~~
+- ~~[_**Golem LLM Model**_]()~~
+- [_**Rune Piper Binary Path**_](#piper-tts)
+- [_**Rune Piper Model Path**_](#piper-tts)
+- [_**Rune Piper Length Scale**_](#piper-tts)
+- [_**Rune Piper Sentence Silence**_](#piper-tts)
+- [_**Rune Whisper Binary Path**_](#whisper-stt)
+- [_**Rune Whisper Model Path**_](#whisper-stt)
+- [_**Rune Silence Timeout**_](#whisper-stt)
+- [_**Rune Keep Temp Files**_](#whisper-stt)
 
 # Frontend
 
@@ -38,7 +38,7 @@ GRIMOIRE uses Microsoft SQL Server. There is currently no officially supported p
 
 While GRIMOIRE is in Alpha, the [Development Guide](../development/DEVELOPMENT.md) outlines the recommended procedure for creating the SQL Server resource. Proficiency with MSSQL and SSMS are recommended to create the _**SQL Server URL**_, _**SQL Server User**_, and _**SQL Server Password**_.
 
-### Create GOLEM Database
+### Create Golem Database
 
 1. Connect to the server via desired SQL client (e.g., SQL Server Management Studio).
 1. Execute `sql_init_golem.sql` from the `sql/` folder.
@@ -46,26 +46,26 @@ While GRIMOIRE is in Alpha, the [Development Guide](../development/DEVELOPMENT.m
 
 # Modules
 
-## GOLEM
+## Golem
 
-The GOLEM workout tracker uses a local or cloud LLM for generation services. In the current Alpha build, only Claude Code via CLI is supported.
+The Golem workout tracker uses a local or cloud LLM for generation services. In the current Alpha build, only Claude Code via CLI is supported.
 
 ### Claude Code
 
 1. Install Claude Code per their [documentation](https://code.claude.com/docs/en/overview).
 1. Configure Claude Code with an Anthropic account. The application works with both subscription and API.
-1. If using Claude Code, the _**GOLEM LLM Provider**_ is `claude-code`.
+1. If using Claude Code, the _**Golem LLM Provider**_ is `claude-code`.
 
-## RUNE
+## Rune
 
-### Create RUNE Database
+### Create Rune Database
 
 1. Connect to the server via desired SQL client (e.g., SQL Server Management Studio).
 1. Execute `sql_init_rune.sql` from the `sql/` folder.
 
 ### Voice Controls
 
-RUNE voice controls require two local CLI binaries: Piper (TTS) and Whisper (STT). Both run as subprocesses spawned by the Node.js server — no cloud API calls are made.
+Rune voice controls require two local CLI binaries: Piper (TTS) and Whisper (STT). Both run as subprocesses spawned by the Node.js server — no cloud API calls are made.
 
 #### Piper TTS
 
@@ -76,8 +76,8 @@ RUNE voice controls require two local CLI binaries: Piper (TTS) and Whisper (STT
 1. Download a voice model (`.onnx` + `.onnx.json`) from [Piper Voices](https://huggingface.co/rhasspy/piper-voices). Recommended: `en_US-lessac-high`.
 1. Place the model files in the same directory as the binary.
 1. Set the following environment variables:
-   - _**RUNE Piper Binary Path**_ (`PIPER_BINARY_PATH`): Full path to the Piper executable.
-   - _**RUNE Piper Model Path**_ (`PIPER_MODEL_PATH`): Full path to the `.onnx` voice model file.
+   - _**Rune Piper Binary Path**_ (`PIPER_BINARY_PATH`): Full path to the Piper executable.
+   - _**Rune Piper Model Path**_ (`PIPER_MODEL_PATH`): Full path to the `.onnx` voice model file.
 1. Optional tuning variables:
    - `PIPER_LENGTH_SCALE`: Speech rate. Default `1.0`. Lower is faster, higher is slower.
    - `PIPER_SENTENCE_SILENCE`: Pause between sentences in seconds. Default `0.2`.
@@ -91,5 +91,5 @@ RUNE voice controls require two local CLI binaries: Piper (TTS) and Whisper (STT
 1. Download a GGML model from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp). Recommended: `ggml-small.en.bin` for English-only with good accuracy.
 1. Place the model file in the same directory as the binary.
 1. Set the following environment variables:
-   - _**RUNE Whisper Binary Path**_ (`WHISPER_BINARY_PATH`): Full path to the Whisper executable.
-   - _**RUNE Whisper Model Path**_ (`WHISPER_MODEL_PATH`): Full path to the `.bin` model file.
+   - _**Rune Whisper Binary Path**_ (`WHISPER_BINARY_PATH`): Full path to the Whisper executable.
+   - _**Rune Whisper Model Path**_ (`WHISPER_MODEL_PATH`): Full path to the `.bin` model file.

@@ -4,6 +4,6 @@ This page lists the modules in GRIMOIRE. Each module has its own documentation p
 
 ## Table of Contents
 
-- [GOLEM - Workout Tracker and Generator](./GOLEM.md)
-- [RUNE - Flashcard Study Tool](./RUNE.md)
-- [DAMNATION - Magic: The Gathering Life Tracker](./DAMNATION.md)
+- [Golem - Workout Tracker and Generator](./GOLEM.md)
+- [Rune - Flashcard Study Tool](./RUNE.md)
+- [Damnation - Magic: The Gathering Life Tracker](./DAMNATION.md)

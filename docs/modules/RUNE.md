@@ -1,6 +1,6 @@
-# RUNE
+# Rune
 
-RUNE is a flashcard study tool with LLM-powered card generation and voice controls for hands-free study sessions. Cards are organized into decks and use a spaced-repetition rating system (Again, Hard, Good, Easy) to track progress.
+Rune is a flashcard study tool with LLM-powered card generation and voice controls for hands-free study sessions. Cards are organized into decks and use a spaced-repetition rating system (Again, Hard, Good, Easy) to track progress.
 
 ## Key Features
 
@@ -13,7 +13,7 @@ RUNE is a flashcard study tool with LLM-powered card generation and voice contro
 
 > See the [Resource Guide](../resources/RESOURCES.md#rune) for Piper and Whisper setup instructions.
 
-RUNE's voice system is built on three server-side components, each invoked via API routes:
+Rune's voice system is built on three server-side components, each invoked via API routes:
 
 ### Text-to-Speech (TTS)
 

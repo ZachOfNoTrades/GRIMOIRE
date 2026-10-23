@@ -619,8 +619,8 @@ BEGIN TRY
 
     -- Module registrations
     INSERT INTO modules (id, name, slug, description, icon) VALUES
-    ('A0000000-0000-0000-0000-000000000001', 'GOLEM', 'golem', 'Workout Tracker', 'Dumbbell'),
-    ('A0000000-0000-0000-0000-000000000002', 'RUNE', 'rune', 'Flash Cards', 'BookOpen'),
+    ('A0000000-0000-0000-0000-000000000001', 'Golem', 'golem', 'Workout Tracker', 'Dumbbell'),
+    ('A0000000-0000-0000-0000-000000000002', 'Rune', 'rune', 'Flash Cards', 'BookOpen'),
     ('A0000000-0000-0000-0000-000000000004', 'Forage', 'forage', 'Food & macro tracker', 'Apple'),
     ('A0000000-0000-0000-0000-000000000006', 'Damnation', 'damnation', 'MTG life tracker for the whole table', 'Skull'),
     ('A0000000-0000-0000-0000-000000000007', 'Oracle', 'oracle', 'DM toolkit for running tabletop sessions', 'Dices');
