@@ -63,6 +63,7 @@ export async function generate(userId: string, task: LlmTaskId, req: LlmRequest)
           tools: req.tools,
           maxRounds: req.maxRounds,
           timeoutMs: req.timeoutMs ?? (req.tools?.length ? 180_000 : 60_000),
+          reasoningEffort: def.openRouterReasoning,
         })
       );
       model = result.model;

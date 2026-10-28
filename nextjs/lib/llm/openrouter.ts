@@ -50,6 +50,7 @@ export interface OpenRouterChatRequest {
   tools?: LlmTool[];
   maxRounds?: number;
   timeoutMs?: number;
+  reasoningEffort?: "minimal" | "low";
 }
 
 export interface OpenRouterChatResult {
@@ -165,6 +166,7 @@ export async function openRouterChat(key: string, req: OpenRouterChatRequest): P
         provider: { sort: "latency" },
       };
       if (req.json && !toolDefs.length) body.response_format = { type: "json_object" };
+      if (req.reasoningEffort) body.reasoning = { effort: req.reasoningEffort };
       if (toolDefs.length) body.tools = toolDefs;
 
       const response = await postWithRetry<ChatResponse>(key, "/chat/completions", body, controller.signal);

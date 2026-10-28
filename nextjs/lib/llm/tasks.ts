@@ -32,8 +32,10 @@ export interface LlmTaskDef {
   id: LlmTaskId;
   group: LlmTaskGroup;
   label: string;
-  // OpenRouter model used when the user hasn't picked one.
+  // OpenRouter model used when neither the user, an admin pin nor the catalog's family rule picks one.
   openRouterModel: string;
+  // OpenRouter reasoning effort, to avoid a reasoning model thinking for seconds on a short task.
+  openRouterReasoning?: "minimal" | "low";
   // CLI alias used by the claude backend; undefined = the CLI's own default.
   cliModel?: string;
   cliEffort?: string;
@@ -52,18 +54,20 @@ export interface LlmTaskDef {
   estTokens: [prompt: number, completion: number];
 }
 
-// Fast, cheap text model: 0.8 s / $0.00006 on the rune eval prompt when measured
-// (2026-10-05), grading identically to Sonnet.
+// Fast, cheap text model: 0.8 s / $0.00006 on the rune eval prompt when measured (2026-10-05).
 const FAST_TEXT = "qwen/qwen3-30b-a3b-instruct-2507";
 // Function calling + long structured JSON (program/deck generation).
 const TOOLS = "anthropic/claude-haiku-4.5";
+// Grades spoken answers: 0.86 s median and 95% agreement with Sonnet on right or wrong over
+// 213 logged answers when measured (2026-10-28), with reasoning at minimal.
+const GRADER = "google/gemini-3.5-flash-lite";
 // Spoken answers (a few seconds of WAV); per-second priced, ~$0.0002/min.
 const TRANSCRIBE = "openai/whisper-large-v3-turbo";
 // Reads label / recipe photos.
 const VISION = "google/gemini-2.5-flash";
 
 export const LLM_TASKS: readonly LlmTaskDef[] = [
-  { id: "rune_eval",          group: "rune",   label: "Spoken answer grading", openRouterModel: FAST_TEXT, cliModel: "sonnet", cliEffort: "low", estTokens: [1000, 70] },
+  { id: "rune_eval",          group: "rune",   label: "Spoken answer grading", openRouterModel: GRADER, openRouterReasoning: "minimal", cliModel: "sonnet", cliEffort: "low", estTokens: [1000, 70] },
   { id: "rune_stt",           group: "rune",   label: "Transcription",         openRouterModel: TRANSCRIBE, needsAudio: true, localEngine: "Whisper", estTokens: [100, 20] },
   { id: "rune_refine",        group: "rune",   label: "Card refine",           openRouterModel: FAST_TEXT, estTokens: [600, 150] },
   { id: "rune_deck",          group: "rune",   label: "Deck generate / refine", openRouterModel: TOOLS, needsTools: true, estTokens: [3000, 900] },
