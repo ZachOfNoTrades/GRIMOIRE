@@ -1,0 +1,70 @@
+name: release
+
+# Tag and publish the head of `unstable` as the next version before the nightly deploy, which builds the tagged
+# commit. A manual run releases the head of `unstable`, or the commit it names, right away.
+on:
+  schedule:
+    - cron: "30 8 * * *" # Run before the 04:00 Central deploy in both daylight and standard time
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Commit to release instead of the head of unstable
+        required: false
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit || 'unstable' }}
+          fetch-depth: 0 # Read the commits since the last release
+
+      # Skip a commit that is already released or whose check did not pass
+      - name: Check the commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "SHA=$sha" >> "$GITHUB_ENV"
+          if [ -n "$(git tag --points-at "$sha" 'v*')" ]; then
+            echo "$sha is already released"; echo "SKIP=true" >> "$GITHUB_ENV"; exit 0
+          fi
+          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$sha&per_page=1" --jq '.workflow_runs[0].conclusion // "none"')
+          if [ "$conclusion" != success ]; then
+            echo "check for $sha is $conclusion"; echo "SKIP=true" >> "$GITHUB_ENV"; exit 0
+          fi
+          echo "SKIP=false" >> "$GITHUB_ENV"
+
+      # Pick the version, as X.Y.Z-alpha
+      # 1. Raise the highest tagged version: minor when a commit since it starts with "Add", patch otherwise
+      - name: Derive the version
+        if: env.SKIP == 'false'
+        run: |
+          last_tag=$(git tag -l 'v[0-9]*' | sort -V | awk '{ base = $0; sub(/^v/, "", base); sub(/-alpha(\.[0-9]+)?$/, "", base) } base ~ /^[0-9]+\.[0-9]+\.[0-9]+$/ { tag = $0; v = base } END { print tag " " v }')
+          read -r tag last <<< "$last_tag"
+          IFS=. read -r major minor patch <<< "${last:-0.0.0}"
+          range=${tag:+$tag..}$SHA
+          if [ "$(git log --format=%s "$range" | grep -c '^Add ' || true)" -gt 0 ]; then
+            version="$major.$((minor + 1)).0-alpha"
+          else
+            version="$major.$minor.$((patch + 1))-alpha"
+          fi
+          echo "last release $tag, releasing $version"
+          { echo "VERSION_NAME=$version"; echo "RANGE=$range"; } >> "$GITHUB_ENV"
+
+      - name: Publish the release
+        if: env.SKIP == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git log --format='- %s' "$RANGE" > notes.md
+          gh release create "v$VERSION_NAME" --target "$SHA" --title "$VERSION_NAME" --notes-file notes.md
