@@ -1,10 +1,13 @@
 name: release
 
-# Tag and publish the head of `unstable` as the next version before the nightly deploy, which builds the tagged
-# commit. A manual run releases the head of `unstable`, or the commit it names, right away.
+# Tag and publish the head of `unstable` as the next version. The deploy workflow runs it before each deploy; a
+# manual run releases the head of `unstable`, or the commit it names, right away.
 on:
-  schedule:
-    - cron: "30 8 * * *" # Run before the 04:00 Central deploy in both daylight and standard time
+  workflow_call:
+    inputs:
+      commit:
+        type: string
+        required: false
   workflow_dispatch:
     inputs:
       commit:
@@ -14,10 +17,6 @@ on:
 permissions:
   contents: write
   actions: read
-
-concurrency:
-  group: release
-  cancel-in-progress: false
 
 jobs:
   release:

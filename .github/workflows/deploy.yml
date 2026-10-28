@@ -1,0 +1,27 @@
+name: deploy
+
+# Release the head of `unstable`, then deploy it on the GRIMOIRE host's own runner. The host keeps a release only
+# when it answers its health check, and restores the one before it otherwise. Runs nightly and on a manual run.
+on:
+  schedule:
+    - cron: "15 9 * * *" # Run after the 03:00 Central restart in both daylight and standard time
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  release:
+    uses: ./.github/workflows/release.yml
+
+  deploy:
+    needs: release
+    runs-on: [self-hosted, grimoire]
+    steps:
+      - name: Deploy the head of unstable
+        run: sudo /usr/bin/systemctl start grimoire-deploy.service
