@@ -278,7 +278,7 @@ export default function DecksPage() {
                       </Button>
                     </td>
 
-                    <td className="table-cell">
+                    <td className="table-cell rune-deck-name-cell">
                       <div>
                         <p className="flex items-center gap-2 flex-wrap">
                           <span className={deck.is_disabled ? "rune-deck-row-name" : ""}>{deck.name}</span>

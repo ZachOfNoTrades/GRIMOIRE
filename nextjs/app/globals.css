@@ -3347,6 +3347,12 @@ input[type="search"]::-webkit-search-results-decoration {
   color: var(--color-gray);
 }
 
+.rune-deck-name-cell {
+  min-width: 12rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* HOVER — bring a disabled row back to full strength while pointed at, so it stays
    readable when you actually go to click into it. */
 @media (hover: hover) {
