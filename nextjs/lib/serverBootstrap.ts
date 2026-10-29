@@ -15,6 +15,9 @@ let bootstrapped = false;
 export function bootstrapBackgroundWork(): void {
   if (bootstrapped) return;
   bootstrapped = true;
+  // Start the schedulers only when NODE_ENV is production
+  // NOTE: Skipped in a development server to avoid it emailing users from untested code with links to its own address, or purging data, as it can share the live database
+  if (process.env.NODE_ENV !== "production") return;
   startQuestDigestScheduler();
   startRuneDigestScheduler();
   startForageCheckinScheduler();
