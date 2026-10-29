@@ -10,7 +10,7 @@ import { CardWithProgress } from "../../../types/card";
 import { CollectionWithDecks } from "../../../types/collection";
 import { DEFAULT_AUTO_ADVANCE_SECONDS, DEFAULT_DAILY_GOAL, DEFAULT_DAILY_MAX_RENEW, DEFAULT_HANDS_FREE_SILENCE_SECONDS } from "../../../types/settings";
 import { formatRelativePast } from "@/lib/format";
-import StudySession, { StudyPreferences } from "../../../components/StudySession";
+import StudySession, { StudyPreferences, hasSavedStudySession } from "../../../components/StudySession";
 import ManageCollectionModal from "../ManageCollectionModal";
 import DeleteCollectionModal from "./DeleteCollectionModal";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -125,6 +125,7 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
         const cardsData: CardWithProgress[] = await cardsResponse.json();
         setAllCards(cardsData);
         setDueCards(selectDueCards(cardsData));
+        if (hasSavedStudySession(`/modules/rune/api/collections/${id}`)) setIsStudying(true); // Resume a session this tab was in before a refresh
       }
     } catch (error) {
       console.error("Error fetching collection data:", error);
@@ -400,6 +401,7 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
         studyApiBase={`/modules/rune/api/collections/${id}`}
         cardUrlBase={`/modules/rune/ui/collections/${id}`}
         cards={dueCards}
+        allCards={allCards}
         handsFree={handsFree}
         onHandsFreeChange={setHandsFree}
         preferences={studyPreferences}

@@ -114,6 +114,41 @@ export interface StudyPreferences {
 
 type StudyCard = CardWithProgress & { sessionRating: number | null };
 
+// A SavedStudySession is a running session's place, kept in the tab's sessionStorage so a
+// browser refresh resumes it instead of dropping back to the landing screen.
+interface SavedStudySession {
+  studySessionId: string | null;
+  startedAt: number; // Epoch ms the session clock started at
+  currentCardId: string | null;
+  queue: { id: string; rating: number | null }[]; // Session order with each card's rating
+}
+
+const savedSessionKey = (studyApiBase: string) => `rune-study-session:${studyApiBase}`;
+
+// Read the saved session for a deck or collection, or null when there is none
+function readSavedSession(studyApiBase: string): SavedStudySession | null {
+  try {
+    const raw = window.sessionStorage.getItem(savedSessionKey(studyApiBase));
+    const saved = raw ? (JSON.parse(raw) as SavedStudySession) : null;
+    return saved && Array.isArray(saved.queue) && saved.queue.length > 0 ? saved : null;
+  } catch {
+    return null; // Storage blocked or unreadable
+  }
+}
+
+function clearSavedSession(studyApiBase: string) {
+  try {
+    window.sessionStorage.removeItem(savedSessionKey(studyApiBase));
+  } catch {
+    // Storage blocked
+  }
+}
+
+// Report whether this tab holds an unfinished session to resume for a deck or collection
+export function hasSavedStudySession(studyApiBase: string): boolean {
+  return readSavedSession(studyApiBase) !== null;
+}
+
 interface StudySessionProps {
   // False while the host page shows its own landing screen: the component renders
   // nothing but keeps warming TTS/images for the first card, so "Start" is instant.
@@ -127,6 +162,8 @@ interface StudySessionProps {
   cardUrlBase: string;
   // Due cards for this session, unshuffled — shuffling is session state.
   cards: CardWithProgress[];
+  // Every card of the deck or collection, to rebuild a resumed session whose rated cards are no longer due
+  allCards: CardWithProgress[];
   handsFree: boolean;
   onHandsFreeChange: (handsFree: boolean) => void;
   preferences: StudyPreferences;
@@ -186,6 +223,7 @@ export default function StudySession({
   studyApiBase,
   cardUrlBase,
   cards,
+  allCards,
   handsFree,
   onHandsFreeChange,
   preferences,
@@ -206,6 +244,7 @@ export default function StudySession({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
+  const [restoredRatedCount, setRestoredRatedCount] = useState(0); // Cards rated before a refresh, already in today's baseline
   const { isSpeaking, preloadQuestion, speakQuestion, stopSpeaking, audioRef } = useSpeaker();
   const { isRecording, isTranscribing, transcript, startRecording, stopRecording, cancelRecording, clearTranscript } = useListener(
     preferences.handsFreeSilenceSeconds * 1000,
@@ -291,7 +330,7 @@ export default function StudySession({
   // session. Both thresholds are soft — goalMet is motivational, overMaxRenew only
   // warns; neither hides or blocks any due card.
   const ratedThisSession = sessionCards.filter((c) => c.sessionRating !== null).length;
-  const reviewedToday = preferences.reviewedTodayBaseline + ratedThisSession;
+  const reviewedToday = Math.max(preferences.reviewedTodayBaseline + ratedThisSession - restoredRatedCount, ratedThisSession);
   const goalMet = reviewedToday >= preferences.dailyGoal;
   const overMaxRenew = reviewedToday >= preferences.dailyMaxRenew;
 
@@ -801,6 +840,22 @@ export default function StudySession({
     };
   }, [evaluationResult, preferences.autoAdvanceOnEvaluate, preferences.autoAdvanceSeconds, currentCardAlreadyRated]);
 
+  // Save the running session's place on every change, so a refresh can resume it
+  useEffect(() => {
+    if (!isActive || sessionComplete || sessionCards.length === 0 || !sessionStartRef.current) return;
+    const saved: SavedStudySession = {
+      studySessionId,
+      startedAt: sessionStartRef.current,
+      currentCardId: sessionCards[currentIndex]?.id ?? null,
+      queue: sessionCards.map((c) => ({ id: c.id, rating: c.sessionRating })),
+    };
+    try {
+      window.sessionStorage.setItem(savedSessionKey(studyApiBase), JSON.stringify(saved));
+    } catch {
+      // Storage blocked or full
+    }
+  }, [isActive, sessionComplete, sessionCards, currentIndex, studySessionId, studyApiBase]);
+
   // Enter the study UI when the host page flips isActive. Does NOT create a DB
   // session row — that happens lazily on the first rated card (see
   // ensureStudySession), so browsing cards without rating any leaves no dangling
@@ -894,12 +949,15 @@ export default function StudySession({
     }
   };
 
-  // Shuffle the queue and start the clock. Also spins up + pre-warms this session's
-  // persistent eval worker now, so its ~3s Claude startup overlaps the first card's
-  // question TTS and the first real evaluation runs on the fast warm path.
+  // Resume the tab's saved session, or shuffle the queue and start the clock. Also spins
+  // up + pre-warms this session's persistent eval worker now, so its ~3s Claude startup
+  // overlaps the first card's question TTS and the first real evaluation runs on the
+  // fast warm path.
   const startSession = () => {
-    setSessionCards((prev) => shuffle(prev));
-    sessionStartRef.current = Date.now();
+    if (!resumeSavedSession()) {
+      setSessionCards((prev) => shuffle(prev));
+      sessionStartRef.current = Date.now();
+    }
 
     const key = generateUUID();
     evalSessionKeyRef.current = key;
@@ -908,6 +966,37 @@ export default function StudySession({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ warm: true, sessionKey: key }),
     }).catch(() => { /* best-effort warm; first eval will just pay startup */ });
+  };
+
+  // Rebuild the queue, ratings, current card, clock and DB session from the saved session.
+  // Returns false when there is nothing to resume.
+  // NOTE: Cards rated before the refresh are no longer due, so the queue is rebuilt from every card
+  const resumeSavedSession = (): boolean => {
+    const saved = readSavedSession(studyApiBase);
+    if (!saved) return false;
+
+    // Keep the saved order, with fresh card data, dropping cards deleted since; then append newly due cards
+    // NOTE: Ratings saved before the DB session existed were never sent, so they come back unrated
+    const allById = new Map(allCards.map((c) => [c.id, c]));
+    const queue: StudyCard[] = saved.queue
+      .filter((entry) => allById.has(entry.id))
+      .map((entry) => ({ ...allById.get(entry.id)!, sessionRating: saved.studySessionId ? entry.rating : null }));
+    const queuedIds = new Set(queue.map((c) => c.id));
+    for (const card of cards) {
+      if (!queuedIds.has(card.id)) queue.push({ ...card, sessionRating: null });
+    }
+    if (queue.length === 0) {
+      clearSavedSession(studyApiBase);
+      return false;
+    }
+
+    setSessionCards(queue);
+    setCurrentIndex(Math.max(queue.findIndex((c) => c.id === saved.currentCardId), 0));
+    setRestoredRatedCount(queue.filter((c) => c.sessionRating !== null).length);
+    studySessionIdRef.current = saved.studySessionId;
+    setStudySessionId(saved.studySessionId);
+    sessionStartRef.current = saved.startedAt;
+    return true;
   };
 
   // Tear down this session's eval worker (best-effort). Safe to call repeatedly.
@@ -969,6 +1058,8 @@ export default function StudySession({
     // in that case — see ensureStudySession) — otherwise finishing an unrated session
     // shows a stale "0s" on the Session Complete screen regardless of time spent.
     sessionDurationRef.current = Date.now() - sessionStartRef.current;
+    sessionStartRef.current = 0; // Stop saving until the next session starts its clock
+    clearSavedSession(studyApiBase); // A finished or quit session is not resumed on refresh
     disposeEvalWorker(); // done grading — release the persistent worker
     // The REF, not the state: this runs from closures created before the lazily-created
     // row's id reached React (see studySessionIdRef).
@@ -1128,6 +1219,7 @@ export default function StudySession({
           return fetch(`${studyApiBase}/study/review`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            keepalive: true, // Let a refresh or tab close finish sending the rating
             body: JSON.stringify({
               cardId: currentCard.id,
               studySessionId: sessionId,
@@ -1233,6 +1325,7 @@ export default function StudySession({
     await completeSession();
     studySessionIdRef.current = null;
     setStudySessionId(null);
+    setRestoredRatedCount(0);
     setSessionComplete(false);
     setCurrentIndex(0);
     setIsFlipped(false);
@@ -1247,6 +1340,8 @@ export default function StudySession({
     setSessionComplete(false);
     studySessionIdRef.current = null;
     setStudySessionId(null);
+    setRestoredRatedCount(0);
+    clearSavedSession(studyApiBase);
     startSession();
   }, []);
 

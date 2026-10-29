@@ -16,7 +16,7 @@ import { formatRelativePast } from "@/lib/format";
 import { generateUUID } from "@/lib/uuid";
 import CardContent from "../../../components/CardContent";
 import RatingTrendChart from "../../../components/RatingTrendChart";
-import StudySession, { StudyPreferences } from "../../../components/StudySession";
+import StudySession, { StudyPreferences, hasSavedStudySession } from "../../../components/StudySession";
 import CardTable, { CardSheetDraft, PendingRow, draftFromCard, isDirty as isDraftDirty } from "./cards/CardTable";
 import ManageCardModal from "./cards/ManageCardModal";
 import DeleteCardModal from "./cards/DeleteCardModal";
@@ -386,6 +386,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
         const cardsData: CardWithProgress[] = await cardsResponse.json();
         setAllCards(cardsData);
         setDueCards(selectDueCards(cardsData));
+        if (hasSavedStudySession(`/modules/rune/api/decks/${id}`)) setIsStudying(true); // Resume a session this tab was in before a refresh
       }
     } catch (error) {
       console.error("Error fetching deck data:", error);
@@ -1494,6 +1495,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
         studyApiBase={`/modules/rune/api/decks/${id}`}
         cardUrlBase={`/modules/rune/ui/decks/${id}`}
         cards={studyCards}
+        allCards={allCards}
         handsFree={handsFree}
         onHandsFreeChange={setHandsFree}
         preferences={studyPreferences}
