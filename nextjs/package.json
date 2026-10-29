@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@infisical/sdk": "^5.0.2",
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@ricky0123/vad-web": "0.0.31",
     "@tiptap/extension-image": "^3.32.0",
     "@tiptap/extension-link": "^3.32.0",
@@ -54,6 +54,9 @@
   },
   "overrides": {
     "nodemailer": "$nodemailer",
-    "proxy-addr": "^2.0.8"
+    "proxy-addr": "^2.0.8",
+    "mcp-handler": {
+      "@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk"
+    }
   }
 }
