@@ -107,6 +107,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const lastSavedSegmentRef = useRef<SegmentWithSets | null>(null);
   const pendingCompletionDurationRef = useRef<number>(0);
   const segmentsForSaveRef = useRef<SegmentWithSets[]>([]);
+  const targetSegmentsRef = useRef<TargetSegment[]>([]); // Planned exercises as last loaded, read by saves
   const isSavingRef = useRef(false);
   const pendingSaveRef = useRef<SegmentWithSets | null>(null);
 
@@ -374,6 +375,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     segmentsForSaveRef.current = loggedSegments;
   }, [loggedSegments]);
+  useEffect(() => {
+    targetSegmentsRef.current = targetSegments;
+  }, [targetSegments]);
 
   const fetchSessionData = async () => {
     setIsLoading(true);
@@ -818,13 +822,30 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         body: JSON.stringify(filteredSegments),
       });
 
+      // Update ref so subsequent saves read current data (no re-render)
+      segmentsForSaveRef.current = updatedSegments;
+
       if (!response.ok) {
         const errorData = await response.json();
         toast.error(errorData.error || "Failed to save");
-      }
+      } else {
 
-      // Update ref so subsequent saves read current data (no re-render)
-      segmentsForSaveRef.current = updatedSegments;
+        // Reload the logged and planned exercises when the planned exercises differ from those loaded
+        // NOTE: The reload is dropped when a newer edit waits to save, to avoid showing data without it; that save reloads instead
+        const savedData: { targets: TargetSegment[] } = await response.json();
+        const loadedTargetIds = targetSegmentsRef.current.map(t => t.id).sort().join(",");
+        const savedTargetIds = savedData.targets.map(t => t.id).sort().join(",");
+        if (loadedTargetIds !== savedTargetIds && !pendingSaveRef.current) {
+          // Keep the page as it is when the reload fails, as the save succeeded
+          const reloadedData = await fetch(`/modules/golem/api/sessions/${id}/segments`)
+            .then(reloadResponse => reloadResponse.ok ? reloadResponse.json() : null)
+            .catch(() => null);
+          if (reloadedData && !pendingSaveRef.current) {
+            setLoggedSegments(reloadedData.exercises);
+            setTargetSegments(reloadedData.targets);
+          }
+        }
+      }
     } catch (error) {
       toast.error("Failed to save");
       console.error("Error saving segment:", error);

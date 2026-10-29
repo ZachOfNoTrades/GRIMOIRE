@@ -266,6 +266,28 @@ export async function updateSegments(userId: string, sessionId: string, segments
         }
       }
 
+      // Relink each segment whose target is not one of this session's targets to the first unclaimed target with the same exercise and warmup flag, in plan order, or unlink it
+      // NOTE: A page left open while the plan is rewritten still sends the old plan's target ids
+      const currentTargetsResult = await transaction.request()
+        .input('sessionId', sessionId)
+        .query(`SELECT id, exercise_id, is_warmup FROM target_session_segments WHERE session_id = @sessionId ORDER BY order_index`);
+      const currentTargets: { id: string; exercise_id: string; is_warmup: boolean }[] = currentTargetsResult.recordset;
+      const currentTargetIds = new Set(currentTargets.map(t => t.id.toUpperCase()));
+      const claimedTargetIds = new Set(
+        segments.map(s => s.target_id?.toUpperCase()).filter((targetId): targetId is string => !!targetId && currentTargetIds.has(targetId))
+      );
+      const resolvedTargetIds = new Map<string, string | null>();
+      for (const segment of [...segments].sort((a, b) => a.order_index - b.order_index)) {
+        if (!segment.target_id || currentTargetIds.has(segment.target_id.toUpperCase())) continue;
+        const replacement = currentTargets.find(t =>
+          t.exercise_id.toUpperCase() === segment.exercise_id.toUpperCase() &&
+          !!t.is_warmup === !!segment.is_warmup &&
+          !claimedTargetIds.has(t.id.toUpperCase())
+        );
+        if (replacement) claimedTargetIds.add(replacement.id.toUpperCase());
+        resolvedTargetIds.set(segment.id, replacement?.id ?? null);
+      }
+
       // Upsert segments and sets
       for (const segment of segments) {
 
@@ -275,7 +297,7 @@ export async function updateSegments(userId: string, sessionId: string, segments
           .input('sessionSegmentId', segment.id)
           .input('sessionId', segment.session_id)
           .input('exerciseId', segment.exercise_id)
-          .input('targetId', segment.target_id)
+          .input('targetId', resolvedTargetIds.has(segment.id) ? resolvedTargetIds.get(segment.id) : segment.target_id)
           .input('modifierId', segment.modifier_id)
           .input('orderIndex', segment.order_index)
           .input('isWarmup', segment.is_warmup)
