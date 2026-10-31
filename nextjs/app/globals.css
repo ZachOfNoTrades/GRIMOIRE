@@ -6956,11 +6956,6 @@ body:has(.quest-cal-page) > .page {
    RUNE CARD CONTENT — markdown/LaTeX/image rendering for flashcard text
    ======================================== */
 
-/* The card front, shown raw (not through CardContent) as the detail pane's
-   heading in the deck's list/detail card browser. It sits in a flex row with
-   the action buttons (min-w-0 already lets it shrink), but an unbroken long
-   token still had nothing to break on and pushed the heading — and the row
-   around it — past the viewport edge instead of wrapping. */
 .rune-card-detail-title {
   overflow-wrap: anywhere;
 }

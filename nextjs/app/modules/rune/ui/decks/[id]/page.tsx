@@ -1281,9 +1281,12 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                     backLabel="Cards"
                     detailEmptyMessage="Select a card to view its back"
                     renderDetailHeader={(card) => (
-                      <>
-                        <h3 className="text-card-title rune-card-detail-title flex-1 min-w-0">{card.front}</h3>
-                        <div className="flex items-center gap-1 shrink-0">
+
+                      // CARD HEADER
+                      <div className="flex flex-col gap-2 w-full min-w-0">
+
+                        {/* CARD ACTIONS */}
+                        <div className="flex items-center justify-end gap-1">
                           <Button className="btn-link" aria-label="Rating history" title="Rating history" onClick={() => setHistoryCard(card)}>
                             <History className="w-4 h-4" />
                           </Button>
@@ -1304,7 +1307,10 @@ export default function DeckDetailPage({ params }: { params: Promise<{ id: strin
                             </>
                           )}
                         </div>
-                      </>
+
+                        {/* CARD FRONT */}
+                        <h3 className="text-card-title rune-card-detail-title">{card.front}</h3>
+                      </div>
                     )}
                     renderDetail={(card) => (
                       <div className="flex flex-col gap-4">
