@@ -2,6 +2,8 @@ import sql from 'mssql';
 import { getFoodConnection, closeFoodConnection } from './db';
 import { SEARCH_IGNORED_CHARS, normalizeSearchTerm } from './searchNormalize';
 import { Food, FoodNutrient, FoodServing, FoodNutrientRanking, FoodUsageStats } from '../types/food';
+import { findServingRowConflict, servingRowConflictMessage } from './servingRows';
+import { normUnit } from './unitFamilies';
 
 interface CreateFoodInput {
   name: string;
@@ -42,6 +44,15 @@ export class DuplicateBarcodeError extends Error {
   }
 }
 
+// Thrown by createFood and updateFood when a food's serving rows cannot describe
+// one serving. The API maps it to HTTP 400 with the message.
+export class InvalidServingRowsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidServingRowsError';
+  }
+}
+
 // The GTIN lengths a retail barcode is written in. One product's code appears
 // with different leading-zero padding depending on who read it: a UPC-A label
 // decodes as 12 digits in the live scanner, zbar and Open Food Facts report the
@@ -75,7 +86,8 @@ function bindBarcodeMatch(req: sql.Request, raw: string): string {
 // the canonical {'serving', 1} row exists so the food's natural unit is
 // selectable. When omitDefault is set (per-100g / per-100ml foods, whose base
 // unit IS the reference), the generic 'serving' row is neither required nor
-// injected — only a real input list with no serving falls back to one.
+// injected — only a real input list with no serving falls back to one. Throws
+// InvalidServingRowsError when the rows cannot describe one serving.
 function normalizeServings(
   input?: { unit: string; units_per_serving: number }[],
   omitDefault?: boolean
@@ -88,9 +100,11 @@ function normalizeServings(
     .filter((s) => Number.isFinite(s.units_per_serving) && s.units_per_serving > 0);
   // Always need at least one row; otherwise inject 'serving' only when not opted
   // out, so g/ml-basis foods don't carry a meaningless "serving" unit.
-  if (!list.some((s) => s.unit === 'serving') && (!omitDefault || list.length === 0)) {
+  if (!list.some((s) => normUnit(s.unit) === 'serving') && (!omitDefault || list.length === 0)) {
     list.unshift({ unit: 'serving', units_per_serving: 1 });
   }
+  const conflict = findServingRowConflict(list);
+  if (conflict) throw new InvalidServingRowsError(servingRowConflictMessage(conflict));
   return list;
 }
 
@@ -695,6 +709,7 @@ export async function getFoodUsage(userId: string, foodId: string): Promise<Food
 }
 
 export async function createFood(userId: string, input: CreateFoodInput): Promise<Food> {
+  const servings = normalizeServings(input.servings, input.omit_default_serving);
   let pool;
   try {
     pool = await getFoodConnection();
@@ -734,7 +749,6 @@ export async function createFood(userId: string, input: CreateFoodInput): Promis
          VALUES (@userId, @name, @brand, @source, @fdcId, @icon, @barcode, @sourceUrl)`
       );
     const newId = insert.recordset[0].id;
-    const servings = normalizeServings(input.servings, input.omit_default_serving);
     for (const s of servings) {
       await pool
         .request()
@@ -751,6 +765,7 @@ export async function createFood(userId: string, input: CreateFoodInput): Promis
 }
 
 export async function updateFood(userId: string, foodId: string, input: CreateFoodInput): Promise<Food> {
+  const servings = normalizeServings(input.servings);
   let pool;
   try {
     pool = await getFoodConnection();
@@ -775,25 +790,27 @@ export async function updateFood(userId: string, foodId: string, input: CreateFo
     if (update.rowsAffected[0] === 0) {
       throw new Error(`No food found for id: '${foodId}'`);
     }
-    // Reconcile servings by unit name so existing rows keep their UUIDs.
+    // Reconcile servings by unit so existing rows keep their UUIDs.
     // Wholesale DELETE+INSERT would orphan every food_entries.serving_id pointing here.
-    const servings = normalizeServings(input.servings);
     const existing = await pool
       .request()
       .input('foodId', sql.UniqueIdentifier, foodId)
-      .query<{ id: string; unit: string }>(
-        `SELECT id, unit FROM food_servings WHERE food_id=@foodId`
+      .query<{ id: string; unit: string; units_per_serving: number }>(
+        `SELECT id, unit, units_per_serving FROM food_servings WHERE food_id=@foodId`
       );
-    const existingByUnit = new Map(existing.recordset.map((r) => [r.unit, r.id]));
-    const keepUnits = new Set(servings.map((s) => s.unit));
+    const unmatched = [...existing.recordset];
     for (const s of servings) {
-      const id = existingByUnit.get(s.unit);
-      if (id) {
+      // Match the row with the same amount first, so removing a repeated unit keeps the row left in the form
+      const sameUnit = unmatched.filter((r) => normUnit(r.unit) === normUnit(s.unit));
+      const match = sameUnit.find((r) => Number(r.units_per_serving) === s.units_per_serving) ?? sameUnit[0];
+      if (match) {
+        unmatched.splice(unmatched.indexOf(match), 1);
         await pool
           .request()
-          .input('id', sql.UniqueIdentifier, id)
+          .input('id', sql.UniqueIdentifier, match.id)
+          .input('unit', sql.NVarChar(32), s.unit)
           .input('ups', sql.Decimal(10, 4), s.units_per_serving)
-          .query(`UPDATE food_servings SET units_per_serving=@ups WHERE id=@id`);
+          .query(`UPDATE food_servings SET unit=@unit, units_per_serving=@ups WHERE id=@id`);
       } else {
         await pool
           .request()
@@ -803,13 +820,11 @@ export async function updateFood(userId: string, foodId: string, input: CreateFo
           .query(`INSERT INTO food_servings (food_id, unit, units_per_serving) VALUES (@foodId, @unit, @ups)`);
       }
     }
-    for (const r of existing.recordset) {
-      if (!keepUnits.has(r.unit)) {
-        await pool
-          .request()
-          .input('id', sql.UniqueIdentifier, r.id)
-          .query(`DELETE FROM food_servings WHERE id=@id`);
-      }
+    for (const r of unmatched) {
+      await pool
+        .request()
+        .input('id', sql.UniqueIdentifier, r.id)
+        .query(`DELETE FROM food_servings WHERE id=@id`);
     }
     await reconcileFoodNutrients(pool, foodId, await withMacroNutrients(pool, input, normalizeNutrients(input.nutrients)));
     return await getFood(userId, foodId);

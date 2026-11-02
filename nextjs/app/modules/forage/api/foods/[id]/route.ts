@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { getFood, updateFood, archiveFood, setFoodFavorite, normalizeSourceUrl } from '../../../lib/foodFunctions';
+import { getFood, updateFood, archiveFood, setFoodFavorite, normalizeSourceUrl, InvalidServingRowsError } from '../../../lib/foodFunctions';
 import { getRecipeIngredients } from '../../../lib/recipeFunctions';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -65,6 +65,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error: any) {
     if (error?.message?.startsWith('No food found')) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (error instanceof InvalidServingRowsError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
     console.error('Error in PUT /forage/api/foods/[id]:', error);
     return NextResponse.json({ error: 'Failed to update food' }, { status: 500 });

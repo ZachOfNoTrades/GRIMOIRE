@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { listFoods, createFood, getFood, normalizeSourceUrl, DuplicateBarcodeError } from '../../lib/foodFunctions';
+import { listFoods, createFood, getFood, normalizeSourceUrl, DuplicateBarcodeError, InvalidServingRowsError } from '../../lib/foodFunctions';
 import { saveFoodImageFromUrl } from '../../lib/foodImageFunctions';
 
 export async function GET(request: NextRequest) {
@@ -66,6 +66,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(food, { status: 201 });
   } catch (error) {
+    if (error instanceof InvalidServingRowsError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     // A barcode that's already in the library → 409 with the existing food so the
     // UI can point the user at it instead of creating a duplicate.
     if (error instanceof DuplicateBarcodeError) {

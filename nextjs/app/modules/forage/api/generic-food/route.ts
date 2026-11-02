@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { estimateGenericFood } from '../../lib/genericFoodLLM';
 import { createFood } from '../../lib/foodFunctions';
+import { servingRowsFromGrams } from '../../lib/servingRows';
 import { listNutrients } from '../../lib/nutrientFunctions';
 
 export const runtime = 'nodejs';
@@ -38,10 +39,7 @@ export async function POST(request: NextRequest) {
       fat_g_per_serving: estimate.fat_g,
       icon: null,
       barcode_upc: null,
-      servings: [
-        { unit: estimate.serving_unit, units_per_serving: 1 },
-        { unit: 'g', units_per_serving: estimate.serving_grams },
-      ],
+      servings: servingRowsFromGrams(estimate.serving_unit, estimate.serving_grams),
       nutrients,
     });
 

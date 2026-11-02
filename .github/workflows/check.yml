@@ -1,6 +1,6 @@
 name: check
 
-# Typecheck and build every push and pull request on GitHub-hosted runners.
+# Typecheck, run the regression checks and build every push and pull request on GitHub-hosted runners.
 on:
   push:
     branches: ["**"]
@@ -24,4 +24,5 @@ jobs:
           cache-dependency-path: nextjs/package-lock.json
       - run: npm ci --no-audit --no-fund
       - run: npx tsc --noEmit
+      - run: node scripts/regress-forage-serving-rows.mjs
       - run: npm run build

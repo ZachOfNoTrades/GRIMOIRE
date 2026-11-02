@@ -5,6 +5,7 @@ import { extractJson, generateJson, generateText, usesOpenRouter } from '@/lib/l
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
+import { mergeServingRows } from './servingRows';
 import { dupeKey } from './unitFunctions';
 import { CUSTOM_UNIT_MAX_LEN } from '../types/unit';
 
@@ -21,6 +22,10 @@ const KNOWN_NUTRIENT_CODES = NUTRIENT_CODES_IN_ORDER.filter((code) => code !== '
 // catalog lacks becomes a PROPOSAL the user reviews, never a database row — so the
 // rule is strict about quoting the label rather than inferring.
 export const NEW_UNITS_RULE = `- new_units: when the stated serving size uses a unit word that is printed on the label (e.g. "Serving size 1 packet", "2 sticks", "1 sachet") and is NOT in the servings.unit list, emit it in "new_units" as {"name": the singular lowercase word exactly as printed, "type": "mass" | "volume" | "count"} AND emit a servings row using that name. Use "count" for piece-like words (packet, stick, sachet, bar, scoop); "mass"/"volume" only if the word is itself a weight/volume measure. Never invent a unit the label does not print, never emit one for a serving size that is not stated, and never translate or guess a synonym. If the label uses no such word, emit "new_units": [].`;
+
+// Shared by every prompt that reads a facts panel. A panel with two amounts (per 2 oz and
+// per 100g, or per serving and per container) must yield one food, not a blend of both columns.
+export const SINGLE_COLUMN_RULE = `- MULTIPLE COLUMNS: a facts panel can list the same food at two or more amounts (e.g. "Per 2 oz (56g)" beside "Per 3.5 oz (100g)", or "Per serving" beside "Per container"). Read EXACTLY ONE column: the one matching the printed "Serving size" line, or the first column if no such line is printed. Every calorie, macro and nutrient value and every servings row comes from that one column. Never copy a value from another column, and never emit a servings row for another column's amount: "Serving size 2 oz (56g)" beside a 3.5 oz (100g) column gives only [{"unit":"oz","units_per_serving":2},{"unit":"g","units_per_serving":56}]. A value blank in the chosen column is null (macros) or omitted (nutrients), even when another column shows one.`;
 
 // Two openings for the same task: on the Claude CLI the model Reads the files at
 // `imagePaths` and Writes its answer to `outputPath`; on OpenRouter the photos are
@@ -68,6 +73,7 @@ Rules:
 - If there is NO facts panel with a stated serving size, set "serving_size_stated": false AND emit null for kcal/protein/carbs/fat and an empty {} for nutrients_by_code. Still return name, brand and barcode_upc if visible.
 - NEVER take macro/nutrient numbers from front-of-pack marketing claims (a big "24g PROTEIN" callout, "High Protein", "Now with Caffeine", "Excellent source of fiber", etc.). Those are not per-serving sources of truth — ignore them entirely for nutrition.
 - All macro & nutrient values are PER SERVING (not per container, not per 100g).
+${SINGLE_COLUMN_RULE}
 - A value the label lists as "0g"/"0mg" → emit 0. A value the label does NOT list → emit null (macros) or omit from nutrients_by_code (nutrients).
 - "<1g" → emit 0.5.
 - name / brand: extract from the package if visible (prefer the front/marketing face for the brand and product name); otherwise empty string "".
@@ -152,12 +158,14 @@ export function coerceDraft(
   const proposed = new Set(new_units.map((u) => u.name));
 
   const servingsIn: any[] = Array.isArray(raw?.servings) ? raw.servings : [];
-  const servings = servingsIn
+  const validServings = servingsIn
     .map((s) => ({
       unit: typeof s?.unit === 'string' ? s.unit.trim().toLowerCase() : '',
       units_per_serving: Number(s?.units_per_serving),
     }))
     .filter((s) => s.unit && (knownUnits.has(s.unit) || proposed.has(s.unit)) && Number.isFinite(s.units_per_serving) && s.units_per_serving > 0);
+  // Keep the first amount the model listed, as a second amount for a unit or size came from another column
+  const servings = mergeServingRows([], validServings);
   if (servings.length === 0) {
     servings.push({ unit: 'g', units_per_serving: 0 });
   }

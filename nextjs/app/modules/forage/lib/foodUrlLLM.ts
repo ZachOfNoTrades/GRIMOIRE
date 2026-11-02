@@ -2,7 +2,7 @@ import { generateText } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
-import { coerceDraft } from './labelOcrLLM';
+import { coerceDraft, SINGLE_COLUMN_RULE } from './labelOcrLLM';
 import { deriveProductQuery, lookupOpenFoodFacts } from './openFoodFacts';
 import { assertSafeUrl, fetchWebPage, fetchWebPageViaBrowser, htmlToText, SiteBlockedError } from './webPageFetch';
 
@@ -147,6 +147,7 @@ Rules:
 - The page describes ONE main product. Ignore related/upsell items, "customers also bought", ingredient add-ons and their calorie deltas ("Adds 40 Cal"), and category listings.
 - serving_size_stated: true when the SOURCE gives per-serving nutrition for the product — a nutrition facts panel, a nutrition table, or an explicit "per serving"/"per item" nutrition list. A lone calorie count with no other nutrition still counts as true if it is clearly this product's per-item figure.
 - All macro & nutrient values are PER SERVING (one item / one stated serving), not per container and not per 100g, unless the page states its figures per 100g — in which case emit the per-100g numbers and include a matching servings row (see below).
+${SINGLE_COLUMN_RULE}
 - A value the page lists as "0g"/"0mg" → emit 0. A value the page does not list → emit null (macros) or omit (nutrients).
 - "<1g" → emit 0.5.
 - name: the product name as the page titles it, under 80 chars, without the brand.

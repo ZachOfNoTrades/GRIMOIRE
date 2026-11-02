@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { lookupGenericFoodFromFdc } from '../../lib/usdaFdc';
 import { createFood } from '../../lib/foodFunctions';
+import { mergeServingRows, servingRowsFromGrams } from '../../lib/servingRows';
 import { listNutrients } from '../../lib/nutrientFunctions';
 
 export const runtime = 'nodejs';
@@ -39,13 +40,9 @@ export async function POST(request: NextRequest) {
     // Base servings: the canonical unit (1) + grams, plus any FDC household
     // portions (cup/tbsp/…) as serving-preserving rows. units_per_serving = how many
     // of <unit> equal one serving, i.e. serving_grams / grams-per-unit.
-    const seen = new Set([estimate.serving_unit.toLowerCase(), 'g']);
     const portionServings = (estimate.portions ?? [])
-      .filter(p => p.grams > 0 && !seen.has(p.unit.toLowerCase()))
-      .map(p => {
-        seen.add(p.unit.toLowerCase());
-        return { unit: p.unit, units_per_serving: Math.round((estimate.serving_grams / p.grams) * 1e4) / 1e4 };
-      });
+      .filter(p => p.grams > 0)
+      .map(p => ({ unit: p.unit, units_per_serving: Math.round((estimate.serving_grams / p.grams) * 1e4) / 1e4 }));
 
     const food = await createFood(session.user.id!, {
       name: estimate.name,
@@ -58,11 +55,7 @@ export async function POST(request: NextRequest) {
       fat_g_per_serving: estimate.fat_g,
       icon: null,
       barcode_upc: null,
-      servings: [
-        { unit: estimate.serving_unit, units_per_serving: 1 },
-        { unit: 'g', units_per_serving: estimate.serving_grams },
-        ...portionServings,
-      ],
+      servings: mergeServingRows(servingRowsFromGrams(estimate.serving_unit, estimate.serving_grams), portionServings),
       nutrients,
     });
 

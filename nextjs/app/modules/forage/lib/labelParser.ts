@@ -1,4 +1,5 @@
 import { LabelOcrDraft } from '../types/labelOcr';
+import { mergeServingRows } from './servingRows';
 import { DAILY_VALUES as LEDGER_DAILY_VALUES, MACRO_BY_KEY, type NutrientCode } from '../utils/nutrientLedger';
 
 // Maps text-on-the-label phrases to the nutrient `code` values (typed against the
@@ -221,7 +222,6 @@ function extractServings(
   // Collect every "<n> <word>" pair. The word may be a multi-token unit name (only
   // "fl oz" today) so try the two-word form first.
   const pairs: Array<{ unit: string; units_per_serving: number }> = [];
-  const seen = new Set<string>();
 
   const re = /(\d+(?:[./]\d+)?)\s*(fl\s*oz|[A-Za-z]+)\b/g;
   let m: RegExpExecArray | null;
@@ -232,11 +232,9 @@ function extractServings(
     // Skip numeric-context words that aren't UOMs ("about", "approximately").
     if (raw === 'about' || raw === 'approx' || raw === 'approximately') continue;
     if (!knownUnits.has(raw)) continue; // strict: drop UOMs not registered in food_units
-    if (seen.has(raw)) continue;
-    seen.add(raw);
     pairs.push({ unit: raw, units_per_serving: num });
   }
-  if (pairs.length > 0) return pairs;
+  if (pairs.length > 0) return mergeServingRows([], pairs);
 
   // Header and value on separate OCR lines (spinner digit dropped or read as "+"):
   // "Serving Size:" then a line of plain letters. Use the generic 'unit' if it's

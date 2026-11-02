@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { getFood, updateFood } from '../../../../lib/foodFunctions';
+import { getFood, updateFood, InvalidServingRowsError } from '../../../../lib/foodFunctions';
+import { mergeServingRows } from '../../../../lib/servingRows';
 import { extractFoodFromUrl } from '../../../../lib/foodUrlLLM';
 import { listUnits } from '../../../../lib/unitFunctions';
 import { listNutrients } from '../../../../lib/nutrientFunctions';
@@ -47,15 +48,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    // MERGE SERVINGS — existing rows win on unit name (their ids are referenced by
-    // food_entries); scraped rows only ADD units the food doesn't have yet.
-    const existingUnits = new Set(food.servings.map((s) => s.unit.toLowerCase()));
-    const mergedServings = [
-      ...food.servings.map((s) => ({ unit: s.unit, units_per_serving: s.units_per_serving })),
-      ...draft.servings
-        .filter((s) => s.units_per_serving > 0 && !existingUnits.has(s.unit.toLowerCase()))
-        .map((s) => ({ unit: s.unit, units_per_serving: s.units_per_serving })),
-    ];
+    // MERGE SERVINGS — existing rows win (their ids are referenced by food_entries);
+    // scraped rows only ADD units that fit the food's serving.
+    const mergedServings = mergeServingRows(
+      food.servings.map((s) => ({ unit: s.unit, units_per_serving: s.units_per_serving })),
+      draft.servings.filter((s) => s.units_per_serving > 0)
+    );
 
     // NUTRIENTS — the scrape is authoritative for what the page states; a nutrient
     // the page doesn't mention keeps whatever the food already had, so a sparse
@@ -86,6 +84,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json(updated);
   } catch (error: any) {
+    if (error instanceof InvalidServingRowsError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     if (error?.message?.startsWith('No food found')) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }

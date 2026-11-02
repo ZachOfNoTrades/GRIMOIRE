@@ -1,5 +1,6 @@
 import { estimateGenericFood } from './genericFoodLLM';
 import { createFood, listFoods } from './foodFunctions';
+import { servingRowsFromGrams } from './servingRows';
 import { listNutrients } from './nutrientFunctions';
 import { lookupGenericFoodFromFdc } from './usdaFdc';
 import type { FdcPortion } from './usdaFdc';
@@ -81,10 +82,7 @@ export async function resolveIngredientItems(
             fat_g_per_serving: estimate.fat_g,
             icon: null,
             barcode_upc: null,
-            servings: [
-              { unit: estimate.serving_unit, units_per_serving: 1 },
-              { unit: 'g', units_per_serving: estimate.serving_grams },
-            ],
+            servings: servingRowsFromGrams(estimate.serving_unit, estimate.serving_grams),
             nutrients,
           });
           if (fdc) portions = fdc.portions;

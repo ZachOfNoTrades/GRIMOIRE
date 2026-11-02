@@ -112,6 +112,7 @@ import type { FoodUnit, UnitType } from "../types/unit";
 import { CUSTOM_UNIT_MAX_LEN, CUSTOM_UNIT_ORDER_BASE } from "../types/unit";
 import { normUnit } from "../lib/unitFamilies";
 import { UNIT_TYPE_LABELS, UNIT_TYPES, convert, familyOf } from "../lib/unitFamilies";
+import { findServingRowConflict, nextServingUnit, servingRowConflictMessage } from "../lib/servingRows";
 import { useUnits, prefetchUnits, setUnitsCache, unitTypeByName, optionGroups } from "../utils/useUnits";
 import { selectOnFocus, blurOnEnter, focusOnEnter, useBlurActiveInputOnScroll } from "@/lib/inputBehavior";
 import { fmtAmount, fmtServingAmount, parseAmount } from "../lib/format";
@@ -5112,10 +5113,11 @@ export function ServingTable({
   const [addingForRow, setAddingForRow] = useState<number | null>(null);
   const groups = optionGroups(units, (u) => u.type);
 
-  // The unit dropdown's options, shared by the grouped and flat renderings.
-  function unitOption(u: FoodUnit) {
+  // The unit dropdown's options, shared by the grouped and flat renderings. A unit
+  // another row uses is disabled, as a food holds one amount per unit.
+  function unitOption(u: FoodUnit, unitsOnOtherRows: Set<string>) {
     return (
-      <option key={u.id} value={u.name}>
+      <option key={u.id} value={u.name} disabled={unitsOnOtherRows.has(normUnit(u.name))}>
         {isTempUnit(u) ? `${u.name} (new)` : u.name}
       </option>
     );
@@ -5130,6 +5132,7 @@ export function ServingTable({
             const nextId = nextIdAfter?.(i) ?? null;
             // If the stored unit is no longer in the DB list, keep it visible as a stale option
             const inList = units.some((u) => u.name === s.unit);
+            const unitsOnOtherRows = new Set(rows.filter((_, rowIndex) => rowIndex !== i).map((row) => normUnit(row.unit)));
             return (
               <tr key={i}>
                 <td>
@@ -5165,10 +5168,10 @@ export function ServingTable({
                     {groups
                       ? groups.map((g) => (
                           <optgroup key={g.type} label={g.label}>
-                            {g.items.map(unitOption)}
+                            {g.items.map((u) => unitOption(u, unitsOnOtherRows))}
                           </optgroup>
                         ))
-                      : units.map(unitOption)}
+                      : units.map((u) => unitOption(u, unitsOnOtherRows))}
                     <option value={ADD_UNIT_SENTINEL}>＋ New unit…</option>
                   </select>
                 </td>
@@ -6183,7 +6186,10 @@ export function CreateFoodWizard({
   }
 
   function addServing() {
-    setServings((prev) => [...prev, { unit: "g", ups: "" }]);
+    setServings((prev) => {
+      const unit = nextServingUnit(prev.map((s) => s.unit));
+      return [...prev, { unit, ups: deriveUnitsPerServing(prev, -1, unit) ?? "" }];
+    });
   }
   function updateServing(i: number, patch: Partial<ServingDraft>) {
     setServings((prev) =>
@@ -6246,6 +6252,13 @@ export function CreateFoodWizard({
         return;
       }
     }
+    const saveServings = buildSaveServings();
+    const servingConflict = findServingRowConflict(saveServings);
+    if (servingConflict) {
+      toast.error(servingRowConflictMessage(servingConflict));
+      setStep(1);
+      return;
+    }
     if (dupFood) {
       toast.error(`Already in your library: ${dupFood.name}`);
       setStep(0);
@@ -6254,7 +6267,6 @@ export function CreateFoodWizard({
     savingRef.current = true;
     setIsSaving(true);
     try {
-      const saveServings = buildSaveServings();
       if (!(await saveTempUnits(tempUnits, saveServings.map((s) => s.unit)))) return;
       const res = await fetch(`/modules/forage/api/foods`, {
         method: "POST",
@@ -7356,7 +7368,10 @@ export function FoodForm({
   }, [foodId, isEdit]);
 
   function addServing() {
-    setServings((prev) => [...prev, { unit: "g", ups: "" }]);
+    setServings((prev) => {
+      const unit = nextServingUnit(prev.map((s) => s.unit));
+      return [...prev, { unit, ups: deriveUnitsPerServing(prev, -1, unit) ?? "" }];
+    });
   }
   function updateServing(i: number, patch: Partial<ServingDraft>) {
     setServings((prev) =>
@@ -7396,10 +7411,18 @@ export function FoodForm({
       toast.error(`How much is one serving in ${incomplete.unit.trim()}? Enter an amount or remove that unit.`);
       return;
     }
+    const saveServings = servings
+      .map((s) => ({ unit: (s.unit ?? "").trim(), units_per_serving: parseAmount(s.ups) }))
+      .filter((s) => s.unit);
+    const servingConflict = findServingRowConflict(saveServings);
+    if (servingConflict) {
+      toast.error(servingRowConflictMessage(servingConflict));
+      return;
+    }
     savingRef.current = true;
     setIsSaving(true);
     try {
-      if (!(await saveTempUnits(tempUnits, servings.map((s) => (s.unit ?? "").trim())))) return;
+      if (!(await saveTempUnits(tempUnits, saveServings.map((s) => s.unit)))) return;
       const url = isEdit ? `/modules/forage/api/foods/${foodId}` : `/modules/forage/api/foods`;
       const method = isEdit ? "PUT" : "POST";
       const res = await fetch(url, {
@@ -7417,9 +7440,7 @@ export function FoodForm({
           icon,
           // Every row is guaranteed complete by the guard above; the empty-unit
           // filter only drops a row left blank by a deleted custom unit.
-          servings: servings
-            .map((s) => ({ unit: (s.unit ?? "").trim(), units_per_serving: parseAmount(s.ups) }))
-            .filter((s) => s.unit),
+          servings: saveServings,
           nutrients: Object.entries(nutrientAmounts)
             .map(([nutrient_id, amount]) => ({ nutrient_id, amount: Number(amount) }))
             .filter((n) => Number.isFinite(n.amount) && n.amount >= 0),

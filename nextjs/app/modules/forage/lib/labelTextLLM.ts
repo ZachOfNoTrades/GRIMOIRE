@@ -2,7 +2,7 @@ import { generateText } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
-import { coerceDraft, NEW_UNITS_RULE } from './labelOcrLLM';
+import { coerceDraft, NEW_UNITS_RULE, SINGLE_COLUMN_RULE } from './labelOcrLLM';
 import { parseNutritionText } from './labelParser';
 import { listUnits } from './unitFunctions';
 
@@ -71,6 +71,7 @@ Rules:
 - If there is NO stated basis at all, set "serving_size_stated": false AND emit null for kcal/protein/carbs/fat and an empty {} for nutrients_by_code. Still return name, brand and barcode_upc if the text states them.
 - NEVER take macro/nutrient numbers from front-of-pack marketing claims ("24g PROTEIN!", "High Protein", "Excellent source of fiber"). Those are not a stated basis — ignore them entirely for nutrition.
 - All macro & nutrient values are PER SERVING (not per container) unless the listing is per 100g/100ml — in which case emit the per-100g/100ml numbers as-is and a matching servings row (see below), never rescaled.
+${SINGLE_COLUMN_RULE}
 - Energy given in both kJ and kcal → use the kcal figure. Energy given ONLY in kJ → divide by 4.184 and round to the nearest whole kcal.
 - "Salt" (common on non-US labels) is not sodium: sodium mg = salt g × 400. Emit the converted value under "sodium".
 - Pasted text is often mangled by copy/paste: columns collapse onto one line, the "% Daily Value" column interleaves with amounts, and line breaks land mid-row. Read it as a label anyway. Where a row shows both an amount and a percentage ("Total Fat 16g 21%"), the AMOUNT is the value — never the percentage.
