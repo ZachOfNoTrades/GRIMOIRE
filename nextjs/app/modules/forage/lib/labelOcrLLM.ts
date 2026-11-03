@@ -3,7 +3,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { extractJson, generateJson, generateText, usesOpenRouter } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
-import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
+import { DAILY_VALUES, NUTRIENT_CODES_IN_ORDER, NutrientCode } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
 import { mergeServingRows } from './servingRows';
 import { dupeKey } from './unitFunctions';
@@ -26,6 +26,13 @@ export const NEW_UNITS_RULE = `- new_units: when the stated serving size uses a 
 // Shared by every prompt that reads a facts panel. A panel with two amounts (per 2 oz and
 // per 100g, or per serving and per container) must yield one food, not a blend of both columns.
 export const SINGLE_COLUMN_RULE = `- MULTIPLE COLUMNS: a facts panel can list the same food at two or more amounts (e.g. "Per 2 oz (56g)" beside "Per 3.5 oz (100g)", or "Per serving" beside "Per container"). Read EXACTLY ONE column: the one matching the printed "Serving size" line, or the first column if no such line is printed. Every calorie, macro and nutrient value and every servings row comes from that one column. Never copy a value from another column, and never emit a servings row for another column's amount: "Serving size 2 oz (56g)" beside a 3.5 oz (100g) column gives only [{"unit":"oz","units_per_serving":2},{"unit":"g","units_per_serving":56}]. A value blank in the chosen column is null (macros) or omitted (nutrients), even when another column shows one.`;
+
+// Shared by every prompt that reads a facts panel. A row printed only as a %DV is copied as its percentage,
+// to avoid the model writing 0 in place of the amount.
+export const PERCENT_DV_RULE = `- A nutrient row that prints only a %DV and no amount (e.g. "Riboflavin (Vit. B2) 200%"): put the printed percentage in "percent_dv_by_code" ("riboflavin": 200) and leave the nutrient out of nutrients_by_code. Never calculate an amount from a percentage, and never emit 0 for a nutrient whose row shows a percentage above 0%. A row with both an amount and a percentage ("Calcium 340mg 25%") goes in nutrients_by_code with the amount only.`;
+
+// Shared by every prompt's JSON shape, holding the percentages PERCENT_DV_RULE asks for
+export const PERCENT_DV_SHAPE = `"percent_dv_by_code": { "<code>": number, ... }`;
 
 // Two openings for the same task: on the Claude CLI the model Reads the files at
 // `imagePaths` and Writes its answer to `outputPath`; on OpenRouter the photos are
@@ -65,7 +72,8 @@ JSON shape (strict — extra/misnamed keys break the consumer):
   "protein_g_per_serving": number | null,
   "carbs_g_per_serving": number | null,
   "fat_g_per_serving": number | null,
-  "nutrients_by_code": { "<code>": number, ... }
+  "nutrients_by_code": { "<code>": number, ... },
+  ${PERCENT_DV_SHAPE}
 }
 
 Rules:
@@ -82,7 +90,7 @@ ${SINGLE_COLUMN_RULE}
 - servings.unit must be one of: ${unitsList}. If the label says "1 Cup (240mL)" emit BOTH rows: [{"unit":"cup","units_per_serving":1},{"unit":"ml","units_per_serving":240}]. If no recognizable serving info, emit [{"unit":"g","units_per_serving":0}].
 ${NEW_UNITS_RULE}
 - nutrients_by_code keys must be from this exact list: ${codesList}. Values are in the standard unit for that nutrient (g for fiber/sugars/fats, mg for sodium/calcium/iron/potassium/magnesium/phosphorus/etc., mcg for vitamin D/B12/folate/biotin/iodine/selenium/chromium/molybdenum/vitamin A/K). Do NOT include calories/protein/carbs/fat here — those go in the top-level macro fields.
-- If the label only shows %DV for a nutrient, back-calculate using FDA 2016 Daily Values (e.g. phosphorus 10% × 1250mg = 125mg).
+${PERCENT_DV_RULE}
 - When (and only when) serving_size_stated is true, don't stop at the nutrition-facts panel: also read the INGREDIENTS list and any SUPPLEMENT FACTS panel for trackable nutrients in the known-codes list. Some actives — caffeine above all — are usually declared there (e.g. "Caffeine 200mg", "Caffeine (from green tea extract) 150mg", "Caffeine Anhydrous 150mg") rather than in the nutrition facts. When an ingredient names a known-code nutrient WITH an explicit per-serving amount, emit it in nutrients_by_code under its code (caffeine in mg). Only emit a quantified amount — if an ingredient is listed by name with no amount, omit it (do not guess). A caffeine pill's Supplement Facts panel that states "Serving size 1 capsule" counts as serving_size_stated=true even if caffeine is the only line.
 
 ${outro}`;
@@ -126,11 +134,8 @@ export async function parseLabelImageWithLLM(opts: {
   return draft;
 }
 
-// Defensively coerce the LLM's JSON to the LabelOcrDraft shape. Drops unknown
-// nutrient codes / units, clamps types, fills required fields with safe defaults.
-// Anything that can't be coerced becomes null/empty so the modal still loads.
-// Exported so the source-link import (foodUrlLLM) coerces identically — both
-// paths produce the same draft the food form consumes.
+// Coerce a model's JSON to the LabelOcrDraft shape, so the food form loads whatever the model returned
+// NOTE: Exported so the label photo, pasted label and source-link imports produce the same draft
 export function coerceDraft(
   raw: any,
   knownUnits: Set<string>,
@@ -186,6 +191,17 @@ export function coerceDraft(
       if (!known.has(code)) continue;
       const n = Number(v);
       if (Number.isFinite(n) && n >= 0) nutrients_by_code[code] = n;
+    }
+  }
+
+  // Convert each %DV-only row to an amount with its FDA Daily Value, keeping an amount above 0 the model read off the label
+  if (serving_size_stated && raw?.percent_dv_by_code && typeof raw.percent_dv_by_code === 'object') {
+    for (const [code, v] of Object.entries(raw.percent_dv_by_code)) {
+      const daily_value = DAILY_VALUES[code as NutrientCode];
+      const percent = Number(v);
+      if (!known.has(code) || !daily_value || !Number.isFinite(percent) || percent < 0) continue;
+      if ((nutrients_by_code[code] ?? 0) > 0) continue;
+      nutrients_by_code[code] = Math.round((percent / 100) * daily_value * 1000) / 1000; // Round off float noise such as 2.6000000000000005
     }
   }
 

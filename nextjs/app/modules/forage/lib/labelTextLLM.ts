@@ -2,7 +2,7 @@ import { generateText } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
-import { coerceDraft, NEW_UNITS_RULE, SINGLE_COLUMN_RULE } from './labelOcrLLM';
+import { coerceDraft, NEW_UNITS_RULE, PERCENT_DV_RULE, PERCENT_DV_SHAPE, SINGLE_COLUMN_RULE } from './labelOcrLLM';
 import { parseNutritionText } from './labelParser';
 import { listUnits } from './unitFunctions';
 
@@ -62,7 +62,8 @@ JSON shape (strict — extra/misnamed keys break the consumer):
   "protein_g_per_serving": number | null,
   "carbs_g_per_serving": number | null,
   "fat_g_per_serving": number | null,
-  "nutrients_by_code": { "<code>": number, ... }
+  "nutrients_by_code": { "<code>": number, ... },
+  ${PERCENT_DV_SHAPE}
 }
 
 Rules:
@@ -83,7 +84,7 @@ ${SINGLE_COLUMN_RULE}
 - servings.unit must be one of: ${unitsList}. If the text says "Serving size 1 Cup (240mL)" emit BOTH rows: [{"unit":"cup","units_per_serving":1},{"unit":"ml","units_per_serving":240}]; a per-100g listing gives exactly [{"unit":"g","units_per_serving":100}] and a per-100ml listing exactly [{"unit":"ml","units_per_serving":100}]. If there is no recognizable serving info, emit [{"unit":"g","units_per_serving":0}].
 ${NEW_UNITS_RULE}
 - nutrients_by_code keys must be from this exact list: ${codesList}. Values are in the standard unit for that nutrient (g for fiber/sugars/fats, mg for sodium/calcium/iron/potassium/cholesterol/magnesium/phosphorus, mcg for vitamin D/B12/folate/biotin/iodine/selenium/chromium/molybdenum/vitamin A/K). Do NOT include calories/protein/carbs/fat here — those go in the top-level macro fields.
-- If a nutrient is given only as %DV, back-calculate using FDA 2016 Daily Values (e.g. phosphorus 10% × 1250mg = 125mg).
+${PERCENT_DV_RULE}
 - When (and only when) serving_size_stated is true, also read any INGREDIENTS list and SUPPLEMENT FACTS panel in the text for trackable nutrients in the known-codes list — caffeine above all is usually declared there ("Caffeine 200mg", "Caffeine Anhydrous 150mg") rather than in the nutrition facts. Only emit a quantified amount; an ingredient named with no amount is omitted, never guessed.
 - If the SOURCE carries no identifiable food at all, return {"name":"","brand":"","barcode_upc":null,"icon":null,"serving_size_stated":false,"servings":[],"kcal_per_serving":null,"protein_g_per_serving":null,"carbs_g_per_serving":null,"fat_g_per_serving":null,"nutrients_by_code":{}}.
 

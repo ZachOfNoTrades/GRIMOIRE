@@ -2,7 +2,7 @@ import { generateText } from '@/lib/llm/generate';
 import { LabelOcrDraft } from '../types/labelOcr';
 import { NUTRIENT_CODES_IN_ORDER } from '../utils/nutrientLedger';
 import { FOOD_ICON_CODES } from './foodIcons';
-import { coerceDraft, SINGLE_COLUMN_RULE } from './labelOcrLLM';
+import { coerceDraft, PERCENT_DV_RULE, PERCENT_DV_SHAPE, SINGLE_COLUMN_RULE } from './labelOcrLLM';
 import { deriveProductQuery, lookupOpenFoodFacts } from './openFoodFacts';
 import { assertSafeUrl, fetchWebPage, fetchWebPageViaBrowser, htmlToText, SiteBlockedError } from './webPageFetch';
 
@@ -139,7 +139,8 @@ JSON shape (strict — extra/misnamed keys break the consumer):
   "protein_g_per_serving": number | null,
   "carbs_g_per_serving": number | null,
   "fat_g_per_serving": number | null,
-  "nutrients_by_code": { "<code>": number, ... }
+  "nutrients_by_code": { "<code>": number, ... },
+  ${PERCENT_DV_SHAPE}
 }
 
 Rules:
@@ -156,7 +157,7 @@ ${SINGLE_COLUMN_RULE}
 - icon: pick the single best-fitting icon code for this food from this exact list: ${iconList}. Choose by category (a burrito/taco → sandwich if no better fit, a soda → cup-soda, a chocolate bar → candy, chicken → drumstick, a salad → salad, coffee → coffee, milk → milk, beer → beer, wine → wine). Emit exactly one code from the list, or null if none is a reasonable match. Never invent a code not in the list.
 - servings.unit must be one of: ${unitsList}. Emit a row for each unit the page states a size in — e.g. a page saying "1 burrito (248g)" gives [{"unit":"piece","units_per_serving":1},{"unit":"g","units_per_serving":248}]; a per-100g page gives [{"unit":"g","units_per_serving":100}]. If a unit is not in the list, drop that row. If the page states no size at all, emit [{"unit":"serving","units_per_serving":1}].
 - nutrients_by_code keys must be from this exact list: ${codesList}. Values are in the standard unit for that nutrient (g for fiber/sugars/fats, mg for sodium/calcium/iron/potassium/cholesterol, mcg for vitamin D/B12/folate/vitamin A/K). Do NOT include calories/protein/carbs/fat here — those go in the top-level macro fields.
-- If a nutrient is given only as %DV, back-calculate using FDA 2016 Daily Values (e.g. calcium 40% × 1300mg = 520mg).
+${PERCENT_DV_RULE}
 - If the SOURCE has no identifiable food at all, return {"name":"","brand":"","barcode_upc":null,"icon":null,"serving_size_stated":false,"servings":[],"kcal_per_serving":null,"protein_g_per_serving":null,"carbs_g_per_serving":null,"fat_g_per_serving":null,"nutrients_by_code":{}}.
 
 When the SOURCE is an OPEN FOOD FACTS RECORD block, these rules replace the page-reading ones above:
