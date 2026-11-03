@@ -1,6 +1,6 @@
 import { getRuneConnection, closeRuneConnection } from './db';
 import type { RequestChannel } from '@/lib/permissions';
-import { CardWithProgress, CardReview, CARD_SOURCE_REF_MAX, CARD_CATEGORY_MAX } from '../types/card';
+import { CardWithProgress, CardReview, CardTextField, CARD_SOURCE_REF_MAX, CARD_CATEGORY_MAX } from '../types/card';
 import { GeneratedCard, RefinedCard } from '../types/generation';
 
 // Normalizes a free-text card field to null-or-trimmed-string, clamped to `max` when the
@@ -329,6 +329,37 @@ export async function updateCard(userId: string, cardId: string, front: string, 
     }
   } catch (error) {
     console.error('Error updating card:', error);
+    throw error;
+  } finally {
+    if (pool) {
+      await closeRuneConnection(pool);
+    }
+  }
+}
+
+// Add a media embed to the end of one of a card's text fields, leaving the rest of the card as it is
+export async function appendCardMedia(userId: string, cardId: string, field: CardTextField, url: string, via: RequestChannel = 'web'): Promise<void> {
+  let pool;
+  try {
+    pool = await getRuneConnection();
+    const result = await pool.request()
+      .input('userId', userId)
+      .input('cardId', cardId)
+      .input('separator', '\n\n')
+      .input('embed', `![](${url})`)
+      .input('via', via)
+      .query(`
+        UPDATE cards
+        SET ${field} = COALESCE(NULLIF(${field}, '') + @separator, '') + @embed,
+            modified_at = GETDATE(), modified_via = @via
+        WHERE id = @cardId AND user_id = @userId
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error(`No card found for id: '${cardId}'`);
+    }
+  } catch (error) {
+    console.error('Error adding media to card:', error);
     throw error;
   } finally {
     if (pool) {

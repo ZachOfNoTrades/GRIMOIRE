@@ -6,6 +6,10 @@
 export const CARD_SOURCE_REF_MAX = 500;
 export const CARD_CATEGORY_MAX = 200;
 
+// The parts of a card that hold markdown
+export const CARD_TEXT_FIELDS = ['front', 'back', 'notes'] as const;
+export type CardTextField = (typeof CARD_TEXT_FIELDS)[number];
+
 export interface CardWithProgress {
   id: string;
   deck_id: string;

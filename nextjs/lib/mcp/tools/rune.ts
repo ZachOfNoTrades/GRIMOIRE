@@ -4,9 +4,10 @@ import type { McpContext } from '@/lib/mcp/context';
 import { json, text } from '@/lib/mcp/format';
 
 import { getAllDecks, getDeckById, createDeck, updateDeck, deleteDeck } from '@/app/modules/rune/lib/deckFunctions';
-import { getCardsByDeckId, getCardById, insertCard, updateCard, deleteCard, upsertCards, moveCards } from '@/app/modules/rune/lib/cardFunctions';
+import { getCardsByDeckId, getCardById, insertCard, updateCard, appendCardMedia, deleteCard, upsertCards, moveCards } from '@/app/modules/rune/lib/cardFunctions';
 import { requireDeckAccess } from '@/app/modules/rune/lib/shareFunctions';
-import { CARD_SOURCE_REF_MAX, CARD_CATEGORY_MAX } from '@/app/modules/rune/types/card';
+import { decodeBase64Image, detectImageExtension, downloadImage, saveUpload, MAX_UPLOAD_BYTES } from '@/app/modules/rune/lib/uploadFunctions';
+import { CARD_SOURCE_REF_MAX, CARD_CATEGORY_MAX, CARD_TEXT_FIELDS } from '@/app/modules/rune/types/card';
 import {
   createStudySession,
   submitCardReview,
@@ -14,6 +15,9 @@ import {
   getDeckStudySessions,
   getStudySessionHistory,
 } from '@/app/modules/rune/lib/studyFunctions';
+
+const MAX_IMAGE_MB = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
+const MAX_BASE64_IMAGE_MB = 3;
 
 // ISO 8601 date or date-time → Date; a bare date is midnight UTC.
 function parseIsoDate(value: string | undefined, field: string): Date | null {
@@ -146,6 +150,36 @@ export function registerRuneTools(server: McpServer, ctx: McpContext) {
       // set. An explicit null back is normalized to '' — the no-answer representation.
       await updateCard(userId, cardId, front, back === undefined ? undefined : (back ?? ''), notes ?? null, category, isDraft, sourceRef, 'mcp');
       return text('Card updated.');
+    },
+  );
+
+  server.registerTool(
+    'rune_attach_card_image',
+    {
+      description:
+        'Upload a picture and add it to the end of a card\'s front, back or notes. The rest of the card and its SM-2 progress stay as they are. ' +
+        `Send exactly one of imageBase64 (the file's bytes, up to about ${MAX_BASE64_IMAGE_MB} MB, as the whole MCP request is capped at 4 MB) or imageUrl (a public link the server downloads). ` +
+        `PNG, JPEG, GIF and WebP, up to ${MAX_IMAGE_MB} MB. ` +
+        'The returned url is already embedded in the card; do not add it again.',
+      inputSchema: {
+        cardId: z.string(),
+        field: z.enum(CARD_TEXT_FIELDS).describe('Which part of the card shows the picture.'),
+        imageBase64: z.string().optional().describe('The image file as base64, with or without a data: prefix.'),
+        imageUrl: z.string().optional().describe('A public http(s) link to the image file.'),
+      },
+    },
+    async ({ cardId, field, imageBase64, imageUrl }) => {
+      if (!imageBase64 === !imageUrl) throw new Error('Send exactly one of imageBase64 or imageUrl');
+      await getCardById(userId, cardId); // Refuse a card the user does not own before downloading
+
+      const image = imageBase64 ? decodeBase64Image(imageBase64) : await downloadImage(imageUrl!);
+      if (image.length > MAX_UPLOAD_BYTES) throw new Error(`Image too large (max ${MAX_IMAGE_MB}MB)`);
+      const ext = detectImageExtension(image);
+      if (!ext) throw new Error('Unsupported image: send a PNG, JPEG, GIF or WebP file');
+
+      const url = await saveUpload(userId, image, ext);
+      await appendCardMedia(userId, cardId, field, url, 'mcp');
+      return json({ url, field });
     },
   );
 
