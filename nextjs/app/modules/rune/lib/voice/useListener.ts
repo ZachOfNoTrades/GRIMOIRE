@@ -34,8 +34,8 @@ export function useListener(silenceMs: number, onRecordingStopped?: () => void):
   // with the silence countdown. Nulled if they resume speaking, which makes the
   // snapshot it was given an incomplete answer.
   const headStartRef = useRef<Promise<string> | null>(null);
-  // Cancels the in-flight head start; only one transcription runs per recording.
-  const headStartAbortRef = useRef<AbortController | null>(null);
+  const transcriptionAbortRef = useRef<AbortController | null>(null); // Abort for the transcription in flight; only one runs per recording
+  const openingRef = useRef<Promise<void> | null>(null); // Latest start, settled once its mic is open or discarded
 
   // Get or create instances
   const getRecorder = useCallback(() => {
@@ -53,16 +53,11 @@ export function useListener(silenceMs: number, onRecordingStopped?: () => void):
   }, []);
 
   /**
-   * Process a recorded audio blob through STT. Discards if recording was under 1 second.
-   *
-   * Prefers the head-start transcription kicked off at speech-end, which is normally
-   * already resolved by the time the silence countdown expires — so the user waits
-   * ~0ms here instead of a full Whisper pass. Falls back to transcribing `audioBlob`
-   * when there is no valid head start (a manual stop mid-sentence, or a resume that
-   * invalidated the snapshot). Expects isTranscribing already set by the caller.
+   * Transcribe a finished recording, preferring the transcription started when the speaker went quiet.
+   * NOTE: Drops audio under 1 second, and audio from a recording canceled since it stopped
    */
-  const processAudio = useCallback(async (audioBlob: Blob, diagnostics?: RecorderDiagnostics) => {
-    const recordingId = recordingIdRef.current;
+  const processAudio = useCallback(async (recordingId: number, audioBlob: Blob, diagnostics?: RecorderDiagnostics) => {
+    if (recordingIdRef.current !== recordingId) return; // Skip a recording canceled while its audio was decoding
     const recordingDuration = Date.now() - recordingStartRef.current;
     const headStart = headStartRef.current;
     headStartRef.current = null;
@@ -71,8 +66,16 @@ export function useListener(silenceMs: number, onRecordingStopped?: () => void):
       return;
     }
 
+    // Without a head start, transcribe the final blob under its own abort controller, to avoid a canceled recording's request running on
+    let transcription = headStart;
+    if (!transcription) {
+      const controller = new AbortController();
+      transcriptionAbortRef.current = controller;
+      transcription = getStt().transcribe(audioBlob, diagnostics, controller.signal);
+    }
+
     try {
-      const text = await (headStart ?? getStt().transcribe(audioBlob, diagnostics));
+      const text = await transcription;
       if (recordingIdRef.current === recordingId) setTranscript(text); // Skip a transcript for a canceled recording
     } catch (error) {
       if (recordingIdRef.current !== recordingId) return;
@@ -85,57 +88,63 @@ export function useListener(silenceMs: number, onRecordingStopped?: () => void):
 
   /** Stop the recorder and transcribe what it captured. */
   const finishRecording = useCallback(async (recorder: AudioRecorder) => {
+    const recordingId = recordingIdRef.current;
     setIsRecording(false);
     setIsTranscribing(true); // Set with isRecording to avoid the button showing Record while the audio decodes
     const diagnostics = recorder.getDiagnostics();
     const blob = await recorder.stopRecording();
     onRecordingStoppedRef.current?.(); // Run once the mic is released
-    processAudio(blob, diagnostics);
+    processAudio(recordingId, blob, diagnostics);
   }, [processAudio]);
 
   /** Start recording from the microphone. */
   const startRecording = useCallback(async () => {
     const recorder = getRecorder();
 
-    recordingIdRef.current += 1;
+    const recordingId = ++recordingIdRef.current;
     setTranscript(null);
     setIsRecording(true);
     recordingStartRef.current = Date.now();
     headStartRef.current = null;
 
-    try {
+    await openingRef.current; // Wait for an earlier start to open or discard the mic, to avoid two starts sharing the recorder
+    if (recordingIdRef.current !== recordingId) return; // Skip a recording canceled while it waited
+
+    // Open the mic, and discard the recording when it was canceled while the mic was opening
+    const opening = (async () => {
       // Mic permission is requested inside startRecording
       await recorder.startRecording(
         () => finishRecording(recorder),
         silenceMs,
         {
-          // Speaker went quiet: transcribe the answer-so-far while the silence
-          // countdown runs, so the result is waiting when the countdown expires.
+          // Transcribe the answer so far while the silence countdown runs, to avoid waiting on it once the countdown expires
           onSpeechEnd: (audio: Blob) => {
             if (audio.size === 0) return;
-            // A newer snapshot supersedes the one still in flight.
-            headStartAbortRef.current?.abort();
+            transcriptionAbortRef.current?.abort(); // Cancel an earlier snapshot's transcription
             const controller = new AbortController();
-            headStartAbortRef.current = controller;
+            transcriptionAbortRef.current = controller;
             const pending = getStt().transcribe(audio, recorder.getDiagnostics(), controller.signal);
-            // Mark the rejection handled on a derived promise so a failure that is
-            // never awaited (speaker resumed, recording cancelled) can't surface as
-            // an unhandled rejection. `pending` itself still rejects for processAudio.
-            pending.catch(() => { /* surfaced where it is awaited */ });
+            pending.catch(() => { /* surfaced where it is awaited */ }); // Handle the rejection, to avoid an unhandled rejection when the snapshot is never awaited
             headStartRef.current = pending;
           },
-          // Speaking resumed: that snapshot was mid-answer, so discard it and let
-          // the next speech-end (or the final blob) drive transcription.
+          // Discard the snapshot once speaking resumes, as it holds only part of the answer
           onSpeechResume: () => {
             headStartRef.current = null;
-            headStartAbortRef.current?.abort();
-            headStartAbortRef.current = null;
+            transcriptionAbortRef.current?.abort();
+            transcriptionAbortRef.current = null;
           },
         },
       );
+
+      if (recordingIdRef.current !== recordingId) await recorder.stopRecording();
+    })();
+    openingRef.current = opening.catch(() => { /* surfaced below */ });
+
+    try {
+      await opening;
     } catch {
       toast.error("Microphone permission denied");
-      setIsRecording(false);
+      if (recordingIdRef.current === recordingId) setIsRecording(false);
     }
   }, [getRecorder, getStt, finishRecording, silenceMs]);
 
@@ -152,12 +161,12 @@ export function useListener(silenceMs: number, onRecordingStopped?: () => void):
     recordingIdRef.current += 1; // Drop the result of a transcription still in flight
     setIsTranscribing(false);
     headStartRef.current = null;
-    headStartAbortRef.current?.abort();
-    headStartAbortRef.current = null;
+    transcriptionAbortRef.current?.abort();
+    transcriptionAbortRef.current = null;
+    setIsRecording(false); // Clear while the mic is still opening too
 
     const recorder = recorderRef.current;
     if (!recorder || !recorder.isRecording()) return;
-    setIsRecording(false);
     recorder.stopRecording(); // Discard the blob
   }, []);
 

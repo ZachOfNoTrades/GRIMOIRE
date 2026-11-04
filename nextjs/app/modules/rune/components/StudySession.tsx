@@ -1282,20 +1282,21 @@ export default function StudySession({
     });
   }, [currentCard, sessionCards]);
 
-  // Navigate previous
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
+      cancelRecording(); // Discard an open recording and its transcription
       setIsFlipped(false);
       setTimeout(() => setCurrentIndex((i) => i - 1), 100);
     }
-  }, [currentIndex]);
+  }, [currentIndex, cancelRecording]);
 
-  // Navigate next. If an AI evaluation suggested a rating for the current card and it
-  // hasn't been rated yet, moving on accepts that suggestion — the highlighted rating
-  // button isn't just a hint, it's the default outcome unless the user picks another.
-  // A suggestedRating of 0 (garbled/unrelated/empty) skips instead of accepting Again.
+  // Move past the current card, accepting its evaluation's suggested rating
   const handleNext = useCallback(() => {
-    if (evaluationResult && !currentCardAlreadyRated) {
+    const isDiscardingAnswer = isRecording || isTranscribing;
+    cancelRecording(); // Discard an open recording and its transcription
+
+    // Accept the suggested rating of an evaluated, unrated card, or skip it when the answer was unscorable; a discarded recording accepts nothing
+    if (!isDiscardingAnswer && evaluationResult && !currentCardAlreadyRated) {
       if (evaluationResult.suggestedRating === 0) {
         handleSkip();
       } else {
@@ -1303,19 +1304,18 @@ export default function StudySession({
       }
       return;
     }
+
+    // Advance a card, or finish the session on the last one
+    // NOTE: Every earlier card is rated by the time the last one is reached, as handleSkip requeues skipped cards
     if (currentIndex < sessionCards.length - 1) {
       setIsFlipped(false);
       setTimeout(() => setCurrentIndex((i) => i + 1), 100);
     } else {
-      // Last card, nothing to accept, and nowhere further to advance — the only
-      // remaining option is to finish. Every other card is guaranteed already
-      // rated by the time currentIndex reaches the end (see handleSkip's
-      // isLastUnratedCard check), so this never cuts a session short mid-deck.
       setIsFlipped(false);
       setSessionComplete(true);
       completeSession();
     }
-  }, [currentIndex, sessionCards.length, evaluationResult, currentCardAlreadyRated, handleRate, handleSkip]);
+  }, [currentIndex, sessionCards.length, evaluationResult, currentCardAlreadyRated, handleRate, handleSkip, isRecording, isTranscribing, cancelRecording]);
 
   // Quit session — hand control back to the host page's landing screen.
   const handleQuit = useCallback(async () => {
@@ -1724,7 +1724,7 @@ export default function StudySession({
             {/* PREV BUTTON */}
             <Button
               onClick={handlePrev}
-              disabled={currentIndex === 0 || isRecording || isTranscribing}
+              disabled={currentIndex === 0}
               className="btn-off flex-1"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -1738,10 +1738,9 @@ export default function StudySession({
                 Skip button. */}
             <Button
               onClick={handleNext}
-              disabled={isRecording || isTranscribing}
               className="btn-off flex-1"
             >
-              {currentIndex >= sessionCards.length - 1 && !(evaluationResult && !currentCardAlreadyRated) ? "FINISH" : "NEXT"}
+              {currentIndex >= sessionCards.length - 1 && !(evaluationResult && !currentCardAlreadyRated && !isRecording && !isTranscribing) ? "FINISH" : "NEXT"}
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
