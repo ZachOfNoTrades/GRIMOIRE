@@ -2377,6 +2377,12 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 }
 
+@media (max-width: 640px) {
+  .stat-section-stacked {
+    flex-direction: column;
+  }
+}
+
 .stat-card-green {
   background: var(--alert-green-bg);
   border: 1px solid var(--alert-green-border);

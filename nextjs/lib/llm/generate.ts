@@ -1,5 +1,5 @@
 import { getLlmTaskConfig } from "@/lib/userPreferences";
-import { recommendedOpenRouterModel } from "./catalog";
+import { localEngineName, recommendedOpenRouterModel } from "./catalog";
 import { runClaudeCli } from "./claudeCli";
 import { openRouterChat, openRouterTranscribe, type OpenRouterTranscribeRequest } from "./openrouter";
 import { taskDef, type LlmTaskId } from "./tasks";
@@ -131,8 +131,8 @@ export async function generateWithTools(userId: string, task: LlmTaskId, req: Ll
 }
 
 // SPEECH TO TEXT — a task with a localEngine (rune_stt) runs `local` on the default
-// backend, or OpenRouter's transcription endpoint with the user's key. Only the
-// OpenRouter path writes an llm_usage row; the local engine is not a model call.
+// backend, or OpenRouter's transcription endpoint with the user's key. Both paths
+// write an llm_usage row; the local engine's row has a duration and no cost.
 export interface TranscribeRequest {
   audio: Buffer;
   format: OpenRouterTranscribeRequest["format"];
@@ -142,9 +142,21 @@ export interface TranscribeRequest {
 
 export async function transcribe(userId: string, task: LlmTaskId, req: TranscribeRequest, local: (audio: Buffer) => Promise<string>): Promise<string> {
   const resolved = await resolveBackend(userId, task);
-  if (resolved.backend !== "openrouter") return local(req.audio);
-
   const started = Date.now();
+
+  // Run the local engine and log its row, passing its error on to the caller; OpenRouter runs below
+  if (resolved.backend !== "openrouter") {
+    const model = localEngineName(taskDef(task));
+    try {
+      const text = await local(req.audio);
+      recordUsage({ userId, task, backend: "local", model, promptTokens: 0, completionTokens: 0, costUsd: null, durationMs: Date.now() - started, ok: true, errorCode: null });
+      return text;
+    } catch (error) {
+      recordUsage({ userId, task, backend: "local", model, promptTokens: 0, completionTokens: 0, costUsd: null, durationMs: Date.now() - started, ok: false, errorCode: errorCodeOf(error) });
+      throw error;
+    }
+  }
+
   try {
     const result = await withOpenRouterKey(userId, (key) => openRouterTranscribe(key, { model: resolved.model, ...req }));
     const durationMs = Date.now() - started;
