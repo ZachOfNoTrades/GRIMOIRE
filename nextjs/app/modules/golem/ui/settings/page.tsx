@@ -14,6 +14,7 @@ import {
 import GolemMenu, { type GolemMenuSection } from '../../components/GolemMenu';
 import './settings.css';
 import Breadcrumbs from "@/components/Breadcrumbs";
+import { usageHref } from "@/lib/usageChartModules";
 
 // Golem settings hub — every configuration / library / insight surface, grouped
 // into a categorized terminal-console menu (mirrors the forage & quest pattern).
@@ -40,6 +41,12 @@ export default function GolemSettingsPage() {
       items: [
         { icon: History, label: 'Workout History', hint: 'Past sessions and imports', href: '/modules/golem/ui/history' },
         { icon: BarChart3, label: 'Weekly Volume', hint: 'Sets per muscle vs. landmarks', href: '/modules/golem/ui/volume' },
+      ],
+    },
+    {
+      title: 'AI',
+      items: [
+        { icon: BarChart3, label: 'Usage', hint: 'Model calls, time and cost', href: usageHref('golem') },
       ],
     },
     {

@@ -33,8 +33,8 @@ interface UsageSummary {
   calls: number;
   promptTokens: number;
   completionTokens: number;
-  costUsd: number;
-  byBackend: Record<LlmBackend, { calls: number; costUsd: number }>;
+  costUsd: number | null;
+  byBackend: Record<LlmBackend, { calls: number; costUsd: number | null }>;
 }
 
 type TaskRows = Record<LlmTaskId, LlmTaskConfig>;
@@ -415,7 +415,7 @@ export default function LlmSettingsPage() {
               </div>
               <div className="stat-card">
                 <div className="stat-label">OpenRouter</div>
-                <div className="stat-value">{usage ? `$${usage.byBackend.openrouter.costUsd.toFixed(2)}` : "—"}</div>
+                <div className="stat-value">{usage?.byBackend.openrouter.costUsd != null ? `$${usage.byBackend.openrouter.costUsd.toFixed(2)}` : "—"}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Claude</div>

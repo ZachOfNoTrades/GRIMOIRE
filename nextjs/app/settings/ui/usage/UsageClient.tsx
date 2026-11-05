@@ -12,8 +12,9 @@ import TableScroll from "@/components/ui/TableScroll";
 import { SettingsControlRow } from "@/components/settings/SettingsList";
 import { defaultIcon, iconMap } from "@/lib/iconMap";
 import { LLM_TASKS, type LlmTaskGroup } from "@/lib/llm/tasks";
-import type { LlmBackend } from "@/lib/llm/types";
+import type { UsageBackend } from "@/lib/llm/types";
 import type { UsageRange, UsageReport, UsageTotals } from "@/lib/llm/usage";
+import { formatCost, formatCostShare } from "@/lib/llm/usageCost";
 import { sortRows, type SortValue } from "@/lib/tableSort";
 import { usageView } from "@/lib/usageView";
 import { SortDirection } from "@/types/sortDirection";
@@ -26,7 +27,7 @@ const RANGE_OPTIONS: SegmentedOption<UsageRange>[] = [
 ];
 
 const TASK_LABEL: Record<string, string> = Object.fromEntries(LLM_TASKS.map((t) => [t.id, t.label]));
-const BACKEND_LABEL: Record<LlmBackend, string> = { claude: "Claude", openrouter: "OpenRouter" };
+const BACKEND_LABEL: Record<UsageBackend, string> = { claude: "Claude", openrouter: "OpenRouter", local: "Local" };
 
 type TaskRow = UsageReport["byTask"][number];
 type ModelRow = UsageReport["byModel"][number];
@@ -37,22 +38,11 @@ function compact(n: number): string {
   return String(n);
 }
 
-function money(n: number): string {
-  return n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(4)}`;
-}
-
 // Format a mean request time as 1.2s or 14s, blank when no call succeeded
 function seconds(ms: number | null): string {
   if (ms === null) return "";
   const s = ms / 1000;
   return s < 10 ? `${s.toFixed(1)}s` : `${Math.round(s)}s`;
-}
-
-// Format a module's share of the total cost, such as 14% or <1%
-function share(cost: number, total: number): string {
-  if (total <= 0 || cost <= 0) return "0%";
-  const percent = (cost / total) * 100;
-  return percent < 1 ? "<1%" : `${Math.round(percent)}%`;
 }
 
 function tokens(t: UsageTotals): number {
@@ -78,7 +68,7 @@ interface UsageColumn<T> {
 
 const TASK_COLUMNS: UsageColumn<TaskRow>[] = [
   { label: "Task", width: 240, sortValue: (r) => TASK_LABEL[r.task] ?? r.task, firstDirection: SortDirection.Ascending, cell: (r) => TASK_LABEL[r.task] ?? r.task, title: (r) => TASK_LABEL[r.task] ?? r.task },
-  { label: "Cost", width: 100, sortValue: (r) => r.costUsd, firstDirection: SortDirection.Descending, cell: (r) => money(r.costUsd) },
+  { label: "Cost", width: 100, sortValue: (r) => r.costUsd, firstDirection: SortDirection.Descending, cell: (r) => formatCost(r.costUsd) },
   { label: "Calls", width: 160, sortValue: (r) => r.calls, firstDirection: SortDirection.Descending, cell: (r) => r.calls },
   { label: "Tokens", width: 100, sortValue: (r) => tokens(r), firstDirection: SortDirection.Descending, cell: (r) => compact(tokens(r)) },
   { label: "Time", width: 80, sortValue: (r) => r.durationMsAvg, firstDirection: SortDirection.Descending, cell: (r) => seconds(r.durationMsAvg) },
@@ -91,7 +81,7 @@ function modelColumns(moduleNames: Map<LlmTaskGroup, string>): UsageColumn<Model
   const modulesText = (r: ModelRow) => r.modules.map((m) => moduleNames.get(m) ?? m).join(", ");
   return [
     { label: "Model", width: 330, sortValue: (r) => r.model, firstDirection: SortDirection.Ascending, cell: (r) => r.model, title: (r) => r.model, isMono: true },
-    { label: "Cost", width: 100, sortValue: (r) => r.costUsd, firstDirection: SortDirection.Descending, cell: (r) => money(r.costUsd) },
+    { label: "Cost", width: 100, sortValue: (r) => r.costUsd, firstDirection: SortDirection.Descending, cell: (r) => formatCost(r.costUsd) },
     { label: "Modules", width: 150, sortValue: (r) => modulesText(r) || null, firstDirection: SortDirection.Ascending, cell: modulesText, title: modulesText },
     { label: "Calls", width: 80, sortValue: (r) => r.calls, firstDirection: SortDirection.Descending, cell: (r) => r.calls },
     { label: "Tokens", width: 100, sortValue: (r) => tokens(r), firstDirection: SortDirection.Descending, cell: (r) => compact(tokens(r)) },
@@ -187,7 +177,7 @@ function DailyChart({ days, isCost }: { days: ChartBar[]; isCost: boolean }) {
         return (
           <g key={d.day}>
             <rect x={x} y={y} width={barW} height={h} rx={2} fill="var(--color-primary)">
-              <title>{`${d.day}: ${isCost ? money(v) : `${v} calls`}`}</title>
+              <title>{`${d.day}: ${isCost ? formatCost(v) : `${v} calls`}`}</title>
             </rect>
           </g>
         );
@@ -207,14 +197,14 @@ function DailyChart({ days, isCost }: { days: ChartBar[]; isCost: boolean }) {
 }
 
 // Show the signed-in user's model-call usage for a range, by module and by model
-export default function UsageClient({ initialReport }: { initialReport: UsageReport | null }) {
+export default function UsageClient({ initialReport, initialChartModules }: { initialReport: UsageReport | null; initialChartModules: LlmTaskGroup[] }) {
 
   // DATA
   const [report, setReport] = useState<UsageReport | null>(initialReport);
 
   // INPUT
   const [range, setRange] = useState<UsageRange>(initialReport?.range ?? "30d");
-  const [chartModules, setChartModules] = useState<LlmTaskGroup[]>([]);
+  const [chartModules, setChartModules] = useState<LlmTaskGroup[]>(initialChartModules);
 
   // STATE
   const [loadedRange, setLoadedRange] = useState<UsageRange | null>(initialReport?.range ?? null);
@@ -251,15 +241,17 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
   const view = usageView(report !== null, isFirstLoadFailed);
   const isRefreshing = report !== null && loadedRange !== range;
 
-  const isCostChart = !!report && report.summary.costUsd > 0;
   const isAllChartModules = chartModules.length === 0;
+
+  // Chart cost when a module the filter shows has tracked cost, else chart calls
+  const isCostChart = !!report && report.modules.some((m) => (isAllChartModules || chartModules.includes(m.module)) && (m.costUsd ?? 0) > 0);
 
   // Sum each day's cost or calls over the modules the chart filter shows, or take the whole day when it shows all
   const chartBars = useMemo((): ChartBar[] => (report?.daily ?? []).map((d) => ({
     day: d.day,
     value: isAllChartModules
-      ? (isCostChart ? d.costUsd : d.calls)
-      : chartModules.reduce((sum, m) => sum + (isCostChart ? d.byModule[m].costUsd : d.byModule[m].calls), 0),
+      ? (isCostChart ? d.costUsd ?? 0 : d.calls)
+      : chartModules.reduce((sum, m) => sum + (isCostChart ? d.byModule[m].costUsd ?? 0 : d.byModule[m].calls), 0),
   })), [report, chartModules, isAllChartModules, isCostChart]);
 
   // Change which modules the chart shows when a filter row is clicked
@@ -293,10 +285,10 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
           <HelpButton
             title="Usage"
             sections={[
-              { heading: "What's counted", body: "Every model call made for you, on either backend. Tokens and cost come from the provider's own report; Claude calls on the shared CLI show the subscription's notional cost." },
-              { heading: "Modules", body: "Each tile shows what a module's calls cost, its share of the total cost, and its calls and tokens. Tap a tile to jump to that module's tasks. Each task table starts sorted by cost; tap a column header to sort by it, and tap it again to reverse." },
-              { heading: "Cost per day", body: "The modules listed beside the chart pick what it shows. With all of them lit, it shows every module. Tap one to show only that module, tap a grayed one to add it, and tap a lit one to remove it; removing the last shows every module again. The tiles and tables always cover every module." },
-              { heading: "Models", body: "Calls on the shared Claude CLI and on your own OpenRouter key, then every model used, with the modules whose tasks ran on it." },
+              { heading: "What's counted", body: "Every model call and transcription made for you. Cost is tracked only for calls on your OpenRouter key, from OpenRouter's own report. Calls on the shared Claude CLI and local Whisper transcriptions have no cost and show a dash; calls, tokens and time count every call." },
+              { heading: "Modules", body: "Each tile shows what a module's calls cost, its share of the total cost, and its calls and tokens. A module with no tracked cost shows a dash. Tap a tile to jump to that module's tasks. Each task table starts sorted by cost; tap a column header to sort by it, and tap it again to reverse." },
+              { heading: "Cost per day", body: "The chart shows cost while a module it shows has tracked cost, and calls otherwise. The modules listed beside the chart pick what it shows. With all of them lit, it shows every module. Tap one to show only that module, tap a grayed one to add it, and tap a lit one to remove it; removing the last shows every module again. Usage opened from a module's settings starts with only that module shown. The tiles and tables always cover every module." },
+              { heading: "Models", body: "Calls on the shared Claude CLI, on your own OpenRouter key and on the local engine, then every model used, with the modules whose tasks ran on it." },
             ]}
           />
         </div>
@@ -338,7 +330,7 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
               </div>
               <div className="stat-card">
                 <div className="stat-label">Cost</div>
-                <div className="stat-value">{money(report.summary.costUsd)}</div>
+                <div className="stat-value">{formatCost(report.summary.costUsd)}</div>
               </div>
               <div className="stat-card">
                 <div className="stat-label">Time</div>
@@ -364,11 +356,11 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
                         {/* TILE HEADER */}
                         <div className="tile-card-header">
                           <span className="text-card-title">{m.name}</span>
-                          <span className="tile-card-corner">{share(m.costUsd, report.summary.costUsd)}</span>
+                          <span className="tile-card-corner">{formatCostShare(m.costUsd, report.summary.costUsd)}</span>
                         </div>
 
                         {/* COST */}
-                        <div className="stat-value">{money(m.costUsd)}</div>
+                        <div className="stat-value">{formatCost(m.costUsd)}</div>
 
                         {/* CALLS AND TOKENS */}
                         <div className="tile-card-meta">
@@ -429,14 +421,18 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
                   <h2 className="text-h1 page-section-title">Models</h2>
 
                   {/* BY BACKEND */}
-                  <div className="stat-section">
+                  <div className="stat-section stat-section-stacked">
                     <div className="stat-card">
                       <div className="stat-label">Claude</div>
                       <div className="stat-value">{[compact(report.summary.byBackend.claude.calls), seconds(report.summary.byBackend.claude.durationMsAvg)].filter(Boolean).join(" · ")}</div>
                     </div>
                     <div className="stat-card">
                       <div className="stat-label">OpenRouter</div>
-                      <div className="stat-value">{[compact(report.summary.byBackend.openrouter.calls), money(report.summary.byBackend.openrouter.costUsd), seconds(report.summary.byBackend.openrouter.durationMsAvg)].filter(Boolean).join(" · ")}</div>
+                      <div className="stat-value">{[compact(report.summary.byBackend.openrouter.calls), report.summary.byBackend.openrouter.costUsd === null ? "" : formatCost(report.summary.byBackend.openrouter.costUsd), seconds(report.summary.byBackend.openrouter.durationMsAvg)].filter(Boolean).join(" · ")}</div>
+                    </div>
+                    <div className="stat-card">
+                      <div className="stat-label">Local</div>
+                      <div className="stat-value">{[compact(report.summary.byBackend.local.calls), seconds(report.summary.byBackend.local.durationMsAvg)].filter(Boolean).join(" · ")}</div>
                     </div>
                   </div>
 

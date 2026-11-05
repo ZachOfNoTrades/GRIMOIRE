@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ruler, Apple, Keyboard, Upload, Settings, Bell, BellRing, Clock } from "lucide-react";
+import { Ruler, Apple, Keyboard, Upload, Settings, Bell, BellRing, Clock, BarChart3 } from "lucide-react";
 import ImportMacroFactorModal from "./ImportMacroFactorModal";
 import ForageBottomBar from "../ForageBottomBar";
 import { SettingsGroup, type SettingsRowItem } from "@/components/settings/SettingsList";
+import { usageHref } from "@/lib/usageChartModules";
 
 type SettingsRow = SettingsRowItem;
 
@@ -54,6 +55,14 @@ export default function ForageSettingsPage() {
     },
   ];
 
+  const aiRows: SettingsRow[] = [
+    {
+      icon: BarChart3,
+      label: "Usage",
+      onClick: () => router.push(usageHref("forage")),
+    },
+  ];
+
   const dataRows: SettingsRow[] = [
     {
       icon: Upload,
@@ -87,6 +96,10 @@ export default function ForageSettingsPage() {
         {/* NOTIFICATIONS SECTION */}
         <h2 className="settings-section-title">Notifications</h2>
         <SettingsGroup rows={notificationRows} />
+
+        {/* AI SECTION */}
+        <h2 className="settings-section-title">AI</h2>
+        <SettingsGroup rows={aiRows} />
 
         {/* DATA SECTION */}
         <h2 className="settings-section-title">Data</h2>

@@ -2,16 +2,18 @@ import sql from "mssql";
 import { getMainConnection } from "@/lib/db";
 import { getAllModules } from "@/lib/modules";
 import { LLM_TASK_GROUPS, isLlmTaskId, taskDef, type LlmTaskGroup } from "./tasks";
-import type { LlmBackend } from "./types";
+import type { LlmBackend, UsageBackend } from "./types";
+import { addCost, trackedCostUsd } from "./usageCost";
 
 // LLM USAGE LOG — dbo.llm_usage in the MAIN database. One row per completion (a
 // tool-calling loop is one row with its rounds summed). Only counts, costs and
 // timings are stored — never a prompt or a reply. Reads are always one user's own.
+// Cost is tracked for OpenRouter calls only; every other row stores NULL.
 
 export interface UsageRow {
   userId: string;
   task: string;
-  backend: LlmBackend;
+  backend: UsageBackend;
   model: string;
   promptTokens: number;
   completionTokens: number;
@@ -21,7 +23,7 @@ export interface UsageRow {
   errorCode: string | null;
 }
 
-// Fire-and-forget: a failed insert is logged and never fails the generation.
+// Log a call in the background, keeping its cost only for OpenRouter; a failed insert is logged and never fails the call
 export function recordUsage(row: UsageRow): void {
   void (async () => {
     try {
@@ -34,7 +36,7 @@ export function recordUsage(row: UsageRow): void {
         .input("model", sql.NVarChar(120), row.model.slice(0, 120))
         .input("promptTokens", sql.Int, Math.max(0, Math.round(row.promptTokens)))
         .input("completionTokens", sql.Int, Math.max(0, Math.round(row.completionTokens)))
-        .input("costUsd", sql.Decimal(12, 6), row.costUsd)
+        .input("costUsd", sql.Decimal(12, 6), trackedCostUsd(row.backend, row.costUsd))
         .input("durationMs", sql.Int, Math.max(0, Math.round(row.durationMs)))
         .input("ok", sql.Bit, row.ok)
         .input("errorCode", sql.NVarChar(40), row.errorCode)
@@ -110,7 +112,8 @@ export interface UsageTotals {
   failed: number;
   promptTokens: number;
   completionTokens: number;
-  costUsd: number;
+  // Tracked cost, null when none of the calls has one.
+  costUsd: number | null;
   // Mean wall-clock per successful call, in ms; null when nothing succeeded.
   durationMsAvg: number | null;
 }
@@ -118,21 +121,21 @@ export interface UsageTotals {
 // A DayModuleTotals is a day's calls and cost for one module, for the per-day chart's module filter.
 export interface DayModuleTotals {
   calls: number;
-  costUsd: number;
+  costUsd: number | null;
 }
 
 export interface UsageReport {
   range: UsageRange;
-  summary: UsageTotals & { byBackend: Record<LlmBackend, UsageTotals> };
+  summary: UsageTotals & { byBackend: Record<UsageBackend, UsageTotals> };
   // Every module that makes model calls, in LLM_TASK_GROUPS order, with the name and
   // icon of its module record.
   modules: (UsageTotals & { module: LlmTaskGroup; name: string; icon: string | null })[];
-  byTask: (UsageTotals & { task: string; module: LlmTaskGroup | null; backend: LlmBackend; model: string })[];
-  byModel: (UsageTotals & { backend: LlmBackend; model: string; modules: LlmTaskGroup[] })[];
+  byTask: (UsageTotals & { task: string; module: LlmTaskGroup | null; backend: UsageBackend; model: string })[];
+  byModel: (UsageTotals & { backend: UsageBackend; model: string; modules: LlmTaskGroup[] })[];
   daily: (UsageTotals & { day: string; byModule: Record<LlmTaskGroup, DayModuleTotals> })[];
 }
 
-const EMPTY: UsageTotals = { calls: 0, failed: 0, promptTokens: 0, completionTokens: 0, costUsd: 0, durationMsAvg: null };
+const EMPTY: UsageTotals = { calls: 0, failed: 0, promptTokens: 0, completionTokens: 0, costUsd: null, durationMsAvg: null };
 
 function sinceFor(range: UsageRange): Date | null {
   if (range === "all") return null;
@@ -155,12 +158,12 @@ function totals(r: TotalsRecord): UsageTotals {
     failed: r.failed,
     promptTokens: r.prompt_tokens ?? 0,
     completionTokens: r.completion_tokens ?? 0,
-    costUsd: Number(r.cost_usd ?? 0),
+    costUsd: r.cost_usd === null ? null : Number(r.cost_usd),
     durationMsAvg: r.duration_ms_avg === null ? null : Number(r.duration_ms_avg),
   };
 }
 
-// Sum totals, weighting each mean time by its successful-call count.
+// Sum totals, weighting each mean time by its successful-call count and keeping a null cost while no total has one.
 function sumTotals(list: UsageTotals[]): UsageTotals {
   const sum: UsageTotals = { ...EMPTY };
   let timedCalls = 0;
@@ -170,7 +173,7 @@ function sumTotals(list: UsageTotals[]): UsageTotals {
     sum.failed += t.failed;
     sum.promptTokens += t.promptTokens;
     sum.completionTokens += t.completionTokens;
-    sum.costUsd += t.costUsd;
+    sum.costUsd = addCost(sum.costUsd, t.costUsd);
     if (t.durationMsAvg !== null) {
       timedCalls += t.calls - t.failed;
       timedMs += t.durationMsAvg * (t.calls - t.failed);
@@ -186,7 +189,7 @@ function taskModule(task: string): LlmTaskGroup | null {
 }
 
 function emptyDayModules(): Record<LlmTaskGroup, DayModuleTotals> {
-  return Object.fromEntries(LLM_TASK_GROUPS.map((g) => [g.key, { calls: 0, costUsd: 0 }])) as Record<LlmTaskGroup, DayModuleTotals>;
+  return Object.fromEntries(LLM_TASK_GROUPS.map((g) => [g.key, { calls: 0, costUsd: null }])) as Record<LlmTaskGroup, DayModuleTotals>;
 }
 
 // Timing is averaged over successful calls only — a failed call's duration is how
@@ -211,14 +214,14 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
   };
 
   const [byBackend, byTask, byModel, daily, dailyByTask, moduleRecords] = await Promise.all([
-    req().query<TotalsRecord & { backend: LlmBackend }>(
+    req().query<TotalsRecord & { backend: UsageBackend }>(
       `SELECT backend, ${TOTALS_SELECT} FROM llm_usage ${where} GROUP BY backend`
     ),
-    req().query<TotalsRecord & { task: string; backend: LlmBackend; model: string }>(
+    req().query<TotalsRecord & { task: string; backend: UsageBackend; model: string }>(
       `SELECT task, backend, model, ${TOTALS_SELECT} FROM llm_usage ${where}
        GROUP BY task, backend, model ORDER BY SUM(cost_usd) DESC, COUNT(*) DESC`
     ),
-    req().query<TotalsRecord & { backend: LlmBackend; model: string }>(
+    req().query<TotalsRecord & { backend: UsageBackend; model: string }>(
       `SELECT backend, model, ${TOTALS_SELECT} FROM llm_usage ${where}
        GROUP BY backend, model ORDER BY SUM(cost_usd) DESC, COUNT(*) DESC`
     ),
@@ -233,7 +236,7 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
     getAllModules(),
   ]);
 
-  const perBackend: Record<LlmBackend, UsageTotals> = { claude: { ...EMPTY }, openrouter: { ...EMPTY } };
+  const perBackend: Record<UsageBackend, UsageTotals> = { claude: { ...EMPTY }, openrouter: { ...EMPTY }, local: { ...EMPTY } };
   for (const r of byBackend.recordset) perBackend[r.backend] = totals(r);
   const summary = sumTotals(Object.values(perBackend));
 
@@ -249,7 +252,7 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
   }));
 
   // List the modules whose tasks ran on each model, in LLM_TASK_GROUPS order
-  const modelModules = (backend: LlmBackend, model: string): LlmTaskGroup[] =>
+  const modelModules = (backend: UsageBackend, model: string): LlmTaskGroup[] =>
     LLM_TASK_GROUPS.map((g) => g.key).filter((key) => taskRows.some((t) => t.backend === backend && t.model === model && t.module === key));
 
   // Split each day's calls and cost by module, skipping a task no longer in the registry
@@ -260,7 +263,7 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
     const day = new Date(r.day).toISOString().slice(0, 10);
     const byModule = dayModules.get(day) ?? emptyDayModules();
     byModule[module].calls += r.calls;
-    byModule[module].costUsd += Number(r.cost_usd ?? 0);
+    byModule[module].costUsd = addCost(byModule[module].costUsd, r.cost_usd === null ? null : Number(r.cost_usd));
     dayModules.set(day, byModule);
   }
 

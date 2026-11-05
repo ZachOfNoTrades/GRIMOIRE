@@ -8,6 +8,10 @@
 export type LlmBackend = "claude" | "openrouter";
 export const LLM_BACKENDS: readonly LlmBackend[] = ["claude", "openrouter"];
 
+// A UsageBackend is where a logged call ran: a model backend, or the server's own engine for a task with one, such as Whisper
+// TODO: Replace the text usage backend with an enum
+export type UsageBackend = LlmBackend | "local";
+
 export function isLlmBackend(value: unknown): value is LlmBackend {
   return typeof value === "string" && (LLM_BACKENDS as string[]).includes(value);
 }

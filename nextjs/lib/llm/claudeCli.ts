@@ -37,7 +37,6 @@ function emptyMcpConfigPath(): string {
 interface CliJson {
   result?: string;
   is_error?: boolean;
-  total_cost_usd?: number;
   usage?: { input_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number; output_tokens?: number };
   modelUsage?: Record<string, unknown>;
 }
@@ -109,7 +108,7 @@ export async function runClaudeCli(req: ClaudeCliRequest): Promise<ClaudeCliResu
   const usage: LlmUsage = {
     promptTokens: (json.usage?.input_tokens ?? 0) + (json.usage?.cache_creation_input_tokens ?? 0) + (json.usage?.cache_read_input_tokens ?? 0),
     completionTokens: json.usage?.output_tokens ?? 0,
-    costUsd: typeof json.total_cost_usd === "number" ? json.total_cost_usd : null,
+    costUsd: null,
   };
 
   // Agentic call sites have the model write its answer to a file.

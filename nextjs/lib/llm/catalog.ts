@@ -177,15 +177,15 @@ async function claudeRecommendation(task: LlmTaskId): Promise<string> {
   return pinned ?? taskDef(task).cliModel ?? "sonnet";
 }
 
-// The CLI has no list price; its estimate is the logged cost of past calls on that
-// model for this task, else unknown.
+// Estimate a CLI model from past calls on it for this task
+// NOTE: The CLI runs on the shared subscription and has no per-call cost
 function claudeEntry(task: LlmTaskId, id: string, name: string, recommended: boolean, h: TaskHistory): CatalogModel {
   const t = timingFor(h, id);
   return {
     id,
     name,
     recommended,
-    estCostUsd: t?.costUsdAvg ?? null,
+    estCostUsd: null,
     estSeconds: t ? t.durationMsAvg / 1000 : null,
     basis: { taskCalls: h.tokens.calls, modelCalls: t?.calls ?? 0 },
     info: null,
@@ -196,7 +196,7 @@ function claudeEntry(task: LlmTaskId, id: string, name: string, recommended: boo
 // model file it loads (ggml-base.en.bin → "Whisper base.en").
 const LOCAL_MODEL_ID = "local";
 
-function localEngineName(def: LlmTaskDef): string {
+export function localEngineName(def: LlmTaskDef): string {
   const file = process.env.WHISPER_MODEL_PATH ? basename(process.env.WHISPER_MODEL_PATH) : "";
   const model = file.replace(/^ggml-/, "").replace(/\.bin$/, "");
   return model ? `${def.localEngine} ${model}` : def.localEngine ?? "Local";
