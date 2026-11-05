@@ -36,7 +36,7 @@ export async function getMetricCatalog(): Promise<Map<string, HealthMetric>> {
     ORDER BY sort_order, code
   `);
   if (result.recordset.length === 0) {
-    console.warn('health_metric catalog is empty — run sql/migrations/2026-08-27_health_master_db.sql');
+    console.warn('health_metric catalog is empty — run sql/sql_init_health.sql');
   }
   const catalog = new Map<string, HealthMetric>();
   for (const row of result.recordset) {

@@ -1,6 +1,7 @@
 -- =============================
 -- Workout Tracker (GOLEM) Database Initialization Script
--- Version: 202603070227 (Intitial release v0.2.0)
+-- Version: 202611041200 (Base schema for Flyway version 1)
+-- NOTE: Matches the live database schema at the Flyway baseline
 -- =============================
 
 -- Filtered indexes (used below on locations.is_active and elsewhere) require
@@ -128,7 +129,7 @@ BEGIN TRY
     BEGIN
         CREATE TABLE user_profiles (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-            user_id UNIQUEIDENTIFIER UNIQUE NOT NULL,
+            user_id UNIQUEIDENTIFIER NOT NULL,
             profile_prompt NVARCHAR(MAX) NULL,
             distance_unit_short NVARCHAR(10) NULL, -- preferred short-distance display unit: feet/yards/meters (NULL = meters)
             distance_unit_long NVARCHAR(10) NULL, -- preferred long-distance display unit: km/mi (NULL = km)
@@ -137,6 +138,8 @@ BEGIN TRY
             created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
             modified_at DATETIME2 NOT NULL DEFAULT GETDATE()
         );
+
+        CREATE UNIQUE INDEX UX_user_profile_user ON user_profiles (user_id);
     END
 
     -- =============================
@@ -240,7 +243,7 @@ BEGIN TRY
             rotation_cadence NVARCHAR(20) NOT NULL DEFAULT 'per_session', -- never|per_block|per_session (a CEILING; novelty is demand-driven)
             pinned_exercise_id UNIQUEIDENTIFIER NULL, -- set for never/per_block specificity slots
             is_optional BIT CHECK (is_optional IN (0,1)) DEFAULT 0, -- min/max: optional slots filled only when readiness/volume allows
-            is_warmup BIT NOT NULL CHECK (is_warmup IN (0,1)) DEFAULT 0, -- a warmup-exercise slot: engine fills from is_warmup exercises, emits an is_warmup segment before the working slots (no load progression)
+            is_warmup BIT NOT NULL DEFAULT 0, -- a warmup-exercise slot: engine fills from is_warmup exercises, emits an is_warmup segment before the working slots (no load progression)
             -- progression DEFINITION (running state lives in slot_progression_state)
             progression_model NVARCHAR(30) NOT NULL DEFAULT 'double_progression', -- double_progression|linear|rpe_pct1rm|time_effort
             rep_low INT NOT NULL DEFAULT 8, -- rep range floor (rep-based models)
@@ -251,6 +254,8 @@ BEGIN TRY
             load_step_pct DECIMAL(4,3) NOT NULL DEFAULT 0.05, -- fractional load bump on progression (+5%)
             round_to_step DECIMAL(6,2) NOT NULL DEFAULT 5, -- smallest load increment (lb / machine plate)
             set_target INT NOT NULL DEFAULT 3, -- baseline working-set count (volume allocator may adjust)
+            required_muscles NVARCHAR(400) NULL, -- comma-separated muscle names the candidate must also recruit (all of them)
+            excluded_muscles NVARCHAR(400) NULL, -- comma-separated muscle names the candidate must not recruit (any of them)
             created_at DATETIME2 DEFAULT GETDATE(),
             modified_at DATETIME2 DEFAULT GETDATE(),
 
@@ -615,6 +620,54 @@ BEGIN TRY
         );
         CREATE INDEX IX_feedback_messages_user_conv ON feedback_messages(user_id, conversation_id, created_at);
     END
+
+    -- =============================
+    -- User Exercise Holds
+    -- Removes an exercise from a user's generated sessions at every location: permanently when
+    -- disabled_until is NULL, otherwise until that instant.
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_exercise_holds' AND xtype='U')
+    BEGIN
+        CREATE TABLE user_exercise_holds (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            exercise_id UNIQUEIDENTIFIER NOT NULL,
+            disabled_until DATETIME2 NULL, -- NULL = permanent; otherwise held until this instant
+            reason NVARCHAR(200) NULL,
+            created_at DATETIME2 NULL DEFAULT GETDATE(),
+            modified_at DATETIME2 NULL DEFAULT GETDATE(),
+
+            CONSTRAINT UQ_user_exercise_holds UNIQUE (user_id, exercise_id)
+        );
+
+        CREATE INDEX IX_user_exercise_holds_user ON user_exercise_holds (user_id, exercise_id) INCLUDE (disabled_until);
+    END
+
+    -- =============================
+    -- Indexes on session and program foreign keys
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_blocks_program_id' AND object_id=OBJECT_ID('blocks'))
+        CREATE INDEX IX_blocks_program_id ON blocks (program_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_weeks_block_id' AND object_id=OBJECT_ID('weeks'))
+        CREATE INDEX IX_weeks_block_id ON weeks (block_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_workout_sessions_week_id' AND object_id=OBJECT_ID('workout_sessions'))
+        CREATE INDEX IX_workout_sessions_week_id ON workout_sessions (week_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_workout_sessions_is_completed' AND object_id=OBJECT_ID('workout_sessions'))
+        CREATE INDEX IX_workout_sessions_is_completed ON workout_sessions (is_completed);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_workout_sessions_is_current' AND object_id=OBJECT_ID('workout_sessions'))
+        CREATE INDEX IX_workout_sessions_is_current ON workout_sessions (is_current) WHERE is_current = 1;
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_target_session_segments_session_id' AND object_id=OBJECT_ID('target_session_segments'))
+        CREATE INDEX IX_target_session_segments_session_id ON target_session_segments (session_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_target_session_segment_sets_target_segment_id' AND object_id=OBJECT_ID('target_session_segment_sets'))
+        CREATE INDEX IX_target_session_segment_sets_target_segment_id ON target_session_segment_sets (target_session_segment_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_session_segments_session_id' AND object_id=OBJECT_ID('session_segments'))
+        CREATE INDEX IX_session_segments_session_id ON session_segments (session_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_session_segments_exercise_id' AND object_id=OBJECT_ID('session_segments'))
+        CREATE INDEX IX_session_segments_exercise_id ON session_segments (exercise_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_session_segment_sets_session_segment_id' AND object_id=OBJECT_ID('session_segment_sets'))
+        CREATE INDEX IX_session_segment_sets_session_segment_id ON session_segment_sets (session_segment_id);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='IX_session_segment_sets_best_set' AND object_id=OBJECT_ID('session_segment_sets'))
+        CREATE INDEX IX_session_segment_sets_best_set ON session_segment_sets (session_segment_id, is_warmup) INCLUDE (weight, reps);
 
     COMMIT TRANSACTION GolemDbInitialization;
     PRINT '';

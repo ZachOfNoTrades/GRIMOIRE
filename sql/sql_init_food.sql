@@ -1,6 +1,7 @@
 -- =============================
 -- Food Tracker (FORAGE) Database Initialization Script
--- Version: 202605200001 (Phase 1 — MVP diary)
+-- Version: 202611041200 (Base schema for Flyway version 1)
+-- NOTE: Matches the live database schema at the Flyway baseline
 -- =============================
 
 SET QUOTED_IDENTIFIER ON;
@@ -125,7 +126,7 @@ BEGIN TRY
         CREATE TABLE food_servings (
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             food_id UNIQUEIDENTIFIER NOT NULL,
-            unit NVARCHAR(32) NOT NULL, -- 'serving','g','oz','cup','slice','scoop', etc.
+            unit NVARCHAR(16) NOT NULL DEFAULT 'g', -- 'serving','g','oz','cup','slice','scoop', etc.
             units_per_serving DECIMAL(10,4) NOT NULL, -- how many of <unit> equal 1 serving
             ts_created DATETIME2 DEFAULT GETDATE(),
             CONSTRAINT FK_food_servings_food FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE CASCADE
@@ -171,6 +172,7 @@ BEGIN TRY
             log_date DATE NOT NULL,
             weight_lb DECIMAL(6,2) NOT NULL,
             ts_created DATETIME2 DEFAULT GETDATE(),
+            body_fat_pct DECIMAL(4,1) NULL,
             CONSTRAINT UQ_weight_log_user_date UNIQUE (user_id, log_date)
         );
 
@@ -195,6 +197,8 @@ BEGIN TRY
             -- stop counting so a food you ate at 8am months ago drops off.
             favorites_history_days INT NOT NULL DEFAULT 30,
             ts_updated DATETIME2 DEFAULT GETDATE(),
+            unlogged_badge_enabled BIT NOT NULL DEFAULT 1, -- 1 = show a badge when nothing is logged by unlogged_badge_time
+            unlogged_badge_time TIME(0) NOT NULL DEFAULT '12:00',
             CONSTRAINT chk_forage_user_settings_unit CHECK (weight_unit IN ('lbs','kg')),
             CONSTRAINT chk_forage_user_settings_fav_days CHECK (favorites_history_days BETWEEN 1 AND 3650)
         );
@@ -310,6 +314,7 @@ BEGIN TRY
             ('sugar_added',   'Added sugar',       'other',   'g',   50),
             -- Supplements — no FDA DV, no default band (manual-only).
             ('caffeine',      'Caffeine',          'other',   'mg',  NULL),
+            ('creatine',      'Creatine',          'other',   'g',   NULL),
             ('water',         'Water',             'other',   'ml',  NULL),
             -- The four FDA-required vitamins/minerals
             ('vit_d',         'Vitamin D',         'vitamin', 'mcg', 20),
@@ -400,6 +405,51 @@ BEGIN TRY
 
     -- (The former per-program-only `nutrient_targets` table has been replaced by
     -- the unified, history-capable nutrient_targets_v2 below.)
+
+    -- =============================
+    -- Goals (a user's weight goal; the current one has no ended_at)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='forage_goal' AND xtype='U')
+    BEGIN
+        CREATE TABLE forage_goal (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            goal_kind VARCHAR(16) NOT NULL,
+            rate_kg_per_week DECIMAL(4,2) NULL,
+            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+            ended_at DATETIME2 NULL,
+            target_weight_kg DECIMAL(5,2) NULL,
+            rate_lb_per_week DECIMAL(4,2) NULL,
+            target_weight_lb DECIMAL(6,2) NULL
+        );
+
+        CREATE INDEX IX_forage_goal_user_active ON forage_goal (user_id) WHERE ended_at IS NULL;
+    END
+
+    -- =============================
+    -- Programs (how a goal is coached; the current one has no ended_at)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='forage_program' AND xtype='U')
+    BEGIN
+        CREATE TABLE forage_program (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            goal_id UNIQUEIDENTIFIER NOT NULL, -- forage_goal.id, no FK
+            protein_band VARCHAR(16) NULL,
+            diet_kind VARCHAR(16) NULL,
+            training_kind VARCHAR(16) NULL,
+            distribution_kind VARCHAR(16) NULL,
+            shifted_high_days VARCHAR(32) NULL,
+            floor_kind VARCHAR(16) NULL,
+            check_in_weekday TINYINT NULL,
+            last_checkin_date DATE NULL,
+            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+            ended_at DATETIME2 NULL,
+            program_style VARCHAR(16) NOT NULL DEFAULT 'coached'
+        );
+
+        CREATE INDEX IX_forage_program_user_active ON forage_program (user_id) WHERE ended_at IS NULL;
+    END
 
     -- =============================
     -- Nutrient Targets v2 — UNIFIED, HISTORY-CAPABLE target model (Phase 4).

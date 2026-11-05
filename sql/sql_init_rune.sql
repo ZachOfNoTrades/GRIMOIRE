@@ -1,6 +1,7 @@
 -- =============================
 -- Flash Cards (RUNE) Database Initialization Script
--- Version: 202611041200
+-- Version: 202611041200 (Base schema for Flyway version 1)
+-- NOTE: Matches the live database schema at the Flyway baseline
 -- =============================
 
 BEGIN TRANSACTION RuneDbInitialization
@@ -23,10 +24,10 @@ BEGIN TRY
             -- count and is skipped by the daily review email and collection study sessions.
             is_disabled BIT NOT NULL DEFAULT 0,
             created_at DATETIME2 DEFAULT GETDATE(),
-            modified_at DATETIME2 DEFAULT GETDATE(),
-
-            CONSTRAINT UQ_decks_user_name UNIQUE (user_id, name)
+            modified_at DATETIME2 DEFAULT GETDATE()
         );
+
+        CREATE UNIQUE INDEX UX_decks_user_name ON decks (user_id, name);
     END
 
     -- =============================
@@ -199,6 +200,7 @@ BEGIN TRY
             digest_enabled BIT NOT NULL DEFAULT 0,
             digest_time TIME NOT NULL DEFAULT '08:00:00',
             digest_last_sent_date DATE NULL,
+            evaluation_system_prompt NVARCHAR(MAX) NULL, -- NULL = use the bundled default evaluateAnswerSystem.md template
             evaluation_personality_prompt NVARCHAR(MAX) NULL, -- NULL = use the bundled default evaluateAnswerPersonality.md template
             auto_advance_on_evaluate BIT NOT NULL DEFAULT 0, -- auto-accept suggested rating + advance after evaluating (non-hands-free)
             auto_advance_seconds INT NOT NULL DEFAULT 5, -- delay before the auto-advance fires

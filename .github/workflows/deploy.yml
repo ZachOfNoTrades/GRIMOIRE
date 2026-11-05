@@ -1,7 +1,10 @@
 name: deploy
 
-# Release the head of `unstable`, then deploy it on the GRIMOIRE host's own runner. The host keeps a release only
-# when it answers its health check, and restores the one before it otherwise. Runs nightly and on a manual run.
+# Release the head of `unstable`, then deploy it on the GRIMOIRE host's own runner. The host builds the release,
+# applies its pending Flyway migrations (sql/flyway/migrate.sh) and stops with the live release unchanged when one
+# fails, then switches over and keeps the release only when it answers its health check, restoring the one before it
+# otherwise. Runs nightly and on a manual run. Needs the self-hosted runner labeled `grimoire` on the host, and a
+# host deploy script that runs the migrations step.
 on:
   schedule:
     - cron: "15 9 * * *" # Run after the 03:00 Central restart in both daylight and standard time

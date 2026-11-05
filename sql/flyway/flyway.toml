@@ -1,0 +1,10 @@
+# Settings shared by every GRIMOIRE database. migrate.sh passes each database's URL and migrations folder.
+[flyway]
+baselineVersion = "1" # The sql_init script's schema
+baselineDescription = "sql_init base schema"
+baselineOnMigrate = false # Refuse to migrate a database that was never baselined, to avoid running against an unknown schema
+cleanDisabled = true
+validateMigrationNaming = true
+validateOnMigrate = true
+outOfOrder = false
+placeholderReplacement = false # Read migrations as plain T-SQL, to avoid ${...} in a string being replaced

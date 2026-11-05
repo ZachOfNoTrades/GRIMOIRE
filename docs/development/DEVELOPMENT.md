@@ -59,3 +59,18 @@ The following instructions are for setting up a local instance of SQL Server (sp
 1. Enter all variables in `env.local` from the [Resource Guide](../resources/RESOURCES.md).
 1. Run `npm run dev` to start a development server.
 1. Run `npm run build` > `npm start` to start a production server.
+
+## Schema Changes
+
+Each `sql/sql_init_<database>.sql` script is the locked base schema, Flyway version 1. It never changes; `sql/flyway/check.sh` fails when one does. Every schema change is a Flyway migration.
+
+1. Add `sql/migrations/<database>/V<version>__<description>.sql`, where `<database>` is `main`, `golem`, `rune`, `quest`, `food` or `health`, `<version>` is the next whole number in that folder, and `<description>` is lowercase words joined by `_`.
+1. Write it as plain T-SQL against that database. Flyway runs each migration once, in one transaction, and records it in `dbo.flyway_schema_history`.
+1. Guard each change with a check that it is still needed, such as `IF COL_LENGTH(...) IS NOT NULL`. Look up a default or other system-named constraint by name before dropping it, as its name differs between databases.
+1. Keep the release before it working. A deploy applies pending migrations before it switches to the new release, and a rollback switches back without undoing them. To remove a column, first ship the code that stops using it, then drop the column in a later release.
+1. Run `sql/flyway/check.sh`, then build the databases on a local server with `sql/flyway/build-fresh.sh` (see the [Resource Guide](../resources/RESOURCES.md#create-databases)).
+
+On every push, the `migrations` check builds all six databases from their base schema on a throwaway SQL Server, applies every migration, and checks that a second run applies nothing.
+
+`sql/flyway/migrate.sh <migrate | baseline | info | validate> [database...]` runs a Flyway command on the databases named in `SQL_<DATABASE>_DB`, with the login in `SQL_SERVER_USER` and `SQL_SERVER_PASSWORD`. It runs Flyway from its official Docker image, pinned by digest.
+
