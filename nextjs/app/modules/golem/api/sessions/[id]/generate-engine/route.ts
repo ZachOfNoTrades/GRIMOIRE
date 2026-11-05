@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { getWorkoutSessionById } from '../../../../lib/workoutSessionFunctions';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '../../../../lib/segmentFunctions';
 import { generateSessionTargetsWithEngine } from '../../../../lib/engine/generationService';
@@ -18,15 +17,6 @@ export async function POST(
     }
     const userId = authSession.user.id;
 
-    // Refuse once the user's generation limit is reached
-    const { allowed, count, limit } = await checkGenerationLimit(userId!, authSession.user);
-    if (!allowed) {
-      return NextResponse.json(
-        { error: `Generation limit reached (${count}/${limit} in 24h)` },
-        { status: 429 }
-      );
-    }
-
     const { id } = await context.params;
 
     // Verify session exists (throws → 404 below)
@@ -42,8 +32,6 @@ export async function POST(
     // Replace existing targets with the freshly generated ones
     await deleteAllTargetsForSession(userId!, id);
     await createGeneratedTargets(userId!, id, segments);
-
-    await logGeneration(userId!, '/modules/golem/api/sessions/generate-engine');
 
     return NextResponse.json({
       success: true,

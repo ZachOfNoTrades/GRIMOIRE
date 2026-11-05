@@ -9,6 +9,7 @@ interface DeleteSessionModalProps {
     onConfirm: () => void;
     sessionName: string;
     isDeleting: boolean;
+    error?: string | null;
 }
 
 export default function DeleteSessionModal({
@@ -16,7 +17,8 @@ export default function DeleteSessionModal({
     onClose,
     onConfirm,
     sessionName,
-    isDeleting
+    isDeleting,
+    error,
 }: DeleteSessionModalProps) {
     return (
         <Modal
@@ -46,9 +48,17 @@ export default function DeleteSessionModal({
                 </>
             }
         >
-            <p className="text-primary">
-                Are you sure you want to delete <strong>{sessionName}</strong>? This action cannot be undone.
-            </p>
+            {/* BODY */}
+            <div className="flex flex-col gap-2">
+
+                {/* MESSAGE */}
+                <p className="text-primary">
+                    Are you sure you want to delete <strong>{sessionName}</strong>? This action cannot be undone.
+                </p>
+
+                {/* ERROR */}
+                {error && <p className="text-sm text-alert-red">{error}</p>}
+            </div>
         </Modal>
     );
 }

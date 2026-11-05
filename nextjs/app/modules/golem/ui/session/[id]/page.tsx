@@ -89,8 +89,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteSessionError, setDeleteSessionError] = useState<string | null>(null); // refusal shown inside the delete confirm
   const [isResettingSession, setIsResettingSession] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetSessionError, setResetSessionError] = useState<string | null>(null); // refusal shown inside the reset confirm
   const [isSegmentModalOpen, setIsSegmentModalOpen] = useState(false);
   const [segmentModalData, setSegmentModalData] = useState<SegmentWithSets | null>(null);
   const [isAddPickerOpen, setIsAddPickerOpen] = useState(false);
@@ -540,37 +542,43 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  // Delete the session and leave for Golem home, keeping the confirm open and busy until the request answers
   const handleDeleteSession = async () => {
     setIsDeletingSession(true);
+    setDeleteSessionError(null);
     try {
       const response = await fetch(`/modules/golem/api/sessions/${id}`, {
         method: "DELETE",
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to delete session");
+        const errorData = await response.json().catch(() => ({}));
+        setDeleteSessionError(errorData.error || "Failed to delete session");
+        setIsDeletingSession(false);
         return;
       }
 
       toast.success("Session deleted");
       router.push("/modules/golem/ui/home");
     } catch (error) {
-      toast.error("Failed to delete session");
+      setDeleteSessionError("Failed to delete session");
+      setIsDeletingSession(false);
       console.error("Error deleting session:", error);
     }
   };
 
+  // Reset the session, keeping the confirm open and busy until the request answers
   const handleResetSession = async () => {
     setIsResettingSession(true);
+    setResetSessionError(null);
     try {
       const response = await fetch(`/modules/golem/api/sessions/${id}`, {
         method: "PATCH",
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to reset session");
+        const errorData = await response.json().catch(() => ({}));
+        setResetSessionError(errorData.error || "Failed to reset session");
         return;
       }
 
@@ -581,7 +589,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       setIsResetModalOpen(false);
       toast.success("Session reset");
     } catch (error) {
-      toast.error("Failed to reset session");
+      setResetSessionError("Failed to reset session");
       console.error("Error resetting session:", error);
     } finally {
       setIsResettingSession(false);
@@ -589,8 +597,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   };
 
   // STATUS HANDLERS
-  const updateSessionStatus = async (overrides: Partial<WorkoutSession>) => {
-    if (!session) return;
+  // Save status fields with an optimistic paint, answering whether the save succeeded
+  const updateSessionStatus = async (overrides: Partial<WorkoutSession>): Promise<boolean> => {
+    if (!session) return false;
     const previousSession = session;
     const body = {
       name: session.name,
@@ -619,12 +628,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         const errorData = await response.json();
         toast.error(errorData.error || "Failed to update session");
         setSession(previousSession);
-        return;
+        return false;
       }
+      return true;
     } catch (error) {
       toast.error("Failed to update session");
       console.error("Error updating session:", error);
       setSession(previousSession);
+      return false;
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -696,7 +707,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       resumed_at: null,
       duration: pendingCompletionDurationRef.current,
       review: review.trim() || null,
-    }).then(() => setIsReviewModalOpen(false));
+    }).then((saved) => { if (saved) setIsReviewModalOpen(false); });
   };
 
   const handleReviewSkip = () => {
@@ -705,7 +716,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       is_current: false,
       resumed_at: null,
       duration: pendingCompletionDurationRef.current,
-    }).then(() => setIsReviewModalOpen(false));
+    }).then((saved) => { if (saved) setIsReviewModalOpen(false); });
   };
 
   // SEGMENT HANDLERS
@@ -2034,19 +2045,21 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       {/* DELETE SESSION MODAL */}
       <DeleteSessionModal
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        onClose={() => { setIsDeleteModalOpen(false); setDeleteSessionError(null); }}
         onConfirm={handleDeleteSession}
         sessionName={session?.name || ""}
         isDeleting={isDeletingSession}
+        error={deleteSessionError}
       />
 
       {/* RESET SESSION MODAL */}
       <ResetSessionModal
         isOpen={isResetModalOpen}
-        onClose={() => setIsResetModalOpen(false)}
+        onClose={() => { setIsResetModalOpen(false); setResetSessionError(null); }}
         onConfirm={handleResetSession}
         sessionName={session?.name || ""}
         isResetting={isResettingSession}
+        error={resetSessionError}
       />
 
       {/* PRE-WORKOUT MODAL */}

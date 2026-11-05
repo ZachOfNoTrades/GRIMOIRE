@@ -1,3 +1,4 @@
+import { Toaster } from '@/components/Toaster';
 import EngineGeneratePanel from '../../../components/EngineGeneratePanel';
 
 // Self-contained page for triggering deterministic engine generation for a session and reviewing the plan.
@@ -12,6 +13,9 @@ export default async function EngineGeneratePage({ params }: { params: Promise<{
 
       {/* GENERATE PANEL */}
       <EngineGeneratePanel sessionId={sessionId} />
+
+      {/* TOAST */}
+      <Toaster position="bottom-center" />
     </div>
   );
 }

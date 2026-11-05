@@ -91,7 +91,6 @@ import {
 import { generateSessionTargetsWithEngine } from '@/app/modules/golem/lib/engine/generationService';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '@/app/modules/golem/lib/segmentFunctions';
 import type { GeneratedSegment } from '@/app/modules/golem/types/segment';
-import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 
 // A single primary/secondary muscle mapping on an exercise. muscleGroupId comes from
 // golem_list_muscle_groups. Passing a muscleGroups array REPLACES the exercise's whole mapping set.
@@ -538,12 +537,6 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
       inputSchema: { sessionId: z.string().describe('Workout session UUID to generate exercises into (from golem_list_sessions / golem_get_current_session).') },
     },
     async ({ sessionId }) => {
-      // Refuse once the user's generation limit is reached
-      const { allowed, count, limit } = await checkGenerationLimit(userId, ctx.user);
-      if (!allowed) {
-        return json({ success: false, error: `Generation limit reached (${count}/${limit} in 24h)` });
-      }
-
       // Verify the session exists / belongs to the user (throws → surfaced as an error).
       await getWorkoutSessionById(userId, sessionId);
 
@@ -556,7 +549,6 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
       // Replace existing targets with the freshly generated ones.
       await deleteAllTargetsForSession(userId, sessionId);
       await createGeneratedTargets(userId, sessionId, segments);
-      await logGeneration(userId, '/api/mcp/golem_generate_session_with_engine');
 
       return json({
         success: true,

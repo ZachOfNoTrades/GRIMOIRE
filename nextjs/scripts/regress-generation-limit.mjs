@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Regression check: a missing or 0 generation limit allows no generations, only the unlimited flag lifts the limit, and every logged generation is checked against the limit first
+// Regression check: a missing or 0 generation limit allows no generations, only the unlimited flag lifts the limit, every logged generation is checked against the limit first, and the deterministic engine paths make no model call and are not counted
 // Usage: node scripts/regress-generation-limit.mjs
 // NOTE: Needs no database or running server; it loads lib/generationLimit.ts with a stand-in database and reads the app's sources
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
@@ -100,6 +100,88 @@ for (const relative_path of [...ListSources('app'), ...ListSources('lib')]) {
     calls.every((name, index) => name !== 'logGeneration' || calls[index - 1] === 'checkGenerationLimit'));
 }
 await Check('the source scan found the files that log generations', async () => logged_generation_files > 0);
+
+// Resolve an import specifier to a source file under nextjs/, or null for a package import
+const ResolveImport = (from_path, specifier) => {
+  let base_path;
+  if (specifier.startsWith('@/')) base_path = join(nextjs_path, specifier.slice(2));
+  else if (specifier.startsWith('.')) base_path = join(dirname(from_path), specifier);
+  else return null;
+  for (const suffix of ['', '.ts', '.tsx', '.mjs', '.js', '/index.ts', '/index.tsx']) {
+    const candidate_path = base_path + suffix;
+    if (existsSync(candidate_path) && statSync(candidate_path).isFile()) return candidate_path;
+  }
+  return null;
+};
+
+// Read the module specifiers a source file imports, re-exports, loads with import() or requires, skipping type-only imports
+const import_pattern = /(?:^|\n)\s*(?:import|export)\s+(type\s+)?(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]/g;
+const load_pattern = /\b(?:import|require)\(\s*['"]([^'"]+)['"]\s*\)/g;
+const ReadImports = (file_path) => {
+  const source = readFileSync(file_path, 'utf8');
+  return [
+    ...[...source.matchAll(import_pattern)].filter((match) => !match[1]).map((match) => match[2]),
+    ...[...source.matchAll(load_pattern)].map((match) => match[1]),
+  ];
+};
+
+// Name a module that sends a request to a model: the shared LLM layer, a module's llm* helpers, or a model SDK
+const IsModelModule = (specifier, resolved_path) => {
+  if (!resolved_path) return /^(@anthropic-ai|openai|@openrouter)\b/.test(specifier);
+  const nextjs_relative_path = relative(nextjs_path, resolved_path);
+  return nextjs_relative_path.startsWith(join('lib', 'llm') + '/') || /^llm/i.test(nextjs_relative_path.split('/').pop());
+};
+
+// Walk every module a file reaches and list the model modules among them
+const FindModelImports = (root_paths) => {
+  const visited_paths = new Set();
+  const model_imports = [];
+  const pending_paths = [...root_paths];
+  while (pending_paths.length > 0) {
+    const file_path = pending_paths.pop();
+    if (visited_paths.has(file_path)) continue;
+    visited_paths.add(file_path);
+    for (const specifier of ReadImports(file_path)) {
+      const resolved_path = ResolveImport(file_path, specifier);
+      if (IsModelModule(specifier, resolved_path)) model_imports.push(`${relative(nextjs_path, file_path)} -> ${specifier}`);
+      else if (resolved_path) pending_paths.push(resolved_path);
+    }
+  }
+  return { model_imports, visited_count: visited_paths.size };
+};
+
+// Confirm the deterministic session engine reaches no model call
+const engine_path = join(nextjs_path, 'app/modules/golem/lib/engine');
+const engine_route_path = join(nextjs_path, 'app/modules/golem/api/sessions/[id]/generate-engine/route.ts');
+const engine_roots = [
+  engine_route_path,
+  ...readdirSync(engine_path).filter((name) => /\.ts$/.test(name)).map((name) => join(engine_path, name)),
+];
+const engine_reach = FindModelImports(engine_roots);
+await Check(`the session engine reaches no model module (${engine_reach.model_imports.join(', ') || 'none'})`, async () =>
+  engine_reach.visited_count > engine_roots.length && engine_reach.model_imports.length === 0);
+
+// Confirm the golem_generate_session_with_engine MCP tool calls only model-free functions
+const mcp_golem_path = join(nextjs_path, 'lib/mcp/tools/golem.ts');
+const mcp_golem_source = readFileSync(mcp_golem_path, 'utf8');
+const engine_tool_start = mcp_golem_source.indexOf("'golem_generate_session_with_engine'");
+const engine_tool_source = mcp_golem_source.slice(engine_tool_start, mcp_golem_source.indexOf('server.registerTool(', engine_tool_start));
+const imported_names = new Map();
+for (const match of mcp_golem_source.matchAll(/import\s+(?!type\b)\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/g)) {
+  for (const name of match[1].split(',').map((part) => part.trim().split(/\s+as\s+/).pop()).filter(Boolean)) imported_names.set(name, match[2]);
+}
+const engine_tool_modules = [...new Set([...engine_tool_source.matchAll(/\b(\w+)\(/g)].map((match) => imported_names.get(match[1])).filter(Boolean))];
+const engine_tool_model_imports = engine_tool_modules.filter((specifier) => IsModelModule(specifier, ResolveImport(mcp_golem_path, specifier)));
+const engine_tool_reach = FindModelImports(engine_tool_modules.map((specifier) => ResolveImport(mcp_golem_path, specifier)).filter(Boolean));
+await Check('the engine MCP tool calls the session engine', async () => engine_tool_source.includes('generateSessionTargetsWithEngine('));
+await Check(`the engine MCP tool reaches no model module (${[...engine_tool_model_imports, ...engine_tool_reach.model_imports].join(', ') || 'none'})`, async () =>
+  engine_tool_model_imports.length === 0 && engine_tool_reach.model_imports.length === 0);
+
+// Confirm the session engine is neither limited nor counted as a generation
+await Check('the session engine route neither checks nor logs a generation', async () =>
+  !/\b(checkGenerationLimit|logGeneration)\(/.test(readFileSync(engine_route_path, 'utf8')));
+await Check('the engine MCP tool neither checks nor logs a generation', async () =>
+  !/\b(checkGenerationLimit|logGeneration)\(/.test(engine_tool_source));
 
 if (failures > 0) {
   console.log(`${failures} check(s) failed`);

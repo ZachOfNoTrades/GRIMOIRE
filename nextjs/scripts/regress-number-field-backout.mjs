@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regression check: a number field can be emptied while editing, and its limits apply only when it is left
+// Regression check: a number field can be emptied while editing, its limits apply only when it is left, and a decimal field keeps a typed 0
 // Usage: node scripts/regress-number-field-backout.mjs
 // NOTE: Needs no database or running server; it loads lib/numberDraft.ts and reads the app's source
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -72,6 +72,25 @@ for (const file of [...ListTsx(join(nextjs_path, 'app')), ...ListTsx(join(nextjs
   }
 }
 Check('no number input parses its value on each keystroke; use NumberField', offenders.length === 0, offenders.join(', '));
+
+// Find decimal number inputs that show 0 as empty, which drops a typed "0" before its "." and keeps a weight below 1 from being typed
+const zero_hiding_offenders = [];
+for (const file of [...ListTsx(join(nextjs_path, 'app')), ...ListTsx(join(nextjs_path, 'components'))]) {
+  const source = readFileSync(file, 'utf8');
+  for (const match of source.matchAll(number_input_pattern)) {
+    const element = match[0];
+    if (!numeric_marker_pattern.test(element) || !/step=["{]+0?\.\d/.test(element)) continue;
+    if (!/value=\{[^}]*\|\|\s*""\}/.test(element)) continue;
+    zero_hiding_offenders.push(`${relative(nextjs_path, file)}:${source.slice(0, match.index).split('\n').length}`);
+  }
+}
+Check('no decimal number input hides a typed 0; use NumberField', zero_hiding_offenders.length === 0, zero_hiding_offenders.join(', '));
+
+// Confirm set logging's weight field keeps a typed 0 while a weight below 1 is typed, and reads an untouched weight of 0 as empty
+const set_tab_source = readFileSync(join(nextjs_path, 'app/modules/golem/ui/session/[id]/SetTab.tsx'), 'utf8');
+Check('set logging weight is a NumberField', /<NumberField\s+id=\{`\$\{set\.id\}-weight`\}/.test(set_tab_source));
+Check('set logging weight shows a weight of 0 as empty', /value=\{set\.weight > 0 \? set\.weight : null\}/.test(set_tab_source));
+Check('typing 0, then 0., then 0.5 reads as 0, 0 and 0.5', ['0', '0.', '0.5'].map(parseNumberDraft).join(',') === '0,0,0.5');
 
 if (failures > 0) {
   console.error(`${failures} check(s) failed`);
