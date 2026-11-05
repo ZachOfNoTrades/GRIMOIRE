@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Cpu } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
-import { Button } from "@/components/ui/button";
 import HelpButton from "@/components/ui/HelpButton";
+import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar";
+import { useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { SettingsControlRow } from "@/components/settings/SettingsList";
 import { LLM_TASKS, LLM_TASK_GROUPS, type LlmTaskId } from "@/lib/llm/tasks";
@@ -49,6 +50,8 @@ export default function AdminLlmPage() {
 
   const isDirty = useMemo(() => JSON.stringify(pins) !== JSON.stringify(saved), [pins, saved]);
 
+  useUnsavedWarning(isDirty);
+
   function setPin(task: LlmTaskId, backend: LlmBackend, model: string) {
     setPins((prev) => {
       const entry = { ...(prev[task] ?? {}) };
@@ -86,7 +89,10 @@ export default function AdminLlmPage() {
 
   return (
     /* PAGE */
-    <div className="page">
+    <div className="page-with-bottom-bar">
+
+      {/* PAGE SCROLL */}
+      <div className="page-scroll">
 
       {/* PAGE CONTAINER */}
       <div className="page-container">
@@ -160,19 +166,16 @@ export default function AdminLlmPage() {
                 </div>
               </div>
             ))}
-
-            {/* SAVE */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
-              <Button className="btn-blue" onClick={save} disabled={!isDirty || isSaving}>
-                {isSaving ? "Saving…" : "Save"}
-              </Button>
-            </div>
           </>
         )}
-
-        {/* TOAST */}
-        <Toaster position="bottom-center" />
       </div>
+      </div>
+
+      {/* SAVE BAR */}
+      <SettingsSaveBar onSave={save} isSaveDisabled={isLoading || !isDirty} isSaving={isSaving} />
+
+      {/* TOAST */}
+      <Toaster position="bottom-center" containerStyle={{ bottom: "5rem" }} />
     </div>
   );
 }

@@ -13,7 +13,7 @@ import SessionBar from "../../../../../components/SessionBar";
 import { SESSION_HELP } from "../../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../../lib/client";
 import { DRAFT_MAX, RECAP_MAX, SESSION_TITLE_MAX } from "../../../../../lib/constants";
-import { saveOnShortcut, useUnsavedWarning } from "../../../../../lib/useUnsavedWarning";
+import { saveOnShortcut, useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import type { BuiltEntities, OracleCampaign, OracleEntity, OracleSession } from "../../../../../types/oracle";
 
 interface SessionClientProps {

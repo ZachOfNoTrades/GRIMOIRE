@@ -23,7 +23,7 @@ import { MAP_HELP } from "../../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../../lib/client";
 import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN, GRID_ROWS_MAX, GRID_ROWS_MIN, MAP_DESCRIPTION_MAX, MAP_GRID, NAME_MAX, SCALE_UNITS, SCALE_VALUE_MAX, type ScaleUnit } from "../../../../../lib/constants";
 import { useEditHistory } from "../../../../../lib/useEditHistory";
-import { saveOnShortcut, useUnsavedWarning } from "../../../../../lib/useUnsavedWarning";
+import { saveOnShortcut, useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import type { MapFeature, OracleCampaign, OracleImage, OracleMap, PictureRect } from "../../../../../types/oracle";
 
 interface MapClientProps {

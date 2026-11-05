@@ -4605,6 +4605,47 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .bottom-action-bar-pill-clear { color: var(--color-secondary); }
 .bottom-action-bar-pill-clear:hover { color: var(--color-primary); }
 
+/* ========================================
+   BOTTOM ACTION ROW
+   ======================================== */
+@layer components {
+  .bottom-action-bar:has(> .bottom-action-row) {
+    overflow: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  .bottom-action-row {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    max-width: 80rem;
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  @media (min-width: 1024px) {
+    .bottom-action-row {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+
+  @media (max-width: 639px) and (hover: none) {
+    .bottom-action-row {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+  }
+
+  .bottom-action-save {
+    width: 9rem;
+  }
+}
+
 .timeline-chip-brand {
   margin-top: 0.125rem;
   color: var(--color-secondary);
