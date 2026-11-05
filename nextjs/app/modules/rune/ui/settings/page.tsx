@@ -37,7 +37,6 @@ export default function RuneSettingsPage() {
   // INPUT
   const [digestEnabled, setDigestEnabled] = useState<boolean>(DEFAULT_DIGEST_ENABLED);
   const [digestTime, setDigestTime] = useState<string>(DEFAULT_DIGEST_TIME);
-  const [evaluationSystemPrompt, setEvaluationSystemPrompt] = useState<string>("");
   const [evaluationPersonalityPrompt, setEvaluationPersonalityPrompt] = useState<string>("");
   const [autoAdvanceOnEvaluate, setAutoAdvanceOnEvaluate] = useState<boolean>(DEFAULT_AUTO_ADVANCE_ON_EVALUATE);
   const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState<number>(DEFAULT_AUTO_ADVANCE_SECONDS);
@@ -51,10 +50,8 @@ export default function RuneSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [sendingDigest, setSendingDigest] = useState(false);
   const [clearingDigest, setClearingDigest] = useState(false);
-  const [resettingSystemPrompt, setResettingSystemPrompt] = useState(false);
   const [resettingPersonalityPrompt, setResettingPersonalityPrompt] = useState(false);
   const [digestLastSentDate, setDigestLastSentDate] = useState<string | null>(null);
-  const [defaultEvaluationSystemPrompt, setDefaultEvaluationSystemPrompt] = useState<string>("");
   const [defaultEvaluationPersonalityPrompt, setDefaultEvaluationPersonalityPrompt] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
@@ -77,7 +74,6 @@ export default function RuneSettingsPage() {
             : DEFAULT_DIGEST_TIME,
         );
         setDigestLastSentDate(typeof data.digestLastSentDate === "string" ? data.digestLastSentDate : null);
-        setEvaluationSystemPrompt(typeof data.evaluationSystemPrompt === "string" ? data.evaluationSystemPrompt : "");
         setEvaluationPersonalityPrompt(typeof data.evaluationPersonalityPrompt === "string" ? data.evaluationPersonalityPrompt : "");
         setAutoAdvanceOnEvaluate(Boolean(data.autoAdvanceOnEvaluate));
         setAutoAdvanceSeconds(Number.isFinite(data.autoAdvanceSeconds) ? data.autoAdvanceSeconds : DEFAULT_AUTO_ADVANCE_SECONDS);
@@ -85,7 +81,6 @@ export default function RuneSettingsPage() {
         setDailyGoal(Number.isFinite(data.dailyGoal) ? data.dailyGoal : DEFAULT_DAILY_GOAL);
         setDailyMaxRenew(Number.isFinite(data.dailyMaxRenew) ? data.dailyMaxRenew : DEFAULT_DAILY_MAX_RENEW);
         setHandsFreeSilenceSeconds(Number.isFinite(data.handsFreeSilenceSeconds) ? data.handsFreeSilenceSeconds : DEFAULT_HANDS_FREE_SILENCE_SECONDS);
-        setDefaultEvaluationSystemPrompt(typeof data.defaultEvaluationSystemPrompt === "string" ? data.defaultEvaluationSystemPrompt : "");
         setDefaultEvaluationPersonalityPrompt(typeof data.defaultEvaluationPersonalityPrompt === "string" ? data.defaultEvaluationPersonalityPrompt : "");
       } catch (e) {
         console.error(e);
@@ -132,7 +127,6 @@ export default function RuneSettingsPage() {
         body: JSON.stringify({
           digestEnabled,
           digestTime,
-          evaluationSystemPrompt,
           evaluationPersonalityPrompt,
           autoAdvanceOnEvaluate,
           autoAdvanceSeconds: clampedSeconds,
@@ -150,7 +144,6 @@ export default function RuneSettingsPage() {
       setDigestEnabled(Boolean(body.digestEnabled));
       setDigestTime(body.digestTime || DEFAULT_DIGEST_TIME);
       setDigestLastSentDate(body.digestLastSentDate ?? null);
-      setEvaluationSystemPrompt(typeof body.evaluationSystemPrompt === "string" ? body.evaluationSystemPrompt : "");
       setEvaluationPersonalityPrompt(typeof body.evaluationPersonalityPrompt === "string" ? body.evaluationPersonalityPrompt : "");
       setAutoAdvanceOnEvaluate(Boolean(body.autoAdvanceOnEvaluate));
       setAutoAdvanceSeconds(Number.isFinite(body.autoAdvanceSeconds) ? body.autoAdvanceSeconds : clampedSeconds);
@@ -208,30 +201,6 @@ export default function RuneSettingsPage() {
     }
   }
 
-  async function resetEvaluationSystemPrompt() {
-    if (resettingSystemPrompt) return;
-    setResettingSystemPrompt(true);
-    try {
-      const res = await fetch("/modules/rune/api/settings", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ digestEnabled, digestTime, evaluationSystemPrompt: "" }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(body?.error || `Failed to reset system prompt (${res.status})`);
-        return;
-      }
-      setEvaluationSystemPrompt(typeof body.evaluationSystemPrompt === "string" ? body.evaluationSystemPrompt : defaultEvaluationSystemPrompt);
-      toast.success("System prompt reset to default");
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to reset system prompt");
-    } finally {
-      setResettingSystemPrompt(false);
-    }
-  }
-
   async function resetEvaluationPersonalityPrompt() {
     if (resettingPersonalityPrompt) return;
     setResettingPersonalityPrompt(true);
@@ -256,7 +225,6 @@ export default function RuneSettingsPage() {
     }
   }
 
-  const isDefaultSystemPrompt = evaluationSystemPrompt === defaultEvaluationSystemPrompt;
   const isDefaultPersonalityPrompt = evaluationPersonalityPrompt === defaultEvaluationPersonalityPrompt;
 
   if (loading) {
@@ -426,41 +394,6 @@ export default function RuneSettingsPage() {
         </h2>
         <div className="settings-group">
 
-          {/* SYSTEM PROMPT EDITOR */}
-          <div className="flex flex-col gap-1 p-3">
-            <label className="text-secondary">System prompt</label>
-            <textarea
-              value={evaluationSystemPrompt}
-              onChange={(e) => setEvaluationSystemPrompt(e.target.value)}
-              rows={14}
-              className="input-field w-full font-mono text-xs"
-            />
-          </div>
-        </div>
-
-        {/* GROUP NOTE */}
-        <p className="settings-group-note">
-          The task rules given to the model that judges your spoken/typed answers — what counts
-          as correct, the canned responses for garbled/unrelated/empty answers, and the JSON
-          output format. Supports the placeholders <code className="code-inline">{"{{QUESTION}}"}</code>,{" "}
-          <code className="code-inline">{"{{EXPECTED_ANSWER}}"}</code>,{" "}
-          <code className="code-inline">{"{{NOTES}}"}</code>, and{" "}
-          <code className="code-inline">{"{{USER_ANSWER}}"}</code>.
-        </p>
-
-        {/* RESET SYSTEM PROMPT TO DEFAULT */}
-        <div className="flex items-center gap-2 flex-wrap mt-3">
-          <Button className="btn-off" onClick={resetEvaluationSystemPrompt} disabled={resettingSystemPrompt || isDefaultSystemPrompt}>
-            {resettingSystemPrompt ? "Resetting..." : "Reset to default"}
-          </Button>
-          <span className="text-xs text-secondary">
-            {isDefaultSystemPrompt ? "Already using the default system prompt." : "Discards your customization."}
-          </span>
-        </div>
-
-        {/* PERSONALITY PROMPT SECTION */}
-        <div className="settings-group mt-4">
-
           {/* PERSONALITY PROMPT EDITOR */}
           <div className="flex flex-col gap-1 p-3">
             <label className="text-secondary">Response personality prompt</label>
@@ -475,8 +408,7 @@ export default function RuneSettingsPage() {
 
         {/* GROUP NOTE */}
         <p className="settings-group-note">
-          Controls tone and phrasing of the evaluation explanation shown to you — separate from
-          the task rules above.
+          Controls tone and phrasing of the evaluation explanation shown to you.
         </p>
 
         {/* RESET PERSONALITY PROMPT TO DEFAULT */}

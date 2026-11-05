@@ -4,8 +4,7 @@ export interface RuneSettings {
   // Stored HH:MM:SS in the DB; surface as HH:MM to the UI.
   digest_time: string;
   digest_last_sent_date: string | null;
-  // NULL means the user hasn't customized it — fall back to the matching bundled default template.
-  evaluation_system_prompt: string | null;
+  // NULL means the user hasn't customized it — fall back to the bundled evaluateAnswerPersonality.md template.
   evaluation_personality_prompt: string | null;
   // When set, clicking "Evaluate" during a normal (non-hands-free) study session
   // auto-accepts the AI-suggested rating and advances to the next card after

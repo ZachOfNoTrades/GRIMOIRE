@@ -3,11 +3,9 @@ import { getAuthorizedUser } from '@/lib/permissions';
 import {
   getDigestConfig,
   upsertDigestConfig,
-  getSettings,
   getEvaluationPrompts,
-  getDefaultEvaluationSystemPrompt,
   getDefaultEvaluationPersonalityPrompt,
-  upsertEvaluationPrompts,
+  upsertEvaluationPersonalityPrompt,
   getStudyPreferences,
   upsertStudyPreferences,
   countReviewsToday,
@@ -27,16 +25,14 @@ export async function GET(request: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const digest = await getDigestConfig(session.user.id!);
-    const { systemPrompt, personalityPrompt } = await getEvaluationPrompts(session.user.id!);
+    const { personalityPrompt } = await getEvaluationPrompts(session.user.id!);
     const study = await getStudyPreferences(session.user.id!);
     const reviewedToday = await countReviewsToday(session.user.id!);
     return NextResponse.json({
       digestEnabled: digest.enabled,
       digestTime: digest.time,
       digestLastSentDate: digest.lastSentDate,
-      evaluationSystemPrompt: systemPrompt,
       evaluationPersonalityPrompt: personalityPrompt,
-      defaultEvaluationSystemPrompt: getDefaultEvaluationSystemPrompt(),
       defaultEvaluationPersonalityPrompt: getDefaultEvaluationPersonalityPrompt(),
       autoAdvanceOnEvaluate: study.autoAdvanceOnEvaluate,
       autoAdvanceSeconds: study.autoAdvanceSeconds,
@@ -81,27 +77,17 @@ export async function PUT(request: NextRequest) {
       time: digestTime,
     });
 
-    // Undefined leaves a field untouched (needs its current raw — possibly NULL —
-    // value); empty/whitespace-only means "reset to default", stored as NULL.
-    const existingRaw = await getSettings(session.user.id!);
-
-    function resolvePromptField(value: unknown, currentRaw: string | null): string | null {
-      if (value === undefined) return currentRaw;
-      const trimmed = (value as string).trim();
-      return trimmed === '' ? null : (value as string);
-    }
-
-    if (body?.evaluationSystemPrompt !== undefined && typeof body.evaluationSystemPrompt !== 'string') {
-      return NextResponse.json({ error: 'evaluationSystemPrompt must be a string' }, { status: 400 });
-    }
+    // Refuse a personality prompt that is not text, save one that was sent (blank resets it to the default), and otherwise answer with the one in effect
     if (body?.evaluationPersonalityPrompt !== undefined && typeof body.evaluationPersonalityPrompt !== 'string') {
       return NextResponse.json({ error: 'evaluationPersonalityPrompt must be a string' }, { status: 400 });
     }
-
-    const savedPrompts = await upsertEvaluationPrompts(session.user.id!, {
-      systemPrompt: resolvePromptField(body?.evaluationSystemPrompt, existingRaw?.evaluation_system_prompt ?? null),
-      personalityPrompt: resolvePromptField(body?.evaluationPersonalityPrompt, existingRaw?.evaluation_personality_prompt ?? null),
-    });
+    let savedPersonalityPrompt: string;
+    if (body?.evaluationPersonalityPrompt !== undefined) {
+      const personalityPrompt = body.evaluationPersonalityPrompt.trim() === '' ? null : body.evaluationPersonalityPrompt;
+      savedPersonalityPrompt = await upsertEvaluationPersonalityPrompt(session.user.id!, personalityPrompt);
+    } else {
+      savedPersonalityPrompt = (await getEvaluationPrompts(session.user.id!)).personalityPrompt;
+    }
 
     // Study-session preferences. Undefined leaves a field untouched (falls back to
     // the current stored value / default).
@@ -176,9 +162,7 @@ export async function PUT(request: NextRequest) {
       digestEnabled: Boolean(saved.digest_enabled),
       digestTime: (saved.digest_time ?? DEFAULT_DIGEST_TIME).slice(0, 5),
       digestLastSentDate: saved.digest_last_sent_date ?? null,
-      evaluationSystemPrompt: savedPrompts.systemPrompt,
-      evaluationPersonalityPrompt: savedPrompts.personalityPrompt,
-      defaultEvaluationSystemPrompt: getDefaultEvaluationSystemPrompt(),
+      evaluationPersonalityPrompt: savedPersonalityPrompt,
       defaultEvaluationPersonalityPrompt: getDefaultEvaluationPersonalityPrompt(),
       autoAdvanceOnEvaluate: savedStudy.autoAdvanceOnEvaluate,
       autoAdvanceSeconds: savedStudy.autoAdvanceSeconds,
