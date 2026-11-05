@@ -11,8 +11,8 @@ BEGIN TRY
     -- =============================
     -- Users
     -- =============================
-    INSERT INTO users (email, name, global_admin, generation_limit, enabled) VALUES
-    ('admin@example.com', 'Admin User', 1, 0, 1);
+    INSERT INTO users (email, name, global_admin, is_generation_unlimited, enabled) VALUES
+    ('admin@example.com', 'Admin User', 1, 1, 1);
 
     COMMIT TRANSACTION MainDbSampleRecords;
     PRINT '';

@@ -122,7 +122,7 @@ function startGeneration(campaignId: string, user: AuthUser, wanted: number): vo
   if (wanted <= 0 || runs.has(campaignId) || (holdUntil.get(campaignId) ?? 0) > Date.now()) return;
   const run = (async () => {
     try {
-      const limit = await checkGenerationLimit(user.id, user.generationLimit);
+      const limit = await checkGenerationLimit(user.id, user);
       if (!limit.allowed) {
         throw new OracleError(429, `Generation limit reached (${limit.count}/${limit.limit}). Suggestions resume later.`);
       }
@@ -283,7 +283,7 @@ export async function adoptImageChip(
 
   let outline: EntityOutline = { name, details: "", dm_notes: "", attitude: "neutral", cr: null, source: null };
   try {
-    const limit = await checkGenerationLimit(user.id, user.generationLimit);
+    const limit = await checkGenerationLimit(user.id, user);
     if (limit.allowed) {
       await logGeneration(user.id, "oracle/outline");
       outline = await outlineEntity(user.id, await buildContext(campaignId, user.id), kind, name, await modelFor(user.id, "outline"));

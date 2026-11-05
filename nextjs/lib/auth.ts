@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { getUserByEmail } from "@/lib/users";
 import { saveGoogleRefreshToken } from "@/lib/googleMail";
+import { toGenerationAllowance } from "@/lib/generationLimit";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -37,7 +38,9 @@ export const authOptions: NextAuthOptions = {
             token.id = user.id;
             token.name = user.name ?? "";
             token.globalAdmin = !!user.global_admin;
-            token.generationLimit = user.generation_limit ?? 1;
+            const allowance = toGenerationAllowance(user);
+            token.generationLimit = allowance.generationLimit;
+            token.isGenerationUnlimited = allowance.isGenerationUnlimited;
 
             // Keep the refresh token from this sign-in so the schedulers can send this user's
             // notification emails later, hours after the session that produced it. Google only
@@ -72,7 +75,8 @@ export const authOptions: NextAuthOptions = {
       session.user.email = token.email ?? "";
       session.user.name = token.name ?? "";
       session.user.globalAdmin = token.globalAdmin ?? false;
-      session.user.generationLimit = token.generationLimit ?? 1;
+      session.user.generationLimit = token.generationLimit ?? 0;
+      session.user.isGenerationUnlimited = token.isGenerationUnlimited === true;
       return session;
     },
   },

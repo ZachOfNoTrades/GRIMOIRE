@@ -49,9 +49,9 @@ export async function withViewer(request: Request, context: string, handler: () 
   }
 }
 
-// Generation endpoints share the app-wide per-user generation limit (0 = unlimited).
+// Spend a generation from the user's app-wide limit, refusing with a 429 once it is reached
 export async function spendGeneration(user: AuthUser, endpoint: string): Promise<void> {
-  const limit = await checkGenerationLimit(user.id, user.generationLimit);
+  const limit = await checkGenerationLimit(user.id, user);
   if (!limit.allowed) {
     throw new OracleError(429, `Generation limit reached (${limit.count}/${limit.limit}). Try again later.`);
   }

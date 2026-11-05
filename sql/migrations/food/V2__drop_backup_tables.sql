@@ -1,0 +1,24 @@
+-- Drop the Forage backup tables, which no code, view, key or procedure reads
+IF OBJECT_ID('dbo._bak_banana_entry_kcal', 'U') IS NOT NULL DROP TABLE dbo._bak_banana_entry_kcal;
+IF OBJECT_ID('dbo._bak_banana_food_entries', 'U') IS NOT NULL DROP TABLE dbo._bak_banana_food_entries;
+IF OBJECT_ID('dbo._bak_banana_food_nutrients', 'U') IS NOT NULL DROP TABLE dbo._bak_banana_food_nutrients;
+IF OBJECT_ID('dbo._bak_banana_food_servings', 'U') IS NOT NULL DROP TABLE dbo._bak_banana_food_servings;
+IF OBJECT_ID('dbo._bak_banana_foods', 'U') IS NOT NULL DROP TABLE dbo._bak_banana_foods;
+IF OBJECT_ID('dbo._bak_banana_recipe_ingredients', 'U') IS NOT NULL DROP TABLE dbo._bak_banana_recipe_ingredients;
+IF OBJECT_ID('dbo._bak_brandnorm20260811_entries', 'U') IS NOT NULL DROP TABLE dbo._bak_brandnorm20260811_entries;
+IF OBJECT_ID('dbo._bak_brandnorm20260811_foods', 'U') IS NOT NULL DROP TABLE dbo._bak_brandnorm20260811_foods;
+IF OBJECT_ID('dbo._bak_brandnorm20260811_nutrients', 'U') IS NOT NULL DROP TABLE dbo._bak_brandnorm20260811_nutrients;
+IF OBJECT_ID('dbo._bak_brandnorm20260811_servings', 'U') IS NOT NULL DROP TABLE dbo._bak_brandnorm20260811_servings;
+IF OBJECT_ID('dbo._bak_checkin_20260726', 'U') IS NOT NULL DROP TABLE dbo._bak_checkin_20260726;
+IF OBJECT_ID('dbo._bak_rehabtea_entries', 'U') IS NOT NULL DROP TABLE dbo._bak_rehabtea_entries;
+IF OBJECT_ID('dbo._bak_rehabtea_foods', 'U') IS NOT NULL DROP TABLE dbo._bak_rehabtea_foods;
+IF OBJECT_ID('dbo._bak_rehabtea_nutrients', 'U') IS NOT NULL DROP TABLE dbo._bak_rehabtea_nutrients;
+IF OBJECT_ID('dbo._bak_rehabtea_servings', 'U') IS NOT NULL DROP TABLE dbo._bak_rehabtea_servings;
+IF OBJECT_ID('dbo._bak_salt20260804_entries', 'U') IS NOT NULL DROP TABLE dbo._bak_salt20260804_entries;
+IF OBJECT_ID('dbo._bak_salt20260804_foods', 'U') IS NOT NULL DROP TABLE dbo._bak_salt20260804_foods;
+IF OBJECT_ID('dbo._bak_salt20260804_ingredients', 'U') IS NOT NULL DROP TABLE dbo._bak_salt20260804_ingredients;
+IF OBJECT_ID('dbo._bak_salt20260804_nutrients', 'U') IS NOT NULL DROP TABLE dbo._bak_salt20260804_nutrients;
+IF OBJECT_ID('dbo._bak_salt20260804_recipe_ingr', 'U') IS NOT NULL DROP TABLE dbo._bak_salt20260804_recipe_ingr;
+IF OBJECT_ID('dbo._bak_salt20260804_recipe_nutr', 'U') IS NOT NULL DROP TABLE dbo._bak_salt20260804_recipe_nutr;
+IF OBJECT_ID('dbo._bak_salt20260804_recipes', 'U') IS NOT NULL DROP TABLE dbo._bak_salt20260804_recipes;
+IF OBJECT_ID('dbo._bak_salt20260804_servings', 'U') IS NOT NULL DROP TABLE dbo._bak_salt20260804_servings;
