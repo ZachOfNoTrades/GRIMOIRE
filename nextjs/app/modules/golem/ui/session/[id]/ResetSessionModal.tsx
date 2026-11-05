@@ -9,6 +9,7 @@ interface ResetSessionModalProps {
     onConfirm: () => void;
     sessionName: string;
     isResetting: boolean;
+    error?: string | null;
 }
 
 export default function ResetSessionModal({
@@ -16,7 +17,8 @@ export default function ResetSessionModal({
     onClose,
     onConfirm,
     sessionName,
-    isResetting
+    isResetting,
+    error,
 }: ResetSessionModalProps) {
     return (
         <Modal
@@ -46,9 +48,17 @@ export default function ResetSessionModal({
                 </>
             }
         >
-            <p className="text-primary">
-                Are you sure you want to reset <strong>{sessionName}</strong>? This will clear all logged sets, generated target exercises, duration, and review data.
-            </p>
+            {/* BODY */}
+            <div className="flex flex-col gap-2">
+
+                {/* MESSAGE */}
+                <p className="text-primary">
+                    Are you sure you want to reset <strong>{sessionName}</strong>? This will clear all logged sets, generated target exercises, duration, and review data.
+                </p>
+
+                {/* ERROR */}
+                {error && <p className="text-sm text-alert-red">{error}</p>}
+            </div>
         </Modal>
     );
 }

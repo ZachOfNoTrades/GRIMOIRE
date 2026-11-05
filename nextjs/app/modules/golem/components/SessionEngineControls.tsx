@@ -23,6 +23,7 @@ export default function SessionEngineControls({ sessionId, currentArchetypeId, c
   // STATE
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false); // existing targets, no logged data → overwrite?
+  const [confirmError, setConfirmError] = useState<string | null>(null); // refusal shown inside the overwrite confirm
   const [blockerOpen, setBlockerOpen] = useState(false); // logged data present → cannot generate
   const [pinWarnings, setPinWarnings] = useState<string[]>([]); // pins the engine couldn't apply cleanly
 
@@ -59,8 +60,9 @@ export default function SessionEngineControls({ sessionId, currentArchetypeId, c
       const targetCount = Array.isArray(data.targets) ? data.targets.length : 0;
 
       if (loggedCount > 0) { setBlockerOpen(true); return; }
-      if (targetCount > 0) { setConfirmOpen(true); return; }
-      await runGeneration();
+      if (targetCount > 0) { setConfirmError(null); setConfirmOpen(true); return; }
+      const error = await runGeneration();
+      if (error) toast.error(error);
     } catch {
       toast.error('Could not check existing exercises');
     } finally {
@@ -68,18 +70,18 @@ export default function SessionEngineControls({ sessionId, currentArchetypeId, c
     }
   };
 
-  // Assign the chosen archetype, then run the engine (replaces existing target exercises).
-  const runGeneration = async () => {
+  // Assign the chosen archetype, then run the engine (replaces existing target exercises), answering with the error or null
+  const runGeneration = async (): Promise<string | null> => {
     setBusy(true);
     try {
       const assign = await fetch(`/modules/golem/api/sessions/${sessionId}/day-archetype`, {
         method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ day_archetype_id: selectedId }),
       });
-      if (!assign.ok) { toast.error('Failed to assign archetype'); return; }
+      if (!assign.ok) return 'Failed to assign archetype';
 
       const gen = await fetch(`/modules/golem/api/sessions/${sessionId}/generate-engine`, { method: 'POST' });
-      const data = await gen.json();
-      if (!gen.ok) { toast.error(data.error || 'Generation failed'); return; }
+      const data = await gen.json().catch(() => ({}));
+      if (!gen.ok) return data.error || 'Generation failed';
 
       // Pinned exercises encode deliberate choices (often injury constraints), so a pin the engine
       // couldn't apply cleanly is reported rather than swallowed by the success toast.
@@ -88,11 +90,20 @@ export default function SessionEngineControls({ sessionId, currentArchetypeId, c
       if (warnings.length > 0) toast(`Generated with ${warnings.length} pin warning${warnings.length > 1 ? 's' : ''}`, { icon: '⚠️' });
       else toast.success('Session generated');
       onGenerated?.(); // refreshes the session segment list to show the injected exercises
+      return null;
     } catch {
-      toast.error('Generation failed');
+      return 'Generation failed';
     } finally {
       setBusy(false);
     }
+  };
+
+  // Run the generation from the overwrite confirm, closing it on success and showing a refusal inside it
+  const handleConfirmReplace = async () => {
+    setConfirmError(null);
+    const error = await runGeneration();
+    if (error) setConfirmError(error);
+    else setConfirmOpen(false);
   };
 
   return (
@@ -157,21 +168,28 @@ export default function SessionEngineControls({ sessionId, currentArchetypeId, c
 
             {/* CONFIRM */}
             <Button
-              onClick={async () => { setConfirmOpen(false); await runGeneration(); }}
+              onClick={handleConfirmReplace}
               disabled={busy}
               className="btn-blue"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              <span>Replace &amp; Generate</span>
+              <span>{busy ? 'Generating…' : 'Replace & Generate'}</span>
             </Button>
           </>
         }
       >
         {/* BODY */}
-        <p className="text-secondary">
-          This session already has generated exercises (none logged yet). Generating will remove them and replace
-          them with a fresh plan from the selected day archetype.
-        </p>
+        <div className="flex flex-col gap-2">
+
+          {/* MESSAGE */}
+          <p className="text-secondary">
+            This session already has generated exercises (none logged yet). Generating will remove them and replace
+            them with a fresh plan from the selected day archetype.
+          </p>
+
+          {/* ERROR */}
+          {confirmError && <p className="text-sm text-alert-red">{confirmError}</p>}
+        </div>
       </Modal>
 
       {/* LOGGED-DATA BLOCKER — generation can't safely overwrite logged work. */}
