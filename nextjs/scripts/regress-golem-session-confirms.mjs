@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regression check: a Golem session confirm stays open until its request answers, clears its busy state on failure and shows the refusal inside it
+// Regression check: a Golem session confirm stays open until its request answers, clears its busy state on failure and shows the refusal inside it, and the engine page shows its errors
 // Usage: node scripts/regress-golem-session-confirms.mjs
 // NOTE: Needs no database or running server; it reads the app's sources
 import { readdirSync, readFileSync } from 'node:fs';
@@ -65,6 +65,10 @@ for (const modal_file of ['DeleteSessionModal.tsx', 'ResetSessionModal.tsx']) {
 // Confirm Session Review only closes once its save answers with success
 const review_submit = ReadFunctionBody(session_page, 'handleReviewSubmit') || session_page.slice(session_page.indexOf('const handleReviewSubmit'), session_page.indexOf('const handleReviewSkip'));
 Check('Session Review closes only when its save succeeds', /\.then\(\((\w+)\) => \{ if \(\1\) setIsReviewModalOpen\(false\); \}\)/.test(review_submit));
+
+// Confirm the standalone engine page draws the toasts its generate panel raises
+const engine_page = ReadSource('app/modules/golem/ui/engine/[sessionId]/page.tsx');
+Check('the engine page renders a Toaster for the generate panel', /<Toaster\b/.test(engine_page) && /toast\./.test(ReadSource('app/modules/golem/components/EngineGeneratePanel.tsx')));
 
 if (failures > 0) {
   console.log(`${failures} check(s) failed`);
