@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import NumberField from "@/components/ui/NumberField";
 import { SettingsGroup, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
+import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { usageHref } from "@/lib/usageChartModules";
+import { useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import {
   DEFAULT_DIGEST_ENABLED,
   DEFAULT_DIGEST_TIME,
@@ -35,6 +37,19 @@ function calendarTodayYMD(): string {
   return `${y}-${m}-${day}`;
 }
 
+// A RuneSettingsForm is the set of values the Save button writes
+interface RuneSettingsForm {
+  digestEnabled: boolean;
+  digestTime: string;
+  evaluationPersonalityPrompt: string;
+  autoAdvanceOnEvaluate: boolean;
+  autoAdvanceSeconds: number | null;
+  evaluationSoundEnabled: boolean;
+  dailyGoal: number | null;
+  dailyMaxRenew: number | null;
+  handsFreeSilenceSeconds: number | null;
+}
+
 export default function RuneSettingsPage() {
   const router = useRouter();
 
@@ -58,8 +73,37 @@ export default function RuneSettingsPage() {
   const [digestLastSentDate, setDigestLastSentDate] = useState<string | null>(null);
   const [defaultEvaluationPersonalityPrompt, setDefaultEvaluationPersonalityPrompt] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [savedSettings, setSavedSettings] = useState<RuneSettingsForm | null>(null);
 
   const digestSentToday = digestLastSentDate === calendarTodayYMD();
+  const currentSettings: RuneSettingsForm = {
+    digestEnabled,
+    digestTime,
+    evaluationPersonalityPrompt,
+    autoAdvanceOnEvaluate,
+    autoAdvanceSeconds,
+    evaluationSoundEnabled,
+    dailyGoal,
+    dailyMaxRenew,
+    handsFreeSilenceSeconds,
+  };
+  const isDirty = savedSettings !== null && JSON.stringify(currentSettings) !== JSON.stringify(savedSettings);
+
+  useUnsavedWarning(isDirty);
+
+  // Show a saved form in the fields and take it as the baseline Save compares against
+  function applySavedSettings(settings: RuneSettingsForm) {
+    setDigestEnabled(settings.digestEnabled);
+    setDigestTime(settings.digestTime);
+    setEvaluationPersonalityPrompt(settings.evaluationPersonalityPrompt);
+    setAutoAdvanceOnEvaluate(settings.autoAdvanceOnEvaluate);
+    setAutoAdvanceSeconds(settings.autoAdvanceSeconds);
+    setEvaluationSoundEnabled(settings.evaluationSoundEnabled);
+    setDailyGoal(settings.dailyGoal);
+    setDailyMaxRenew(settings.dailyMaxRenew);
+    setHandsFreeSilenceSeconds(settings.handsFreeSilenceSeconds);
+    setSavedSettings(settings);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -71,20 +115,21 @@ export default function RuneSettingsPage() {
         }
         const data = await res.json();
         if (cancelled) return;
-        setDigestEnabled(Boolean(data.digestEnabled));
-        setDigestTime(
-          typeof data.digestTime === "string" && /^\d{2}:\d{2}$/.test(data.digestTime)
-            ? data.digestTime
-            : DEFAULT_DIGEST_TIME,
-        );
+        applySavedSettings({
+          digestEnabled: Boolean(data.digestEnabled),
+          digestTime:
+            typeof data.digestTime === "string" && /^\d{2}:\d{2}$/.test(data.digestTime)
+              ? data.digestTime
+              : DEFAULT_DIGEST_TIME,
+          evaluationPersonalityPrompt: typeof data.evaluationPersonalityPrompt === "string" ? data.evaluationPersonalityPrompt : "",
+          autoAdvanceOnEvaluate: Boolean(data.autoAdvanceOnEvaluate),
+          autoAdvanceSeconds: Number.isFinite(data.autoAdvanceSeconds) ? data.autoAdvanceSeconds : DEFAULT_AUTO_ADVANCE_SECONDS,
+          evaluationSoundEnabled: data.evaluationSoundEnabled !== false,
+          dailyGoal: Number.isFinite(data.dailyGoal) ? data.dailyGoal : DEFAULT_DAILY_GOAL,
+          dailyMaxRenew: Number.isFinite(data.dailyMaxRenew) ? data.dailyMaxRenew : DEFAULT_DAILY_MAX_RENEW,
+          handsFreeSilenceSeconds: Number.isFinite(data.handsFreeSilenceSeconds) ? data.handsFreeSilenceSeconds : DEFAULT_HANDS_FREE_SILENCE_SECONDS,
+        });
         setDigestLastSentDate(typeof data.digestLastSentDate === "string" ? data.digestLastSentDate : null);
-        setEvaluationPersonalityPrompt(typeof data.evaluationPersonalityPrompt === "string" ? data.evaluationPersonalityPrompt : "");
-        setAutoAdvanceOnEvaluate(Boolean(data.autoAdvanceOnEvaluate));
-        setAutoAdvanceSeconds(Number.isFinite(data.autoAdvanceSeconds) ? data.autoAdvanceSeconds : DEFAULT_AUTO_ADVANCE_SECONDS);
-        setEvaluationSoundEnabled(data.evaluationSoundEnabled !== false);
-        setDailyGoal(Number.isFinite(data.dailyGoal) ? data.dailyGoal : DEFAULT_DAILY_GOAL);
-        setDailyMaxRenew(Number.isFinite(data.dailyMaxRenew) ? data.dailyMaxRenew : DEFAULT_DAILY_MAX_RENEW);
-        setHandsFreeSilenceSeconds(Number.isFinite(data.handsFreeSilenceSeconds) ? data.handsFreeSilenceSeconds : DEFAULT_HANDS_FREE_SILENCE_SECONDS);
         setDefaultEvaluationPersonalityPrompt(typeof data.defaultEvaluationPersonalityPrompt === "string" ? data.defaultEvaluationPersonalityPrompt : "");
       } catch (e) {
         console.error(e);
@@ -145,16 +190,18 @@ export default function RuneSettingsPage() {
         toast.error(body?.error || `Failed to save settings (${res.status})`);
         return;
       }
-      setDigestEnabled(Boolean(body.digestEnabled));
-      setDigestTime(body.digestTime || DEFAULT_DIGEST_TIME);
+      applySavedSettings({
+        digestEnabled: Boolean(body.digestEnabled),
+        digestTime: body.digestTime || DEFAULT_DIGEST_TIME,
+        evaluationPersonalityPrompt: typeof body.evaluationPersonalityPrompt === "string" ? body.evaluationPersonalityPrompt : "",
+        autoAdvanceOnEvaluate: Boolean(body.autoAdvanceOnEvaluate),
+        autoAdvanceSeconds: Number.isFinite(body.autoAdvanceSeconds) ? body.autoAdvanceSeconds : clampedSeconds,
+        evaluationSoundEnabled: body.evaluationSoundEnabled !== false,
+        dailyGoal: Number.isFinite(body.dailyGoal) ? body.dailyGoal : clampedGoal,
+        dailyMaxRenew: Number.isFinite(body.dailyMaxRenew) ? body.dailyMaxRenew : clampedMaxRenew,
+        handsFreeSilenceSeconds: Number.isFinite(body.handsFreeSilenceSeconds) ? body.handsFreeSilenceSeconds : clampedSilence,
+      });
       setDigestLastSentDate(body.digestLastSentDate ?? null);
-      setEvaluationPersonalityPrompt(typeof body.evaluationPersonalityPrompt === "string" ? body.evaluationPersonalityPrompt : "");
-      setAutoAdvanceOnEvaluate(Boolean(body.autoAdvanceOnEvaluate));
-      setAutoAdvanceSeconds(Number.isFinite(body.autoAdvanceSeconds) ? body.autoAdvanceSeconds : clampedSeconds);
-      setEvaluationSoundEnabled(body.evaluationSoundEnabled !== false);
-      setDailyGoal(Number.isFinite(body.dailyGoal) ? body.dailyGoal : clampedGoal);
-      setDailyMaxRenew(Number.isFinite(body.dailyMaxRenew) ? body.dailyMaxRenew : clampedMaxRenew);
-      setHandsFreeSilenceSeconds(Number.isFinite(body.handsFreeSilenceSeconds) ? body.handsFreeSilenceSeconds : clampedSilence);
       toast.success("Settings saved");
     } catch (e) {
       console.error(e);
@@ -219,7 +266,9 @@ export default function RuneSettingsPage() {
         toast.error(body?.error || `Failed to reset personality prompt (${res.status})`);
         return;
       }
-      setEvaluationPersonalityPrompt(typeof body.evaluationPersonalityPrompt === "string" ? body.evaluationPersonalityPrompt : defaultEvaluationPersonalityPrompt);
+      const resetPrompt = typeof body.evaluationPersonalityPrompt === "string" ? body.evaluationPersonalityPrompt : defaultEvaluationPersonalityPrompt;
+      setEvaluationPersonalityPrompt(resetPrompt);
+      setSavedSettings((prev) => prev && { ...prev, digestEnabled, digestTime, evaluationPersonalityPrompt: resetPrompt }); // Take the digest fields the reset also wrote as saved
       toast.success("Personality prompt reset to default");
     } catch (e) {
       console.error(e);
@@ -235,10 +284,17 @@ export default function RuneSettingsPage() {
 
     // LOADING PLACEHOLDER
     return (
-      <div className="page">
+      <div className="page-with-bottom-bar">
+
+        {/* PAGE SCROLL */}
+        <div className="page-scroll">
         <div className="page-container">
           <p className="text-secondary">Loading settings...</p>
         </div>
+        </div>
+
+        {/* SAVE BAR */}
+        <SettingsSaveBar onSave={saveSettings} isSaveDisabled isSaving={false} />
       </div>
     );
   }
@@ -246,10 +302,13 @@ export default function RuneSettingsPage() {
   return (
 
     // PAGE
-    <div className="page">
+    <div className="page-with-bottom-bar">
 
       {/* TOAST CONTAINER */}
-      <Toaster position="bottom-right" />
+      <Toaster position="bottom-center" containerStyle={{ bottom: "5rem" }} />
+
+      {/* PAGE SCROLL */}
+      <div className="page-scroll">
 
       {/* PAGE CONTAINER */}
       <div className="page-container">
@@ -384,7 +443,7 @@ export default function RuneSettingsPage() {
           judged <strong>Easy</strong>: the Easy rating is accepted and the next card loads after
           the delay. Anything less than Easy waits for you to rate it manually. The same delay
           drives the hands-free countdown. <strong>Hands-free silence</strong> is how long you stay
-          quiet after answering before hands-free stops recording. Remember to Save.
+          quiet after answering before hands-free stops recording.
         </p>
 
         {/* DAILY TARGETS NOTE */}
@@ -428,13 +487,6 @@ export default function RuneSettingsPage() {
           </span>
         </div>
 
-        {/* SAVE */}
-        <div className="flex items-center gap-2 flex-wrap mt-4">
-          <Button className="btn-blue" onClick={saveSettings} disabled={saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </div>
-
         {/* MANUAL TRIGGER */}
         <div className="flex items-center gap-2 flex-wrap mt-3">
           <Button className="btn-off" onClick={sendDigestNow} disabled={sendingDigest}>
@@ -458,6 +510,10 @@ export default function RuneSettingsPage() {
           </span>
         </div>
       </div>
+      </div>
+
+      {/* SAVE BAR */}
+      <SettingsSaveBar onSave={saveSettings} isSaveDisabled={!isDirty} isSaving={saving} />
     </div>
   );
 }

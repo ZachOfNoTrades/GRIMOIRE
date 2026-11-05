@@ -10,6 +10,8 @@ import { SearchField } from "@/components/SearchField";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { SettingsControlRow } from "@/components/settings/SettingsList";
 import SortMenuButton from "@/components/settings/SortMenuButton";
+import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar";
+import { useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import { LLM_TASKS, LLM_TASK_GROUPS, type LlmTaskId } from "@/lib/llm/tasks";
 import type { LlmBackend, LlmModelSort, LlmTaskConfig } from "@/lib/llm/types";
 import type { LlmTaskPrefs } from "@/types/preferences";
@@ -329,6 +331,8 @@ export default function LlmSettingsPage() {
 
   const isDirty = useMemo(() => JSON.stringify(rows) !== JSON.stringify(savedRows), [rows, savedRows]);
 
+  useUnsavedWarning(isDirty);
+
   const hasBadManual = useMemo(
     () => !!rows && LLM_TASKS.some((t) => manual[t.id] && rows[t.id].model && checks[t.id]?.state !== "ok"),
     [rows, manual, checks]
@@ -588,14 +592,8 @@ export default function LlmSettingsPage() {
       </div>
       </div>
 
-      {/* BOTTOM ACTION BAR — saves the task table; grayed until something differs */}
-      {!isLoading && rows && (
-        <div className="bottom-action-bar">
-          <Button className="btn-blue w-full sm:w-auto" onClick={saveTasks} disabled={!isDirty || isSavingTasks || hasBadManual}>
-            {isSavingTasks ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      )}
+      {/* SAVE BAR — saves the task table */}
+      <SettingsSaveBar onSave={saveTasks} isSaveDisabled={isLoading || !rows || !isDirty || hasBadManual} isSaving={isSavingTasks} />
 
       {/* TOAST — lifted above the action bar */}
       <Toaster position="bottom-center" containerStyle={{ bottom: "5rem" }} />

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
+import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar";
+import { useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import { Difficulty, DIFFICULTY_ORDER } from "../../types/task";
 import {
   DEFAULT_FACTORS,
@@ -120,7 +122,7 @@ export default function QuestSettingsPage() {
   // Weekday the short-rest price escalation resets on (0 = Sunday ... 6 = Saturday).
   const [gambleWeekStartDay, setGambleWeekStartDay] = useState<number>(DEFAULT_GAMBLE_WEEK_START_DAY);
   // Mantras are saved by their own endpoints the moment you add/edit/delete one, so they are
-  // deliberately NOT part of `fingerprint()` / the "Save Settings" button.
+  // deliberately NOT part of `fingerprint()` / the Save button.
   const [newMantraInput, setNewMantraInput] = useState<string>("");
   const [editingMantraText, setEditingMantraText] = useState<string>("");
   const [simulationDate, setSimulationDate] = useState<string>("");
@@ -283,16 +285,7 @@ export default function QuestSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, pristineDirty]);
 
-  // Warn on browser-level navigation (close tab, reload, external link) when dirty.
-  useEffect(() => {
-    if (!isDirty) return;
-    function onBeforeUnload(e: BeforeUnloadEvent) {
-      e.preventDefault();
-      e.returnValue = "";
-    }
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [isDirty]);
+  useUnsavedWarning(isDirty);
 
   function attemptNavigate(href: string) {
     if (isDirty) {
@@ -740,12 +733,21 @@ export default function QuestSettingsPage() {
 
   if (loading) {
     return (
-      <div className="page">
+
+      // LOADING PLACEHOLDER
+      <div className="page-with-bottom-bar">
+
+        {/* PAGE SCROLL */}
+        <div className="page-scroll">
         <div className="page-container">
           <div className="loading-container">
             <div className="loading-spinner" />
           </div>
         </div>
+        </div>
+
+        {/* SAVE BAR */}
+        <SettingsSaveBar onSave={saveAll} isSaveDisabled isSaving={false} />
       </div>
     );
   }
@@ -1095,7 +1097,7 @@ export default function QuestSettingsPage() {
                 <p className="text-xs text-secondary">
                   Active override: <span className="tabular-nums">{forcedTodoId ? (todos.find((t) => t.id === forcedTodoId)?.title ?? forcedTodoId) : "none"}</span>
                   {(forceDraftId || null) !== (forcedTodoId || null) && (
-                    <span className="ml-2 text-yellow-400">(pending — apply with Save Settings)</span>
+                    <span className="ml-2 text-yellow-400">(pending — apply with Save)</span>
                   )}
                 </p>
               </div>
@@ -1294,7 +1296,7 @@ export default function QuestSettingsPage() {
             </button>
           </div>
           <p className="text-xs text-secondary mt-2">
-            Currently: <span className="text-primary tabular-nums">{simulationDate || "real date"}</span>. Save via the Difficulty Settings button above.
+            Currently: <span className="text-primary tabular-nums">{simulationDate || "real date"}</span>. Applies on Save.
           </p>
         </section>
 
@@ -1426,7 +1428,7 @@ export default function QuestSettingsPage() {
             </label>
           </div>
           <p className="text-xs text-secondary mt-3">
-            Save via the Difficulty Settings button above.
+            Applies on Save.
           </p>
         </section>
 
@@ -1470,7 +1472,7 @@ export default function QuestSettingsPage() {
             </div>
           </label>
           <p className="text-xs text-secondary mt-3">
-            Save via the Difficulty Settings button above.
+            Applies on Save.
           </p>
         </section>
 
@@ -1503,7 +1505,7 @@ export default function QuestSettingsPage() {
             </select>
           </label>
           <p className="text-xs text-secondary mt-3">
-            Short-rest prices reset every {WEEKDAY_NAMES[normalizeWeekStartDay(gambleWeekStartDay)]}. Save via the Difficulty Settings button above.
+            Short-rest prices reset every {WEEKDAY_NAMES[normalizeWeekStartDay(gambleWeekStartDay)]}. Applies on Save.
           </p>
         </section>
 
@@ -1621,7 +1623,7 @@ export default function QuestSettingsPage() {
             ))}
           </ul>
           <p className="text-xs text-secondary mt-3">
-            Mantras save as soon as you add, edit, or delete one — no need to hit Save Settings.
+            Mantras save as soon as you add, edit, or delete one — no need to tap Save.
           </p>
         </section>
 
@@ -1667,16 +1669,8 @@ export default function QuestSettingsPage() {
       </main>
       </div>
 
-      {/* BOTTOM ACTION BAR */}
-      <div className="bottom-action-bar">
-        <button
-          onClick={saveAll}
-          disabled={saving}
-          className="h-10 px-6 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
-        >
-          {saving ? "Saving..." : "Save Settings"}
-        </button>
-      </div>
+      {/* SAVE BAR */}
+      <SettingsSaveBar onSave={saveAll} isSaveDisabled={!isDirty} isSaving={saving} />
 
       {/* DISCARD CHANGES CONFIRM MODAL */}
       {discardConfirmHref !== null && (
