@@ -2,3 +2,4 @@ ln -s "$(git rev-parse --git-common-dir)/../nextjs/node_modules" nextjs/node_mod
 cd nextjs && node scripts/regress-forage-serving-rows.mjs
 cd nextjs && node scripts/regress-forage-percent-dv.mjs
 cd nextjs && node scripts/regress-number-field-backout.mjs
+sql/flyway/check.sh

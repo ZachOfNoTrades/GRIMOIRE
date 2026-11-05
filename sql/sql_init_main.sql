@@ -1,6 +1,7 @@
 -- =============================
 -- GRIMOIRE Main Database Initialization Script
--- Version: 202610061200 (App settings: admin-pinned recommended models)
+-- Version: 202611041200 (Base schema for Flyway version 1)
+-- NOTE: Matches the live database schema at the Flyway baseline
 -- =============================
 
 BEGIN TRANSACTION MainDbInitialization;
@@ -16,7 +17,7 @@ BEGIN TRY
             email NVARCHAR(255) UNIQUE NOT NULL,
             name NVARCHAR(255) NOT NULL,
             global_admin BIT NOT NULL DEFAULT 0,
-            generation_limit INT NOT NULL DEFAULT 1, -- 0 = unlimited
+            generation_limit INT NOT NULL DEFAULT 15, -- 0 = unlimited
             enabled BIT NOT NULL DEFAULT 1,
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE()
@@ -66,23 +67,116 @@ BEGIN TRY
             id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             user_id UNIQUEIDENTIFIER NOT NULL,
             name NVARCHAR(100) NOT NULL,
-            key_prefix NVARCHAR(16) NOT NULL,
-            key_hash VARBINARY(32) NOT NULL,
-            ts_created DATETIME DEFAULT GETDATE(),
+            key_prefix CHAR(11) NOT NULL,
+            key_hash BINARY(32) NOT NULL,
+            ts_created DATETIME NOT NULL DEFAULT GETDATE(),
             ts_last_used DATETIME NULL,
             revoked BIT NOT NULL DEFAULT 0,
             ts_revoked DATETIME NULL,
 
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            CONSTRAINT UQ_user_api_keys_hash UNIQUE (key_hash)
+            CONSTRAINT fk_user_api_keys_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+
+        CREATE UNIQUE INDEX UQ_user_api_keys_hash ON user_api_keys (key_hash);
 
         -- Filtered unique so a user can reuse a name after revoking the old key.
         CREATE UNIQUE INDEX UX_user_api_keys_active_name
             ON user_api_keys (user_id, name) WHERE revoked = 0;
 
         CREATE INDEX IX_user_api_keys_user_active
-            ON user_api_keys (user_id) WHERE revoked = 0;
+            ON user_api_keys (user_id);
+    END
+
+    -- =============================
+    -- MCP OAuth Grants (authorization codes, access and refresh tokens for MCP clients)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='mcp_oauth_grants' AND xtype='U')
+    BEGIN
+        CREATE TABLE mcp_oauth_grants (
+            id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            client_id NVARCHAR(128) NOT NULL,
+            grant_type NVARCHAR(20) NOT NULL,
+            token_hash BINARY(32) NOT NULL, -- SHA-256 of the code or token
+            expires_at DATETIME2 NOT NULL,
+            scope NVARCHAR(500) NULL,
+            resource NVARCHAR(500) NULL,
+            redirect_uri NVARCHAR(500) NULL,
+            code_challenge NVARCHAR(128) NULL,
+            code_challenge_method NVARCHAR(16) NULL,
+            parent_grant_id UNIQUEIDENTIFIER NULL, -- the grant this one was exchanged from, no FK
+            used_at DATETIME2 NULL,
+            revoked BIT NOT NULL DEFAULT 0,
+            created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+
+            CONSTRAINT CK_mcp_oauth_grants_kind CHECK (grant_type IN ('auth_code','access','refresh'))
+        );
+
+        CREATE UNIQUE INDEX UX_mcp_oauth_grants_hash ON mcp_oauth_grants (token_hash);
+        CREATE INDEX IX_mcp_oauth_grants_user ON mcp_oauth_grants (user_id, grant_type, expires_at);
+    END
+
+    -- =============================
+    -- Email Log (every notification email sent or attempted)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='email_log' AND xtype='U')
+    BEGIN
+        CREATE TABLE email_log (
+            id UNIQUEIDENTIFIER NOT NULL,
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            recipient NVARCHAR(320) NOT NULL,
+            kind VARCHAR(40) NOT NULL,
+            subject NVARCHAR(400) NOT NULL,
+            status VARCHAR(20) NOT NULL,
+            error NVARCHAR(1000) NULL,
+            message_id NVARCHAR(400) NULL,
+            ts_created DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+
+            CONSTRAINT PK_email_log PRIMARY KEY (id)
+        );
+
+        CREATE INDEX IX_email_log_user_created ON email_log (user_id, ts_created DESC);
+        CREATE INDEX IX_email_log_kind_created ON email_log (kind, ts_created DESC);
+    END
+
+    -- =============================
+    -- Bagel Games (Pico Fermi Bagel)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='bagel_games' AND xtype='U')
+    BEGIN
+        CREATE TABLE bagel_games (
+            id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+            user_id UNIQUEIDENTIFIER NOT NULL,
+            num_digits INT NOT NULL,
+            secret VARCHAR(10) NOT NULL,
+            max_guesses INT NOT NULL,
+            status VARCHAR(10) NOT NULL DEFAULT 'active',
+            num_guesses INT NOT NULL DEFAULT 0,
+            ts_created DATETIME NOT NULL DEFAULT GETDATE(),
+            ts_updated DATETIME NOT NULL DEFAULT GETDATE(),
+
+            CONSTRAINT PK_bagel_games PRIMARY KEY (id)
+        );
+
+        CREATE INDEX IX_bagel_games_user ON bagel_games (user_id, ts_created DESC);
+    END
+
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='bagel_guesses' AND xtype='U')
+    BEGIN
+        CREATE TABLE bagel_guesses (
+            id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+            game_id UNIQUEIDENTIFIER NOT NULL,
+            seq INT NOT NULL,
+            guess VARCHAR(10) NOT NULL,
+            fermi INT NOT NULL,
+            pico INT NOT NULL,
+            ts_created DATETIME NOT NULL DEFAULT GETDATE(),
+
+            CONSTRAINT PK_bagel_guesses PRIMARY KEY (id),
+            CONSTRAINT FK_bagel_guesses_game FOREIGN KEY (game_id) REFERENCES bagel_games(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IX_bagel_guesses_game ON bagel_guesses (game_id, seq);
     END
 
     -- =============================
@@ -508,11 +602,13 @@ BEGIN TRY
             in_party BIT NOT NULL DEFAULT 0, -- 1 = travels with the party instead of standing on a map
             party_group_id UNIQUEIDENTIFIER NULL, -- oracle_party_groups.id, no FK; NULL = with the party token
             source NVARCHAR(200) NULL, -- book and page, adventure, or AI-generated
+            visibility NVARCHAR(10) NOT NULL DEFAULT 'hidden', -- hidden, sight or revealed
             ts_created DATETIME DEFAULT GETDATE(),
             ts_updated DATETIME DEFAULT GETDATE(),
 
             CONSTRAINT CK_oracle_entities_kind CHECK (kind IN ('creature','person','place','item')),
             CONSTRAINT CK_oracle_entities_attitude CHECK (attitude IN ('friendly','neutral','hostile')),
+            CONSTRAINT CK_oracle_entities_visibility CHECK (visibility IN ('hidden','sight','revealed')),
             CONSTRAINT FK_oracle_entities_campaign FOREIGN KEY (campaign_id) REFERENCES oracle_campaigns(id) ON DELETE CASCADE
         );
 
@@ -599,6 +695,34 @@ BEGIN TRY
     END
 
     -- =============================
+    -- Oracle Creatures (the shared creature library and each DM's own creatures)
+    -- =============================
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='oracle_creatures' AND xtype='U')
+    BEGIN
+        CREATE TABLE oracle_creatures (
+            id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+            slug NVARCHAR(100) NOT NULL,
+            name NVARCHAR(120) NOT NULL,
+            official_source NVARCHAR(120) NULL, -- the published book, e.g. 'SRD 5.1'; NULL = homebrew
+            license_url NVARCHAR(300) NULL,
+            size NVARCHAR(30) NULL,
+            creature_type NVARCHAR(60) NULL,
+            alignment NVARCHAR(60) NULL,
+            cr NVARCHAR(10) NOT NULL DEFAULT '0',
+            details NVARCHAR(1000) NULL,
+            stats NVARCHAR(MAX) NULL,
+            user_id UNIQUEIDENTIFIER NULL, -- NULL = the shared library; set when a DM saves their own creature
+            ts_created DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+            source_url NVARCHAR(400) NULL, -- the creature's own page in the published source
+
+            CONSTRAINT PK_oracle_creatures PRIMARY KEY (id)
+        );
+
+        CREATE UNIQUE INDEX UX_oracle_creatures_slug_user ON oracle_creatures (slug, user_id);
+        CREATE INDEX IX_oracle_creatures_name ON oracle_creatures (name);
+    END
+
+    -- =============================
     -- Oracle Settings (per DM)
     -- =============================
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='oracle_settings' AND xtype='U')
@@ -621,9 +745,11 @@ BEGIN TRY
     INSERT INTO modules (id, name, slug, description, icon) VALUES
     ('A0000000-0000-0000-0000-000000000001', 'Golem', 'golem', 'Workout Tracker', 'Dumbbell'),
     ('A0000000-0000-0000-0000-000000000002', 'Rune', 'rune', 'Flash Cards', 'BookOpen'),
-    ('A0000000-0000-0000-0000-000000000004', 'Forage', 'forage', 'Food & macro tracker', 'Apple'),
+    ('7262C766-57EA-4FDD-803A-9674994C3ECA', 'Quest', 'quest', 'Task tracking with a coin-based reward system', 'Target'),
+    ('0EEB9414-CF0B-4059-BBA2-C401F9D653EA', 'Forage', 'forage', 'Food & macro tracker', 'Apple'),
     ('A0000000-0000-0000-0000-000000000006', 'Damnation', 'damnation', 'MTG life tracker for the whole table', 'Skull'),
-    ('A0000000-0000-0000-0000-000000000007', 'Oracle', 'oracle', 'DM toolkit for running tabletop sessions', 'Dices');
+    ('A0000000-0000-0000-0000-000000000007', 'Oracle', 'oracle', 'DM toolkit for running tabletop sessions', 'OracleIcon'),
+    ('12E18D95-6209-4C70-98A7-F6FC6762FCC3', 'Bagel', 'bagel', N'Pico Fermi Bagel — crack the secret number', 'Donut');
 
     COMMIT TRANSACTION MainDbInitialization;
     PRINT '';

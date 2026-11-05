@@ -12,7 +12,12 @@ The following lists all credentials that will be created during this setup. Use 
 - [_**SQL Server URL**_](#create-sql-server-instance)
 - [_**SQL Server User**_](#create-sql-server-instance)
 - [_**SQL Server Password**_](#create-sql-server-instance)
-- [_**SQL Golem Database**_](#create-golem-database)
+- [_**SQL Main Database**_](#create-databases) (`SQL_MAIN_DB`)
+- [_**SQL Golem Database**_](#create-databases) (`SQL_GOLEM_DB`)
+- [_**SQL Rune Database**_](#create-databases) (`SQL_RUNE_DB`)
+- [_**SQL Quest Database**_](#create-databases) (`SQL_QUEST_DB`)
+- [_**SQL Food Database**_](#create-databases) (`SQL_FOOD_DB`)
+- [_**SQL Health Database**_](#create-databases) (`SQL_HEALTH_DB`)
 
 ### Modules
 
@@ -38,11 +43,15 @@ GRIMOIRE uses Microsoft SQL Server. There is currently no officially supported p
 
 While GRIMOIRE is in Alpha, the [Development Guide](../development/DEVELOPMENT.md) outlines the recommended procedure for creating the SQL Server resource. Proficiency with MSSQL and SSMS are recommended to create the _**SQL Server URL**_, _**SQL Server User**_, and _**SQL Server Password**_.
 
-### Create Golem Database
+### Create Databases
 
-1. Connect to the server via desired SQL client (e.g., SQL Server Management Studio).
-1. Execute `sql_init_golem.sql` from the `sql/` folder.
-1. Execute `sql_init_golem_exercises.sql` to seed the exercise list.
+Each database is built from its `sql/sql_init_<database>.sql` script, the locked base schema, and then brought up to date by the Flyway migrations in `sql/migrations/<database>/`. `sql/flyway/build-fresh.sh` does both for all six databases, and needs Bash, Docker and `sqlcmd`.
+
+1. Set _**SQL Server URL**_ (`SQL_SERVER_URL`, the host), `SQL_SERVER_PORT` if it is not 1433, and the six database names above.
+1. Set `SQL_SERVER_USER` and `SQL_SERVER_PASSWORD` to a login that may create databases, and `SQLCMDPASSWORD` to the same password.
+1. Set `SQLCMD` to the `sqlcmd` command that reaches the server as that login, such as `sqlcmd -S localhost -U sa -No`.
+1. Run `sql/flyway/build-fresh.sh`. It refuses a database that already exists.
+1. Give the app's login _**SQL Server User**_ `db_owner` on each database. Deploys apply new migrations with this login.
 
 # Modules
 
@@ -57,11 +66,6 @@ The Golem workout tracker uses a local or cloud LLM for generation services. In 
 1. If using Claude Code, the _**Golem LLM Provider**_ is `claude-code`.
 
 ## Rune
-
-### Create Rune Database
-
-1. Connect to the server via desired SQL client (e.g., SQL Server Management Studio).
-1. Execute `sql_init_rune.sql` from the `sql/` folder.
 
 ### Voice Controls
 

@@ -1,6 +1,10 @@
 name: check
 
-# Typecheck, run the regression checks and build every push and pull request on GitHub-hosted runners.
+# Check every push and pull request on GitHub-hosted runners, with no secrets and no access to the live databases.
+# - check: typecheck, run the regression checks and build the app.
+# - migrations: check the migration files and the locked base schema, then build every database from its sql_init
+#   script on a throwaway SQL Server, baseline it, apply the Flyway migrations, and check that a second run applies nothing.
+# The release workflow releases a commit only when this whole workflow passed for it.
 on:
   push:
     branches: ["**"]
@@ -28,3 +32,43 @@ jobs:
       - run: node scripts/regress-forage-percent-dv.mjs
       - run: node scripts/regress-number-field-backout.mjs
       - run: npm run build
+
+  migrations:
+    runs-on: ubuntu-latest
+    env:
+      SQL_SERVER_URL: 127.0.0.1
+      SQL_SERVER_USER: sa
+      SQL_MAIN_DB: GRIMOIRE-MAIN-CHECK
+      SQL_GOLEM_DB: GRIMOIRE-GOLEM-CHECK
+      SQL_RUNE_DB: GRIMOIRE-RUNE-CHECK
+      SQL_QUEST_DB: GRIMOIRE-QUEST-CHECK
+      SQL_FOOD_DB: GRIMOIRE-FOOD-CHECK
+      SQL_HEALTH_DB: GRIMOIRE-HEALTH-CHECK
+      SQLCMD: docker exec -i -e SQLCMDPASSWORD mssql /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1 -U sa -No
+    steps:
+      - uses: actions/checkout@v4
+      - run: sql/flyway/check.sh
+
+      # Start SQL Server with a password made for this run only
+      - name: Start a throwaway SQL Server
+        run: |
+          password="Ck1!$(openssl rand -hex 16)"
+          echo "::add-mask::$password"
+          { echo "SQL_SERVER_PASSWORD=$password"; echo "SQLCMDPASSWORD=$password"; } >> "$GITHUB_ENV"
+          docker run -d --name mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$password" -p 127.0.0.1:1433:1433 \
+            mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04@sha256:245f6b1c8903edae52cb20fa31419cefcde1a49938bb8c3447099011fc871ca3
+          for attempt in $(seq 1 60); do
+            docker exec -e SQLCMDPASSWORD="$password" mssql /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1 -U sa -No -Q "SELECT 1" >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs mssql | tail -20; exit 1
+
+      - run: sql/flyway/build-fresh.sh
+      - run: sql/flyway/migrate.sh validate
+
+      # Fail when a second migrate applies anything, as every migration must be recorded the first time it runs
+      - name: Migrate again
+        run: |
+          set -o pipefail
+          sql/flyway/migrate.sh migrate | tee second-run.log
+          ! grep -q "Successfully applied" second-run.log
