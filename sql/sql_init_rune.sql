@@ -1,6 +1,6 @@
 -- =============================
 -- Flash Cards (RUNE) Database Initialization Script
--- Version: 202607031200
+-- Version: 202611041200
 -- =============================
 
 BEGIN TRANSACTION RuneDbInitialization
@@ -199,7 +199,6 @@ BEGIN TRY
             digest_enabled BIT NOT NULL DEFAULT 0,
             digest_time TIME NOT NULL DEFAULT '08:00:00',
             digest_last_sent_date DATE NULL,
-            evaluation_system_prompt NVARCHAR(MAX) NULL, -- NULL = use the bundled default evaluateAnswerSystem.md template
             evaluation_personality_prompt NVARCHAR(MAX) NULL, -- NULL = use the bundled default evaluateAnswerPersonality.md template
             auto_advance_on_evaluate BIT NOT NULL DEFAULT 0, -- auto-accept suggested rating + advance after evaluating (non-hands-free)
             auto_advance_seconds INT NOT NULL DEFAULT 5, -- delay before the auto-advance fires

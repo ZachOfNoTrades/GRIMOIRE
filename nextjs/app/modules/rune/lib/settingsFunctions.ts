@@ -23,7 +23,6 @@ export async function getSettings(userId: string): Promise<RuneSettings | null> 
               digest_enabled,
               CONVERT(VARCHAR(5), digest_time, 108) AS digest_time,
               CONVERT(VARCHAR(10), digest_last_sent_date, 23) AS digest_last_sent_date,
-              evaluation_system_prompt,
               evaluation_personality_prompt,
               auto_advance_on_evaluate,
               auto_advance_seconds,
@@ -38,11 +37,12 @@ export async function getSettings(userId: string): Promise<RuneSettings | null> 
   return res.recordset[0] ?? null;
 }
 
-// Bundled templates used when a user hasn't customized their evaluation prompts.
-export function getDefaultEvaluationSystemPrompt(): string {
+// Read the answer evaluation task rules, which are the same for every user
+export function getEvaluationSystemPrompt(): string {
   return loadPromptFile('evaluateAnswerSystem.md');
 }
 
+// Read the bundled personality template used when a user hasn't customized theirs
 export function getDefaultEvaluationPersonalityPrompt(): string {
   return loadPromptFile('evaluateAnswerPersonality.md');
 }
@@ -55,40 +55,30 @@ export interface EvaluationPrompts {
 export async function getEvaluationPrompts(userId: string): Promise<EvaluationPrompts> {
   const settings = await getSettings(userId);
   return {
-    systemPrompt: settings?.evaluation_system_prompt || getDefaultEvaluationSystemPrompt(),
+    systemPrompt: getEvaluationSystemPrompt(),
     personalityPrompt: settings?.evaluation_personality_prompt || getDefaultEvaluationPersonalityPrompt(),
   };
 }
 
-export interface UpsertEvaluationPromptsInput {
-  systemPrompt: string | null;
-  personalityPrompt: string | null;
-}
-
-export async function upsertEvaluationPrompts(userId: string, input: UpsertEvaluationPromptsInput): Promise<EvaluationPrompts> {
+// Save a user's personality prompt, where NULL resets it to the bundled template, and return the prompt now in effect
+export async function upsertEvaluationPersonalityPrompt(userId: string, personalityPrompt: string | null): Promise<string> {
   const pool = await getRuneConnection();
   const result = await pool.request()
     .input('userId', sql.UniqueIdentifier, userId)
-    .input('systemPrompt', sql.NVarChar(sql.MAX), input.systemPrompt)
-    .input('personalityPrompt', sql.NVarChar(sql.MAX), input.personalityPrompt)
-    .query<{ evaluation_system_prompt: string | null; evaluation_personality_prompt: string | null }>(
+    .input('personalityPrompt', sql.NVarChar(sql.MAX), personalityPrompt)
+    .query<{ evaluation_personality_prompt: string | null }>(
       `MERGE INTO rune_settings AS dest
        USING (SELECT @userId AS user_id) AS src
          ON dest.user_id = src.user_id
        WHEN MATCHED THEN
-         UPDATE SET evaluation_system_prompt = @systemPrompt,
-                    evaluation_personality_prompt = @personalityPrompt,
+         UPDATE SET evaluation_personality_prompt = @personalityPrompt,
                     ts_modified = GETDATE()
        WHEN NOT MATCHED THEN
-         INSERT (user_id, evaluation_system_prompt, evaluation_personality_prompt)
-         VALUES (@userId, @systemPrompt, @personalityPrompt)
-       OUTPUT inserted.evaluation_system_prompt, inserted.evaluation_personality_prompt;`
+         INSERT (user_id, evaluation_personality_prompt)
+         VALUES (@userId, @personalityPrompt)
+       OUTPUT inserted.evaluation_personality_prompt;`
     );
-  const row = result.recordset[0];
-  return {
-    systemPrompt: row.evaluation_system_prompt || getDefaultEvaluationSystemPrompt(),
-    personalityPrompt: row.evaluation_personality_prompt || getDefaultEvaluationPersonalityPrompt(),
-  };
+  return result.recordset[0].evaluation_personality_prompt || getDefaultEvaluationPersonalityPrompt();
 }
 
 export interface StudyPreferences {
