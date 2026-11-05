@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { resolveApiKeyFromToken } from "@/lib/apiKeys";
 import { resolveAccessToken } from "@/lib/mcp/oauth/store";
 import { getMainConnection } from "@/lib/db";
+import { toGenerationAllowance } from "@/lib/generationLimit";
 
 // Same shape as Session["user"] (see types/next-auth.d.ts) but with id narrowed to non-null,
 // since every authorized caller has a resolved user id. Returned by getAuthorizedUser.
@@ -13,6 +14,7 @@ export interface AuthUser {
   name: string;
   globalAdmin: boolean;
   generationLimit: number;
+  isGenerationUnlimited: boolean;
 }
 
 // Narrow a NextAuth Session (the shape returned by the API-key resolver in @/lib/apiKeys)
@@ -24,6 +26,7 @@ function sessionToAuthUser(session: Session): AuthUser {
     name: session.user.name,
     globalAdmin: session.user.globalAdmin,
     generationLimit: session.user.generationLimit,
+    isGenerationUnlimited: session.user.isGenerationUnlimited,
   };
 }
 
@@ -98,6 +101,7 @@ export async function getAuthorizedUser(
       name: session.user.name,
       globalAdmin: session.user.globalAdmin,
       generationLimit: session.user.generationLimit,
+      isGenerationUnlimited: session.user.isGenerationUnlimited,
     },
   };
 }
@@ -118,8 +122,9 @@ export async function resolveOAuthBearer(token: string): Promise<AuthUser | null
       name: string;
       global_admin: boolean;
       generation_limit: number;
+      is_generation_unlimited: boolean;
     }>(
-      `SELECT id, email, name, global_admin, generation_limit
+      `SELECT id, email, name, global_admin, generation_limit, is_generation_unlimited
        FROM dbo.users WHERE id = @id AND enabled = 1`,
     );
   const u = result.recordset[0];
@@ -129,7 +134,7 @@ export async function resolveOAuthBearer(token: string): Promise<AuthUser | null
     email: u.email,
     name: u.name,
     globalAdmin: !!u.global_admin,
-    generationLimit: u.generation_limit ?? 1,
+    ...toGenerationAllowance(u),
   };
 }
 

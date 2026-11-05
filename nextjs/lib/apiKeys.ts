@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "crypto";
 import { headers } from "next/headers";
 import type { Session } from "next-auth";
 import { getMainConnection } from "@/lib/db";
+import { toGenerationAllowance } from "@/lib/generationLimit";
 import type { CreatedApiKey, GeneratedApiKey, UserApiKeySummary } from "@/types/apiKey";
 
 const KEY_PREFIX = "grm_";
@@ -45,8 +46,9 @@ export async function resolveApiKeyFromToken(token: string | null): Promise<Sess
       name: string;
       global_admin: boolean;
       generation_limit: number;
+      is_generation_unlimited: boolean;
     }>(
-      `SELECT k.id AS key_id, u.id, u.email, u.name, u.global_admin, u.generation_limit
+      `SELECT k.id AS key_id, u.id, u.email, u.name, u.global_admin, u.generation_limit, u.is_generation_unlimited
        FROM dbo.user_api_keys k
        INNER JOIN dbo.users u ON u.id = k.user_id
        WHERE k.key_hash = @keyHash AND k.revoked = 0 AND u.enabled = 1`
@@ -69,7 +71,7 @@ export async function resolveApiKeyFromToken(token: string | null): Promise<Sess
       email: row.email,
       name: row.name,
       globalAdmin: !!row.global_admin,
-      generationLimit: row.generation_limit ?? 1,
+      ...toGenerationAllowance(row),
     },
     expires: "",
   };

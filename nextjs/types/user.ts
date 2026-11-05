@@ -3,7 +3,8 @@ export interface User {
   email: string;
   name: string;
   global_admin: boolean;
-  generation_limit: number; // 0 = unlimited
+  generation_limit: number;
+  is_generation_unlimited: boolean;
   enabled: boolean;
   ts_created: Date;
   ts_updated: Date;

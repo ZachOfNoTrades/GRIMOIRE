@@ -32,6 +32,7 @@ jobs:
       - run: node scripts/regress-forage-percent-dv.mjs
       - run: node scripts/regress-number-field-backout.mjs
       - run: node scripts/regress-usage-failed-load.mjs
+      - run: node scripts/regress-generation-limit.mjs
       - run: npm run build
 
   migrations:

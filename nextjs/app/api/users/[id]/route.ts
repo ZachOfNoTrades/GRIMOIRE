@@ -52,6 +52,14 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    // Refuse a generation limit that is not a whole number of 0 or more, or an unlimited flag that is not a boolean
+    if (body.generation_limit !== undefined && !(Number.isInteger(body.generation_limit) && body.generation_limit >= 0)) {
+      return NextResponse.json({ error: "Generation limit must be a whole number of 0 or more" }, { status: 400 });
+    }
+    if (body.is_generation_unlimited !== undefined && typeof body.is_generation_unlimited !== "boolean") {
+      return NextResponse.json({ error: "Unlimited generations must be true or false" }, { status: 400 });
+    }
+
     // Prevent removing admin from the last admin
     if (body.global_admin === false) {
       const targetUser = await getUserById(id);

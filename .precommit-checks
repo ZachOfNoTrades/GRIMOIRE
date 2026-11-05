@@ -3,4 +3,5 @@ cd nextjs && node scripts/regress-forage-serving-rows.mjs
 cd nextjs && node scripts/regress-forage-percent-dv.mjs
 cd nextjs && node scripts/regress-number-field-backout.mjs
 cd nextjs && node scripts/regress-usage-failed-load.mjs
+cd nextjs && node scripts/regress-generation-limit.mjs
 sql/flyway/check.sh

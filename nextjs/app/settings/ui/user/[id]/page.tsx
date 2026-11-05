@@ -139,6 +139,7 @@ export default function UserDetailPage() {
       email: user.email || "",
       global_admin: user.global_admin,
       generation_limit: user.generation_limit,
+      is_generation_unlimited: user.is_generation_unlimited,
       enabled: user.enabled,
     });
   }
@@ -153,7 +154,7 @@ export default function UserDetailPage() {
       toast.error("Name and email are required");
       return;
     }
-    if (editingUser.generation_limit == null) {
+    if (!editingUser.is_generation_unlimited && editingUser.generation_limit == null) {
       toast.error("Generation limit is required");
       return;
     }
@@ -168,6 +169,7 @@ export default function UserDetailPage() {
           email: editingUser.email.trim(),
           global_admin: editingUser.global_admin,
           generation_limit: editingUser.generation_limit,
+          is_generation_unlimited: editingUser.is_generation_unlimited,
           enabled: editingUser.enabled,
         }),
       });
@@ -421,7 +423,7 @@ export default function UserDetailPage() {
                 {/* GENERATION LIMIT */}
                 <div>
                   <label className="text-secondary">Generation Limit</label>
-                  <p className="text-primary">{user.generation_limit === 0 ? "Unlimited" : `${user.generation_limit} per ${user.generation_window_hours} hours`}</p>
+                  <p className="text-primary">{user.is_generation_unlimited ? "Unlimited" : `${user.generation_limit} per ${user.generation_window_hours} hours`}</p>
                 </div>
 
                 {/* STATUS */}
@@ -487,19 +489,35 @@ export default function UserDetailPage() {
                   </select>
                 </div>
 
-                {/* GENERATION LIMIT */}
+                {/* GENERATION LIMIT DROPDOWN */}
                 <div>
-                  <label className="text-secondary">Generation Limit (0 = unlimited)</label>
-                  <NumberField
-                    min={0}
-                    integer
-                    value={editingUser.generation_limit ?? null}
-                    onValueChange={(next) => setEditingUser({ ...editingUser, generation_limit: next ?? undefined })}
-                    className="input-field"
-                    placeholder=""
+                  <label className="text-secondary">Generation Limit</label>
+                  <select
+                    value={editingUser.is_generation_unlimited ? "unlimited" : "limited"}
+                    onChange={(e) => setEditingUser({ ...editingUser, is_generation_unlimited: e.target.value === "unlimited" })}
+                    className="dropdown-field"
                     disabled={isSaving}
-                  />
+                  >
+                    <option value="limited">Limited</option>
+                    <option value="unlimited">Unlimited</option>
+                  </select>
                 </div>
+
+                {/* GENERATIONS PER WINDOW */}
+                {!editingUser.is_generation_unlimited && (
+                  <div>
+                    <label className="text-secondary">Generations per {user.generation_window_hours} Hours</label>
+                    <NumberField
+                      min={0}
+                      integer
+                      value={editingUser.generation_limit ?? null}
+                      onValueChange={(next) => setEditingUser({ ...editingUser, generation_limit: next ?? undefined })}
+                      className="input-field"
+                      placeholder=""
+                      disabled={isSaving}
+                    />
+                  </div>
+                )}
 
                 {/* STATUS DROPDOWN */}
                 <div>

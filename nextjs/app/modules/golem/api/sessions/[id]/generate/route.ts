@@ -20,7 +20,7 @@ export async function POST(
     const userId = authSession.user.id;
 
     // Rate limit check
-    const { allowed, count, limit } = await checkGenerationLimit(userId!, authSession.user.generationLimit);
+    const { allowed, count, limit } = await checkGenerationLimit(userId!, authSession.user);
     if (!allowed) {
       return NextResponse.json(
         { error: `Generation limit reached (${count}/${limit} in 24h)` },
