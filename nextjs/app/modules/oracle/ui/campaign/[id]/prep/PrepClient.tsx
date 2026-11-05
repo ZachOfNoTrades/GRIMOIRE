@@ -17,7 +17,7 @@ import SessionBar from "../../../../components/SessionBar";
 import { PREP_HELP } from "../../../../components/help";
 import { api, campaignApi, errorMessage } from "../../../../lib/client";
 import { MEMBER_NAME_MAX, SESSION_TITLE_MAX, WORLD_MAX } from "../../../../lib/constants";
-import { saveOnShortcut, useUnsavedWarning } from "../../../../lib/useUnsavedWarning";
+import { saveOnShortcut, useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import type { OracleCampaign, OracleImage, OracleMap, OraclePartyMember, OracleSession, TableSnapshot } from "../../../../types/oracle";
 
 interface PrepClientProps {
