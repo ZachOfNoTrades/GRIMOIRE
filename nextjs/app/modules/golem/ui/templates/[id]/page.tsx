@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileText } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import NumberField from "@/components/ui/NumberField";
 import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
 import { ProgramTemplate } from "../../../types/programTemplate";
 import DeleteTemplateModal from "./DeleteTemplateModal";
@@ -25,7 +26,7 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
   const [editedWeekPrompt, setEditedWeekPrompt] = useState("");
   const [editedSessionPrompt, setEditedSessionPrompt] = useState("");
   const [editedAnalysisPrompt, setEditedAnalysisPrompt] = useState("");
-  const [editedDaysPerWeek, setEditedDaysPerWeek] = useState(4);
+  const [editedDaysPerWeek, setEditedDaysPerWeek] = useState<number | null>(4);
 
   // STATE
   const [isLoading, setIsLoading] = useState(true);
@@ -100,6 +101,10 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
     if (!template) return;
     if (!editedName.trim()) {
       toast.error("Template name is required");
+      return;
+    }
+    if (editedDaysPerWeek == null) {
+      toast.error("Days per week is required");
       return;
     }
 
@@ -299,13 +304,13 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
                   {/* DAYS PER WEEK INPUT */}
                   <div>
                     <label className="text-secondary">Days Per Week</label>
-                    <input
-                      type="number"
+                    <NumberField
                       value={editedDaysPerWeek}
-                      onChange={(e) => setEditedDaysPerWeek(parseInt(e.target.value) || 1)}
+                      onValueChange={setEditedDaysPerWeek}
                       className="input-field w-24"
                       min={1}
                       max={7}
+                      integer
                     />
                   </div>
                 </>

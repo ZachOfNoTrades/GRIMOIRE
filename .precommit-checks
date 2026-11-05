@@ -1,3 +1,4 @@
 ln -s "$(git rev-parse --git-common-dir)/../nextjs/node_modules" nextjs/node_modules && cd nextjs && npx tsc --noEmit
 cd nextjs && node scripts/regress-forage-serving-rows.mjs
 cd nextjs && node scripts/regress-forage-percent-dv.mjs
+cd nextjs && node scripts/regress-number-field-backout.mjs

@@ -9,6 +9,7 @@ import { Module } from "@/types/module";
 import { UserApiKeySummary } from "@/types/apiKey";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import NumberField from "@/components/ui/NumberField";
 import DeleteUserModal from "./DeleteUserModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import RenameApiKeyModal from "./RenameApiKeyModal";
@@ -150,6 +151,10 @@ export default function UserDetailPage() {
   async function handleSaveEdit() {
     if (!editingUser.email || !editingUser.name) {
       toast.error("Name and email are required");
+      return;
+    }
+    if (editingUser.generation_limit == null) {
+      toast.error("Generation limit is required");
       return;
     }
 
@@ -485,11 +490,11 @@ export default function UserDetailPage() {
                 {/* GENERATION LIMIT */}
                 <div>
                   <label className="text-secondary">Generation Limit (0 = unlimited)</label>
-                  <input
-                    type="number"
+                  <NumberField
                     min={0}
-                    value={editingUser.generation_limit ?? 15}
-                    onChange={(e) => setEditingUser({ ...editingUser, generation_limit: parseInt(e.target.value) || 0 })}
+                    integer
+                    value={editingUser.generation_limit ?? null}
+                    onValueChange={(next) => setEditingUser({ ...editingUser, generation_limit: next ?? undefined })}
                     className="input-field"
                     placeholder=""
                     disabled={isSaving}

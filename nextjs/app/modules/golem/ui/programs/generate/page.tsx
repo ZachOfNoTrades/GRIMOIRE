@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Zap, Sparkles, ListChecks, Plus, Trash2, LayoutTemplate, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/linkButton";
+import NumberField from "@/components/ui/NumberField";
 import toast from "react-hot-toast";
 import { useGenerationJob } from "@/lib/useGenerationJob";
 import ArchetypeBuilder from "@/app/modules/golem/components/ArchetypeBuilder";
@@ -12,10 +13,10 @@ import type { DayArchetype } from "@/app/modules/golem/types/dayArchetype";
 import type { ProgramTemplateSummary } from "@/app/modules/golem/types/programTemplate";
 import Breadcrumbs from "@/components/Breadcrumbs";
 
-// A manual block while editing: name, week count, and one archetype id per training day ("" = unassigned).
+// A ManualBlock is a block being edited: its name, week count and one archetype id per training day ("" = unassigned)
 interface ManualBlock {
   name: string;
-  weekCount: number;
+  weekCount: number | null; // null while its field is empty
   days: string[];
 }
 
@@ -43,13 +44,13 @@ export default function GenerateProgramWizardPage() {
   const [programPrompt, setProgramPrompt] = useState("");
   const [blockPrompt, setBlockPrompt] = useState("");
   const [weekPrompt, setWeekPrompt] = useState("");
-  const [daysPerWeek, setDaysPerWeek] = useState(4);
+  const [daysPerWeek, setDaysPerWeek] = useState<number | null>(4);
   // AI · template
   const [templateId, setTemplateId] = useState<string | null>(null);
   // Manual
   const [programName, setProgramName] = useState("");
   const [programDescription, setProgramDescription] = useState("");
-  const [manualDaysPerWeek, setManualDaysPerWeek] = useState(4);
+  const [manualDaysPerWeek, setManualDaysPerWeek] = useState<number | null>(4);
   const [manualBlocks, setManualBlocks] = useState<ManualBlock[]>([
     { name: "Block 1", weekCount: 4, days: ["", "", "", ""] },
   ]);
@@ -143,15 +144,16 @@ export default function GenerateProgramWizardPage() {
       case "prompts":
         return (
           Boolean(programPrompt.trim() || blockPrompt.trim() || weekPrompt.trim()) &&
+          daysPerWeek != null &&
           daysPerWeek >= 1 &&
           daysPerWeek <= 7
         );
       case "template":
         return templateId !== null;
       case "name":
-        return programName.trim().length > 0 && manualDaysPerWeek >= 1 && manualDaysPerWeek <= 7;
+        return programName.trim().length > 0 && manualDaysPerWeek != null && manualDaysPerWeek >= 1 && manualDaysPerWeek <= 7;
       case "blocks":
-        return manualBlocks.length > 0 && manualBlocks.every((b) => b.name.trim() && b.weekCount >= 1);
+        return manualBlocks.length > 0 && manualBlocks.every((b) => b.name.trim() && b.weekCount != null && b.weekCount >= 1);
       case "assign":
         return hasArchetypes && manualBlocks.every((b) => b.days.every((d) => d !== ""));
       case "review":
@@ -163,7 +165,7 @@ export default function GenerateProgramWizardPage() {
 
   // When entering the manual block/assign steps, keep every block's day array sized to manualDaysPerWeek.
   const syncManualDays = () => {
-    setManualBlocks((prev) => prev.map((b) => ({ ...b, days: normalizeDays(b.days, manualDaysPerWeek) })));
+    setManualBlocks((prev) => prev.map((b) => ({ ...b, days: normalizeDays(b.days, manualDaysPerWeek ?? 0) })));
   };
 
   const handleNext = () => {
@@ -249,7 +251,7 @@ export default function GenerateProgramWizardPage() {
   const addBlock = () => {
     setManualBlocks((prev) => [
       ...prev,
-      { name: `Block ${prev.length + 1}`, weekCount: 4, days: normalizeDays([], manualDaysPerWeek) },
+      { name: `Block ${prev.length + 1}`, weekCount: 4, days: normalizeDays([], manualDaysPerWeek ?? 0) },
     ]);
   };
 
@@ -375,12 +377,12 @@ export default function GenerateProgramWizardPage() {
                   {/* DAYS PER WEEK */}
                   <div className="flex flex-col gap-1">
                     <label className="text-secondary">Training days per week</label>
-                    <input
-                      type="number"
+                    <NumberField
                       min={1}
                       max={7}
+                      integer
                       value={daysPerWeek}
-                      onChange={(e) => setDaysPerWeek(Number(e.target.value))}
+                      onValueChange={setDaysPerWeek}
                       className="input-field w-24"
                     />
                   </div>
@@ -490,12 +492,12 @@ export default function GenerateProgramWizardPage() {
                   {/* DAYS PER WEEK */}
                   <div className="flex flex-col gap-1">
                     <label className="text-secondary">Training days per week</label>
-                    <input
-                      type="number"
+                    <NumberField
                       min={1}
                       max={7}
+                      integer
                       value={manualDaysPerWeek}
-                      onChange={(e) => setManualDaysPerWeek(Number(e.target.value))}
+                      onValueChange={setManualDaysPerWeek}
                       className="input-field w-24"
                     />
                   </div>
@@ -528,12 +530,12 @@ export default function GenerateProgramWizardPage() {
                           {/* WEEK COUNT */}
                           <div className="flex flex-col gap-1">
                             <label className="text-secondary">Weeks</label>
-                            <input
-                              type="number"
+                            <NumberField
                               min={1}
                               max={52}
+                              integer
                               value={block.weekCount}
-                              onChange={(e) => updateBlock(index, { weekCount: Number(e.target.value) })}
+                              onValueChange={(next) => updateBlock(index, { weekCount: next })}
                               className="input-field w-20"
                             />
                           </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { BookOpen, ChevronDown, PenLine, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import NumberField from "@/components/ui/NumberField";
 import type { Attitude, EntityKind, OracleEntity, StatBlock } from "../types/oracle";
 import { ATTITUDES, DETAILS_MAX, ENTITY_IDEA_MAX, ENTITY_KINDS, NAME_MAX, NOTES_MAX } from "../lib/constants";
 import { CHALLENGE_ROWS, findChallengeRow, statBlockFromChallenge } from "../lib/reference";
@@ -52,11 +53,8 @@ const WAYS: { value: NewEntryWay; label: string; icon: typeof Search }[] = [
 ];
 const IDEA_PLACEHOLDERS: Record<EntityKind, string> = { creature: "A swamp beast guarding the ford", person: "A shopkeeper in the village", place: "A smugglers' cave", item: "A cursed coral necklace" };
 
-function numberOr(value: string, fallback: number, min: number, max: number): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(parsed)));
-}
+// A StatNumberField is a number field of a creature's stat block
+type StatNumberField = "ac" | "hp_max" | "speed" | "attack_bonus";
 
 // Add or edit a creature, person, location or item. Creatures carry a stat block, started from the
 // quick-monster table by challenge rating and adjustable from there.
@@ -80,6 +78,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
   const [notes, setNotes] = useState("");
   const [source, setSource] = useState("");
   const [stats, setStats] = useState<StatBlock | null>(null);
+  const [emptyStatFields, setEmptyStatFields] = useState<StatNumberField[]>([]); // Stat fields emptied while editing
   const [idea, setIdea] = useState("");
 
   // STATE
@@ -94,7 +93,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
     setAttitude(entity?.attitude ?? "neutral");
     setNotes(entity?.dm_notes ?? "");
     setSource(entity?.source ?? "");
-    setStats(entity?.stats ?? null);
+    replaceStats(entity?.stats ?? null);
     setIdea("");
     setError(null);
     setIsWriting(false);
@@ -107,6 +106,10 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Enter a name");
+      return;
+    }
+    if (kind === "creature" && emptyStatFields.length > 0) {
+      setError("Fill in every stat");
       return;
     }
     onSave({ kind, name: trimmed, details: details.trim(), attitude: kind === "item" ? "neutral" : attitude, dm_notes: notes.trim(), source: kind === "creature" ? source.trim() || null : null, stats: shownStats });
@@ -139,7 +142,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
       setAttitude(written.attitude);
       if (kind === "creature") {
         setSource(written.source ?? "");
-        setStats(written.stats);
+        replaceStats(written.stats);
       }
       setSaid((turns) => [...turns, { who: "oracle", text: `${written.name} — ${written.details}` }]);
       setHasDraft(true);
@@ -183,12 +186,29 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
     setAttitude("hostile");
     setNotes(creature.source_url ? `Full entry: ${creature.source_url}` : "");
     setSource(creature.official_source ?? "");
-    setStats(creature.stats);
+    replaceStats(creature.stats);
     setWay("create");
   }
 
   function patchStats(patch: Partial<StatBlock>) {
     if (shownStats) setStats({ ...shownStats, ...patch });
+  }
+
+  // Replace the whole stat block and refill any emptied stat field from it
+  function replaceStats(next: StatBlock | null) {
+    setStats(next);
+    setEmptyStatFields([]);
+  }
+
+  // Show an emptied stat field as empty, and any other as its stat
+  function shownStat(field: StatNumberField, stat: number): number | null {
+    return emptyStatFields.includes(field) ? null : stat;
+  }
+
+  // Record a stat field's typed number, or mark it empty and keep the stat block as it was
+  function changeStat(field: StatNumberField, next: number | null, patch: (value: number) => Partial<StatBlock>) {
+    setEmptyStatFields((fields) => (next == null ? (fields.includes(field) ? fields : [...fields, field]) : fields.filter((other) => other !== field)));
+    if (next != null) patchStats(patch(next));
   }
 
   return (
@@ -415,7 +435,7 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
                     value={shownStats.cr}
                     onChange={(event) => {
                       const row = findChallengeRow(event.target.value);
-                      if (row) setStats({ ...statBlockFromChallenge(row), abilities: shownStats.abilities });
+                      if (row) replaceStats({ ...statBlockFromChallenge(row), abilities: shownStats.abilities });
                     }}
                   >
                     {!CHALLENGE_ROWS.some((row) => row.cr === shownStats.cr) && <option value={shownStats.cr}>{shownStats.cr}</option>}
@@ -428,25 +448,22 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
                 {/* ARMOR CLASS */}
                 <label className="orc-stat-field">
                   <span>AC</span>
-                  <input className="input-field" inputMode="numeric" value={shownStats.ac} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
-                    onChange={(event) => patchStats({ ac: numberOr(event.target.value, shownStats.ac, 0, 40) })} />
+                  <NumberField className="input-field" type="text" inputMode="numeric" min={0} max={40} integer value={shownStat("ac", shownStats.ac)} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
+                    onValueChange={(next) => changeStat("ac", next, (ac) => ({ ac }))} />
                 </label>
 
                 {/* HIT POINTS */}
                 <label className="orc-stat-field">
                   <span>HP</span>
-                  <input className="input-field" inputMode="numeric" value={shownStats.hp_max} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
-                    onChange={(event) => {
-                      const next = numberOr(event.target.value, shownStats.hp_max, 1, 9999);
-                      patchStats({ hp_max: next, hp: Math.min(shownStats.hp, next) === shownStats.hp && shownStats.hp !== shownStats.hp_max ? shownStats.hp : next });
-                    }} />
+                  <NumberField className="input-field" type="text" inputMode="numeric" min={1} max={9999} integer value={shownStat("hp_max", shownStats.hp_max)} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
+                    onValueChange={(next) => changeStat("hp_max", next, (hp_max) => ({ hp_max, hp: Math.min(shownStats.hp, hp_max) === shownStats.hp && shownStats.hp !== shownStats.hp_max ? shownStats.hp : hp_max }))} />
                 </label>
 
                 {/* SPEED */}
                 <label className="orc-stat-field">
                   <span>Speed</span>
-                  <input className="input-field" inputMode="numeric" value={shownStats.speed} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
-                    onChange={(event) => patchStats({ speed: numberOr(event.target.value, shownStats.speed, 0, 300) })} />
+                  <NumberField className="input-field" type="text" inputMode="numeric" min={0} max={300} integer value={shownStat("speed", shownStats.speed)} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
+                    onValueChange={(next) => changeStat("speed", next, (speed) => ({ speed }))} />
                 </label>
               </div>
 
@@ -459,8 +476,8 @@ export default function EntityModal({ isOpen, entity, defaultKind = "creature", 
                 </label>
                 <label className="orc-stat-field">
                   <span>To hit</span>
-                  <input className="input-field" inputMode="numeric" value={shownStats.attacks[0]?.bonus ?? 0} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
-                    onChange={(event) => patchStats({ attacks: [{ name: shownStats.attacks[0]?.name ?? "Attack", bonus: numberOr(event.target.value, 0, -10, 30), damage: shownStats.attacks[0]?.damage ?? "1d6" }, ...shownStats.attacks.slice(1)] })} />
+                  <NumberField className="input-field" type="text" inputMode="numeric" min={-10} max={30} integer value={shownStat("attack_bonus", shownStats.attacks[0]?.bonus ?? 0)} onFocus={selectOnFocus} onKeyDown={blurOnEnter}
+                    onValueChange={(next) => changeStat("attack_bonus", next, (bonus) => ({ attacks: [{ name: shownStats.attacks[0]?.name ?? "Attack", bonus, damage: shownStats.attacks[0]?.damage ?? "1d6" }, ...shownStats.attacks.slice(1)] }))} />
                 </label>
                 <label className="orc-stat-field">
                   <span>Damage</span>

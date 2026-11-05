@@ -4,6 +4,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import NumberField from '@/components/ui/NumberField';
 import Modal from '@/components/Modal';
 import type { DaySlot, DaySlotInput } from '../types/dayArchetype';
 
@@ -20,6 +21,11 @@ export const DEFAULT_SLOT: DaySlotInput = {
   time_low_seconds: null, time_high_seconds: null, target_rpe: 8,
   load_step_pct: 0.05, round_to_step: 5, set_target: 3,
 };
+
+// A SlotNumberField is a number on a slot that must be filled before Save
+type SlotNumberField = 'rep_low' | 'rep_high' | 'set_target' | 'load_step_pct' | 'round_to_step';
+// A SlotForm is a slot being edited, with each SlotNumberField null while its field is empty
+type SlotForm = Omit<DaySlotInput, SlotNumberField> & { [Field in SlotNumberField]: number | null };
 
 // Short explanation of what each rotation cadence means to the engine.
 const CADENCE_HELP: Record<string, string> = {
@@ -76,7 +82,7 @@ export default function DaySlotModal({
   exercises: { id: string; name: string }[];
 }) {
   // INPUT
-  const [form, setForm] = useState<DaySlotInput>(
+  const [form, setForm] = useState<SlotForm>(
     slot ? slotToInput(slot) : (initialInput ?? { ...DEFAULT_SLOT, order_index: nextOrderIndex }),
   );
 
@@ -86,11 +92,30 @@ export default function DaySlotModal({
   const isTimeEffort = form.progression_model === 'time_effort'; // timed, not reps
   const showTimeRange = isTimeEffort && form.category_filter === 'Cardio'; // range is a cardio-only dose
   const isStrengthHold = isTimeEffort && !showTimeRange; // strength hold → no range, history-driven
+  // Number fields on screen that must hold a value before Save
+  const shownRequiredFields: SlotNumberField[] = [
+    'set_target',
+    ...(!showTimeRange && !isStrengthHold ? (['rep_low', 'rep_high'] as const) : []),
+    ...(!form.is_warmup && showAdvanced ? (['load_step_pct', 'round_to_step'] as const) : []),
+  ];
+  const hasEmptyRequiredField = shownRequiredFields.some((field) => form[field] == null);
 
   // Persist via POST (add) or PUT (edit), or hand the input back to the parent in in-memory mode.
   const handleSave = async () => {
+    if (hasEmptyRequiredField) return; // Refuse a save while a shown number field is empty
+
+    // Fill a hidden empty field with its default
+    const filledForm: DaySlotInput = {
+      ...form,
+      rep_low: form.rep_low ?? DEFAULT_SLOT.rep_low,
+      rep_high: form.rep_high ?? DEFAULT_SLOT.rep_high,
+      set_target: form.set_target ?? DEFAULT_SLOT.set_target,
+      load_step_pct: form.load_step_pct ?? DEFAULT_SLOT.load_step_pct,
+      round_to_step: form.round_to_step ?? DEFAULT_SLOT.round_to_step,
+    };
+
     // Time range is cardio-only; null it out otherwise so stale values don't linger on the slot.
-    const payload = showTimeRange ? form : { ...form, time_low_seconds: null, time_high_seconds: null };
+    const payload = showTimeRange ? filledForm : { ...filledForm, time_low_seconds: null, time_high_seconds: null };
 
     // IN-MEMORY MODE — no network; the parent owns persistence.
     if (onSubmitInput) {
@@ -135,8 +160,11 @@ export default function DaySlotModal({
           {/* CANCEL */}
           <Button onClick={onClose} disabled={isSaving} className="btn-link mr-auto">Cancel</Button>
 
+          {/* SAVE DISABLED REASON */}
+          {hasEmptyRequiredField && <span className="text-secondary text-sm whitespace-nowrap self-center">Numbers needed</span>}
+
           {/* SAVE */}
-          <Button onClick={handleSave} disabled={isSaving} className="btn-blue">
+          <Button onClick={handleSave} disabled={isSaving || hasEmptyRequiredField} className="btn-blue">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             <span>{isSaving ? 'Saving…' : 'Save'}</span>
           </Button>
@@ -209,22 +237,20 @@ export default function DaySlotModal({
               {/* TIME LOW (s) */}
               <div className="flex flex-col gap-1">
                 <label className="text-secondary">Time low (s)</label>
-                <input
+                <NumberField
                   className="input-field w-24"
-                  type="number"
-                  value={form.time_low_seconds ?? ''}
-                  onChange={(e) => setForm({ ...form, time_low_seconds: e.target.value === '' ? null : Number(e.target.value) })}
+                  value={form.time_low_seconds}
+                  onValueChange={(next) => setForm({ ...form, time_low_seconds: next })}
                 />
               </div>
 
               {/* TIME HIGH (s) */}
               <div className="flex flex-col gap-1">
                 <label className="text-secondary">Time high (s)</label>
-                <input
+                <NumberField
                   className="input-field w-24"
-                  type="number"
-                  value={form.time_high_seconds ?? ''}
-                  onChange={(e) => setForm({ ...form, time_high_seconds: e.target.value === '' ? null : Number(e.target.value) })}
+                  value={form.time_high_seconds}
+                  onValueChange={(next) => setForm({ ...form, time_high_seconds: next })}
                 />
               </div>
             </>
@@ -241,13 +267,13 @@ export default function DaySlotModal({
               {/* REP LOW */}
               <div className="flex flex-col gap-1">
                 <label className="text-secondary">Rep low</label>
-                <input className="input-field w-20" type="number" value={form.rep_low} onChange={(e) => setForm({ ...form, rep_low: Number(e.target.value) })} />
+                <NumberField className="input-field w-20" value={form.rep_low} onValueChange={(next) => setForm({ ...form, rep_low: next })} />
               </div>
 
               {/* REP HIGH */}
               <div className="flex flex-col gap-1">
                 <label className="text-secondary">Rep high</label>
-                <input className="input-field w-20" type="number" value={form.rep_high} onChange={(e) => setForm({ ...form, rep_high: Number(e.target.value) })} />
+                <NumberField className="input-field w-20" value={form.rep_high} onValueChange={(next) => setForm({ ...form, rep_high: next })} />
               </div>
             </>
           )}
@@ -255,19 +281,18 @@ export default function DaySlotModal({
           {/* SETS */}
           <div className="flex flex-col gap-1">
             <label className="text-secondary">Sets</label>
-            <input className="input-field w-20" type="number" value={form.set_target} onChange={(e) => setForm({ ...form, set_target: Number(e.target.value) })} />
+            <NumberField className="input-field w-20" value={form.set_target} onValueChange={(next) => setForm({ ...form, set_target: next })} />
           </div>
 
           {/* TARGET RPE — working slots only (warmups aren't RPE-anchored) */}
           {!form.is_warmup && (
             <div className="flex flex-col gap-1">
               <label className="text-secondary">Target RPE</label>
-              <input
+              <NumberField
                 className="input-field w-20"
-                type="number"
                 step="0.5"
-                value={form.target_rpe ?? ''}
-                onChange={(e) => setForm({ ...form, target_rpe: e.target.value === '' ? null : Number(e.target.value) })}
+                value={form.target_rpe}
+                onValueChange={(next) => setForm({ ...form, target_rpe: next })}
               />
             </div>
           )}
@@ -340,12 +365,11 @@ export default function DaySlotModal({
             {/* LOAD STEP PCT */}
             <div className="flex flex-col gap-1">
               <label className="text-secondary">Load step (%)</label>
-              <input
+              <NumberField
                 className="input-field w-24"
-                type="number"
                 step="1"
-                value={Math.round((form.load_step_pct ?? 0) * 100)}
-                onChange={(e) => setForm({ ...form, load_step_pct: Number(e.target.value) / 100 })}
+                value={form.load_step_pct == null ? null : Math.round(form.load_step_pct * 10000) / 100}
+                onValueChange={(next) => setForm({ ...form, load_step_pct: next == null ? null : next / 100 })}
               />
               <span className="text-secondary text-sm">Load jump when progressing.</span>
             </div>
@@ -353,12 +377,11 @@ export default function DaySlotModal({
             {/* ROUND TO STEP */}
             <div className="flex flex-col gap-1">
               <label className="text-secondary">Round to (lb)</label>
-              <input
+              <NumberField
                 className="input-field w-24"
-                type="number"
                 step="0.5"
                 value={form.round_to_step}
-                onChange={(e) => setForm({ ...form, round_to_step: Number(e.target.value) })}
+                onValueChange={(next) => setForm({ ...form, round_to_step: next })}
               />
               <span className="text-secondary text-sm">Smallest plate/increment.</span>
             </div>

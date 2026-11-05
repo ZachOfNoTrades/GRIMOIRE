@@ -28,6 +28,7 @@ import { generateUUID } from "../../../utils/id";
 import { useGenerationJob } from "@/lib/useGenerationJob";
 import { useConfirm } from "@/lib/useConfirm";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import { settleNumberDraft } from "@/lib/numberDraft";
 
 // A generated plan is a snapshot: the engine picked its exercises and prescribed its loads from the
 // training history as it stood the moment it ran. Once that snapshot is this many days old the picture
@@ -53,6 +54,11 @@ function writeWarmupCollapsed(sessionId: string, isCollapsed: boolean) {
   const others = readWarmupCollapsedSessionIds().filter((storedId) => storedId !== sessionId);
   const next = isCollapsed ? [...others, sessionId].slice(-WARMUP_COLLAPSED_MAX_SESSIONS) : others;
   try { localStorage.setItem(WARMUP_COLLAPSED_STORAGE_KEY, JSON.stringify(next)); } catch { /* private mode / quota — non-fatal */ }
+}
+
+// Settle a typed duration part to two digits within its limit, with an empty part as "00"
+function settleDurationPart(text: string, max: number): string {
+  return String(settleNumberDraft(text, { min: 0, max, integer: true }) ?? 0).padStart(2, "0");
 }
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -1215,16 +1221,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const parts = editedDuration.split(":");
-                            const raw = e.target.value;
-                            parts[0] = raw === "" ? "" : String(Math.max(0, parseInt(raw) || 0)).padStart(2, "0");
+                            parts[0] = e.target.value;
                             setEditedDuration(parts.join(":"));
                           }}
                           onBlur={(e) => {
-                            if (e.target.value === "") {
-                              const parts = editedDuration.split(":");
-                              parts[0] = "00";
-                              setEditedDuration(parts.join(":"));
-                            }
+                            const parts = editedDuration.split(":");
+                            parts[0] = settleDurationPart(e.target.value, 99);
+                            setEditedDuration(parts.join(":"));
                           }}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("duration-minutes")?.focus(); } }}
                           className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
@@ -1241,16 +1244,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const parts = editedDuration.split(":");
-                            const raw = e.target.value;
-                            parts[1] = raw === "" ? "" : String(Math.min(59, Math.max(0, parseInt(raw) || 0))).padStart(2, "0");
+                            parts[1] = e.target.value;
                             setEditedDuration(parts.join(":"));
                           }}
                           onBlur={(e) => {
-                            if (e.target.value === "") {
-                              const parts = editedDuration.split(":");
-                              parts[1] = "00";
-                              setEditedDuration(parts.join(":"));
-                            }
+                            const parts = editedDuration.split(":");
+                            parts[1] = settleDurationPart(e.target.value, 59);
+                            setEditedDuration(parts.join(":"));
                           }}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("duration-seconds")?.focus(); } }}
                           className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"
@@ -1267,16 +1267,13 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const parts = editedDuration.split(":");
-                            const raw = e.target.value;
-                            parts[2] = raw === "" ? "" : String(Math.min(59, Math.max(0, parseInt(raw) || 0))).padStart(2, "0");
+                            parts[2] = e.target.value;
                             setEditedDuration(parts.join(":"));
                           }}
                           onBlur={(e) => {
-                            if (e.target.value === "") {
-                              const parts = editedDuration.split(":");
-                              parts[2] = "00";
-                              setEditedDuration(parts.join(":"));
-                            }
+                            const parts = editedDuration.split(":");
+                            parts[2] = settleDurationPart(e.target.value, 59);
+                            setEditedDuration(parts.join(":"));
                           }}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
                           className="input-field !min-w-10 sm:max-w-20 !px-2 text-center"

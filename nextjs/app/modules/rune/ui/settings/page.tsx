@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Bell, Send, Sparkles, GraduationCap } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import NumberField from "@/components/ui/NumberField";
 import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -40,11 +41,11 @@ export default function RuneSettingsPage() {
   const [evaluationSystemPrompt, setEvaluationSystemPrompt] = useState<string>("");
   const [evaluationPersonalityPrompt, setEvaluationPersonalityPrompt] = useState<string>("");
   const [autoAdvanceOnEvaluate, setAutoAdvanceOnEvaluate] = useState<boolean>(DEFAULT_AUTO_ADVANCE_ON_EVALUATE);
-  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState<number>(DEFAULT_AUTO_ADVANCE_SECONDS);
+  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState<number | null>(DEFAULT_AUTO_ADVANCE_SECONDS);
   const [evaluationSoundEnabled, setEvaluationSoundEnabled] = useState<boolean>(DEFAULT_EVALUATION_SOUND_ENABLED);
-  const [dailyGoal, setDailyGoal] = useState<number>(DEFAULT_DAILY_GOAL);
-  const [dailyMaxRenew, setDailyMaxRenew] = useState<number>(DEFAULT_DAILY_MAX_RENEW);
-  const [handsFreeSilenceSeconds, setHandsFreeSilenceSeconds] = useState<number>(DEFAULT_HANDS_FREE_SILENCE_SECONDS);
+  const [dailyGoal, setDailyGoal] = useState<number | null>(DEFAULT_DAILY_GOAL);
+  const [dailyMaxRenew, setDailyMaxRenew] = useState<number | null>(DEFAULT_DAILY_MAX_RENEW);
+  const [handsFreeSilenceSeconds, setHandsFreeSilenceSeconds] = useState<number | null>(DEFAULT_HANDS_FREE_SILENCE_SECONDS);
 
   // STATE
   const [loading, setLoading] = useState(true);
@@ -109,20 +110,20 @@ export default function RuneSettingsPage() {
     // Clamp the auto-advance delay to the accepted range before sending.
     const clampedSeconds = Math.min(
       MAX_AUTO_ADVANCE_SECONDS,
-      Math.max(MIN_AUTO_ADVANCE_SECONDS, Math.round(autoAdvanceSeconds) || DEFAULT_AUTO_ADVANCE_SECONDS),
+      Math.max(MIN_AUTO_ADVANCE_SECONDS, Math.round(autoAdvanceSeconds ?? 0) || DEFAULT_AUTO_ADVANCE_SECONDS),
     );
     // Clamp the soft daily targets to the accepted range before sending.
     const clampedGoal = Math.min(
       MAX_DAILY_TARGET,
-      Math.max(MIN_DAILY_TARGET, Math.round(dailyGoal) || DEFAULT_DAILY_GOAL),
+      Math.max(MIN_DAILY_TARGET, Math.round(dailyGoal ?? 0) || DEFAULT_DAILY_GOAL),
     );
     const clampedMaxRenew = Math.min(
       MAX_DAILY_TARGET,
-      Math.max(MIN_DAILY_TARGET, Math.round(dailyMaxRenew) || DEFAULT_DAILY_MAX_RENEW),
+      Math.max(MIN_DAILY_TARGET, Math.round(dailyMaxRenew ?? 0) || DEFAULT_DAILY_MAX_RENEW),
     );
     const clampedSilence = Math.min(
       MAX_HANDS_FREE_SILENCE_SECONDS,
-      Math.max(MIN_HANDS_FREE_SILENCE_SECONDS, handsFreeSilenceSeconds || DEFAULT_HANDS_FREE_SILENCE_SECONDS),
+      Math.max(MIN_HANDS_FREE_SILENCE_SECONDS, (handsFreeSilenceSeconds ?? 0) || DEFAULT_HANDS_FREE_SILENCE_SECONDS),
     );
     setSaving(true);
     try {
@@ -340,15 +341,15 @@ export default function RuneSettingsPage() {
           {/* AUTO-ADVANCE DELAY */}
           <div className="settings-time-row" style={{ borderTop: "1px solid var(--card-border)" }}>
             <span className="settings-time-label">Auto-advance delay (seconds)</span>
-            <input
-              type="number"
+            <NumberField
               className="settings-time-input"
               min={MIN_AUTO_ADVANCE_SECONDS}
               max={MAX_AUTO_ADVANCE_SECONDS}
               step={1}
               value={autoAdvanceSeconds}
               disabled={!autoAdvanceOnEvaluate}
-              onChange={(e) => setAutoAdvanceSeconds(Number(e.target.value))}
+              integer
+              onValueChange={setAutoAdvanceSeconds}
             />
           </div>
 
@@ -363,42 +364,41 @@ export default function RuneSettingsPage() {
           {/* HANDS-FREE SILENCE */}
           <div className="settings-time-row" style={{ borderTop: "1px solid var(--card-border)" }}>
             <span className="settings-time-label">Hands-free silence (seconds)</span>
-            <input
-              type="number"
+            <NumberField
               className="settings-time-input"
               min={MIN_HANDS_FREE_SILENCE_SECONDS}
               max={MAX_HANDS_FREE_SILENCE_SECONDS}
               step={0.5}
               value={handsFreeSilenceSeconds}
-              onChange={(e) => setHandsFreeSilenceSeconds(Number(e.target.value))}
+              onValueChange={setHandsFreeSilenceSeconds}
             />
           </div>
 
           {/* DAILY GOAL */}
           <div className="settings-time-row" style={{ borderTop: "1px solid var(--card-border)" }}>
             <span className="settings-time-label">Daily goal (cards)</span>
-            <input
-              type="number"
+            <NumberField
               className="settings-time-input"
               min={MIN_DAILY_TARGET}
               max={MAX_DAILY_TARGET}
               step={1}
               value={dailyGoal}
-              onChange={(e) => setDailyGoal(Number(e.target.value))}
+              integer
+              onValueChange={setDailyGoal}
             />
           </div>
 
           {/* DAILY MAX RENEW */}
           <div className="settings-time-row" style={{ borderTop: "1px solid var(--card-border)" }}>
             <span className="settings-time-label">Daily max renew (cards)</span>
-            <input
-              type="number"
+            <NumberField
               className="settings-time-input"
               min={MIN_DAILY_TARGET}
               max={MAX_DAILY_TARGET}
               step={1}
               value={dailyMaxRenew}
-              onChange={(e) => setDailyMaxRenew(Number(e.target.value))}
+              integer
+              onValueChange={setDailyMaxRenew}
             />
           </div>
         </div>

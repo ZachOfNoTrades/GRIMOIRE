@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Toaster, toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import NumberField from "@/components/ui/NumberField";
 import { useEntityTitle } from "@/components/DocumentTitleSync";
 import { useAppHeight } from "@/lib/useAppHeight";
 import { useConfirm } from "@/lib/useConfirm";
@@ -44,7 +45,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   const [world, setWorld] = useState(snapshot.campaign.world);
   const [sessionTitle, setSessionTitle] = useState("");
   const [memberName, setMemberName] = useState("");
-  const [memberLevel, setMemberLevel] = useState(1);
+  const [memberLevel, setMemberLevel] = useState<number | null>(1);
 
   // STATE
   const [isWritingWorld, setIsWritingWorld] = useState(false);
@@ -126,7 +127,7 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
   // PARTY — the player characters by name and level
   async function addMember() {
     const name = memberName.trim();
-    if (!name || isAddingMember) return;
+    if (!name || memberLevel == null || isAddingMember) return;
     setIsAddingMember(true);
     try {
       const created = await api<OraclePartyMember>(`${base}/party`, "POST", { name, level: memberLevel });
@@ -278,16 +279,16 @@ export default function PrepClient({ snapshot, imageSources }: PrepClientProps) 
                         }
                       }}
                     />
-                    <input
-                      type="number"
+                    <NumberField
                       className="input-field orc-level-input"
                       min={1}
                       max={20}
+                      integer
                       value={memberLevel}
                       aria-label="New member level"
-                      onChange={(event) => setMemberLevel(Math.min(20, Math.max(1, Number(event.target.value) || 1)))}
+                      onValueChange={setMemberLevel}
                     />
-                    <Button className="btn-off" disabled={isAddingMember || !memberName.trim()} onClick={addMember} title="Add member" aria-label="Add member">
+                    <Button className="btn-off" disabled={isAddingMember || !memberName.trim() || memberLevel == null} onClick={addMember} title="Add member" aria-label="Add member">
                       <Plus className="w-4 h-4" />
                     </Button>
                   </div>
