@@ -1,5 +1,7 @@
 import sql from "mssql";
 import { getMainConnection } from "@/lib/db";
+import { getAllModules } from "@/lib/modules";
+import { LLM_TASK_GROUPS, isLlmTaskId, taskDef, type LlmTaskGroup } from "./tasks";
 import type { LlmBackend } from "./types";
 
 // LLM USAGE LOG — dbo.llm_usage in the MAIN database. One row per completion (a
@@ -113,12 +115,21 @@ export interface UsageTotals {
   durationMsAvg: number | null;
 }
 
+// A DayModuleTotals is a day's calls and cost for one module, for the per-day chart's module filter.
+export interface DayModuleTotals {
+  calls: number;
+  costUsd: number;
+}
+
 export interface UsageReport {
   range: UsageRange;
   summary: UsageTotals & { byBackend: Record<LlmBackend, UsageTotals> };
-  byTask: (UsageTotals & { task: string; backend: LlmBackend; model: string })[];
-  byModel: (UsageTotals & { backend: LlmBackend; model: string })[];
-  daily: (UsageTotals & { day: string })[];
+  // Every module that makes model calls, in LLM_TASK_GROUPS order, with the name and
+  // icon of its module record.
+  modules: (UsageTotals & { module: LlmTaskGroup; name: string; icon: string | null })[];
+  byTask: (UsageTotals & { task: string; module: LlmTaskGroup | null; backend: LlmBackend; model: string })[];
+  byModel: (UsageTotals & { backend: LlmBackend; model: string; modules: LlmTaskGroup[] })[];
+  daily: (UsageTotals & { day: string; byModule: Record<LlmTaskGroup, DayModuleTotals> })[];
 }
 
 const EMPTY: UsageTotals = { calls: 0, failed: 0, promptTokens: 0, completionTokens: 0, costUsd: 0, durationMsAvg: null };
@@ -149,6 +160,35 @@ function totals(r: TotalsRecord): UsageTotals {
   };
 }
 
+// Sum totals, weighting each mean time by its successful-call count.
+function sumTotals(list: UsageTotals[]): UsageTotals {
+  const sum: UsageTotals = { ...EMPTY };
+  let timedCalls = 0;
+  let timedMs = 0;
+  for (const t of list) {
+    sum.calls += t.calls;
+    sum.failed += t.failed;
+    sum.promptTokens += t.promptTokens;
+    sum.completionTokens += t.completionTokens;
+    sum.costUsd += t.costUsd;
+    if (t.durationMsAvg !== null) {
+      timedCalls += t.calls - t.failed;
+      timedMs += t.durationMsAvg * (t.calls - t.failed);
+    }
+  }
+  sum.durationMsAvg = timedCalls > 0 ? timedMs / timedCalls : null;
+  return sum;
+}
+
+// Find the module a logged task id belongs to; null for an id no longer in the registry.
+function taskModule(task: string): LlmTaskGroup | null {
+  return isLlmTaskId(task) ? taskDef(task).group : null;
+}
+
+function emptyDayModules(): Record<LlmTaskGroup, DayModuleTotals> {
+  return Object.fromEntries(LLM_TASK_GROUPS.map((g) => [g.key, { calls: 0, costUsd: 0 }])) as Record<LlmTaskGroup, DayModuleTotals>;
+}
+
 // Timing is averaged over successful calls only — a failed call's duration is how
 // long it took to fail, which says nothing about the model.
 const TOTALS_SELECT = `
@@ -159,6 +199,7 @@ const TOTALS_SELECT = `
   SUM(cost_usd) AS cost_usd,
   AVG(CASE WHEN ok = 1 THEN CAST(duration_ms AS FLOAT) END) AS duration_ms_avg`;
 
+// Aggregate one user's calls for a range; every usage query is scoped to that user.
 export async function getUsageReport(userId: string, range: UsageRange): Promise<UsageReport> {
   const pool = await getMainConnection();
   const since = sinceFor(range);
@@ -169,7 +210,7 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
     return r;
   };
 
-  const [byBackend, byTask, byModel, daily] = await Promise.all([
+  const [byBackend, byTask, byModel, daily, dailyByTask, moduleRecords] = await Promise.all([
     req().query<TotalsRecord & { backend: LlmBackend }>(
       `SELECT backend, ${TOTALS_SELECT} FROM llm_usage ${where} GROUP BY backend`
     ),
@@ -185,34 +226,53 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
       `SELECT CAST(ts AS DATE) AS day, ${TOTALS_SELECT} FROM llm_usage ${where}
        GROUP BY CAST(ts AS DATE) ORDER BY day`
     ),
+    req().query<{ day: Date; task: string; calls: number; cost_usd: number | null }>(
+      `SELECT CAST(ts AS DATE) AS day, task, COUNT(*) AS calls, SUM(cost_usd) AS cost_usd FROM llm_usage ${where}
+       GROUP BY CAST(ts AS DATE), task`
+    ),
+    getAllModules(),
   ]);
 
   const perBackend: Record<LlmBackend, UsageTotals> = { claude: { ...EMPTY }, openrouter: { ...EMPTY } };
-  const summary: UsageTotals = { ...EMPTY };
-  // The overall mean time is weighted by each backend's successful-call count.
-  let timedCalls = 0;
-  let timedMs = 0;
-  for (const r of byBackend.recordset) {
-    const t = totals(r);
-    perBackend[r.backend] = t;
-    summary.calls += t.calls;
-    summary.failed += t.failed;
-    summary.promptTokens += t.promptTokens;
-    summary.completionTokens += t.completionTokens;
-    summary.costUsd += t.costUsd;
-    if (t.durationMsAvg !== null) {
-      const ok = t.calls - t.failed;
-      timedCalls += ok;
-      timedMs += t.durationMsAvg * ok;
-    }
+  for (const r of byBackend.recordset) perBackend[r.backend] = totals(r);
+  const summary = sumTotals(Object.values(perBackend));
+
+  const taskRows = byTask.recordset.map((r) => ({ ...totals(r), task: r.task, module: taskModule(r.task), backend: r.backend, model: r.model }));
+
+  // Name each module after its module record, falling back to the registry label when the record is missing or disabled
+  const records = new Map(moduleRecords.map((m) => [m.slug, m]));
+  const modules = LLM_TASK_GROUPS.map((g) => ({
+    ...sumTotals(taskRows.filter((t) => t.module === g.key)),
+    module: g.key,
+    name: records.get(g.key)?.name ?? g.label,
+    icon: records.get(g.key)?.icon ?? null,
+  }));
+
+  // List the modules whose tasks ran on each model, in LLM_TASK_GROUPS order
+  const modelModules = (backend: LlmBackend, model: string): LlmTaskGroup[] =>
+    LLM_TASK_GROUPS.map((g) => g.key).filter((key) => taskRows.some((t) => t.backend === backend && t.model === model && t.module === key));
+
+  // Split each day's calls and cost by module, skipping a task no longer in the registry
+  const dayModules = new Map<string, Record<LlmTaskGroup, DayModuleTotals>>();
+  for (const r of dailyByTask.recordset) {
+    const module = taskModule(r.task);
+    if (!module) continue;
+    const day = new Date(r.day).toISOString().slice(0, 10);
+    const byModule = dayModules.get(day) ?? emptyDayModules();
+    byModule[module].calls += r.calls;
+    byModule[module].costUsd += Number(r.cost_usd ?? 0);
+    dayModules.set(day, byModule);
   }
-  summary.durationMsAvg = timedCalls > 0 ? timedMs / timedCalls : null;
 
   return {
     range,
     summary: { ...summary, byBackend: perBackend },
-    byTask: byTask.recordset.map((r) => ({ ...totals(r), task: r.task, backend: r.backend, model: r.model })),
-    byModel: byModel.recordset.map((r) => ({ ...totals(r), backend: r.backend, model: r.model })),
-    daily: daily.recordset.map((r) => ({ ...totals(r), day: new Date(r.day).toISOString().slice(0, 10) })),
+    modules,
+    byTask: taskRows,
+    byModel: byModel.recordset.map((r) => ({ ...totals(r), backend: r.backend, model: r.model, modules: modelModules(r.backend, r.model) })),
+    daily: daily.recordset.map((r) => {
+      const day = new Date(r.day).toISOString().slice(0, 10);
+      return { ...totals(r), day, byModule: dayModules.get(day) ?? emptyDayModules() };
+    }),
   };
 }
