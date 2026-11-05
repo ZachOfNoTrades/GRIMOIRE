@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Send, Sparkles, GraduationCap } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, Send, Sparkles, GraduationCap, BarChart3 } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import NumberField from "@/components/ui/NumberField";
-import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
+import { SettingsGroup, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import { usageHref } from "@/lib/usageChartModules";
 import {
   DEFAULT_DIGEST_ENABLED,
   DEFAULT_DIGEST_TIME,
@@ -34,6 +36,7 @@ function calendarTodayYMD(): string {
 }
 
 export default function RuneSettingsPage() {
+  const router = useRouter();
 
   // INPUT
   const [digestEnabled, setDigestEnabled] = useState<boolean>(DEFAULT_DIGEST_ENABLED);
@@ -264,8 +267,12 @@ export default function RuneSettingsPage() {
           <div className="alert-error mb-4">{error}</div>
         )}
 
+        {/* AI SECTION */}
+        <h2 className="settings-section-title">AI</h2>
+        <SettingsGroup rows={[{ icon: BarChart3, label: "Usage", onClick: () => router.push(usageHref("rune")) }]} />
+
         {/* NOTIFICATIONS SECTION */}
-        <h2 className="settings-section-title">Notifications</h2>
+        <h2 className="settings-section-title mt-6">Notifications</h2>
         <div className="settings-group">
 
           {/* ENABLE TOGGLE */}

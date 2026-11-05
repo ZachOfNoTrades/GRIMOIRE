@@ -207,14 +207,14 @@ function DailyChart({ days, isCost }: { days: ChartBar[]; isCost: boolean }) {
 }
 
 // Show the signed-in user's model-call usage for a range, by module and by model
-export default function UsageClient({ initialReport }: { initialReport: UsageReport | null }) {
+export default function UsageClient({ initialReport, initialChartModules }: { initialReport: UsageReport | null; initialChartModules: LlmTaskGroup[] }) {
 
   // DATA
   const [report, setReport] = useState<UsageReport | null>(initialReport);
 
   // INPUT
   const [range, setRange] = useState<UsageRange>(initialReport?.range ?? "30d");
-  const [chartModules, setChartModules] = useState<LlmTaskGroup[]>([]);
+  const [chartModules, setChartModules] = useState<LlmTaskGroup[]>(initialChartModules);
 
   // STATE
   const [loadedRange, setLoadedRange] = useState<UsageRange | null>(initialReport?.range ?? null);
@@ -295,7 +295,7 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
             sections={[
               { heading: "What's counted", body: "Every model call made for you, on either backend. Tokens and cost come from the provider's own report; Claude calls on the shared CLI show the subscription's notional cost." },
               { heading: "Modules", body: "Each tile shows what a module's calls cost, its share of the total cost, and its calls and tokens. Tap a tile to jump to that module's tasks. Each task table starts sorted by cost; tap a column header to sort by it, and tap it again to reverse." },
-              { heading: "Cost per day", body: "The modules listed beside the chart pick what it shows. With all of them lit, it shows every module. Tap one to show only that module, tap a grayed one to add it, and tap a lit one to remove it; removing the last shows every module again. The tiles and tables always cover every module." },
+              { heading: "Cost per day", body: "The modules listed beside the chart pick what it shows. With all of them lit, it shows every module. Tap one to show only that module, tap a grayed one to add it, and tap a lit one to remove it; removing the last shows every module again. Usage opened from a module's settings starts with only that module shown. The tiles and tables always cover every module." },
               { heading: "Models", body: "Calls on the shared Claude CLI and on your own OpenRouter key, then every model used, with the modules whose tasks ran on it." },
             ]}
           />

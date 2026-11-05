@@ -1,16 +1,20 @@
 "use client";
 
-import { Minus, Plus, Settings } from "lucide-react";
+import { BarChart3, Minus, Plus, Settings } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import Breadcrumbs from "@/components/Breadcrumbs";
-import { SettingsControlRow, SettingsToggleRow } from "@/components/settings/SettingsList";
+import { SettingsControlRow, SettingsGroup, SettingsToggleRow } from "@/components/settings/SettingsList";
 import { Toaster, toast } from "@/components/Toaster";
 import { blurOnEnter, selectOnFocus } from "@/lib/inputBehavior";
+import { usageHref } from "@/lib/usageChartModules";
 import { api, errorMessage } from "../../lib/client";
 import { CHIP_POOL_MAX, CHIP_SECONDS_MAX, CHIP_SECONDS_MIN, GENERATION_TASKS, TEXT_MODELS, type TextModel } from "../../lib/constants";
 import type { OracleSettings } from "../../types/oracle";
 
 export default function SettingsClient({ settings: initialSettings, cameFrom }: { settings: OracleSettings; cameFrom?: { label: string; href: string } | null }) {
+  const router = useRouter();
+
   // DATA
   const [settings, setSettings] = useState<OracleSettings>(initialSettings);
 
@@ -145,6 +149,10 @@ export default function SettingsClient({ settings: initialSettings, cameFrom }: 
 
         {/* MODELS NOTE */}
         <p className="settings-group-note">Which Claude model writes each kind of thing. Saved as soon as you change it.</p>
+
+        {/* AI SECTION */}
+        <h2 className="settings-section-title">AI</h2>
+        <SettingsGroup rows={[{ icon: BarChart3, label: "Usage", onClick: () => router.push(usageHref("oracle")) }]} />
       </div>
     </div>
   );
