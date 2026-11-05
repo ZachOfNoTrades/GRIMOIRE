@@ -10,6 +10,7 @@ import SegmentedToggle, { type SegmentedOption } from "@/components/ui/Segmented
 import SortHeaderCell from "@/components/ui/SortHeaderCell";
 import TableScroll from "@/components/ui/TableScroll";
 import { SettingsControlRow } from "@/components/settings/SettingsList";
+import { defaultIcon, iconMap } from "@/lib/iconMap";
 import { LLM_TASKS, type LlmTaskGroup } from "@/lib/llm/tasks";
 import type { LlmBackend } from "@/lib/llm/types";
 import type { UsageRange, UsageReport, UsageTotals } from "@/lib/llm/usage";
@@ -154,9 +155,15 @@ function UsageTable<T>({ columns, rows, rowKey, label }: { columns: UsageColumn<
   );
 }
 
-// Draw a bar per day with calls, its height the day's cost or its calls
-function DailyChart({ days, isCost }: { days: UsageReport["daily"]; isCost: boolean }) {
-  const values = days.map((d) => (isCost ? d.costUsd : d.calls));
+// A ChartBar is one day's bar: the day and its cost or calls.
+interface ChartBar {
+  day: string;
+  value: number;
+}
+
+// Draw a bar per day in the report, its height the cost or calls of the modules shown
+function DailyChart({ days, isCost }: { days: ChartBar[]; isCost: boolean }) {
+  const values = days.map((d) => d.value);
   const max = Math.max(1e-9, ...values);
   const W = 640;
   const H = 160;
@@ -207,6 +214,7 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
 
   // INPUT
   const [range, setRange] = useState<UsageRange>(initialReport?.range ?? "30d");
+  const [chartModules, setChartModules] = useState<LlmTaskGroup[]>([]);
 
   // STATE
   const [loadedRange, setLoadedRange] = useState<UsageRange | null>(initialReport?.range ?? null);
@@ -244,6 +252,25 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
   const isRefreshing = report !== null && loadedRange !== range;
 
   const isCostChart = !!report && report.summary.costUsd > 0;
+  const isAllChartModules = chartModules.length === 0;
+
+  // Sum each day's cost or calls over the modules the chart filter shows, or take the whole day when it shows all
+  const chartBars = useMemo((): ChartBar[] => (report?.daily ?? []).map((d) => ({
+    day: d.day,
+    value: isAllChartModules
+      ? (isCostChart ? d.costUsd : d.calls)
+      : chartModules.reduce((sum, m) => sum + (isCostChart ? d.byModule[m].costUsd : d.byModule[m].calls), 0),
+  })), [report, chartModules, isAllChartModules, isCostChart]);
+
+  // Change which modules the chart shows when a filter row is clicked
+  // 1. From all, show only the clicked module
+  // 2. Add a grayed module
+  // 3. Remove a shown module, going back to all once none is left
+  const toggleChartModule = (module: LlmTaskGroup) => {
+    if (isAllChartModules) return setChartModules([module]);
+    if (!chartModules.includes(module)) return setChartModules([...chartModules, module]);
+    setChartModules(chartModules.filter((m) => m !== module));
+  };
   const moduleNames = useMemo(() => new Map((report?.modules ?? []).map((m) => [m.module, m.name])), [report]);
   const columnsForModels = useMemo(() => modelColumns(moduleNames), [moduleNames]);
 
@@ -268,6 +295,7 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
             sections={[
               { heading: "What's counted", body: "Every model call made for you, on either backend. Tokens and cost come from the provider's own report; Claude calls on the shared CLI show the subscription's notional cost." },
               { heading: "Modules", body: "Each tile shows what a module's calls cost, its share of the total cost, and its calls and tokens. Tap a tile to jump to that module's tasks. Each task table starts sorted by cost; tap a column header to sort by it, and tap it again to reverse." },
+              { heading: "Cost per day", body: "The modules listed beside the chart pick what it shows. With all of them lit, it shows every module. Tap one to show only that module, tap a grayed one to add it, and tap a lit one to remove it; removing the last shows every module again. The tiles and tables always cover every module." },
               { heading: "Models", body: "Calls on the shared Claude CLI and on your own OpenRouter key, then every model used, with the modules whose tasks ran on it." },
             ]}
           />
@@ -354,8 +382,32 @@ export default function UsageClient({ initialReport }: { initialReport: UsageRep
 
                   {/* DAILY CHART */}
                   <h3 className="settings-section-title">{isCostChart ? "Cost per day" : "Calls per day"}</h3>
-                  <div className="card chart-card">
-                    <DailyChart days={report.daily} isCost={isCostChart} />
+                  <div className="chart-with-filter">
+
+                    {/* CHART FILTER */}
+                    <div className="chart-filter" role="group" aria-label="Modules shown in the chart">
+                      {report.modules.map((m) => {
+                        const ModuleIcon = iconMap[m.icon ?? ""] ?? defaultIcon;
+                        const isSelected = chartModules.includes(m.module);
+                        return (
+                          <Button
+                            key={m.module}
+                            type="button"
+                            className={`chart-filter-row ${isAllChartModules || isSelected ? "is-on" : "is-off"}`}
+                            aria-pressed={isSelected}
+                            onClick={() => toggleChartModule(m.module)}
+                          >
+                            <ModuleIcon className="chart-filter-icon" />
+                            <span className="chart-filter-name">{m.name}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    {/* CHART */}
+                    <div className="card chart-card">
+                      <DailyChart days={chartBars} isCost={isCostChart} />
+                    </div>
                   </div>
 
                   {/* MODULE TASK TABLES */}

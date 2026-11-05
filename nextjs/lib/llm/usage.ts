@@ -115,6 +115,12 @@ export interface UsageTotals {
   durationMsAvg: number | null;
 }
 
+// A DayModuleTotals is a day's calls and cost for one module, for the per-day chart's module filter.
+export interface DayModuleTotals {
+  calls: number;
+  costUsd: number;
+}
+
 export interface UsageReport {
   range: UsageRange;
   summary: UsageTotals & { byBackend: Record<LlmBackend, UsageTotals> };
@@ -123,7 +129,7 @@ export interface UsageReport {
   modules: (UsageTotals & { module: LlmTaskGroup; name: string; icon: string | null })[];
   byTask: (UsageTotals & { task: string; module: LlmTaskGroup | null; backend: LlmBackend; model: string })[];
   byModel: (UsageTotals & { backend: LlmBackend; model: string; modules: LlmTaskGroup[] })[];
-  daily: (UsageTotals & { day: string })[];
+  daily: (UsageTotals & { day: string; byModule: Record<LlmTaskGroup, DayModuleTotals> })[];
 }
 
 const EMPTY: UsageTotals = { calls: 0, failed: 0, promptTokens: 0, completionTokens: 0, costUsd: 0, durationMsAvg: null };
@@ -179,6 +185,10 @@ function taskModule(task: string): LlmTaskGroup | null {
   return isLlmTaskId(task) ? taskDef(task).group : null;
 }
 
+function emptyDayModules(): Record<LlmTaskGroup, DayModuleTotals> {
+  return Object.fromEntries(LLM_TASK_GROUPS.map((g) => [g.key, { calls: 0, costUsd: 0 }])) as Record<LlmTaskGroup, DayModuleTotals>;
+}
+
 // Timing is averaged over successful calls only — a failed call's duration is how
 // long it took to fail, which says nothing about the model.
 const TOTALS_SELECT = `
@@ -200,7 +210,7 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
     return r;
   };
 
-  const [byBackend, byTask, byModel, daily, moduleRecords] = await Promise.all([
+  const [byBackend, byTask, byModel, daily, dailyByTask, moduleRecords] = await Promise.all([
     req().query<TotalsRecord & { backend: LlmBackend }>(
       `SELECT backend, ${TOTALS_SELECT} FROM llm_usage ${where} GROUP BY backend`
     ),
@@ -215,6 +225,10 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
     req().query<TotalsRecord & { day: Date }>(
       `SELECT CAST(ts AS DATE) AS day, ${TOTALS_SELECT} FROM llm_usage ${where}
        GROUP BY CAST(ts AS DATE) ORDER BY day`
+    ),
+    req().query<{ day: Date; task: string; calls: number; cost_usd: number | null }>(
+      `SELECT CAST(ts AS DATE) AS day, task, COUNT(*) AS calls, SUM(cost_usd) AS cost_usd FROM llm_usage ${where}
+       GROUP BY CAST(ts AS DATE), task`
     ),
     getAllModules(),
   ]);
@@ -238,12 +252,27 @@ export async function getUsageReport(userId: string, range: UsageRange): Promise
   const modelModules = (backend: LlmBackend, model: string): LlmTaskGroup[] =>
     LLM_TASK_GROUPS.map((g) => g.key).filter((key) => taskRows.some((t) => t.backend === backend && t.model === model && t.module === key));
 
+  // Split each day's calls and cost by module, skipping a task no longer in the registry
+  const dayModules = new Map<string, Record<LlmTaskGroup, DayModuleTotals>>();
+  for (const r of dailyByTask.recordset) {
+    const module = taskModule(r.task);
+    if (!module) continue;
+    const day = new Date(r.day).toISOString().slice(0, 10);
+    const byModule = dayModules.get(day) ?? emptyDayModules();
+    byModule[module].calls += r.calls;
+    byModule[module].costUsd += Number(r.cost_usd ?? 0);
+    dayModules.set(day, byModule);
+  }
+
   return {
     range,
     summary: { ...summary, byBackend: perBackend },
     modules,
     byTask: taskRows,
     byModel: byModel.recordset.map((r) => ({ ...totals(r), backend: r.backend, model: r.model, modules: modelModules(r.backend, r.model) })),
-    daily: daily.recordset.map((r) => ({ ...totals(r), day: new Date(r.day).toISOString().slice(0, 10) })),
+    daily: daily.recordset.map((r) => {
+      const day = new Date(r.day).toISOString().slice(0, 10);
+      return { ...totals(r), day, byModule: dayModules.get(day) ?? emptyDayModules() };
+    }),
   };
 }
