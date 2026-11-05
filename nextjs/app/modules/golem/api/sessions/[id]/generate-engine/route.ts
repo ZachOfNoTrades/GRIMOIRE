@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
-import { logGeneration } from '@/lib/generationLimit';
+import { checkGenerationLimit, logGeneration } from '@/lib/generationLimit';
 import { getWorkoutSessionById } from '../../../../lib/workoutSessionFunctions';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '../../../../lib/segmentFunctions';
 import { generateSessionTargetsWithEngine } from '../../../../lib/engine/generationService';
@@ -17,6 +17,15 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const userId = authSession.user.id;
+
+    // Refuse once the user's generation limit is reached
+    const { allowed, count, limit } = await checkGenerationLimit(userId!, authSession.user);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Generation limit reached (${count}/${limit} in 24h)` },
+        { status: 429 }
+      );
+    }
 
     const { id } = await context.params;
 

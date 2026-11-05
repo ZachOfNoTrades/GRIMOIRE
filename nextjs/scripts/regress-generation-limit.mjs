@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Regression check: a missing or 0 generation limit allows no generations, and only the unlimited flag lifts the limit
+// Regression check: a missing or 0 generation limit allows no generations, only the unlimited flag lifts the limit, and every logged generation is checked against the limit first
 // Usage: node scripts/regress-generation-limit.mjs
-// NOTE: Needs no database or running server; it loads lib/generationLimit.ts with a stand-in database and reads the sign-in sources
-import { readFileSync } from 'node:fs';
+// NOTE: Needs no database or running server; it loads lib/generationLimit.ts with a stand-in database and reads the app's sources
+import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,6 +80,26 @@ for (const relative_path of ['lib/auth.ts', 'lib/apiKeys.ts', 'lib/permissions.t
   const source = readFileSync(join(nextjs_path, relative_path), 'utf8');
   await Check(`${relative_path} has no fallback limit of 1`, async () => !/generation_?[lL]imit \?\? 1\b/.test(source));
 }
+
+// List the TypeScript files under a folder, skipping node_modules
+const ListSources = (relative_dir) => readdirSync(join(nextjs_path, relative_dir), { withFileTypes: true }).flatMap((entry) => {
+  const relative_path = join(relative_dir, entry.name);
+  if (entry.isDirectory()) return entry.name === 'node_modules' ? [] : ListSources(relative_path);
+  return /\.(ts|tsx)$/.test(entry.name) ? [relative_path] : [];
+});
+
+// Confirm each generation is logged only after its own limit check
+const generation_call_pattern = /\b(checkGenerationLimit|logGeneration)\(/g;
+let logged_generation_files = 0;
+for (const relative_path of [...ListSources('app'), ...ListSources('lib')]) {
+  if (relative_path === join('lib', 'generationLimit.ts')) continue;
+  const calls = [...readFileSync(join(nextjs_path, relative_path), 'utf8').matchAll(generation_call_pattern)].map((match) => match[1]);
+  if (!calls.includes('logGeneration')) continue;
+  logged_generation_files++;
+  await Check(`${relative_path} checks the limit before each generation it logs`, async () =>
+    calls.every((name, index) => name !== 'logGeneration' || calls[index - 1] === 'checkGenerationLimit'));
+}
+await Check('the source scan found the files that log generations', async () => logged_generation_files > 0);
 
 if (failures > 0) {
   console.log(`${failures} check(s) failed`);
