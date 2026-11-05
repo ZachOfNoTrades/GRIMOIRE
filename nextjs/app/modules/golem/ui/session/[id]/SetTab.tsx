@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Plus, StickyNote, X, Circle, CircleCheck, EllipsisVertical, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import NumberField from "@/components/ui/NumberField";
 import Modal from "@/components/Modal";
 import PopoverMenu from "@/components/PopoverMenu";
 import { SegmentWithSets } from "../../../types/segment";
@@ -559,18 +560,17 @@ export default function SetTab({
         {!isCardio && (
           <div className="flex flex-col flex-1 min-w-15">
             <label className={`text-secondary ${!isFirstInSection && 'hidden'}`}>Weight</label>
-            <input
+            <NumberField
               id={`${set.id}-weight`}
-              type="number"
-              value={set.weight || ""}
-              onChange={(e) => handleSetFieldChange(set.id, SetField.Weight, e.target.value)}
+              value={set.weight > 0 ? set.weight : null}
+              onValueChange={(next) => handleSetFieldChange(set.id, SetField.Weight, next == null ? "" : String(Math.max(0, next)))}
               className="input-field input-field-compact text-center"
               placeholder={weightPlaceholder}
               onFocus={(e) => e.target.select()}
               onBlur={handleSetFieldBlur}
               onKeyDown={(e) => handleEnterAdvance(e, set.id, SetField.Weight)}
               step="0.5"
-              min="0"
+              min={0}
             />
           </div>
         )}
