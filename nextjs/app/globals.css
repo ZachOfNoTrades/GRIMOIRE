@@ -7892,6 +7892,36 @@ body:has(.quest-cal-page) > .page {
   margin: 1.25rem 0 0.625rem;
 }
 
+/* ========================================
+   SECTION HEADER
+   ======================================== */
+@layer components {
+  .settings-section-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .settings-section-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 480px) {
+    .settings-section-actions {
+      flex-basis: 100%;
+    }
+
+    .settings-section-actions > * {
+      flex: 1 1 auto;
+    }
+  }
+}
+
 /* ============ ROW GROUP (rounded card with dividers) ============ */
 .settings-group {
   background: var(--card-bg);
