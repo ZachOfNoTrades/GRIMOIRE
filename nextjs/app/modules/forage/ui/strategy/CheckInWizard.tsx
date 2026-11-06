@@ -11,6 +11,14 @@ import { useWeightUnit } from "../../utils/useWeightUnit";
 import { MACROS } from "../../utils/nutrientLedger";
 import { nutrientColorForCategory } from "../../utils/nutrientGroups";
 import { NutrientMeter, bandDisplay, fmtNutrient, ProgramTargetMark } from "../nutrition/nutrientMeter";
+import { CheckInHold, CheckInHoldReason } from "../../types/checkInHold";
+
+// Say which minimum the week fell short of
+function checkInHoldText(hold: CheckInHold): string {
+  return hold.reason === CheckInHoldReason.FewLoggedDays
+    ? `Fewer than ${hold.min_logged_days} logged days in the last 7.`
+    : `Fewer than ${hold.min_weigh_ins} weigh-ins in the last 7 days.`;
+}
 
 function todayIso(): string {
   const n = new Date();
@@ -20,7 +28,7 @@ function todayIso(): string {
 interface WeighInStats { weighInsThisWeek: number; hasTodayWeighIn: boolean; minPerWeek: number; needsWeighIn: boolean; }
 interface PartialLogDay { date: string; loggedKcal: number; targetKcal: number; pctOfTarget: number; }
 interface MacroValues { kcal: number; protein_g: number; carbs_g: number; fat_g: number; }
-interface MacroDiff { current: MacroValues | null; proposed: MacroValues; latestWeightLb: number | null; uncappedKcal: number | null; }
+interface MacroDiff { current: MacroValues | null; proposed: MacroValues; latestWeightLb: number | null; uncappedKcal: number | null; hold: CheckInHold | null; }
 interface NutrientOverride { nutrient_id: string; code: string; floor: number | null; target: number | null; ceiling: number | null; }
 // One card of the user's customized dashboard Nutrition section, averaged over
 // the week the check-in covers. `category` is null for the synthetic macro cards.
@@ -336,7 +344,7 @@ export default function CheckInWizard({
           disabled={isConfirming}
           onClick={isLastStep ? handleConfirm : () => setStep((s) => s + 1)}
         >
-          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged)}
+          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged, preview?.macroDiff?.hold != null)}
         </Button>
       );
     }
@@ -348,14 +356,14 @@ export default function CheckInWizard({
           disabled={isConfirming}
           onClick={isLastStep ? handleConfirm : () => setStep((s) => s + 1)}
         >
-          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged)}
+          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged, preview?.macroDiff?.hold != null)}
         </Button>
       );
     }
     if (currentSlide === "nutrients") {
       return (
         <Button className="btn-blue" disabled={isConfirming} onClick={handleConfirm}>
-          {confirmLabel("confirm", isConfirming, macrosChanged)}
+          {confirmLabel("confirm", isConfirming, macrosChanged, preview?.macroDiff?.hold != null)}
         </Button>
       );
     }
@@ -471,6 +479,14 @@ export default function CheckInWizard({
 
               <MacroHero diff={preview.macroDiff} />
 
+              {preview.macroDiff.hold && (
+                /* TARGETS KEPT NOTICE */
+                <div className="alert-yellow">
+                  <p className="alert-title">Targets kept</p>
+                  <p className="alert-text">{checkInHoldText(preview.macroDiff.hold)}</p>
+                </div>
+              )}
+
               {preview.macroDiff.uncappedKcal != null && (
                 /* RATE-LIMITED NOTICE */
                 <div className="alert-blue">
@@ -581,10 +597,12 @@ function DashboardNutrientRow({ card }: { card: DashboardNutrientSummary }) {
 
 // Footer button text. "Checking…" covers the wait on an in-flight preview
 // refresh plus the confirm write; after a recompute moved, the label spells out
-// that the second click is accepting the NEW numbers, not re-sending the old.
-function confirmLabel(kind: "next" | "confirm", isConfirming: boolean, macrosChanged: boolean): string {
+// that the second click is accepting the NEW numbers, not re-sending the old, and a
+// held check-in says it keeps the targets.
+function confirmLabel(kind: "next" | "confirm", isConfirming: boolean, macrosChanged: boolean, isHeld: boolean): string {
   if (isConfirming) return "Checking…";
   if (kind === "next") return "Next";
+  if (isHeld) return "Keep Targets";
   return macrosChanged ? "Apply New Targets" : "Confirm & Apply";
 }
 

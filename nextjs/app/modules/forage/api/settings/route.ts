@@ -6,8 +6,15 @@ import {
   upsertCheckinNotif,
   upsertFavoritesHistoryDays,
   upsertUnloggedBadge,
+  upsertCheckinMinimums,
 } from '../../lib/settingsFunctions';
-import { WeightUnit, FAVORITES_HISTORY_MIN_DAYS, FAVORITES_HISTORY_MAX_DAYS } from '../../types/settings';
+import {
+  WeightUnit,
+  FAVORITES_HISTORY_MIN_DAYS,
+  FAVORITES_HISTORY_MAX_DAYS,
+  CHECKIN_MINIMUM_MIN,
+  CHECKIN_MINIMUM_MAX,
+} from '../../types/settings';
 
 const ALLOWED_UNITS: WeightUnit[] = ['lbs', 'kg'];
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -24,10 +31,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Field-aware PUT: updates whichever settings groups are present in the body. The units
-// page sends { weight_unit }; the check-in reminder page sends { checkin_notif_enabled,
-// checkin_notif_time }; the home-badge page sends { unlogged_badge_enabled,
-// unlogged_badge_time }. Returns the full, normalized settings object.
+// Update the settings groups present in the request body
 export async function PUT(request: NextRequest) {
   const session = await getAuthorizedUser(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -61,6 +65,21 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'unlogged_badge_time must be HH:MM (24h)' }, { status: 400 });
       }
       await upsertUnloggedBadge(session.user.id!, enabled, time);
+    }
+
+    // CHECK-IN MINIMUMS
+    if (body.checkin_min_logged_days !== undefined || body.checkin_min_weigh_ins !== undefined) {
+      const minLoggedDays = Number(body.checkin_min_logged_days);
+      const minWeighIns = Number(body.checkin_min_weigh_ins);
+      const isInRange = (value: number) =>
+        Number.isInteger(value) && value >= CHECKIN_MINIMUM_MIN && value <= CHECKIN_MINIMUM_MAX;
+      if (!isInRange(minLoggedDays) || !isInRange(minWeighIns)) {
+        return NextResponse.json(
+          { error: `checkin_min_logged_days and checkin_min_weigh_ins must be whole numbers from ${CHECKIN_MINIMUM_MIN} to ${CHECKIN_MINIMUM_MAX}` },
+          { status: 400 }
+        );
+      }
+      await upsertCheckinMinimums(session.user.id!, minLoggedDays, minWeighIns);
     }
 
     // FAVORITES HISTORY WINDOW

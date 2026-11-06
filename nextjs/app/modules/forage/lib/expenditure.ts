@@ -78,7 +78,7 @@ export const DAILY_SERIES_DAYS = 14;
 // derived TDEE, so they're dropped from the intake mean and complete-day count.
 // "Partial" is judged per-user: below half the user's median logged day, but
 // never counting a day under an absolute floor as complete regardless.
-const ABS_PARTIAL_FLOOR_KCAL = 800;
+export const ABS_PARTIAL_FLOOR_KCAL = 800;
 const REL_PARTIAL_FRACTION = 0.5;
 
 // Per-horizon data gates. These are deliberately looser than the single-window

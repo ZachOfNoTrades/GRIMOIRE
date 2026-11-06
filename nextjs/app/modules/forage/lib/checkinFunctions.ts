@@ -5,10 +5,14 @@ import { getActiveProgram, markCheckIn } from './programFunctions';
 import { getActiveGoal } from './goalFunctions';
 import { computeTargets, isCheckInDue, todayIsoUtc, todayIsoLocal } from './program';
 import { listWeights, getLatestWeightLb } from './weightFunctions';
-import { estimateExpenditure } from './expenditure';
+import { estimateExpenditure, ABS_PARTIAL_FLOOR_KCAL } from './expenditure';
 import { getActiveTarget, setTargetFromProgram } from './targetFunctions';
 import { getNutrientOverrides, getResolvedNutrientTargets } from './nutrientTargetFunctions';
-import { listEntries, computeTotals, getRangeTotals } from './entryFunctions';
+import { listEntries, computeTotals, getRangeTotals, getNutrientDailySeries } from './entryFunctions';
+import { getSettings } from './settingsFunctions';
+import { findCheckInHold } from './checkInHold';
+import { CheckInHold } from '../types/checkInHold';
+import { DEFAULT_SETTINGS } from '../types/settings';
 import { getDashboardCards } from './dashboardFunctions';
 import { listNutrients } from './nutrientFunctions';
 import { MACROS } from '../utils/nutrientLedger';
@@ -24,12 +28,6 @@ function shiftDate(iso: string, deltaDays: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
 }
 
-// How many of the trailing 7 days need a weigh-in before the wizard stops
-// prompting for one. The estimator regresses a weight trend over the week, so
-// what it actually needs is enough points across the week — a single reading
-// on the check-in day itself tells it nothing about the trend.
-export const MIN_WEIGH_INS_PER_WEEK = 3;
-
 export interface WeighInStats {
   weighInsThisWeek: number;
   hasTodayWeighIn: boolean;
@@ -37,24 +35,17 @@ export interface WeighInStats {
   needsWeighIn: boolean;
 }
 
-// Distinct weigh-in days in the trailing 7 days (today included), and whether
-// today specifically has one. weight_log is unique per (user_id, log_date), so
-// a plain count of rows in range is the distinct-day count.
-//
-// `needsWeighIn` is the prompt rule itself, decided here rather than in the
-// wizard: it keys off the WEEK's coverage, never off "is today covered". Those
-// disagree in both directions — six weigh-ins Mon–Sat but none on check-in day
-// used to nag about data it already had, while a lone same-day weigh-in
-// silenced the prompt on an otherwise empty week.
-export async function getWeighInStats(userId: string, todayIso: string): Promise<WeighInStats> {
+// Count the weigh-ins of the trailing 7 days, today included, and flag the week as needing one when it has fewer than minPerWeek
+// NOTE: weight_log is unique per (user_id, log_date), so its row count is the count of weigh-in days
+export async function getWeighInStats(userId: string, todayIso: string, minPerWeek: number): Promise<WeighInStats> {
   const sinceIso = shiftDate(todayIso, -6);
   const weights = await listWeights(userId, sinceIso);
   const weighInsThisWeek = weights.length;
   return {
     weighInsThisWeek,
     hasTodayWeighIn: weights.some((w) => w.log_date === todayIso),
-    minPerWeek: MIN_WEIGH_INS_PER_WEEK,
-    needsWeighIn: weighInsThisWeek < MIN_WEIGH_INS_PER_WEEK,
+    minPerWeek,
+    needsWeighIn: weighInsThisWeek < minPerWeek,
   };
 }
 
@@ -112,6 +103,8 @@ export interface MacroDiff {
   // deliberate partial step toward `uncappedKcal`, which the wizard says out
   // loud rather than leaving the user to wonder why the number stopped short.
   uncappedKcal: number | null;
+  // Set when the week has too little data to change the targets and a current target exists, so `proposed` repeats `current`
+  hold: CheckInHold | null;
 }
 
 // Whether two macro sets are the same number-for-number — the check that keeps
@@ -125,13 +118,35 @@ function sameMacros(a: MacroValues, b: MacroValues): boolean {
   );
 }
 
-// current vs. what a recompute would produce right now — the same input
-// assembly seedInitialTargets/the old runRecompute used.
+// Count the complete logged days in the 7 fully-elapsed days before todayIso
+// NOTE: A day counts from the expenditure estimator's absolute calorie floor, to avoid counting a day of drinks only
+async function countCompleteLoggedDays(userId: string, todayIso: string): Promise<number> {
+  const series = await getNutrientDailySeries(userId, 'kcal', shiftDate(todayIso, -7), shiftDate(todayIso, -1));
+  return series.filter((day) => day.value >= ABS_PARTIAL_FLOOR_KCAL).length;
+}
+
+// Compare the current targets with what a recompute proposes now, keeping them when the week falls short of the user's minimums
 export async function computeMacroDiff(userId: string, program: Program, goal: Goal): Promise<MacroDiff> {
-  const [current, latestWeightLb] = await Promise.all([
+  const todayLocal = todayIsoLocal();
+  const [current, latestWeightLb, settings, loggedDays, weighIns] = await Promise.all([
     getActiveTarget(userId),
     getLatestWeightLb(userId),
+    getSettings(userId),
+    countCompleteLoggedDays(userId, todayLocal),
+    listWeights(userId, shiftDate(todayLocal, -6)),
   ]);
+  const currentValues = current
+    ? { kcal: current.kcal, protein_g: current.protein_g, carbs_g: current.carbs_g, fat_g: current.fat_g }
+    : null;
+
+  // Keep the current targets when the week falls short of the user's minimums; with no target yet, compute one anyway
+  const hold = findCheckInHold(
+    { logged_days: loggedDays, weigh_ins: weighIns.length },
+    { min_logged_days: settings.checkin_min_logged_days, min_weigh_ins: settings.checkin_min_weigh_ins },
+  );
+  if (hold && currentValues) {
+    return { current: currentValues, proposed: currentValues, latestWeightLb, uncappedKcal: null, hold };
+  }
 
   // Re-estimate expenditure from the trailing window's intake + weight trend so
   // each check-in adapts to demonstrated energy balance, not just bodyweight
@@ -163,10 +178,11 @@ export async function computeMacroDiff(userId: string, program: Program, goal: G
   const uncapped = computeTargets(computeInput);
 
   return {
-    current: current ? { kcal: current.kcal, protein_g: current.protein_g, carbs_g: current.carbs_g, fat_g: current.fat_g } : null,
+    current: currentValues,
     proposed: { kcal: proposed.kcal, protein_g: proposed.protein_g, carbs_g: proposed.carbs_g, fat_g: proposed.fat_g },
     latestWeightLb,
     uncappedKcal: uncapped.kcal === proposed.kcal ? null : uncapped.kcal,
+    hold: null,
   };
 }
 
@@ -296,7 +312,7 @@ export interface CheckInPreview {
 
 // Only ever paired with eligible:false, where the wizard renders a message
 // instead of slides — so needsWeighIn stays false rather than implying a prompt.
-const EMPTY_WEIGH_INS: WeighInStats = { weighInsThisWeek: 0, hasTodayWeighIn: false, minPerWeek: MIN_WEIGH_INS_PER_WEEK, needsWeighIn: false };
+const EMPTY_WEIGH_INS: WeighInStats = { weighInsThisWeek: 0, hasTodayWeighIn: false, minPerWeek: DEFAULT_SETTINGS.checkin_min_weigh_ins, needsWeighIn: false };
 
 // Likewise never rendered — an empty card list is what keeps the review slide
 // out of the deck, so the dates don't need to describe a real window.
@@ -323,8 +339,9 @@ export async function assembleCheckInPreview(userId: string): Promise<CheckInPre
 
   // Local, not UTC — weigh-ins/food entries are dated by local calendar day.
   const todayLocal = todayIsoLocal();
+  const settings = await getSettings(userId);
   const [weighIns, partialLogDays, macroDiff, dashboardNutrients, nutrientOverrides] = await Promise.all([
-    getWeighInStats(userId, todayLocal),
+    getWeighInStats(userId, todayLocal, settings.checkin_min_weigh_ins),
     findPartialLogDays(userId, todayLocal),
     computeMacroDiff(userId, program, goal),
     buildDashboardNutrientReview(userId, todayLocal),
@@ -355,22 +372,10 @@ export interface ApplyCheckInResult {
   proposed?: MacroValues;
 }
 
-// The explicit "confirm" action — replaces the old silent GET-triggered
-// runRecompute(userId, false). Re-does the same gating as
-// assembleCheckInPreview as defense-in-depth against a stale client (e.g. a
-// second tab, or the wizard sitting open past midnight).
-//
-// `expected` is the macro set the wizard actually showed the user on its diff
-// slide. Because this recomputes from scratch rather than applying whatever the
-// preview returned, the two can disagree whenever the inputs moved in between —
-// the common case being a weigh-in logged mid-wizard, which shifts both the
-// bodyweight terms and the expenditure estimate. That silently wrote a target
-// the user never agreed to (the slide reading 2,600 while the check-in stored
-// 2,300). So: when the caller says what it showed and a fresh compute disagrees,
-// refuse and hand back the new numbers instead of applying either one. Callers
-// that pass nothing (scripts, older clients) keep the old recompute-and-apply
-// behavior. Note we never apply `expected` itself — it's a client-supplied
-// value used only as a comparison, so this can't be used to set arbitrary targets.
+// Complete a due check-in, writing the proposed targets unless the week falls short of the user's minimums
+// NOTE: `expected` is the macro set the wizard showed. When a fresh recompute disagrees, such as after a weigh-in logged
+//       mid-wizard, nothing is written and the recomputed numbers are returned with `stale_preview`. `expected` is only compared,
+//       never written, to avoid a client setting its own targets
 export async function applyCheckIn(
   userId: string,
   expected?: MacroValues | null,
@@ -387,12 +392,18 @@ export async function applyCheckIn(
     return { applied: false, reason: 'not_due' };
   }
 
-  const [previous, { proposed }] = await Promise.all([
+  const [previous, { proposed, hold }] = await Promise.all([
     getActiveTarget(userId),
     computeMacroDiff(userId, program, goal),
   ]);
   if (expected && !sameMacros(expected, proposed)) {
     return { applied: false, reason: 'stale_preview', proposed };
+  }
+
+  // Complete a held check-in without writing a target, as it keeps the current one
+  if (hold && previous) {
+    await markCheckIn(program.id, today);
+    return { applied: true, target: previous, previous };
   }
   const target = await setTargetFromProgram(userId, proposed);
   await markCheckIn(program.id, today);

@@ -8161,6 +8161,12 @@ body:has(.quest-cal-page) > .page {
   flex: 0 0 auto;
 }
 
+.input-field.settings-number-input {
+  width: 5rem;
+  min-width: 0;
+  text-align: right;
+}
+
 /* Narrow phones: "Automatic | Light | Dark" plus its label doesn't fit on one
    line, so stack — label above, control full width — rather than letting the
    pills squeeze to unreadable widths. */
@@ -8172,6 +8178,10 @@ body:has(.quest-cal-page) > .page {
   }
 
   .settings-control-slot {
+    width: 100%;
+  }
+
+  .input-field.settings-number-input {
     width: 100%;
   }
 }

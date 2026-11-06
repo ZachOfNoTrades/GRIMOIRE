@@ -50,7 +50,7 @@ export default function ForageSettingsPage() {
   const notificationRows: SettingsRow[] = [
     {
       icon: Bell,
-      label: "Check-in reminders",
+      label: "Check-in",
       onClick: () => router.push("/modules/forage/ui/settings/check-in"),
     },
   ];

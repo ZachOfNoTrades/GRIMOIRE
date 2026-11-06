@@ -6,6 +6,8 @@ import {
   DEFAULT_SETTINGS,
   FAVORITES_HISTORY_MIN_DAYS,
   FAVORITES_HISTORY_MAX_DAYS,
+  CHECKIN_MINIMUM_MIN,
+  CHECKIN_MINIMUM_MAX,
 } from '../types/settings';
 
 const ALLOWED_UNITS: WeightUnit[] = ['lbs', 'kg'];
@@ -17,7 +19,9 @@ const SETTINGS_SELECT = `SELECT user_id, weight_unit,
         CONVERT(VARCHAR(10), checkin_notif_last_sent_date, 23) AS checkin_notif_last_sent_date,
         favorites_history_days,
         unlogged_badge_enabled,
-        CONVERT(VARCHAR(5), unlogged_badge_time, 108) AS unlogged_badge_time
+        CONVERT(VARCHAR(5), unlogged_badge_time, 108) AS unlogged_badge_time,
+        checkin_min_logged_days,
+        checkin_min_weigh_ins
    FROM forage_user_settings`;
 
 interface SettingsRow {
@@ -29,6 +33,8 @@ interface SettingsRow {
   favorites_history_days: number | null;
   unlogged_badge_enabled: boolean | null;
   unlogged_badge_time: string | null;
+  checkin_min_logged_days: number | null;
+  checkin_min_weigh_ins: number | null;
 }
 
 function mapSettings(r: SettingsRow): ForageUserSettings {
@@ -44,6 +50,8 @@ function mapSettings(r: SettingsRow): ForageUserSettings {
         ? DEFAULT_SETTINGS.unlogged_badge_enabled
         : Boolean(r.unlogged_badge_enabled),
     unlogged_badge_time: (r.unlogged_badge_time ?? DEFAULT_SETTINGS.unlogged_badge_time).slice(0, 5),
+    checkin_min_logged_days: r.checkin_min_logged_days ?? DEFAULT_SETTINGS.checkin_min_logged_days,
+    checkin_min_weigh_ins: r.checkin_min_weigh_ins ?? DEFAULT_SETTINGS.checkin_min_weigh_ins,
   };
 }
 
@@ -116,6 +124,41 @@ export async function upsertFavoritesHistoryDays(
            ON tgt.user_id = src.user_id
          WHEN MATCHED THEN UPDATE SET favorites_history_days = @days, ts_updated = SYSUTCDATETIME()
          WHEN NOT MATCHED THEN INSERT (user_id, favorites_history_days) VALUES (@userId, @days);`
+      );
+    return getSettings(userId);
+  } finally {
+    if (pool) await closeFoodConnection(pool);
+  }
+}
+
+// Persist the logged days and weigh-ins a check-in needs before it changes the targets
+export async function upsertCheckinMinimums(
+  userId: string,
+  minLoggedDays: number,
+  minWeighIns: number,
+): Promise<ForageUserSettings> {
+  for (const value of [minLoggedDays, minWeighIns]) {
+    if (!Number.isInteger(value) || value < CHECKIN_MINIMUM_MIN || value > CHECKIN_MINIMUM_MAX) {
+      throw new Error(`Invalid check-in minimum: '${value}'`);
+    }
+  }
+  let pool;
+  try {
+    pool = await getFoodConnection();
+    await pool
+      .request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .input('minLoggedDays', sql.Int, minLoggedDays)
+      .input('minWeighIns', sql.Int, minWeighIns)
+      .query(
+        `MERGE forage_user_settings AS tgt
+         USING (SELECT @userId AS user_id) AS src
+           ON tgt.user_id = src.user_id
+         WHEN MATCHED THEN UPDATE SET checkin_min_logged_days = @minLoggedDays,
+                                      checkin_min_weigh_ins = @minWeighIns,
+                                      ts_updated = SYSUTCDATETIME()
+         WHEN NOT MATCHED THEN INSERT (user_id, checkin_min_logged_days, checkin_min_weigh_ins)
+                               VALUES (@userId, @minLoggedDays, @minWeighIns);`
       );
     return getSettings(userId);
   } finally {
