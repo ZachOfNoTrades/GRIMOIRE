@@ -81,11 +81,13 @@ export default function ForageCheckinRemindersPage() {
 
   // Save the drafted minimums when a field is left, one request at a time
   async function saveMinimums() {
-    if (isSavingMinimums.current) { // Save again once the request in flight returns
+    if (isSavingMinimums.current) { // Mark a save as pending while one is in flight
       hasPendingMinimums.current = true;
       return;
     }
-    const { minLoggedDays: nextMinLoggedDays, minWeighIns: nextMinWeighIns } = draftMinimums.current; // NOTE: Read from a ref, as NumberField reports the settled value just before its blur handler runs
+    // Read the drafts from a ref
+    // NOTE: NumberField reports the settled value just before its blur handler runs, so state still holds the old draft
+    const { minLoggedDays: nextMinLoggedDays, minWeighIns: nextMinWeighIns } = draftMinimums.current;
     const saved = savedMinimums.current;
     if (nextMinLoggedDays === null || nextMinWeighIns === null) return restoreSavedMinimums();
     if (nextMinLoggedDays === saved.minLoggedDays && nextMinWeighIns === saved.minWeighIns) return;
@@ -105,7 +107,7 @@ export default function ForageCheckinRemindersPage() {
     } finally {
       isSavingMinimums.current = false;
     }
-    if (hasPendingMinimums.current) {
+    if (hasPendingMinimums.current) { // Save again once the request in flight returns
       hasPendingMinimums.current = false;
       await saveMinimums();
     }
