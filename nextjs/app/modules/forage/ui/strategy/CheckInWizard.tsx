@@ -261,25 +261,12 @@ export default function CheckInWizard({
     router.push(`/modules/forage/ui/diary?date=${date}`);
   }
 
-  // AWAITS the confirm write before closing and signaling completion. The write
-  // is what stamps last_checkin_date; if we let the host refresh() fire first
-  // (as the old fire-and-forget did), its read-only GET /api/program races ahead
-  // of the write and comes back still "due", leaving the strategy ring on
-  // "CHECK IN" and the tab due-dot lit after a completed check-in. Refreshing
-  // only once the write lands clears both.
-  //
-  // Staying open until the write answers is also what lets a moved recompute be
-  // re-shown instead of silently applied — a wizard that has already closed has
-  // nowhere to put "actually, it's 2,300 now". Two guards, because the numbers
-  // can move either side of the request:
-  //   • before — a mid-wizard weigh-in's refresh may still be in flight, so wait
-  //     it out and compare against what was actually on screen at click time
-  //   • after — the server recomputes independently and rejects with
-  //     'stale_preview' if its answer no longer matches what we displayed
-  // Either way the user lands back on the macro slide with the new numbers and
-  // confirms deliberately. The button is disabled meanwhile so the wait can't
-  // read as an unresponsive tap.
-  async function handleConfirm() {
+  // Complete the check-in, then close the wizard and refresh the page
+  // NOTE: Waits for the write before refreshing, as the page reads the check-in as still due until the write lands
+  // 1. Wait out a weigh-in refresh in flight, and go back to the macro slide when it moved the numbers
+  // 2. Send the confirm, and go back to the macro slide when the server answers `stale_preview`
+  // 3. Keeping the current targets skips the comparison in step 1, as no new numbers are written
+  async function handleConfirm(isKeepingCurrent = false) {
     const shown = preview?.macroDiff?.proposed ?? null;
     setIsConfirming(true);
     try {
@@ -287,7 +274,7 @@ export default function CheckInWizard({
       pendingRefresh.current = null;
       const latest = refreshed?.macroDiff?.proposed ?? shown;
 
-      if (shown && latest && !sameMacros(shown, latest)) {
+      if (!isKeepingCurrent && shown && latest && !sameMacros(shown, latest)) {
         showChangedMacros();
         return;
       }
@@ -295,7 +282,7 @@ export default function CheckInWizard({
       const res = await fetch("/modules/forage/api/checkin/confirm", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ expected: latest }),
+        body: JSON.stringify({ expected: latest, keep_current: isKeepingCurrent }),
       });
       if (res.status === 409) {
         const body = await res.json().catch(() => null);
@@ -324,6 +311,22 @@ export default function CheckInWizard({
     if (macroStep >= 0) setStep(macroStep);
   }
 
+  // Offer to keep the current targets when the check-in would change them
+  const diff = preview?.macroDiff ?? null;
+  const isKeepOffered = diff != null && diff.current != null && diff.hold == null && !sameMacros(diff.current, diff.proposed);
+  const isHeld = diff?.hold != null;
+
+  // Put Keep Current at the left of a footer's main button when it is offered
+  const withKeepCurrent = (primary: React.ReactNode) => !isKeepOffered ? primary : (
+    <div className="s-checkin-wizard-footer-row s-checkin-wizard-footer-split">
+
+      {/* KEEP CURRENT */}
+      <Button className="btn-outline" disabled={isConfirming} onClick={() => handleConfirm(true)}>Keep Current</Button>
+
+      {primary}
+    </div>
+  );
+
   const footer = (() => {
     if (isLoadingPreview || previewError || !preview?.eligible) return null;
     if (currentSlide === "weighIn") {
@@ -338,34 +341,34 @@ export default function CheckInWizard({
       return <Button className="btn-blue" onClick={() => setStep((s) => s + 1)}>Next</Button>;
     }
     if (currentSlide === "macros") {
-      return (
+      return withKeepCurrent((
         <Button
           className="btn-blue"
           disabled={isConfirming}
-          onClick={isLastStep ? handleConfirm : () => setStep((s) => s + 1)}
+          onClick={isLastStep ? () => handleConfirm() : () => setStep((s) => s + 1)}
         >
-          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged, preview?.macroDiff?.hold != null)}
+          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged, isHeld, isKeepOffered)}
         </Button>
-      );
+      ));
     }
     // Review-only slides — advance, or confirm when nothing follows them.
     if (currentSlide === "dashboardNutrients") {
-      return (
+      return withKeepCurrent((
         <Button
           className="btn-blue"
           disabled={isConfirming}
-          onClick={isLastStep ? handleConfirm : () => setStep((s) => s + 1)}
+          onClick={isLastStep ? () => handleConfirm() : () => setStep((s) => s + 1)}
         >
-          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged, preview?.macroDiff?.hold != null)}
+          {confirmLabel(isLastStep ? "confirm" : "next", isConfirming, macrosChanged, isHeld, isKeepOffered)}
         </Button>
-      );
+      ));
     }
     if (currentSlide === "nutrients") {
-      return (
-        <Button className="btn-blue" disabled={isConfirming} onClick={handleConfirm}>
-          {confirmLabel("confirm", isConfirming, macrosChanged, preview?.macroDiff?.hold != null)}
+      return withKeepCurrent((
+        <Button className="btn-blue" disabled={isConfirming} onClick={() => handleConfirm()}>
+          {confirmLabel("confirm", isConfirming, macrosChanged, isHeld, isKeepOffered)}
         </Button>
-      );
+      ));
     }
     return null;
   })();
@@ -464,7 +467,7 @@ export default function CheckInWizard({
                   <p className="alert-title">These numbers just changed</p>
                   <p className="alert-text">
                     Your new weigh-in shifted the recompute. These are the targets that will actually
-                    be applied — confirm to accept them.
+                    be applied.
                   </p>
                 </div>
               )}
@@ -595,14 +598,18 @@ function DashboardNutrientRow({ card }: { card: DashboardNutrientSummary }) {
   );
 }
 
-// Footer button text. "Checking…" covers the wait on an in-flight preview
-// refresh plus the confirm write; after a recompute moved, the label spells out
-// that the second click is accepting the NEW numbers, not re-sending the old, and a
-// held check-in says it keeps the targets.
-function confirmLabel(kind: "next" | "confirm", isConfirming: boolean, macrosChanged: boolean, isHeld: boolean): string {
+// Name the footer button for the wizard's state
+// 1. "Checking…" while a preview refresh or the confirm write is in flight
+// 2. "Next" on a slide that is not the last
+// 3. "Keep Targets" when the week falls short of the user's minimums
+// 4. "Apply New" beside Keep Current
+// 5. "Apply New Targets" after a recompute moved, when Keep Current is not offered
+// 6. "Confirm & Apply" otherwise
+function confirmLabel(kind: "next" | "confirm", isConfirming: boolean, macrosChanged: boolean, isHeld: boolean, isKeepOffered: boolean): string {
   if (isConfirming) return "Checking…";
   if (kind === "next") return "Next";
   if (isHeld) return "Keep Targets";
+  if (isKeepOffered) return "Apply New";
   return macrosChanged ? "Apply New Targets" : "Confirm & Apply";
 }
 

@@ -372,13 +372,14 @@ export interface ApplyCheckInResult {
   proposed?: MacroValues;
 }
 
-// Complete a due check-in, writing the proposed targets unless the week falls short of the user's minimums
+// Complete a due check-in, writing the proposed targets unless the week falls short of the user's minimums or the user keeps the current ones
 // NOTE: `expected` is the macro set the wizard showed. When a fresh recompute disagrees, such as after a weigh-in logged
-//       mid-wizard, nothing is written and the recomputed numbers are returned with `stale_preview`. `expected` is only compared,
-//       never written, to avoid a client setting its own targets
+//       mid-wizard, nothing is written and the recomputed numbers are returned with `stale_preview`; keeping the current
+//       targets skips this check. `expected` is only compared, never written, to avoid a client setting its own targets
 export async function applyCheckIn(
   userId: string,
   expected?: MacroValues | null,
+  isKeepingCurrent = false,
 ): Promise<ApplyCheckInResult> {
   const program = await getActiveProgram(userId);
   if (!program) return { applied: false, reason: 'no_program' };
@@ -396,12 +397,12 @@ export async function applyCheckIn(
     getActiveTarget(userId),
     computeMacroDiff(userId, program, goal),
   ]);
-  if (expected && !sameMacros(expected, proposed)) {
+  if (expected && !isKeepingCurrent && !sameMacros(expected, proposed)) {
     return { applied: false, reason: 'stale_preview', proposed };
   }
 
-  // Complete a held check-in without writing a target, as it keeps the current one
-  if (hold && previous) {
+  // Complete a held or declined check-in without writing a target, as it keeps the current one
+  if ((hold || isKeepingCurrent) && previous) {
     await markCheckIn(program.id, today);
     return { applied: true, target: previous, previous };
   }

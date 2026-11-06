@@ -1945,6 +1945,16 @@ input[type="search"]::-webkit-search-results-decoration {
   background: var(--btn-off-hover);
 }
 
+.btn-outline {
+  background: var(--btn-off-bg);
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--btn-off-hover);
+}
+
 /* Pill trigger — rounded chip used for inline selectors (e.g. location). */
 .btn-pill {
   background: var(--btn-off-bg);

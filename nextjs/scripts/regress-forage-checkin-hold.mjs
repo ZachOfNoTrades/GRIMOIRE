@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regression check: a Forage check-in keeps the current targets when the last 7 days have fewer logged days or weigh-ins than the user's minimums, and both minimums are user settings with defaults
+// Regression check: a Forage check-in keeps the current targets when the last 7 days have fewer logged days or weigh-ins than the user's minimums or the user keeps them, and both minimums are user settings with defaults
 // Usage: node scripts/regress-forage-checkin-hold.mjs
 // NOTE: Needs no database or running server; it loads lib/checkInHold.ts and reads the app's sources
 import { existsSync, readFileSync } from 'node:fs';
@@ -73,7 +73,9 @@ Check('the settings default to 4 logged days and 3 weigh-ins', () =>
 Check('the check-in reads the minimums from the user settings', () =>
   checkin_source.includes('settings.checkin_min_logged_days') && checkin_source.includes('settings.checkin_min_weigh_ins'));
 Check('the check-in has no fixed weigh-in minimum', () => !checkin_source.includes('MIN_WEIGH_INS_PER_WEEK'));
-Check('a held check-in writes no target', () => /if \(hold && previous\)[\s\S]{0,200}markCheckIn[\s\S]{0,120}return \{ applied: true, target: previous/.test(checkin_source));
+Check('a held check-in writes no target', () => /if \(\(hold \|\| isKeepingCurrent\) && previous\)[\s\S]{0,200}markCheckIn[\s\S]{0,120}return \{ applied: true, target: previous/.test(checkin_source));
+Check('a declined check-in skips the stale preview check', () => checkin_source.includes('expected && !isKeepingCurrent && !sameMacros'));
+Check('the confirm route reads keep_current', () => read_source(join(forage_path, 'api/checkin/confirm/route.ts')).includes('keep_current === true'));
 Check('a migration adds both setting columns', () => {
   const migration = read_source(join(nextjs_path, '../sql/migrations/food/V3__add_checkin_hold_minimums.sql'));
   return migration.includes('checkin_min_logged_days') && migration.includes('checkin_min_weigh_ins');

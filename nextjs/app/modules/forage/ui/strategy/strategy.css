@@ -286,6 +286,15 @@
   gap: 0.75rem;
 }
 
+.s-checkin-wizard-footer-split {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.s-checkin-wizard-footer-split .btn {
+  white-space: nowrap;
+}
+
 .s-checkin-wizard-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .s-checkin-wizard-row {
   display: flex;
