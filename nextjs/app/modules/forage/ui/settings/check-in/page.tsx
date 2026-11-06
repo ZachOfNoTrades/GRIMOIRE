@@ -21,6 +21,7 @@ export default function ForageCheckinRemindersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isMinimumsLoaded, setIsMinimumsLoaded] = useState(false);
   const isSavingMinimums = useRef(false);
   const hasPendingMinimums = useRef(false);
   const savedMinimums = useRef({ minLoggedDays: DEFAULT_SETTINGS.checkin_min_logged_days, minWeighIns: DEFAULT_SETTINGS.checkin_min_weigh_ins });
@@ -37,6 +38,7 @@ export default function ForageCheckinRemindersPage() {
           draftMinimums.current = { ...savedMinimums.current };
           setMinLoggedDays(s.checkin_min_logged_days);
           setMinWeighIns(s.checkin_min_weigh_ins);
+          setIsMinimumsLoaded(true);
         }
       })
       .catch(() => {})
@@ -211,6 +213,7 @@ export default function ForageCheckinRemindersPage() {
                   integer
                   value={minLoggedDays}
                   onValueChange={(next) => { draftMinimums.current.minLoggedDays = next; setMinLoggedDays(next); }}
+                  disabled={!isMinimumsLoaded} // Keep off until the saved minimums load, to avoid saving defaults over them
                   onBlur={saveMinimums}
                 />
               </SettingsControlRow>
@@ -227,6 +230,7 @@ export default function ForageCheckinRemindersPage() {
                   integer
                   value={minWeighIns}
                   onValueChange={(next) => { draftMinimums.current.minWeighIns = next; setMinWeighIns(next); }}
+                  disabled={!isMinimumsLoaded}
                   onBlur={saveMinimums}
                 />
               </SettingsControlRow>

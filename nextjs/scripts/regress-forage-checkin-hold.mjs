@@ -76,6 +76,9 @@ Check('the check-in has no fixed weigh-in minimum', () => !checkin_source.includ
 Check('a held check-in writes no target', () => /if \(\(hold \|\| isKeepingCurrent\) && previous\)[\s\S]{0,200}markCheckIn[\s\S]{0,120}return \{ applied: true, target: previous/.test(checkin_source));
 Check('a declined check-in skips the stale preview check', () => checkin_source.includes('expected && !isKeepingCurrent && !sameMacros'));
 Check('the confirm route reads keep_current', () => read_source(join(forage_path, 'api/checkin/confirm/route.ts')).includes('keep_current === true'));
+const settings_page = read_source(join(forage_path, 'ui/settings/check-in/page.tsx'));
+Check('the minimum fields stay off until the settings load', () =>
+  (settings_page.match(/disabled=\{!isMinimumsLoaded\}/g) ?? []).length === 2 && settings_page.includes('setIsMinimumsLoaded(true)'));
 Check('a migration adds both setting columns', () => {
   const migration = read_source(join(nextjs_path, '../sql/migrations/food/V3__add_checkin_hold_minimums.sql'));
   return migration.includes('checkin_min_logged_days') && migration.includes('checkin_min_weigh_ins');
