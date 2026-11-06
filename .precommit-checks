@@ -6,4 +6,5 @@ cd nextjs && node scripts/regress-usage-failed-load.mjs
 cd nextjs && node scripts/regress-usage-local-cost.mjs
 cd nextjs && node scripts/regress-generation-limit.mjs
 cd nextjs && node scripts/regress-golem-session-confirms.mjs
+cd nextjs && node scripts/regress-settings-leave-midload.mjs
 sql/flyway/check.sh

@@ -35,6 +35,7 @@ jobs:
       - run: node scripts/regress-usage-local-cost.mjs
       - run: node scripts/regress-generation-limit.mjs
       - run: node scripts/regress-golem-session-confirms.mjs
+      - run: node scripts/regress-settings-leave-midload.mjs
       - run: npm run build
 
   migrations:
