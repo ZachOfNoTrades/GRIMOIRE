@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { startPageLoad } from "@/lib/pageLoad";
 
 // Shows how — or whether — this user's notification emails can actually be delivered, and offers
 // the one-click fix when they can't. Every notification toggle in the app promises an email, so
@@ -27,11 +28,17 @@ export function EmailDeliveryStatus() {
   // STATE
   const [isConnecting, setIsConnecting] = useState(false);
 
+  // Load the delivery status, dropping an answer that arrives after unmount
   useEffect(() => {
-    fetch("/api/email/status")
+    const pageLoad = startPageLoad();
+    fetch("/api/email/status", { signal: pageLoad.signal })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: EmailDeliveryStatusResponse | null) => setStatus(data))
-      .catch(() => {});
+      .then((data: EmailDeliveryStatusResponse | null) => {
+        if (!pageLoad.signal.aborted) setStatus(data);
+      })
+      .catch(() => {})
+      .finally(pageLoad.finish);
+    return pageLoad.stop;
   }, []);
 
   // Nothing to say until the status is known — a settings page shouldn't flash a warning that

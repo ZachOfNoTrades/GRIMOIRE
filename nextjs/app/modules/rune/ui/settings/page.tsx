@@ -12,6 +12,7 @@ import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { usageHref } from "@/lib/usageChartModules";
 import { useUnsavedWarning } from "@/lib/useUnsavedWarning";
+import { startPageLoad } from "@/lib/pageLoad";
 import {
   DEFAULT_DIGEST_ENABLED,
   DEFAULT_DIGEST_TIME,
@@ -105,16 +106,17 @@ export default function RuneSettingsPage() {
     setSavedSettings(settings);
   }
 
+  // Load the saved settings, ignoring the answer or failure of a load stopped by leaving the page
   useEffect(() => {
-    let cancelled = false;
+    const pageLoad = startPageLoad();
     async function load() {
       try {
-        const res = await fetch("/modules/rune/api/settings");
+        const res = await fetch("/modules/rune/api/settings", { signal: pageLoad.signal });
         if (!res.ok) {
           throw new Error(`Failed to load settings (${res.status})`);
         }
         const data = await res.json();
-        if (cancelled) return;
+        if (pageLoad.signal.aborted) return;
         applySavedSettings({
           digestEnabled: Boolean(data.digestEnabled),
           digestTime:
@@ -131,17 +133,18 @@ export default function RuneSettingsPage() {
         });
         setDigestLastSentDate(typeof data.digestLastSentDate === "string" ? data.digestLastSentDate : null);
         setDefaultEvaluationPersonalityPrompt(typeof data.defaultEvaluationPersonalityPrompt === "string" ? data.defaultEvaluationPersonalityPrompt : "");
+        setLoading(false);
       } catch (e) {
+        if (pageLoad.isStopped()) return; // Ignore a load stopped by leaving the page
         console.error(e);
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load settings");
+        setError(e instanceof Error ? e.message : "Failed to load settings");
+        setLoading(false);
       } finally {
-        if (!cancelled) setLoading(false);
+        pageLoad.finish();
       }
     }
     load();
-    return () => {
-      cancelled = true;
-    };
+    return pageLoad.stop;
   }, []);
 
   async function saveSettings() {

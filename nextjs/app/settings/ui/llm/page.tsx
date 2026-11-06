@@ -472,10 +472,16 @@ export default function LlmSettingsPage() {
             </div>
 
             {/* TASKS */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "1.5rem" }}>
+            <div className="settings-section-header">
+
+              {/* TASKS TITLE */}
               <h2 className="settings-section-title" style={{ flex: 1, margin: 0 }}>Tasks</h2>
-              <Button className="btn-off" onClick={() => setAll("claude")}>All Claude</Button>
-              <Button className="btn-off" onClick={() => setAll("openrouter")}>All OpenRouter</Button>
+
+              {/* SET ALL BUTTONS */}
+              <div className="settings-section-actions">
+                <Button className="btn-off" onClick={() => setAll("claude")}>All Claude</Button>
+                <Button className="btn-off" onClick={() => setAll("openrouter")}>All OpenRouter</Button>
+              </div>
             </div>
 
             {/* SEARCH — filters tasks by task or module name */}
