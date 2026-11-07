@@ -30,7 +30,7 @@ pane). The two are intentionally not merged.
   Stacks label-above-control under 480px. Reference: the Theme page
   (`app/settings/ui/theme`).
 
-- `SettingsSaveBar` (`SettingsSaveBar.tsx`) — a bottom action bar holding Save, right-aligned with the page content. For a page with an explicit Save: wrap the page in `.page-with-bottom-bar` > `.page-scroll` > `.page-container` and render the bar last. Keep Save disabled until the form differs from its last saved values.
+- `SaveBar` (`components/ui/SaveBar.tsx`) — a bottom action bar holding Save, right-aligned with the page content, with Cancel before it when `onCancel` is given. For a page with an explicit Save: wrap the page in `.page-with-bottom-bar` > `.page-scroll` > `.page-container` and render the bar last. Keep Save disabled until the form differs from its last saved values.
 
 The row components above are meant to sit inside a `.settings-group` card (except
 `SettingsGroup`, which renders its own). Use `.settings-section-title` for a

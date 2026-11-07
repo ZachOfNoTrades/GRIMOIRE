@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
-import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar";
+import { SaveBar } from "@/components/ui/SaveBar";
 import { useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import { Difficulty, DIFFICULTY_ORDER } from "../../types/task";
 import {
@@ -747,7 +747,7 @@ export default function QuestSettingsPage() {
         </div>
 
         {/* SAVE BAR */}
-        <SettingsSaveBar onSave={saveAll} isSaveDisabled isSaving={false} />
+        <SaveBar onSave={saveAll} isSaveDisabled isSaving={false} />
       </div>
     );
   }
@@ -1670,7 +1670,7 @@ export default function QuestSettingsPage() {
       </div>
 
       {/* SAVE BAR */}
-      <SettingsSaveBar onSave={saveAll} isSaveDisabled={!isDirty} isSaving={saving} />
+      <SaveBar onSave={saveAll} isSaveDisabled={!isDirty} isSaving={saving} />
 
       {/* DISCARD CHANGES CONFIRM MODAL */}
       {discardConfirmHref !== null && (

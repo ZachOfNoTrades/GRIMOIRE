@@ -3,14 +3,15 @@
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface SettingsSaveBarProps {
+interface SaveBarProps {
   onSave: () => void;
   isSaveDisabled: boolean;
   isSaving: boolean;
+  onCancel?: () => void; // shows Cancel before Save, for a page that edits a record in place
 }
 
-// Pin a settings page's Save to a bar at the bottom of a `.page-with-bottom-bar` page
-export function SettingsSaveBar({ onSave, isSaveDisabled, isSaving }: SettingsSaveBarProps) {
+// Pin a page's Save, and Cancel when given, to a bar at the bottom of a `.page-with-bottom-bar` page
+export function SaveBar({ onSave, isSaveDisabled, isSaving, onCancel }: SaveBarProps) {
   return (
 
     // BOTTOM ACTION BAR
@@ -18,6 +19,13 @@ export function SettingsSaveBar({ onSave, isSaveDisabled, isSaving }: SettingsSa
 
       {/* ACTION ROW */}
       <div className="bottom-action-row">
+
+        {/* CANCEL BUTTON */}
+        {onCancel && (
+          <Button className="btn-off" onClick={onCancel} disabled={isSaving}>
+            Cancel
+          </Button>
+        )}
 
         {/* SAVE BUTTON */}
         <Button className="btn-blue bottom-action-save" onClick={onSave} disabled={isSaveDisabled || isSaving}>

@@ -3,22 +3,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "@/components/Toaster";
-import { ArrowLeft, Camera, Plus, Trash2, Save, RotateCcw, ChevronRight, Search } from "lucide-react";
+import { Camera, Plus, Trash2, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
+import { HeaderMenu } from "@/components/ui/HeaderMenu";
+import { SaveBar } from "@/components/ui/SaveBar";
+import CollapsibleSection from "@/components/ui/CollapsibleSection";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { selectOnFocus, blurOnEnter } from "@/lib/inputBehavior";
 import Modal from "@/components/Modal";
 import { Recipe, RecipeIngredient, RecipeIngredientInput } from "../../../types/recipe";
 import { Food, FoodNutrient } from "../../../types/food";
 import { resolveFoodIcon, FOOD_ICONS } from "../../../lib/foodIcons";
-import { FoodAvatar } from "../../../components/FoodAvatar";
+import { IngredientCard, IngredientMacros } from "../../../components/IngredientCard";
+import { MacroSummary } from "../../../components/MacroSummary";
 import { RECIPE_NAME_MAX, RECIPE_SERVINGS_MAX } from "../../../lib/recipeConstants";
 import { fmtServingAmount, parseAmount } from "../../../lib/format";
 import { AmountField } from "../../../components/AmountField";
 import { expandVirtualServings, resolveServingForSave } from "../../../lib/virtualUnits";
 import { ServingUnitOptions } from "../../../components/ServingUnitOptions";
-import { AddEntryModal, FoodNutrientBreakdown, MacroTiles, RecipeUsageList, useNutrients, prefetchNutrientTargets } from "../../_diary";
-import UpLink from "@/components/UpLink";
+import { AddEntryModal, FoodNutrientBreakdown, RecipeUsageList, useNutrients, prefetchNutrientTargets } from "../../_diary";
 import SegmentedToggle from "@/components/ui/SegmentedToggle";
 
 // Nutrition of ONE canonical serving of an ingredient's food. Every row's
@@ -314,9 +318,8 @@ export default function ForageRecipeDetailPage() {
     };
   }, []);
 
-  // Back button — delete first (awaited) when the recipe is an empty blank,
-  // then return to the list.
-  async function goBack() {
+  // Leave the page for a breadcrumb or Cancel, deleting an empty blank recipe first
+  async function goTo(href: string) {
     if (recipeIsDisposable()) {
       deletedRef.current = true;
       try {
@@ -325,7 +328,7 @@ export default function ForageRecipeDetailPage() {
         // best-effort — fall through to navigation regardless
       }
     }
-    router.push("/modules/forage/ui/recipes");
+    router.push(href);
   }
 
   // Yield used for the per-serving math: the typed servings when valid, else the
@@ -363,8 +366,6 @@ export default function ForageRecipeDetailPage() {
     }
     return Array.from(byId, ([nutrient_id, amount]) => ({ nutrient_id, amount: amount / scopeDivisor }));
   }, [ingredients, scopeDivisor]);
-
-  const placeholderCount = ingredients.filter((r) => !r.ingredient_food_id).length;
 
   // Unsaved changes — Save stays disabled until the draft differs from the saved recipe.
   const isDirty = useMemo(() => {
@@ -534,7 +535,7 @@ export default function ForageRecipeDetailPage() {
   function handleCancel() {
     if (!recipe) return;
     if (isBlank(recipe.name, recipe.ingredients.length, recipe.icon)) {
-      goBack();
+      goTo("/modules/forage/ui/recipes");
       return;
     }
     setName(recipe.name);
@@ -543,11 +544,6 @@ export default function ForageRecipeDetailPage() {
     setIngredients(recipe.ingredients.map(toDraft));
     setPicker(null);
     setIsEditing(false);
-  }
-
-  function handleDelete() {
-    if (!recipe) return;
-    setDeleteModalOpen(true);
   }
 
   async function confirmDelete() {
@@ -570,109 +566,76 @@ export default function ForageRecipeDetailPage() {
 
   const Icon = resolveFoodIcon(icon);
 
+  const addActions = (
+    <>
+
+      {/* FROM PHOTO */}
+      <Button className="btn-off btn-sm" onClick={() => photoInputRef.current?.click()} disabled={isScanning}>
+        <Camera className="w-4 h-4" aria-hidden /> From photo
+      </Button>
+
+      {/* ADD INGREDIENT */}
+      <Button className="btn-off btn-sm" onClick={() => setPicker({ mode: "add" })}>
+        <Plus className="w-4 h-4" aria-hidden /> Add ingredient
+      </Button>
+    </>
+  );
+
   return (
-    /* PAGE */
-    <div className="page">
+
+    // PAGE
+    <div className="page-with-bottom-bar">
+
+      {/* PAGE SCROLL */}
+      <div className="page-scroll">
 
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* HEADER — MF-style: back + centered title + Save right, all on one row */}
-        <div
-          className="flex items-center"
-          style={{ marginBottom: "1rem", gap: "0.5rem", flexWrap: "nowrap" }}
-        >
+        {/* HEADER ROW */}
+        <div className="page-head-row">
 
-          {/* NAV GROUP */}
-          <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
-            <UpLink
-              className="btn btn-link"
-              href="/modules/forage/ui/recipes"
-              onNavigate={goBack}
-              aria-label="Recipes"
-              style={{ paddingLeft: 0 }}
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </UpLink>
-          </div>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs className="breadcrumbs-inline" onNavigate={goTo} />
 
-          {/* TITLE — centered, takes remaining space, truncates rather than wraps */}
-          <h1
-            className="text-page-title"
-            style={{
-              flex: 1,
-              textAlign: "center",
-              margin: 0,
-              fontSize: "1rem",
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {isEditing ? "Edit Recipe" : "Recipe"}
-          </h1>
+          {/* HEADER ACTIONS */}
+          <div className="page-head-actions">
 
-          {/* PRIMARY ACTIONS — Cancel + Save while editing, Edit while viewing */}
-          {isEditing ? (
-            <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
+            {/* EDIT BUTTON */}
+            {!isEditing && (
+              <HeaderEditButton className="btn-sm" onClick={() => setIsEditing(true)} disabled={isLoading || !recipe} aria-label="Edit recipe" />
+            )}
 
-              {/* CANCEL */}
-              <Button
-                className="btn-off"
-                onClick={handleCancel}
-                disabled={isSaving || isLoading}
-                style={{ padding: "0.4rem 0.7rem" }}
-              >
-                Cancel
-              </Button>
-
-              {/* SAVE — disabled until the draft differs from the saved recipe */}
-              <Button
-                className="btn-blue"
-                onClick={handleSave}
-                disabled={isSaving || isLoading || !isDirty}
-                aria-label="Save recipe"
-                style={{ padding: "0.4rem 0.7rem" }}
-              >
-                <Save className="w-4 h-4" /> {isSaving ? "Saving…" : "Save"}
-              </Button>
-            </div>
-          ) : (
-            <HeaderEditButton
-              onClick={() => setIsEditing(true)}
-              disabled={isLoading || !recipe}
-              aria-label="Edit recipe"
-              style={{ flexShrink: 0 }}
+            {/* MORE MENU */}
+            <HeaderMenu
+              disabled={isLoading || !recipe || isSaving}
+              items={[{ label: "Delete", icon: <Trash2 className="w-4 h-4" />, onSelect: () => setDeleteModalOpen(true), danger: true }]}
             />
-          )}
+          </div>
         </div>
 
         {isLoading ? (
+
           /* LOADING */
           <div className="loading-container"><div className="loading-spinner" /></div>
         ) : (
           <>
 
             {isEditing ? (
-              /* META SECTION (edit) — MF-style stacked form fields with bold labels above inputs */
-              <div className="flex flex-col gap-4" style={{ marginBottom: "1.25rem" }}>
+              <>
 
-                {/* RECIPE NAME FIELD */}
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="recipe-name" className="text-label" style={{ margin: 0 }}>Recipe Name</label>
-                    {!name.trim() && <span className="text-muted" style={{ fontSize: "0.75rem" }}>Required</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      className="btn-off"
-                      onClick={() => setIconPickerOpen(true)}
-                      aria-label="Pick icon"
-                      style={{ padding: "0.6rem", flexShrink: 0 }}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </Button>
+                {/* PAGE TITLE */}
+                <h1 className="text-page-title fg-recipe-title">Edit Recipe</h1>
+
+                {/* DETAILS FIELDS */}
+                <div className="fg-recipe-fields">
+
+                  {/* NAME FIELD */}
+                  <div className="fg-recipe-field fg-recipe-field-name">
+                    <div className="fg-recipe-field-label">
+                      <label htmlFor="recipe-name" className="field-label">Name</label>
+                      {!name.trim() && <span className="text-muted">Required</span>}
+                    </div>
                     <input
                       id="recipe-name"
                       type="text"
@@ -683,129 +646,84 @@ export default function ForageRecipeDetailPage() {
                       onKeyDown={blurOnEnter}
                       placeholder="Enter recipe name"
                       maxLength={RECIPE_NAME_MAX}
-                      style={{ flex: 1, minWidth: 0 }}
                     />
                   </div>
-                </div>
 
-                {/* SERVINGS FIELD */}
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="recipe-servings" className="text-label" style={{ margin: 0 }}>Servings</label>
-                    {servingCount.trim() !== "" && parseServings(servingCount) == null && (
-                      <span className="text-muted" style={{ fontSize: "0.75rem" }}>Must be more than 0</span>
-                    )}
+                  {/* ICON FIELD */}
+                  <div className="fg-recipe-field">
+                    <span className="field-label">Icon</span>
+                    <Button className="btn-off fg-recipe-icon-btn" onClick={() => setIconPickerOpen(true)} aria-label="Pick icon" title="Pick icon">
+                      <Icon className="w-5 h-5" />
+                    </Button>
                   </div>
-                  <input
-                    id="recipe-servings"
-                    type="number"
-                    inputMode="decimal"
-                    min="0.1"
-                    step="0.1"
-                    className="input-field"
-                    value={servingCount}
-                    onChange={(e) => setServingCount(e.target.value)}
-                    onFocus={selectOnFocus}
-                    onKeyDown={blurOnEnter}
-                    aria-invalid={parseServings(servingCount) == null}
-                    onBlur={(e) => { if (e.target.value.trim() === "") setServingCount(String(recipe?.serving_count ?? 1)); }}
-                  />
+
+                  {/* SERVINGS FIELD */}
+                  <div className="fg-recipe-field">
+                    <label htmlFor="recipe-servings" className="field-label">Servings</label>
+                    <input
+                      id="recipe-servings"
+                      type="number"
+                      inputMode="decimal"
+                      min="0.1"
+                      step="0.1"
+                      className="input-field fg-recipe-servings"
+                      value={servingCount}
+                      onChange={(e) => setServingCount(e.target.value)}
+                      onFocus={selectOnFocus}
+                      onKeyDown={blurOnEnter}
+                      aria-invalid={parseServings(servingCount) == null}
+                      onBlur={(e) => { if (e.target.value.trim() === "") setServingCount(String(recipe?.serving_count ?? 1)); }}
+                    />
+                  </div>
+
+                  {/* SERVINGS ERROR */}
+                  {servingCount.trim() !== "" && parseServings(servingCount) == null && (
+                    <span className="text-muted fg-recipe-field-error">Must be more than 0</span>
+                  )}
                 </div>
-              </div>
+              </>
             ) : (
-              /* META SECTION (view) — icon + name + servings summary, read-only */
-              <div className="flex items-center gap-3" style={{ marginBottom: "1.25rem" }}>
+              <>
 
-                {/* ICON */}
-                <Icon className="w-9 h-9" style={{ flexShrink: 0 }} />
+                {/* PAGE TITLE */}
+                <h1 className="text-page-title fg-recipe-title">
+                  <Icon className="fg-recipe-title-icon" aria-hidden />
+                  <span>{name}</span>
+                </h1>
 
-                {/* NAME + SERVINGS */}
-                <div style={{ minWidth: 0 }}>
-
-                  {/* NAME */}
-                  <div className="text-primary" style={{ fontWeight: 600, fontSize: "1.125rem" }}>{name}</div>
-
-                  {/* SERVINGS */}
-                  <div className="text-muted" style={{ fontSize: "0.8125rem", marginTop: "0.125rem" }}>
-                    {yieldCount} {yieldCount === 1 ? "serving" : "servings"}
-                  </div>
-                </div>
-              </div>
+                {/* SERVINGS */}
+                <p className="text-muted fg-recipe-meta">{yieldCount} {yieldCount === 1 ? "serving" : "servings"}</p>
+              </>
             )}
 
-            {/* NUTRITION SUMMARY — sits above the ingredients so amount edits read
-                back immediately, without scrolling past the list. */}
-            <div className="sub-card fg-recipe-sum">
+            {/* NUTRITION SUMMARY */}
+            <MacroSummary
+              kcal={totals.kcal / scopeDivisor}
+              protein={totals.protein / scopeDivisor}
+              fat={totals.fat / scopeDivisor}
+              carbs={totals.carbs / scopeDivisor}
+              control={
+                <SegmentedToggle
+                  options={[
+                    { value: "serving", label: "Serving" },
+                    { value: "recipe", label: "Recipe" },
+                  ]}
+                  value={nutritionScope}
+                  onChange={setNutritionScope}
+                  ariaLabel="Nutrition scope"
+                />
+              }
+            />
 
-              {/* SCOPE — per serving vs whole recipe */}
-              <SegmentedToggle
-                options={[
-                  { value: "serving", label: "Per serving" },
-                  { value: "recipe", label: "Whole recipe" },
-                ]}
-                value={nutritionScope}
-                onChange={setNutritionScope}
-                ariaLabel="Nutrition scope"
-              />
+            {/* INGREDIENTS SECTION */}
+            <section className="fg-recipe-ingredients">
 
-              {/* MACRO TILES */}
-              <MacroTiles
-                kcal={totals.kcal / scopeDivisor}
-                protein={totals.protein / scopeDivisor}
-                fat={totals.fat / scopeDivisor}
-                carbs={totals.carbs / scopeDivisor}
-              />
+              {/* INGREDIENTS HEADER */}
+              <div className="fg-recipe-ing-head">
+                <h2 className="text-h2 fg-recipe-ing-title">Ingredients <span className="fg-recipe-ing-count">{ingredients.length}</span></h2>
 
-              {/* UNRESOLVED — placeholders count as zero until a food is picked */}
-              {placeholderCount > 0 && (
-                <div className="fg-recipe-unresolved">
-                  {placeholderCount} {placeholderCount === 1 ? "ingredient isn't" : "ingredients aren't"} counted until matched to a food
-                </div>
-              )}
-            </div>
-
-            {/* INGREDIENTS SECTION — MF shape: bold label + small circular "+" + helper text, then cards */}
-            <div className="flex flex-col gap-2" style={{ marginBottom: "1.25rem" }}>
-
-              {/* HEADER ROW */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-label" style={{ margin: 0, fontSize: "1rem", textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>
-                    Ingredients
-                  </div>
-                  <div className="text-muted" style={{ fontSize: "0.75rem", marginTop: "0.125rem" }}>
-                    {ingredients.length === 0
-                      ? "No ingredients"
-                      : `${ingredients.length} ingredient${ingredients.length === 1 ? "" : "s"}`}
-                  </div>
-                </div>
-
-                {/* INGREDIENT ACTIONS — only while editing */}
-                {isEditing && (
-                  <div className="flex items-center gap-1">
-
-                    {/* PHOTO SCAN */}
-                    <Button
-                      className="btn-off"
-                      onClick={() => photoInputRef.current?.click()}
-                      disabled={isScanning}
-                      aria-label="Add ingredients from photo"
-                      style={{ padding: "0.5rem", borderRadius: "999px", flexShrink: 0 }}
-                    >
-                      <Camera className="w-4 h-4" />
-                    </Button>
-
-                    {/* ADD MANUALLY */}
-                    <Button
-                      className="btn-off"
-                      onClick={() => setPicker({ mode: "add" })}
-                      aria-label="Add ingredient"
-                      style={{ padding: "0.5rem", borderRadius: "999px", flexShrink: 0 }}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                )}
+                {/* TOP ADD ACTIONS */}
+                {isEditing && <div className="fg-recipe-add-actions">{addActions}</div>}
 
                 {/* HIDDEN FILE INPUT */}
                 {isEditing && (
@@ -813,7 +731,7 @@ export default function ForageRecipeDetailPage() {
                     ref={photoInputRef}
                     type="file"
                     accept="image/*"
-                    style={{ display: "none" }}
+                    hidden
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) handlePhotoUpload(file);
@@ -822,295 +740,165 @@ export default function ForageRecipeDetailPage() {
                 )}
               </div>
 
-              {/* LIST CONTAINER */}
-              <div className="flex flex-col gap-2">
-                {ingredients.length === 0 && isEditing && (
-                  /* EMPTY INGREDIENT LIST — the two ways in, full width */
-                  <div className="fg-recipe-empty">
-                    <Button className="btn-blue" onClick={() => setPicker({ mode: "add" })}>
-                      <Plus className="w-4 h-4" /> Add ingredient
-                    </Button>
-                    <Button className="btn-off" onClick={() => photoInputRef.current?.click()} disabled={isScanning}>
-                      <Camera className="w-4 h-4" /> From photo
-                    </Button>
-                  </div>
-                )}
+              {/* EMPTY LIST */}
+              {ingredients.length === 0 && !isEditing && <p className="text-muted">No ingredients</p>}
 
+              {/* INGREDIENT LIST */}
+              <div className="fg-ing-list">
                 {ingredients.map((row) => {
+                  const food = { id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null };
+                  const rowName = row.food_name ?? row.placeholder_name ?? "Ingredient";
 
-                  // VIEW ROW — read-only and tappable: the whole row opens the
-                  // ingredient's food detail page. Placeholder rows (no resolved
-                  // food) stay inert since there's nothing to navigate to.
-                  if (!isEditing) {
-                    const navigable = !!row.ingredient_food_id;
+                  // Show a row unmatched to a food with its imported text; matched rows follow
+                  if (!row.ingredient_food_id) {
                     return (
-                      /* INGREDIENT ROW (view) — tap to open the food's detail page */
-                      <button
-                        key={row.__clientId}
-                        type="button"
-                        className="sub-card fg-ing fg-ing-row"
-                        onClick={navigable ? () => router.push(`/modules/forage/ui/library/${row.ingredient_food_id}`) : undefined}
-                        disabled={!navigable}
-                        aria-label={navigable ? `Open ${row.food_name} details` : undefined}
-                      >
 
-                        {/* AVATAR — the ingredient food's product photo, its icon as fallback */}
-                        <FoodAvatar
-                          food={{ id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null }}
-                          variant="inline"
-                          className="fg-ing-icon"
-                        />
+                      /* UNMATCHED INGREDIENT */
+                      <IngredientCard key={row.__clientId} food={food} name={rowName} isUnmatched>
 
-                        {/* BODY — name/brand stacked above the derived macros */}
-                        <div className="fg-ing-titles">
+                        {/* NOT MATCHED LABEL */}
+                        <span className="fg-ing-unmatched-label">Not matched</span>
 
-                          {/* FOOD NAME — an unmatched import line shows its own text */}
-                          <div className="fg-ing-name">{row.food_name ?? row.placeholder_name}</div>
+                        {/* IMPORTED AMOUNT */}
+                        {!isEditing && row.placeholder_quantity_text && <span className="fg-ing-amount">{row.placeholder_quantity_text}</span>}
 
-                          {/* BRAND */}
-                          {row.food_brand && (
-                            <div className="fg-ing-brand">{row.food_brand}</div>
-                          )}
+                        {/* CHOOSE FOOD */}
+                        {isEditing && (
+                          <Button className="btn-blue btn-sm fg-ing-push" onClick={() => setPicker({ mode: "replace", clientId: row.__clientId })}>
+                            <Search className="w-4 h-4" aria-hidden /> Choose food
+                          </Button>
+                        )}
 
-                          {/* MACRO TIER — derived kcal + coloured P/F/C */}
-                          {navigable ? (
-                          <div className="fg-ing-macros">
-
-                            {/* CALORIES */}
-                            <span>{Math.round(row.kcal ?? 0)} kcal</span>
-
-                            {/* PROTEIN */}
-                            <span className="fg-ing-p">{Math.round(row.protein_g ?? 0)}P</span>
-
-                            {/* FAT */}
-                            <span className="fg-ing-f">{Math.round(row.fat_g ?? 0)}F</span>
-
-                            {/* CARBS */}
-                            <span className="fg-ing-c">{Math.round(row.carbs_g ?? 0)}C</span>
-                          </div>
-                          ) : (
-                            <div className="fg-ing-macros">Not matched to a food</div>
-                          )}
-                        </div>
-
-                        {/* TRAILING — amount/unit summary + chevron affordance */}
-                        <div className="fg-ing-trail">
-
-                          {/* QTY / UNIT */}
-                          <span className="fg-ing-qty-view">
-                            {navigable
-                              ? `${fmtServingAmount(row.quantity ?? 0, row.serving_unit ?? "")} ${row.serving_unit ?? ""}`
-                              : row.placeholder_quantity_text}
-                          </span>
-
-                          {/* CHEVRON — only when the row opens a detail page */}
-                          {navigable && <ChevronRight className="fg-ing-chev" />}
-                        </div>
-                      </button>
+                        {/* ROW MENU */}
+                        {isEditing && (
+                          <HeaderMenu
+                            label={`Actions for ${rowName}`}
+                            items={[{ label: "Remove", icon: <Trash2 className="w-4 h-4" />, onSelect: () => removeRow(row.__clientId), danger: true }]}
+                          />
+                        )}
+                      </IngredientCard>
                     );
                   }
 
-                  if (!row.ingredient_food_id) {
+                  // Open the food from a viewed row; an edited row carries its amount, unit and menu
+                  if (!isEditing) {
                     return (
-                      /* PLACEHOLDER ROW (edit) — an imported line awaiting a library food */
-                      <div key={row.__clientId} className="fg-ing fg-ing-editing fg-ing-placeholder">
 
-                        {/* IMPORTED TEXT */}
-                        <div className="fg-ing-titles">
-                          <div className="fg-ing-name">{row.placeholder_name}</div>
-                          {row.placeholder_quantity_text && (
-                            <div className="fg-ing-brand">{row.placeholder_quantity_text}</div>
-                          )}
-                        </div>
+                      /* INGREDIENT */
+                      <IngredientCard
+                        key={row.__clientId}
+                        food={food}
+                        name={rowName}
+                        brand={row.food_brand}
+                        onOpen={() => router.push(`/modules/forage/ui/library/${row.ingredient_food_id}`)}
+                        openLabel={`Open ${rowName}`}
+                      >
 
-                        {/* ACTIONS */}
-                        <div className="fg-ing-controls">
+                        {/* MACROS */}
+                        <IngredientMacros kcal={row.kcal ?? 0} protein={row.protein_g ?? 0} fat={row.fat_g ?? 0} carbs={row.carbs_g ?? 0} />
 
-                          {/* MATCH */}
-                          <Button
-                            className="btn-blue"
-                            onClick={() => setPicker({ mode: "replace", clientId: row.__clientId })}
-                            style={{ padding: "0.3rem 0.6rem", fontSize: "0.8rem" }}
-                          >
-                            <Search className="w-3.5 h-3.5" /> Choose food
-                          </Button>
-
-                          {/* DELETE */}
-                          <Button
-                            className="btn-link-red"
-                            onClick={() => removeRow(row.__clientId)}
-                            aria-label={`Remove ${row.placeholder_name ?? "ingredient"}`}
-                            style={{ padding: "0.25rem" }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
+                        {/* AMOUNT */}
+                        <span className="fg-ing-amount">{fmtServingAmount(row.quantity ?? 0, row.serving_unit ?? "")} {row.serving_unit ?? ""}</span>
+                      </IngredientCard>
                     );
                   }
 
                   return (
-                    /* INGREDIENT ROW (edit) — full editable card */
-                    <div key={row.__clientId} className="fg-ing fg-ing-editing">
 
-                      {/* NAME TIER — icon + full-width food name (wraps for readability) */}
-                      <div className="fg-ing-head">
+                    /* EDITED INGREDIENT */
+                    <IngredientCard key={row.__clientId} food={food} name={rowName} brand={row.food_brand}>
 
-                        {/* AVATAR — the ingredient food's product photo, its icon as fallback */}
-                        <FoodAvatar
-                          food={{ id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null }}
-                          variant="inline"
-                          className="fg-ing-icon"
+                      {/* MACROS */}
+                      <IngredientMacros kcal={row.kcal ?? 0} protein={row.protein_g ?? 0} fat={row.fat_g ?? 0} carbs={row.carbs_g ?? 0} />
+
+                      {/* CONTROLS */}
+                      <span className="fg-ing-controls">
+
+                        {/* AMOUNT — fraction-capable so an amount can be typed as it reads ("1/8", "1 1/2") */}
+                        <AmountField
+                          className="input-field fg-ing-amt"
+                          value={row.__quantityText ?? fmtServingAmount(row.quantity, row.serving_unit ?? "")}
+                          onFocus={selectOnFocus}
+                          onKeyDown={blurOnEnter}
+                          aria-label={`Amount of ${rowName}`}
+                          onValueChange={(raw) => {
+                            const newQ = parseAmount(raw);
+
+                            // Hold only the raw text while it is empty or partial ("", ".", "1/"), and rescale the macros for a usable positive number
+                            if (raw === "" || !Number.isFinite(newQ) || newQ <= 0) {
+                              updateRow(row.__clientId, { __quantityText: raw });
+                              return;
+                            }
+                            updateRow(row.__clientId, { __quantityText: raw, quantity: newQ });
+                          }}
+                          onBlur={() => {
+                            // Drop the text so the field shows the last valid amount again
+                            if (row.__quantityText !== undefined) {
+                              updateRow(row.__clientId, { __quantityText: undefined });
+                            }
+                          }}
                         />
 
-                        {/* NAME + BRAND */}
-                        <div className="fg-ing-titles">
-
-                          {/* FOOD NAME */}
-                          <div className="fg-ing-name">{row.food_name}</div>
-
-                          {/* BRAND */}
-                          {row.food_brand && (
-                            <div className="fg-ing-brand">{row.food_brand}</div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* MACRO TIER — derived kcal + coloured P/F/C */}
-                      <div className="fg-ing-macros">
-
-                        {/* CALORIES */}
-                        <span>{Math.round(row.kcal ?? 0)} kcal</span>
-
-                        {/* PROTEIN */}
-                        <span className="fg-ing-p">{Math.round(row.protein_g ?? 0)}P</span>
-
-                        {/* FAT */}
-                        <span className="fg-ing-f">{Math.round(row.fat_g ?? 0)}F</span>
-
-                        {/* CARBS */}
-                        <span className="fg-ing-c">{Math.round(row.carbs_g ?? 0)}C</span>
-                      </div>
-
-                      {/* CONTROL TIER — qty/unit editor + row actions */}
-                      <div className="fg-ing-controls">
-
-                        {/* QTY / UNIT */}
-                        <div className="fg-ing-qty">
-
-                          {/* AMOUNT — fraction-capable so a recipe amount can be typed
-                              the way it reads on the card ("1/8", "1 1/2"); see AmountField */}
-                          <AmountField
-                            className="input-field fg-ing-amt"
-                            value={row.__quantityText ?? fmtServingAmount(row.quantity, row.serving_unit ?? "")}
-                            onFocus={selectOnFocus}
-                            onKeyDown={blurOnEnter}
-                            aria-label={`Amount of ${row.food_name ?? "ingredient"}`}
-                            onValueChange={(raw) => {
-                              // Keep the raw text so the field can be empty/partial
-                              // ("", ".", "1.", "1/") instead of snapping to 0 mid-edit.
-                              const newQ = parseAmount(raw);
-                              // Only rescale macros for a usable positive number;
-                              // otherwise just hold the text and leave quantity be.
-                              if (raw === "" || !Number.isFinite(newQ) || newQ <= 0) {
-                                updateRow(row.__clientId, { __quantityText: raw });
-                                return;
-                              }
-                              updateRow(row.__clientId, { __quantityText: raw, quantity: newQ });
+                        {/* UNIT */}
+                        {(row.food_servings?.length ?? 0) > 1 ? (
+                          <select
+                            className="input-field fg-ing-unit"
+                            value={row.serving_id ?? ""}
+                            aria-label={`Unit of ${rowName}`}
+                            onChange={(e) => {
+                              // Keep the typed amount and re-derive the nutrition for the new unit
+                              const next = row.food_servings?.find((s) => s.id === e.target.value);
+                              if (!next) return;
+                              updateRow(row.__clientId, {
+                                serving_id: next.id,
+                                serving_unit: next.unit,
+                                units_per_serving: next.units_per_serving,
+                              });
                             }}
-                            onBlur={() => {
-                              // Drop the text override so the field re-syncs to the
-                              // numeric quantity (a left-empty field reverts to its
-                              // last valid value rather than persisting blank/0).
-                              if (row.__quantityText !== undefined) {
-                                updateRow(row.__clientId, { __quantityText: undefined });
-                              }
-                            }}
-                          />
-                          {(row.food_servings?.length ?? 0) > 1 ? (
-                            <select
-                              className="input-field fg-ing-unit"
-                              value={row.serving_id ?? ""}
-                              onChange={(e) => {
-                                // Unit switch keeps the typed amount verbatim (no conversion);
-                                // updateRow re-derives the nutrition for the new unit.
-                                const next = row.food_servings?.find((s) => s.id === e.target.value);
-                                if (!next) return;
-                                updateRow(row.__clientId, {
-                                  serving_id: next.id,
-                                  serving_unit: next.unit,
-                                  units_per_serving: next.units_per_serving,
-                                });
-                              }}
-                            >
-                              <ServingUnitOptions servings={row.food_servings!} />
-                            </select>
-                          ) : (
-                            <span className="fg-ing-unit-static">
-                              {row.serving_unit}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* ACTIONS */}
-                        <div className="fg-ing-actions">
-
-                          {/* REPLACE */}
-                          <Button
-                            className="btn-link"
-                            onClick={() => setPicker({ mode: "replace", clientId: row.__clientId })}
-                            aria-label={`Replace ${row.food_name ?? "ingredient"}`}
-                            title="Replace"
-                            style={{ padding: "0.35rem" }}
                           >
-                            <RotateCcw className="w-4 h-4" />
-                          </Button>
+                            <ServingUnitOptions servings={row.food_servings!} />
+                          </select>
+                        ) : (
+                          <span className="fg-ing-unit-static">{row.serving_unit}</span>
+                        )}
 
-                          {/* DELETE */}
-                          <Button
-                            className="btn-link-red"
-                            onClick={() => removeRow(row.__clientId)}
-                            aria-label={`Remove ${row.food_name ?? "ingredient"}`}
-                            title="Remove"
-                            style={{ padding: "0.35rem" }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
+                        {/* ROW MENU */}
+                        <HeaderMenu
+                          label={`Actions for ${rowName}`}
+                          items={[
+                            { label: "Replace", icon: <RotateCcw className="w-4 h-4" />, onSelect: () => setPicker({ mode: "replace", clientId: row.__clientId }) },
+                            { label: "Remove", icon: <Trash2 className="w-4 h-4" />, onSelect: () => removeRow(row.__clientId), danger: true },
+                          ]}
+                        />
+                      </span>
+                    </IngredientCard>
                   );
                 })}
               </div>
-            </div>
 
-            {/* MICRONUTRIENTS — shared banded bars (floor/target/ceiling + program-target
-                glyph), aggregated across ingredients and scaled to the [Serving | Recipe]
-                scope chosen on the nutrition summary above. */}
-            <div style={{ marginBottom: "1.25rem" }}>
-              <FoodNutrientBreakdown nutrients={nutrientCatalog} foodNutrients={aggregatedNutrients} />
-            </div>
+              {/* BOTTOM ADD ACTIONS — once the list holds anything */}
+              {isEditing && ingredients.length > 0 && <div className="fg-recipe-add-actions fg-recipe-add-bottom">{addActions}</div>}
+            </section>
 
-            {/* USED IN RECIPES — other recipes that nest this recipe as an
-                ingredient (a recipe is itself a food). Shared with the food
-                detail surfaces; hidden when this recipe isn't used anywhere. */}
-            <RecipeUsageList foodId={recipeId} />
-
-            {/* DANGER ZONE — delete tucked at the bottom so it can't be tapped by
-                accident; only while editing so the read-only view stays clean */}
-            {isEditing && (
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <Button className="btn-red" onClick={handleDelete} disabled={isSaving} aria-label="Delete recipe">
-                  <Trash2 className="w-4 h-4" /> Delete recipe
-                </Button>
-              </div>
+            {/* NUTRITION — every tracked nutrient, scaled to the scope chosen above */}
+            {aggregatedNutrients.length > 0 && (
+              <CollapsibleSection title="Nutrition">
+                <FoodNutrientBreakdown nutrients={nutrientCatalog} foodNutrients={aggregatedNutrients} />
+              </CollapsibleSection>
             )}
+
+            {/* USED IN RECIPES — hidden when no other recipe nests this one */}
+            <RecipeUsageList foodId={recipeId} />
           </>
         )}
-
-        {/* TOAST */}
-        <Toaster position="bottom-center" />
       </div>
+      </div>
+
+      {/* SAVE BAR — while editing, with Save disabled until the draft differs from the saved recipe */}
+      {isEditing && <SaveBar onSave={handleSave} onCancel={handleCancel} isSaveDisabled={isLoading || !isDirty} isSaving={isSaving} />}
+
+      {/* TOAST */}
+      <Toaster position="bottom-center" containerStyle={isEditing ? { bottom: "5rem" } : undefined} />
 
       {/* FOOD PICKER MODAL */}
       {picker && (
@@ -1148,8 +936,8 @@ export default function ForageRecipeDetailPage() {
           disableClose={isDeleting}
           title="Delete recipe"
           footer={
-            /* MODAL ACTIONS */
-            <div className="flex" style={{ gap: "0.5rem", justifyContent: "flex-end", width: "100%" }}>
+
+            <>
 
               {/* CANCEL */}
               <Button className="btn-off" onClick={() => setDeleteModalOpen(false)} disabled={isDeleting}>
@@ -1160,11 +948,12 @@ export default function ForageRecipeDetailPage() {
               <Button className="btn-red" onClick={confirmDelete} disabled={isDeleting} aria-label="Confirm delete recipe">
                 <Trash2 className="w-4 h-4" /> {isDeleting ? "Deleting…" : "Delete"}
               </Button>
-            </div>
+            </>
           }
         >
+
           {/* CONFIRMATION COPY */}
-          <p className="text-muted" style={{ margin: 0 }}>
+          <p className="text-muted m-0">
             Remove <strong className="text-primary">{recipe.name}</strong> from your recipes? This can&apos;t be undone.
           </p>
         </Modal>

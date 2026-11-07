@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Cpu } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import HelpButton from "@/components/ui/HelpButton";
-import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar";
+import { SaveBar } from "@/components/ui/SaveBar";
 import { useUnsavedWarning } from "@/lib/useUnsavedWarning";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { SettingsControlRow } from "@/components/settings/SettingsList";
@@ -172,7 +172,7 @@ export default function AdminLlmPage() {
       </div>
 
       {/* SAVE BAR */}
-      <SettingsSaveBar onSave={save} isSaveDisabled={isLoading || !isDirty} isSaving={isSaving} />
+      <SaveBar onSave={save} isSaveDisabled={isLoading || !isDirty} isSaving={isSaving} />
 
       {/* TOAST */}
       <Toaster position="bottom-center" containerStyle={{ bottom: "5rem" }} />

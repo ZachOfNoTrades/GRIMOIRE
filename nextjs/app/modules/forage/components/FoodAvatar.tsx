@@ -22,7 +22,7 @@ export function FoodAvatar({
   // "circle" is the bordered avatar used by list rows; "inline" is a bare mark
   // sitting directly in a card header, where a photo becomes a rounded square.
   variant?: "circle" | "inline";
-  // Layout class from the call site (e.g. `fg-ing-icon`, which sizes the mark in
+  // Layout class from the call site (e.g. `fg-ing-avatar`, which sizes the mark in
   // an ingredient row). Applied to BOTH branches so swapping an icon for a photo
   // never changes the row's geometry.
   className?: string;
@@ -55,7 +55,7 @@ export function FoodAvatar({
       loading="lazy"
       decoding="async"
       // A caller that passes a layout class sizes the mark itself (e.g.
-      // `.fg-ing-icon`); forcing an inline px size here would make the photo a
+      // `.fg-ing-avatar`); forcing an inline px size here would make the photo a
       // different size from the icon it stands in for.
       style={className ? undefined : { width: size, height: size }}
     />
