@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ruler, Apple, Keyboard, Upload, Settings, Bell, BellRing, Clock, BarChart3 } from "lucide-react";
+import { Ruler, Apple, ChefHat, Keyboard, Upload, Settings, Bell, BellRing, Clock, BarChart3 } from "lucide-react";
 import ImportMacroFactorModal from "./ImportMacroFactorModal";
 import ForageBottomBar from "../ForageBottomBar";
 import { SettingsGroup, type SettingsRowItem } from "@/components/settings/SettingsList";
@@ -29,12 +29,20 @@ export default function ForageSettingsPage() {
     },
   ];
 
-  const featureRows: SettingsRow[] = [
+  const libraryRows: SettingsRow[] = [
     {
       icon: Apple,
-      label: "Food library",
+      label: "Foods",
       onClick: () => router.push("/modules/forage/ui/library"),
     },
+    {
+      icon: ChefHat,
+      label: "Recipes",
+      onClick: () => router.push("/modules/forage/ui/recipes"),
+    },
+  ];
+
+  const featureRows: SettingsRow[] = [
     {
       icon: Clock,
       label: "Favorites",
@@ -84,6 +92,10 @@ export default function ForageSettingsPage() {
 
         {/* PAGE TITLE */}
         <h1 className="text-page-title settings-title"><Settings className="w-6 h-6" /> Settings</h1>
+
+        {/* LIBRARY SECTION */}
+        <h2 className="settings-section-title">Library</h2>
+        <SettingsGroup rows={libraryRows} />
 
         {/* GENERAL SECTION */}
         <h2 className="settings-section-title">General</h2>
