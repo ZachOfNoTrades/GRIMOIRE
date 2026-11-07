@@ -3,14 +3,14 @@
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface SettingsSaveBarProps {
+interface SaveBarProps {
   onSave: () => void;
   isSaveDisabled: boolean;
   isSaving: boolean;
 }
 
-// Pin a settings page's Save to a bar at the bottom of a `.page-with-bottom-bar` page
-export function SettingsSaveBar({ onSave, isSaveDisabled, isSaving }: SettingsSaveBarProps) {
+// Pin a page's Save to a bar at the bottom of a `.page-with-bottom-bar` page
+export function SaveBar({ onSave, isSaveDisabled, isSaving }: SaveBarProps) {
   return (
 
     // BOTTOM ACTION BAR

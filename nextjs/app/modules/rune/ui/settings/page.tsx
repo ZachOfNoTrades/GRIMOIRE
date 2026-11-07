@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import NumberField from "@/components/ui/NumberField";
 import { SettingsGroup, SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
-import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar";
+import { SaveBar } from "@/components/ui/SaveBar";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { usageHref } from "@/lib/usageChartModules";
 import { useUnsavedWarning } from "@/lib/useUnsavedWarning";
@@ -297,7 +297,7 @@ export default function RuneSettingsPage() {
         </div>
 
         {/* SAVE BAR */}
-        <SettingsSaveBar onSave={saveSettings} isSaveDisabled isSaving={false} />
+        <SaveBar onSave={saveSettings} isSaveDisabled isSaving={false} />
       </div>
     );
   }
@@ -516,7 +516,7 @@ export default function RuneSettingsPage() {
       </div>
 
       {/* SAVE BAR */}
-      <SettingsSaveBar onSave={saveSettings} isSaveDisabled={!isDirty} isSaving={saving} />
+      <SaveBar onSave={saveSettings} isSaveDisabled={!isDirty} isSaving={saving} />
     </div>
   );
 }
