@@ -104,6 +104,7 @@ import { FOOD_ICONS, resolveFoodIcon } from "../lib/foodIcons";
 import { FoodAvatar } from "../components/FoodAvatar";
 import { LiveBarcodeScanner } from "../components/LiveBarcodeScanner";
 import { FoodRecordRow } from "../components/FoodRecordRow";
+import { IngredientCard, IngredientMacros } from "../components/IngredientCard";
 import { AmountField } from "../components/AmountField";
 import { ServingUnitOptions } from "../components/ServingUnitOptions";
 import { NutrientMeter, bandDisplay, fmtNutrient, ProgramTargetMark, isProgramTarget, type NutrientBand } from "./nutrition/nutrientMeter";
@@ -2157,66 +2158,33 @@ function RecipeIngredientsSection({ foodId, loggedServings = 0 }: { foodId: stri
       </div>
 
       {/* ROWS — inert read-only ingredient cards (no navigation from the sheet) */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div className="fg-ing-list">
         {recipe.ingredients.map((row) => {
-          // Placeholder rows (unresolved imports) have no resolved food: show
-          // the free-text name + quantity text, no derived macros.
-          const isPlaceholder = !row.ingredient_food_id;
-          return (
+          const rowName = row.food_name ?? row.placeholder_name ?? "Ingredient";
 
-            /* INGREDIENT ROW (read-only) */
-            <div key={row.id} className="sub-card fg-ing fg-ing-row fg-ing-row-static">
+          // Show a row unmatched to a food with its imported text, and a matched row scaled to the logged portion
+          return !row.ingredient_food_id ? (
 
-              {/* AVATAR — the ingredient food's product photo, its icon as fallback */}
-              <FoodAvatar
-                food={{ id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null }}
-                variant="inline"
-                className="fg-ing-icon"
-              />
+            /* UNMATCHED INGREDIENT */
+            <IngredientCard key={row.id} food={{ id: "", icon: row.food_icon }} name={rowName} isUnmatched>
 
-              {/* BODY — name/brand stacked above the derived macros */}
-              <div className="fg-ing-titles">
+              {/* NOT MATCHED LABEL */}
+              <span className="fg-ing-unmatched-label">Not matched</span>
 
-                {/* FOOD NAME */}
-                <div className="fg-ing-name">{row.food_name ?? row.placeholder_name}</div>
+              {/* IMPORTED AMOUNT */}
+              {row.placeholder_quantity_text && <span className="fg-ing-amount">{row.placeholder_quantity_text}</span>}
+            </IngredientCard>
+          ) : (
 
-                {/* BRAND */}
-                {row.food_brand && (
-                  <div className="fg-ing-brand">{row.food_brand}</div>
-                )}
+            /* INGREDIENT */
+            <IngredientCard key={row.id} food={{ id: row.ingredient_food_id, icon: row.food_icon, image_updated_at: row.food_image_updated_at }} name={rowName} brand={row.food_brand}>
 
-                {/* MACRO TIER — derived kcal + coloured P/F/C (resolved rows only),
-                    scaled to the logged portion */}
-                {!isPlaceholder && (
-                  <div className="fg-ing-macros">
+              {/* MACROS */}
+              <IngredientMacros kcal={(row.kcal ?? 0) * scale} protein={(row.protein_g ?? 0) * scale} fat={(row.fat_g ?? 0) * scale} carbs={(row.carbs_g ?? 0) * scale} />
 
-                    {/* CALORIES */}
-                    <span>{Math.round((row.kcal ?? 0) * scale)} kcal</span>
-
-                    {/* PROTEIN */}
-                    <span className="fg-ing-p">{Math.round((row.protein_g ?? 0) * scale)}P</span>
-
-                    {/* FAT */}
-                    <span className="fg-ing-f">{Math.round((row.fat_g ?? 0) * scale)}F</span>
-
-                    {/* CARBS */}
-                    <span className="fg-ing-c">{Math.round((row.carbs_g ?? 0) * scale)}C</span>
-                  </div>
-                )}
-              </div>
-
-              {/* TRAILING — amount/unit summary (recipe-defined quantity) */}
-              <div className="fg-ing-trail">
-
-                {/* QTY / UNIT — scaled to the logged portion (placeholder rows keep
-                    their free-text amount, which can't be scaled) */}
-                <span className="fg-ing-qty-view">
-                  {isPlaceholder
-                    ? row.placeholder_quantity_text
-                    : `${Math.round((row.quantity ?? 0) * scale * 1000) / 1000} ${row.serving_unit ?? ""}`}
-                </span>
-              </div>
-            </div>
+              {/* AMOUNT */}
+              <span className="fg-ing-amount">{Math.round((row.quantity ?? 0) * scale * 1000) / 1000} {row.serving_unit ?? ""}</span>
+            </IngredientCard>
           );
         })}
       </div>
@@ -7968,72 +7936,40 @@ function RecipeIngredientsView({ ingredients }: { ingredients: RecipeIngredient[
       </div>
 
       {/* LIST */}
-      <div className="flex flex-col gap-2">
+      <div className="fg-ing-list">
         {ingredients.map((row) => {
+          const rowName = row.food_name ?? row.placeholder_name ?? "Ingredient";
 
-          // Placeholder rows (unresolved URL/AI imports) have no backing food, so
-          // there's nowhere to navigate — render them inert with their free text.
-          const navigable = !!row.ingredient_food_id;
-          return (
-            /* INGREDIENT ROW — tap to open the ingredient food's detail page */
-            <button
+          // Show a row unmatched to a food with its imported text, and open a matched row's food from its card
+          return !row.ingredient_food_id ? (
+
+            /* UNMATCHED INGREDIENT */
+            <IngredientCard key={row.id} food={{ id: "", icon: row.food_icon }} name={rowName} isUnmatched>
+
+              {/* NOT MATCHED LABEL */}
+              <span className="fg-ing-unmatched-label">Not matched</span>
+
+              {/* IMPORTED AMOUNT */}
+              {row.placeholder_quantity_text && <span className="fg-ing-amount">{row.placeholder_quantity_text}</span>}
+            </IngredientCard>
+          ) : (
+
+            /* INGREDIENT */
+            <IngredientCard
               key={row.id}
-              type="button"
-              className="sub-card fg-ing fg-ing-row"
-              onClick={navigable ? () => router.push(`/modules/forage/ui/library/${row.ingredient_food_id}`) : undefined}
-              disabled={!navigable}
-              aria-label={navigable ? `Open ${row.food_name ?? "ingredient"} details` : undefined}
+              food={{ id: row.ingredient_food_id, icon: row.food_icon, image_updated_at: row.food_image_updated_at }}
+              name={rowName}
+              brand={row.food_brand}
+              onOpen={() => router.push(`/modules/forage/ui/library/${row.ingredient_food_id}`)}
+              openLabel={`Open ${rowName}`}
             >
 
-              {/* AVATAR — the ingredient food's product photo, its icon as fallback */}
-              <FoodAvatar
-                food={{ id: row.ingredient_food_id ?? "", icon: row.food_icon, image_updated_at: row.ingredient_food_id ? row.food_image_updated_at : null }}
-                variant="inline"
-                className="fg-ing-icon"
-              />
+              {/* MACROS */}
+              <IngredientMacros kcal={row.kcal ?? 0} protein={row.protein_g ?? 0} fat={row.fat_g ?? 0} carbs={row.carbs_g ?? 0} />
 
-              {/* BODY — name/brand stacked above the derived macros */}
-              <div className="fg-ing-titles">
-
-                {/* FOOD NAME — resolved rows show the library name; placeholders fall back to free text */}
-                <div className="fg-ing-name">{row.food_name ?? row.placeholder_name}</div>
-
-                {/* BRAND */}
-                {row.food_brand && (
-                  <div className="fg-ing-brand">{row.food_brand}</div>
-                )}
-
-                {/* MACRO TIER — derived kcal + coloured P/F/C */}
-                <div className="fg-ing-macros">
-
-                  {/* CALORIES */}
-                  <span>{Math.round(row.kcal ?? 0)} kcal</span>
-
-                  {/* PROTEIN */}
-                  <span className="fg-ing-p">{Math.round(row.protein_g ?? 0)}P</span>
-
-                  {/* FAT */}
-                  <span className="fg-ing-f">{Math.round(row.fat_g ?? 0)}F</span>
-
-                  {/* CARBS */}
-                  <span className="fg-ing-c">{Math.round(row.carbs_g ?? 0)}C</span>
-                </div>
-              </div>
-
-              {/* TRAILING — amount/unit summary + chevron affordance */}
-              <div className="fg-ing-trail">
-
-                {/* QTY / UNIT — resolved rows show amount+unit; placeholders show their free-text quantity */}
-                <span className="fg-ing-qty-view">
-                  {navigable
-                    ? `${Math.round((row.quantity ?? 0) * 1000) / 1000} ${row.serving_unit ?? ""}`
-                    : row.placeholder_quantity_text ?? ""}
-                </span>
-
-                {/* CHEVRON — only when the row opens a detail page */}
-                {navigable && <ChevronRight className="fg-ing-chev" />}
-              </div>
-            </button>
+              {/* AMOUNT */}
+              <span className="fg-ing-amount">{Math.round((row.quantity ?? 0) * 1000) / 1000} {row.serving_unit ?? ""}</span>
+            </IngredientCard>
           );
         })}
       </div>

@@ -1945,6 +1945,20 @@ input[type="search"]::-webkit-search-results-decoration {
   background: var(--btn-off-hover);
 }
 
+.btn-sm {
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  gap: 0.375rem;
+  white-space: nowrap;
+}
+
+.field-label { font-size: 0.75rem; font-weight: 600; color: var(--color-secondary); }
+
+.page-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.page-head-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.25rem; }
+
 /* Pill trigger — rounded chip used for inline selectors (e.g. location). */
 .btn-pill {
   background: var(--btn-off-bg);
@@ -4912,164 +4926,164 @@ button.list-row:disabled {
 }
 
 /* ============================================================
-   FORAGE RECIPE — INGREDIENT ROW
-   Name-first layout: the food name owns a full-width top tier and
-   wraps freely (no mid-name truncation) for maximum readability,
-   echoing the .list-row / .timeline-chip name treatment. The derived
-   macros and the qty/unit editor sit on tiers beneath so they never
-   steal horizontal room from the title.
+   FORAGE RECIPE
    ============================================================ */
-.fg-ing { gap: 0.55rem; padding: 0.7rem 0.75rem; }
+.fg-recipe-title { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0; font-size: 1.5rem; line-height: 1.25; overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .fg-recipe-title { font-size: 1.25rem; }
+}
+.fg-recipe-title-icon { flex: 0 0 auto; width: 1.75rem; height: 1.75rem; margin-top: 0.125rem; }
+.fg-recipe-meta { margin: 0.25rem 0 1rem; font-size: 0.875rem; }
+.fg-recipe-fields {
+  display: grid;
+  grid-template-columns: auto 5rem 1fr;
+  column-gap: 0.75rem;
+  row-gap: 0.875rem;
+  margin: 0.75rem 0 1.25rem;
+}
+.fg-recipe-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.fg-recipe-field-name { grid-column: 1 / -1; }
+.fg-recipe-field-label { display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; }
+.fg-recipe-field-error { grid-column: 1 / -1; font-size: 0.75rem; }
+.fg-recipe-field .input-field { min-width: 0; width: 100%; }
+.fg-recipe-icon-btn { width: 2.625rem; height: 2.625rem; padding: 0; border: 1px solid var(--input-border); }
+.fg-recipe-ingredients { margin-bottom: 1.5rem; }
+.fg-recipe-ing-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.625rem;
+}
+.fg-recipe-ing-title { display: flex; align-items: baseline; gap: 0.5rem; margin: 0; font-size: 1.125rem; }
+.fg-recipe-ing-count { font-size: 0.875rem; font-weight: 500; color: var(--color-secondary); }
+.fg-recipe-add-actions { display: flex; gap: 0.5rem; }
+.fg-recipe-add-bottom { margin-top: 0.625rem; }
 
-/* NAME TIER — icon + name span the full row width; the title wraps
-   instead of clipping so long product names stay fully legible. */
-.fg-ing-head { display: flex; align-items: flex-start; gap: 0.5rem; }
-.fg-ing-icon {
+/* ============================================================
+   FORAGE INGREDIENT CARD
+   ============================================================ */
+.fg-ing-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.fg-ing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0;
+  color: var(--color-primary);
+  font: inherit;
+  text-align: left;
+}
+.fg-ing-card.is-link { cursor: pointer; }
+@media (hover: hover) {
+  .fg-ing-card.is-link:hover { border-color: var(--input-border); }
+}
+.fg-ing-card.is-link:active { opacity: 0.7; }
+.fg-ing-line { display: flex; align-items: center; gap: 0.625rem; min-width: 0; }
+.fg-ing-avatar {
   flex: 0 0 auto;
-  width: 1.2rem;
-  height: 1.2rem;
-  margin-top: 0.1rem;
+  align-self: flex-start;
+  width: 1.75rem;
+  height: 1.75rem;
   color: var(--color-secondary);
 }
-.fg-ing-titles { flex: 1 1 auto; min-width: 0; }
+.fg-ing-name-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
 .fg-ing-name {
   font-size: 0.9375rem;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--color-primary);
-  overflow-wrap: anywhere;   /* wrap long unbroken names rather than clip */
+  overflow-wrap: anywhere;
 }
-.fg-ing-brand {
-  margin-top: 0.0625rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.25;
-  color: var(--color-secondary);
-}
-
-/* MACRO TIER — quiet derived summary; coloured P/F/C tokens match the
-   food-picker meta so the numbers read at a glance. */
-.fg-ing-macros {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  font-size: 0.72rem;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-secondary);
-}
+.fg-ing-brand { font-size: 0.75rem; line-height: 1.25; color: var(--color-secondary); }
+.fg-ing-card.is-unmatched .fg-ing-name { font-style: italic; font-weight: 400; color: var(--color-secondary); }
+.fg-ing-chev { flex: 0 0 auto; width: 1rem; height: 1rem; color: var(--color-secondary); }
+.fg-ing-detail { padding-left: 2.375rem; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.fg-ing-card:has(.fg-ing-controls) .fg-ing-detail { flex-wrap: wrap; row-gap: 0.375rem; padding-left: 0; }
+.fg-ing-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 0.375rem; margin-left: auto; }
+.fg-ing-macros { display: flex; align-items: center; gap: 0.45rem; min-width: 0; white-space: nowrap; color: var(--color-secondary); }
+.fg-ing-kcal { font-weight: 600; color: var(--color-primary); }
 .fg-ing-p { color: var(--fg-protein); }
 .fg-ing-f { color: var(--fg-fat); }
 .fg-ing-c { color: var(--fg-carb); }
-
-/* CONTROL TIER — qty/unit editor on the left, row actions on the right. */
-.fg-ing-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.fg-ing-qty { display: flex; align-items: center; gap: 0.3rem; flex: 0 1 auto; min-width: 0; }
+.fg-ing-amount { margin-left: auto; white-space: nowrap; color: var(--color-secondary); }
+.fg-ing-unmatched-label { font-style: italic; white-space: nowrap; color: var(--color-secondary); }
+.fg-ing-push { margin-left: auto; }
 .fg-ing-amt {
   flex: 0 0 auto;
-  width: 4.25rem;
-  min-width: 0;              /* override .input-field's 120px floor */
-  height: 1.95rem;
+  width: 3.75rem;
+  min-width: 0;
+  height: 2.25rem;
   padding: 0 0.45rem;
   text-align: right;
-  font-size: 0.85rem;
-  -webkit-appearance: none;
-  -moz-appearance: textfield;
+  font-size: 0.875rem;
   appearance: none;
 }
-.fg-ing-amt::-webkit-outer-spin-button,
-.fg-ing-amt::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .fg-ing-unit {
-  flex: 0 1 auto;
-  width: auto;
-  min-width: 3.25rem;       /* override .input-field's 120px floor */
-  max-width: 7rem;
-  height: 1.95rem;
-  padding: 0 0.35rem;
-  font-size: 0.78rem;
-}
-.fg-ing-unit-static { font-size: 0.78rem; color: var(--color-secondary); }
-.fg-ing-actions { display: flex; align-items: center; gap: 0.2rem; flex: 0 0 auto; }
-
-/* VIEW ROW — read-only ingredient laid out as one tappable row
-   (icon · name/macros · amount + chevron) that opens the food's detail
-   page. Overrides the editable card's stacked column layout. */
-.fg-ing-row {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.6rem;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-}
-.fg-ing-row:disabled { cursor: default; }
-.fg-ing-row .fg-ing-icon { margin-top: 0; }    /* centre the icon in the single row */
-.fg-ing-trail {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
   flex: 0 0 auto;
-}
-.fg-ing-qty-view {
+  width: 5rem;
+  min-width: 0;
+  height: 2.25rem;
+  padding: 0 0.35rem;
   font-size: 0.8125rem;
-  color: var(--color-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
-.fg-ing-chev { width: 1rem; height: 1rem; flex: 0 0 auto; color: var(--color-secondary); }
-@media (hover: hover) {
-  .fg-ing-row:not(:disabled):hover { border-color: var(--input-border); }
-}
-.fg-ing-row:not(:disabled):active { opacity: 0.7; }
+.fg-ing-unit-static { flex: 0 0 auto; font-size: 0.8125rem; color: var(--color-secondary); }
 
-/* STATIC VIEW ROW — a read-only ingredient row used inside the logger /
-   detail sheet, where tapping must NOT navigate (it would drop the draft).
-   Drops the tappable affordances (pointer cursor, hover border, active dim). */
-.fg-ing-row-static { cursor: default; }
-@media (hover: hover) {
-  .fg-ing-row-static:hover { border-color: var(--card-border); }
-}
-.fg-ing-row-static:active { opacity: 1; }
-
-/* EDITING ROW — at rest a recipe's rows are sharp; in the editor each row
-   rounds its corners (animated on entry) to mark it as editable.
-   Carries its own surface instead of .sub-card, whose sharp-corner reset is
-   !important and would block both the radius and its animation. */
-.fg-ing-editing {
+/* ============================================================
+   MACRO SUMMARY
+   ============================================================ */
+.macro-summary {
   display: flex;
   flex-direction: column;
-  background: var(--hover-bg);
+  gap: 0.625rem;
+  margin-bottom: 1.5rem;
+  padding: 0.875rem 1rem;
+  background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 0.5rem;
-  animation: fg-ing-round 200ms ease-out;
 }
-@keyframes fg-ing-round { from { border-radius: 0; } to { border-radius: 0.5rem; } }
-@media (prefers-reduced-motion: reduce) { .fg-ing-editing { animation: none; } }
-
-/* PLACEHOLDER ROW — an imported line with no library food yet. Dashed edge
-   so it reads as incomplete next to the resolved rows. */
-.fg-ing-placeholder { border-style: dashed; border-color: var(--input-border); }
-
-/* EMPTY INGREDIENT LIST — the two ways to add, side by side. */
-.fg-recipe-empty { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-.fg-recipe-empty .btn { justify-content: center; }
-
-/* RECIPE NUTRITION SUMMARY — scope header over the shared macro tiles. */
-.fg-recipe-sum { gap: 0.75rem; padding: 0.75rem; margin-bottom: 1.25rem; }
-.fg-recipe-unresolved {
-  font-size: 0.75rem;
-  color: var(--color-secondary);
-  border-top: 1px dashed var(--input-border);
-  padding-top: 0.5rem;
+.macro-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.macro-summary-kcal { display: flex; align-items: baseline; gap: 0.375rem; }
+.macro-summary-kcal-value { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--fg-cal); font-variant-numeric: tabular-nums; }
+.macro-summary-kcal-unit { font-size: 0.8125rem; color: var(--color-secondary); }
+.macro-bar { display: flex; height: 0.5rem; overflow: hidden; border-radius: 999px; background: var(--card-border); }
+.macro-bar > [data-kind="protein"], .macro-legend-dot[data-kind="protein"] { background: var(--fg-protein); }
+.macro-bar > [data-kind="fat"], .macro-legend-dot[data-kind="fat"] { background: var(--fg-fat); }
+.macro-bar > [data-kind="carb"], .macro-legend-dot[data-kind="carb"] { background: var(--fg-carb); }
+.macro-legend { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8125rem; color: var(--color-secondary); }
+.macro-legend-item { display: flex; align-items: center; gap: 0.375rem; white-space: nowrap; }
+.macro-legend-item b { font-weight: 700; color: var(--color-primary); font-variant-numeric: tabular-nums; }
+.macro-legend-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; }
+.macro-legend-share { color: var(--color-gray); }
+@media (max-width: 639px) {
+  .macro-legend { font-size: 0.75rem; }
+  .macro-legend-share { display: none; }
 }
+
+/* ============================================================
+   COLLAPSIBLE SECTION
+   ============================================================ */
+.collapse-section { margin-bottom: 1.25rem; border-top: 1px solid var(--card-border); }
+.collapse-head {
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0.75rem 0;
+  background: none;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-align: left;
+}
+@media (hover: hover) {
+  .collapse-head:hover .collapse-title { text-decoration: underline; text-underline-offset: 3px; }
+}
+.collapse-chev { flex: 0 0 auto; transition: transform 150ms; }
+.collapse-head[aria-expanded="true"] .collapse-chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .collapse-chev { transition: none; } }
+.collapse-body { padding-bottom: 0.5rem; }
 
 /* ============================================================
    QUICK ADD — three tidy method groups (Describe / USDA / Manual),
