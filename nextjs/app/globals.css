@@ -4956,8 +4956,7 @@ button.list-row:disabled {
   gap: 0.5rem;
   margin-bottom: 0.625rem;
 }
-.fg-recipe-ing-title { display: flex; align-items: baseline; gap: 0.5rem; margin: 0; font-size: 1.125rem; }
-.fg-recipe-ing-count { font-size: 0.875rem; font-weight: 500; color: var(--color-secondary); }
+.fg-recipe-ing-title { margin: 0; font-size: 1.125rem; }
 .fg-recipe-add-actions { display: flex; gap: 0.5rem; }
 .fg-recipe-add-bottom { margin-top: 0.625rem; }
 

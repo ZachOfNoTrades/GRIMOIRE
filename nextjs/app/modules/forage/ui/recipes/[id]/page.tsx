@@ -720,7 +720,7 @@ export default function ForageRecipeDetailPage() {
 
               {/* INGREDIENTS HEADER */}
               <div className="fg-recipe-ing-head">
-                <h2 className="text-h2 fg-recipe-ing-title">Ingredients <span className="fg-recipe-ing-count">{ingredients.length}</span></h2>
+                <h2 className="text-h2 fg-recipe-ing-title">Ingredients</h2>
 
                 {/* TOP ADD ACTIONS */}
                 {isEditing && <div className="fg-recipe-add-actions">{addActions}</div>}
