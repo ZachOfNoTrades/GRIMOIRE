@@ -1,4 +1,4 @@
-import { Food, FoodServing } from "../types/food";
+import { Food, FoodContainer, FoodServing } from "../types/food";
 import {
   convert,
   normUnit,
@@ -24,10 +24,33 @@ import {
 // can still be measured in lb/oz/kg — the units the photo or recipe actually showed.
 export const VIRTUAL_PREFIX = "virtual:";
 
+// CONTAINER UNITS — a food's containers are offered as more units, with ids `container:<containerId>`;
+// resolveServingForSave stores a container pick as the same number of servings on a real row
+export const CONTAINER_PREFIX = "container:";
+
+// Make a food's containers into in-memory serving rows, after its real and virtual units
+function containerServings(foodId: string, containers: FoodContainer[]): FoodServing[] {
+  return containers
+    .filter((c) => Number(c.servings_per_container) > 0)
+    .map((c) => ({
+      id: `${CONTAINER_PREFIX}${c.id}`,
+      food_id: foodId,
+      unit: c.name,
+      units_per_serving: 1 / Number(c.servings_per_container),
+    }));
+}
+
+// Expand a food's real serving rows with its standard units and its containers
+export function expandVirtualServings(foodId: string, real: FoodServing[], containers: FoodContainer[] = []): FoodServing[] {
+  const withUnits = expandStandardUnits(foodId, real);
+  const asServings = containerServings(foodId, containers);
+  return asServings.length === 0 ? withUnits : [...withUnits, ...asServings];
+}
+
 // Expand a food's real serving rows with the standard units of the base row's
 // family. Returns the input array unchanged when the food has no convertible
 // mass/volume anchor (count-based foods) or already carries every standard unit.
-export function expandVirtualServings(foodId: string, real: FoodServing[]): FoodServing[] {
+function expandStandardUnits(foodId: string, real: FoodServing[]): FoodServing[] {
   // Anchor EACH family independently. A food carrying both a mass row and a volume
   // row (a quick-added food saved as "28 g / 0.25 cup") describes one serving two
   // ways, so both expansions are valid and the user gets weights AND volumes.
@@ -66,7 +89,7 @@ export function expandVirtualServings(foodId: string, real: FoodServing[]): Food
 // Food-level wrapper: expand the food's servings in place.
 export function withVirtualUnits(food: Food): Food {
   const real = food.servings ?? [];
-  const expanded = expandVirtualServings(food.id, real);
+  const expanded = expandVirtualServings(food.id, real, food.containers ?? []);
   if (expanded.length === real.length) return food;
   return { ...food, servings: expanded };
 }
@@ -79,6 +102,7 @@ export function resolveServingForSave(
   servingId: string | null,
   quantity: number
 ): { serving_id: string | null; quantity: number } {
+  if (servingId?.startsWith(CONTAINER_PREFIX)) return resolveContainerForSave(servings, servingId, quantity);
   if (!servingId || !servingId.startsWith(VIRTUAL_PREFIX)) {
     return { serving_id: servingId, quantity };
   }
@@ -93,4 +117,18 @@ export function resolveServingForSave(
     if (converted != null) return { serving_id: baseId, quantity: Math.round(converted * 1e4) / 1e4 };
   }
   return { serving_id: baseId || null, quantity };
+}
+
+// Store an amount of containers as the same number of servings on the food's serving row, or on its first real row when it has none
+function resolveContainerForSave(
+  servings: FoodServing[],
+  servingId: string,
+  quantity: number
+): { serving_id: string | null; quantity: number } {
+  const containerRow = servings.find((s) => s.id === servingId);
+  const realRows = servings.filter((s) => !s.id.startsWith(CONTAINER_PREFIX) && !s.id.startsWith(VIRTUAL_PREFIX));
+  const baseRow = realRows.find((s) => normUnit(s.unit) === "serving") ?? realRows[0];
+  if (!containerRow || !baseRow || !Number.isFinite(quantity)) return { serving_id: baseRow?.id ?? null, quantity };
+  const servingCount = quantity / Number(containerRow.units_per_serving);
+  return { serving_id: baseRow.id, quantity: Math.round(servingCount * Number(baseRow.units_per_serving) * 1e4) / 1e4 };
 }

@@ -1,7 +1,7 @@
 import sql from 'mssql';
 import { getFoodConnection, closeFoodConnection } from './db';
 import { SEARCH_IGNORED_CHARS, normalizeSearchTerm } from './searchNormalize';
-import { Food, FoodNutrient, FoodServing, FoodNutrientRanking, FoodUsageStats } from '../types/food';
+import { Food, FoodContainer, FoodNutrient, FoodServing, FoodNutrientRanking, FoodUsageStats } from '../types/food';
 import { findServingRowConflict, servingRowConflictMessage } from './servingRows';
 import { normUnit } from './unitFamilies';
 
@@ -22,6 +22,7 @@ interface CreateFoodInput {
   // legitimate thing to store.
   source_url?: string | null;
   servings?: { unit: string; units_per_serving: number }[];
+  containers?: { name: string; servings_per_container: number }[]; // left unchanged on update when absent
   nutrients?: FoodNutrient[];
   // When true, do NOT force the canonical {'serving', 1} row. Used for foods
   // whose reference basis is a base unit (per-100g / per-100ml), where a generic
@@ -106,6 +107,45 @@ function normalizeServings(
   const conflict = findServingRowConflict(list);
   if (conflict) throw new InvalidServingRowsError(servingRowConflictMessage(conflict));
   return list;
+}
+
+// Keep containers with a name and a positive serving count, trimmed to the column's length
+function normalizeContainers(input: { name: string; servings_per_container: number }[]): { name: string; servings_per_container: number }[] {
+  return input
+    .map((c) => ({ name: String(c.name ?? '').trim().slice(0, 64), servings_per_container: Number(c.servings_per_container) }))
+    .filter((c) => c.name && Number.isFinite(c.servings_per_container) && c.servings_per_container > 0);
+}
+
+// Replace a food's containers with the given list, in its order
+async function replaceFoodContainers(pool: sql.ConnectionPool, foodId: string, containers: { name: string; servings_per_container: number }[]): Promise<void> {
+  await pool.request().input('foodId', sql.UniqueIdentifier, foodId).query(`DELETE FROM food_containers WHERE food_id=@foodId`);
+  for (const [order, c] of normalizeContainers(containers).entries()) {
+    await pool
+      .request()
+      .input('foodId', sql.UniqueIdentifier, foodId)
+      .input('name', sql.NVarChar(64), c.name)
+      .input('servings', sql.Decimal(10, 3), c.servings_per_container)
+      .input('order', sql.Int, order)
+      .query(`INSERT INTO food_containers (food_id, name, servings_per_container, display_order) VALUES (@foodId, @name, @servings, @order)`);
+  }
+}
+
+// Read the containers of the given foods, keyed by food id
+// NOTE: The ids are written into the query, as a library list can pass more foods than SQL Server allows parameters; each is checked to be a GUID first
+export async function readFoodContainers(pool: sql.ConnectionPool, foodIds: string[]): Promise<Map<string, FoodContainer[]>> {
+  const byFood = new Map<string, FoodContainer[]>();
+  const guids = foodIds.filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+  if (guids.length === 0) return byFood;
+  const result = await pool.request().query<FoodContainer>(
+    `SELECT id, food_id, name, servings_per_container FROM food_containers
+     WHERE food_id IN (${guids.map((id) => `'${id}'`).join(',')})
+     ORDER BY display_order, name`
+  );
+  for (const c of result.recordset) {
+    if (!byFood.has(c.food_id)) byFood.set(c.food_id, []);
+    byFood.get(c.food_id)!.push({ ...c, servings_per_container: Number(c.servings_per_container) });
+  }
+  return byFood;
 }
 
 // Filter incoming nutrient rows: drop blanks/negative/invalid uuid; dedupe by nutrient_id (last wins).
@@ -396,6 +436,7 @@ export async function listFoods(
       if (!servingsByFood.has(s.food_id)) servingsByFood.set(s.food_id, []);
       servingsByFood.get(s.food_id)!.push({ ...s, units_per_serving: Number(s.units_per_serving) });
     }
+    const containersByFood = await readFoodContainers(pool, ids);
     return foodsResult.recordset.map((r) => ({
       ...r,
       kcal_per_serving: Number(r.kcal_per_serving),
@@ -408,6 +449,7 @@ export async function listFoods(
       // cache-buster, so a replaced photo is fetched fresh.
       image_updated_at: r.image_updated_at ? new Date(r.image_updated_at).toISOString() : null,
       servings: servingsByFood.get(r.id) || [],
+      containers: containersByFood.get(r.id) ?? [],
       // The serving + amount from this user's most-recent entry for the food, so the
       // logger's details sheet defaults to "last used" rather than "1 serving". Left
       // unset (undefined) for never-logged foods, matching the optional Food contract.
@@ -608,6 +650,7 @@ export async function getFood(userId: string, foodId: string): Promise<Food> {
          FROM food_nutrients fn JOIN nutrients n ON n.id = fn.nutrient_id
          WHERE fn.food_id = @foodId AND n.category <> 'macro'`
       );
+    const containers = await readFoodContainers(pool, [foodId]);
     const r = result.recordset[0];
     return {
       ...r,
@@ -621,6 +664,7 @@ export async function getFood(userId: string, foodId: string): Promise<Food> {
       // cache-buster, so a replaced photo is fetched fresh.
       image_updated_at: r.image_updated_at ? new Date(r.image_updated_at).toISOString() : null,
       servings: servings.recordset.map((s) => ({ ...s, units_per_serving: Number(s.units_per_serving) })),
+      containers: containers.get(foodId) ?? [],
       nutrients: nutrients.recordset.map((n) => ({
         nutrient_id: n.nutrient_id,
         amount: Number(n.amount),
@@ -757,6 +801,7 @@ export async function createFood(userId: string, input: CreateFoodInput): Promis
         .input('ups', sql.Decimal(10, 4), s.units_per_serving)
         .query(`INSERT INTO food_servings (food_id, unit, units_per_serving) VALUES (@foodId, @unit, @ups)`);
     }
+    if (input.containers) await replaceFoodContainers(pool, newId, input.containers);
     await reconcileFoodNutrients(pool, newId, await withMacroNutrients(pool, input, normalizeNutrients(input.nutrients)));
     return await getFood(userId, newId);
   } finally {
@@ -826,6 +871,7 @@ export async function updateFood(userId: string, foodId: string, input: CreateFo
         .input('id', sql.UniqueIdentifier, r.id)
         .query(`DELETE FROM food_servings WHERE id=@id`);
     }
+    if (input.containers) await replaceFoodContainers(pool, foodId, input.containers);
     await reconcileFoodNutrients(pool, foodId, await withMacroNutrients(pool, input, normalizeNutrients(input.nutrients)));
     return await getFood(userId, foodId);
   } finally {

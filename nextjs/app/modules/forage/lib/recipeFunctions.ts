@@ -5,6 +5,7 @@ import {
   buildSearchTokenPattern,
   SEARCH_PARAM_WIDTH,
   SEARCH_TOKEN_MAX_CHARS,
+  readFoodContainers,
 } from './foodFunctions';
 import { Recipe, RecipeIngredient, RecipeIngredientInput, CreateRecipeInput } from '../types/recipe';
 import { FoodNutrient, FoodServing } from '../types/food';
@@ -137,6 +138,7 @@ async function hydrateIngredients(
       servingsByFood.get(s.food_id)!.push({ ...s, units_per_serving: Number(s.units_per_serving) });
     }
   }
+  const containersByFood = await readFoodContainers(pool, foodIds);
 
   return rows.recordset.map((r) => {
     const quantity = Number(r.quantity);
@@ -164,6 +166,7 @@ async function hydrateIngredients(
       fat_g: servings * (m['fat'] ?? 0),
       nutrients: foodNutrients.map((n) => ({ nutrient_id: n.nutrient_id, amount: servings * n.amount })),
       food_servings: r.ingredient_food_id ? (servingsByFood.get(r.ingredient_food_id) ?? []) : [],
+      food_containers: r.ingredient_food_id ? (containersByFood.get(r.ingredient_food_id) ?? []) : [],
     };
   });
 }

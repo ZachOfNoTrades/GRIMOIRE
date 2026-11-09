@@ -9,6 +9,14 @@ export interface FoodServing {
   units_per_serving: number;
 }
 
+// A FoodContainer is a package a Food is sold in, such as a 16 oz jar, measured in the Food's servings
+export interface FoodContainer {
+  id: string;
+  food_id: string;
+  name: string;
+  servings_per_container: number;
+}
+
 export type NutrientCategory = 'macro' | 'vitamin' | 'mineral' | 'other';
 
 export interface Nutrient {
@@ -114,6 +122,7 @@ export interface Food {
   // the image URL's cache when the photo is replaced.
   image_updated_at: string | null;
   servings: FoodServing[];
+  containers?: FoodContainer[];
   // Populated by getFood; omitted by listFoods to keep the library list cheap.
   nutrients?: FoodNutrient[];
   // Set ONLY on "Latest"/recent picker rows: the serving + amount from the user's

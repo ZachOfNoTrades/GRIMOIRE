@@ -4961,6 +4961,58 @@ button.list-row:disabled {
 .fg-recipe-add-bottom { margin-top: 0.625rem; }
 
 /* ============================================================
+   FORAGE FOOD
+   ============================================================ */
+.fg-food-head { margin-bottom: 1rem; }
+.fg-food-edit-title { margin-bottom: 0.75rem; }
+.fg-wizard-head { max-width: 38rem; margin: 0 auto; }
+.fg-wizard-title { margin-top: 0.75rem; }
+.fg-food-field-row { display: flex; align-items: flex-end; gap: 0.75rem; }
+.fg-food-edit-section { display: flex; flex-direction: column; gap: 0.5rem; }
+.fg-container-list { display: flex; flex-direction: column; border: 1px solid var(--card-border); border-radius: 0.5rem; overflow: hidden; }
+.fg-container-row { display: flex; flex-direction: column; gap: 0.375rem; padding: 0.5rem; }
+.fg-container-row + .fg-container-row { border-top: 1px solid var(--card-border); }
+.fg-container-holds { display: flex; align-items: center; gap: 0.5rem; }
+.fg-container-note { font-size: 0.8125rem; color: var(--color-secondary); white-space: nowrap; }
+.fg-container-amount { width: 5rem; min-width: 0; }
+.fg-food-title-avatar { flex: 0 0 auto; width: 1.75rem; height: 1.75rem; margin-top: 0.125rem; }
+.fg-food-title-text { display: flex; flex-direction: column; min-width: 0; }
+.fg-food-title-brand { font-size: 0.875rem; font-weight: 400; color: var(--color-secondary); }
+.fg-food-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  color: var(--color-secondary);
+  text-decoration: underline;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.fg-food-source > span { overflow: hidden; text-overflow: ellipsis; }
+.fg-food-section { margin-bottom: 1.5rem; }
+.fg-food-section-title { margin: 0 0 0.625rem; font-size: 1.125rem; }
+.fg-food-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
+@media (max-width: 639px) {
+  .fg-food-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.fg-food-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  font-size: 0.875rem;
+  color: var(--color-secondary);
+  overflow-wrap: anywhere;
+}
+.fg-food-tile b { color: var(--color-primary); }
+.macro-summary-basis { font-size: 0.8125rem; color: var(--color-secondary); }
+
+/* ============================================================
    FORAGE INGREDIENT CARD
    ============================================================ */
 .fg-ing-list { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -5228,7 +5280,7 @@ button.list-row:disabled {
 }
 
 /* ============================================================
-   Compact Edit Table — small 3-column amount/unit/remove editor
+   Compact Edit Table — small amount/unit/note/menu row editor
    ============================================================ */
 .compact-edit-table {
   width: 100%;
@@ -5257,6 +5309,16 @@ button.list-row:disabled {
 }
 .compact-edit-table tbody td:first-child .input-field {
   min-width: 5rem;
+}
+.compact-edit-table-units { table-layout: fixed; }
+.compact-edit-table-units tbody td:first-child { width: 4.5rem; }
+.compact-edit-table-units tbody td:last-child { width: 3.25rem; }
+.compact-edit-table-units tbody td:nth-child(2) { width: 6.5rem; }
+.compact-edit-table-units tbody td:first-child .input-field { min-width: 0; }
+.compact-edit-table tbody td.compact-edit-note {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-secondary);
 }
 
 /* ============================================================
