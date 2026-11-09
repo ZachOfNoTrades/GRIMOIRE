@@ -33,6 +33,7 @@ export interface RecipeIngredient {
   nutrients?: FoodNutrient[];
   // All available servings for this ingredient's food (for UOM switching).
   food_servings?: import('./food').FoodServing[];
+  food_containers?: import('./food').FoodContainer[]; // the ingredient food's containers
 }
 
 // A recipe wraps a `foods` row (source='recipe') and decorates it with the

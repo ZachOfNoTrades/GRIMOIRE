@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast, { Toaster } from "@/components/Toaster";
-import { ArrowLeft, Trash2, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Trash2, RefreshCw, Heart } from "lucide-react";
 import { HeaderEditButton } from "@/components/ui/HeaderEditButton";
+import { HeaderMenu } from "@/components/ui/HeaderMenu";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { useConfirm } from "@/lib/useConfirm";
 import { FoodWithIngredients } from "../../../types/recipe";
 import { FoodForm, FoodDetailContent, useNutrients, prefetchNutrientTargets, sourceUrlHost } from "../../_diary";
-import UpLink from "@/components/UpLink";
 
 export default function ForageFoodDetailPage() {
   const router = useRouter();
@@ -27,6 +27,7 @@ export default function ForageFoodDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isFaving, setIsFaving] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
+  const [saveBarSlot, setSaveBarSlot] = useState<HTMLDivElement | null>(null);
 
   // `honorEditParam` is set only for the initial load: ?edit=1 is a one-shot
   // "open in the editor" request, so the post-save reload must not re-enter it.
@@ -163,85 +164,54 @@ export default function ForageFoodDetailPage() {
   }
 
   return (
-    /* PAGE */
-    <div className="page">
+
+    // PAGE
+    <div className="page-with-bottom-bar">
+
+      {/* PAGE SCROLL */}
+      <div className="page-scroll">
 
       {/* PAGE CONTAINER */}
       <div className="page-container">
 
-        {/* HEADER */}
-        <div
-          className="flex items-center"
-          style={{ marginBottom: "1rem", gap: "0.5rem", flexWrap: "nowrap" }}
-        >
+        {/* HEADER ROW */}
+        <div className="page-head-row">
 
-          {/* UP — the library list. Always up one level, never wherever the user
-              happened to come from, so it can't cycle. */}
-          <UpLink
-            href="/modules/forage/ui/library"
-            className="btn btn-link"
-            aria-label="Food library"
-            style={{ paddingLeft: 0, flexShrink: 0 }}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </UpLink>
+          {/* BREADCRUMBS */}
+          <Breadcrumbs className="breadcrumbs-inline" label="Food" />
 
-          {/* TITLE */}
-          <h1
-            className="text-page-title"
-            style={{
-              flex: 1,
-              textAlign: "center",
-              margin: 0,
-              fontSize: "1rem",
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {isEditing ? "Edit food" : food?.name ?? "Food"}
-          </h1>
+          {/* HEADER ACTIONS */}
+          <div className="page-head-actions">
 
-          {/* RESYNC — only for foods that carry a source link. Re-scrapes that
-              page and refreshes the nutrition in place. Icon-only so the header
-              stays on one line on a phone. */}
-          {!isEditing && food?.source_url && (
-            <Button
-              className="btn-off"
-              onClick={handleResync}
-              disabled={isLoading || isResyncing}
-              aria-label="Resync nutrition from source link"
-              title={`Resync from ${sourceUrlHost(food.source_url)}`}
-              style={{ padding: "0.4rem 0.55rem", flexShrink: 0 }}
-            >
-              <RefreshCw className={`w-4 h-4${isResyncing ? " animate-spin" : ""}`} />
-            </Button>
-          )}
+            {/* EDIT BUTTON */}
+            {!isEditing && (
+              <HeaderEditButton className="btn-sm" onClick={() => setIsEditing(true)} disabled={isLoading || !food} aria-label="Edit food" />
+            )}
 
-          {/* EDIT — hidden while editing; the inline form carries its own
-              Save/Cancel action bar. */}
-          {!isEditing && (
-            <HeaderEditButton
-              onClick={() => setIsEditing(true)}
+            {/* MORE MENU */}
+            <HeaderMenu
               disabled={isLoading || !food}
-              aria-label="Edit food"
-              style={{ flexShrink: 0 }}
+              items={[
+                !isEditing && { label: "Favorite", icon: <Heart className="w-4 h-4" />, onSelect: handleToggleFavorite, checked: !!food?.is_favorite, disabled: isFaving },
+                !isEditing && !!food?.source_url && { label: "Resync", icon: <RefreshCw className="w-4 h-4" />, onSelect: handleResync, disabled: isResyncing, title: `Resync nutrition from ${sourceUrlHost(food.source_url)}` },
+                { label: "Delete", icon: <Trash2 className="w-4 h-4" />, onSelect: handleDelete, danger: true },
+              ]}
             />
-          )}
+          </div>
         </div>
 
         {isLoading ? (
+
           /* LOADING */
           <div className="loading-container"><div className="loading-spinner" /></div>
         ) : food ? (
           isEditing ? (
-            /* EDIT MODE — integrated full-page food editor (no modal overlay).
-               Replaces the read-only details in place; its own action bar
-               carries Save/Cancel. */
+
+            /* EDIT MODE — the food editor in place of the details, with its own save bar */
             <FoodForm
               variant="page"
               foodId={food.id}
+              saveBarSlot={saveBarSlot}
               onClose={() => setIsEditing(false)}
               onSaved={() => {
                 setIsEditing(false);
@@ -249,33 +219,22 @@ export default function ForageFoodDetailPage() {
               }}
             />
           ) : (
-            <>
 
-              {/* FOOD DETAILS — shared with the diary detail modal */}
-              <FoodDetailContent
-                food={food}
-                nutrients={nutrients}
-                onToggleFavorite={handleToggleFavorite}
-                isFaving={isFaving}
-              />
-
-              {/* DANGER ZONE */}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.25rem" }}>
-                <Button className="btn-red" onClick={handleDelete} aria-label="Delete food">
-                  <Trash2 className="w-4 h-4" /> Delete food
-                </Button>
-              </div>
-            </>
+            /* FOOD DETAILS */
+            <FoodDetailContent food={food} nutrients={nutrients} />
           )
         ) : null}
-
-        {/* TOAST */}
-        <Toaster position="bottom-center" />
+      </div>
       </div>
 
-      {/* DELETE-FOOD CONFIRM MODAL */}
+      {/* SAVE BAR SLOT — the editor draws its save bar here, below the scroll area */}
+      <div ref={setSaveBarSlot} />
+
+      {/* TOAST */}
+      <Toaster position="bottom-center" containerStyle={isEditing ? { bottom: "5rem" } : undefined} />
+
+      {/* CONFIRM MODAL */}
       {confirmModal}
     </div>
   );
 }
-

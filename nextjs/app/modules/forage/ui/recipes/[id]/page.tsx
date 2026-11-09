@@ -106,7 +106,7 @@ function toDraft(r: RecipeIngredient, i: number): DraftIngredient {
     __base: base,
     // Expand the food's stored servings with the standard units of its mass/volume
     // family so the unit picker offers related units (e.g. a gram-based food → lb/oz/kg).
-    food_servings: expandVirtualServings(r.ingredient_food_id ?? "", r.food_servings ?? []),
+    food_servings: expandVirtualServings(r.ingredient_food_id ?? "", r.food_servings ?? [], r.food_containers ?? []),
   };
 }
 
@@ -380,7 +380,7 @@ export default function ForageRecipeDetailPage() {
 
   // Build a resolved row for `food` at `quantity` of serving `servingId`.
   function buildRow(clientId: string, food: Food, servingId: string, quantity: number): DraftIngredient {
-    const servings = expandVirtualServings(food.id, food.servings ?? []);
+    const servings = expandVirtualServings(food.id, food.servings ?? [], food.containers ?? []);
     const serving = servings.find((s) => s.id === servingId) ?? servings[0];
     return withNutrition({
       __clientId: clientId,

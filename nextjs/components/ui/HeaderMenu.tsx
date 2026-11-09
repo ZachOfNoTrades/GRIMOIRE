@@ -13,6 +13,7 @@ export interface HeaderMenuItem {
     disabled?: boolean;
     title?: string; // hover tooltip for an action whose label can't say everything it does
     separatorBefore?: boolean; // a rule above the item, setting it apart from the group before it
+    checked?: boolean; // makes the item a toggle showing its state, which leaves the menu open when chosen
 }
 
 interface HeaderMenuProps {
@@ -47,12 +48,14 @@ export const HeaderMenu = ({ items, id, label = "More actions", disabled, wide }
                         {item.separatorBefore && <div className="popover-separator" />}
                         <button
                             type="button"
-                            role="menuitem"
+                            role={item.checked === undefined ? "menuitem" : "menuitemcheckbox"}
+                            aria-checked={item.checked}
                             className={item.danger ? "popover-item popover-item-danger text-left" : "popover-item text-left"}
                             disabled={item.disabled}
                             title={item.title}
                             onClick={() => {
-                                setIsOpen(false);
+                                // Close on a command; a toggle stays open to show its new state
+                                if (item.checked === undefined) setIsOpen(false);
                                 item.onSelect();
                             }}
                         >

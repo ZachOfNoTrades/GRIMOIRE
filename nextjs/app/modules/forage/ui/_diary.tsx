@@ -28,7 +28,6 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  Heart,
   Info,
   Check,
   Split,
@@ -45,8 +44,14 @@ import {
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/Modal";
 import SegmentedToggle from "@/components/ui/SegmentedToggle";
+import CollapsibleSection from "@/components/ui/CollapsibleSection";
+import Breadcrumbs from "@/components/Breadcrumbs";
+import { HeaderMenu } from "@/components/ui/HeaderMenu";
+import { SaveBar } from "@/components/ui/SaveBar";
+import { createPortal } from "react-dom";
+import { MacroSummary } from "../components/MacroSummary";
 import { FoodEntry, DailyTotals } from "../types/entry";
-import { Food, FoodNutrient, FoodServing, FoodUsageStats, Nutrient, ResolvedNutrientTarget } from "../types/food";
+import { Food, FoodContainer, FoodNutrient, FoodServing, FoodUsageStats, Nutrient, ResolvedNutrientTarget } from "../types/food";
 import { Recipe, RecipeIngredient, FoodWithIngredients } from "../types/recipe";
 import { NUTRIENT_BUCKETS } from "../utils/nutrientGroups";
 import {
@@ -1277,7 +1282,7 @@ function prefetchFoodServings(foodId: string): Promise<void> {
     .then((r) => (r.ok ? r.json() : null))
     .then((data: Food | null) => {
       const list = data && Array.isArray(data.servings) ? data.servings : [];
-      __foodServingsCache.set(foodId, expandVirtualServings(foodId, list));
+      __foodServingsCache.set(foodId, expandVirtualServings(foodId, list, data?.containers ?? []));
     })
     .catch(() => {
       __foodServingsCache.set(foodId, []);
@@ -1419,7 +1424,8 @@ function HourGroup({
         if (!data) return;
         const list = expandVirtualServings(
           e.food_id!,
-          Array.isArray(data.servings) ? data.servings : []
+          Array.isArray(data.servings) ? data.servings : [],
+          data.containers ?? []
         );
         __foodServingsCache.set(e.food_id!, list);
         // Only apply if user hasn't moved on to another entry
@@ -5094,7 +5100,7 @@ export function ServingTable({
   return (
     <>
       {/* SERVING TABLE */}
-      <table className="compact-edit-table">
+      <table className="compact-edit-table compact-edit-table-units">
         <tbody>
           {rows.map((s, i) => {
             const nextId = nextIdAfter?.(i) ?? null;
@@ -5143,10 +5149,9 @@ export function ServingTable({
                     <option value={ADD_UNIT_SENTINEL}>＋ New unit…</option>
                   </select>
                 </td>
+                <td className="compact-edit-note">per serving</td>
                 <td>
-                  <Button className="btn-link-red" onClick={() => onRemove(i)} aria-label="Remove unit">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <HeaderMenu label={`Actions for ${s.unit || "unit"}`} items={[{ label: "Remove", icon: <Trash2 className="w-4 h-4" />, onSelect: () => onRemove(i), danger: true }]} />
                 </td>
               </tr>
             );
@@ -5166,6 +5171,63 @@ export function ServingTable({
         />
       )}
     </>
+  );
+}
+
+// Edit a food's containers as rows of a name and the servings it holds
+export function ContainerEditor({
+  rows,
+  onChange,
+  onRemove,
+  rowIdPrefix,
+}: {
+  rows: ContainerDraft[];
+  onChange: (i: number, patch: Partial<ContainerDraft>) => void;
+  onRemove: (i: number) => void;
+  rowIdPrefix: string;
+}) {
+  return (
+
+    // CONTAINER LIST
+    <div className="fg-container-list">
+      {rows.map((row, i) => (
+
+        /* CONTAINER ROW */
+        <div key={i} className="fg-container-row">
+
+          {/* NAME */}
+          <input
+            id={`${rowIdPrefix}-${i}-name`}
+            className="input-field"
+            value={row.name}
+            onChange={(e) => onChange(i, { name: e.target.value })}
+            maxLength={64}
+            placeholder="16 oz jar"
+            aria-label="Container name"
+          />
+
+          {/* SERVINGS HELD */}
+          <div className="fg-container-holds">
+            <label className="fg-container-note" htmlFor={`${rowIdPrefix}-${i}-servings`}>Holds</label>
+            <AmountField
+              id={`${rowIdPrefix}-${i}-servings`}
+              className="input-field fg-container-amount"
+              value={row.servings}
+              onValueChange={(v) => onChange(i, { servings: v })}
+              onFocus={selectOnFocus}
+            />
+
+            {/* UNIT — TODO: Let a container hold a weight or volume as well as servings */}
+            <span className="fg-container-note">servings</span>
+
+            {/* ROW MENU */}
+            <span className="ml-auto">
+              <HeaderMenu label={`Actions for ${row.name.trim() || "container"}`} items={[{ label: "Remove", icon: <Trash2 className="w-4 h-4" />, onSelect: () => onRemove(i), danger: true }]} />
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -5459,6 +5521,36 @@ export interface ServingDraft {
   ups: string; // units_per_serving as a string for the input
 }
 
+export interface ContainerDraft {
+  name: string;
+  servings: string; // servings_per_container as a string for the input
+}
+
+// Turn a food's saved containers into editable rows
+export function containerDrafts(containers: FoodContainer[]): ContainerDraft[] {
+  return containers.map((c) => ({ name: c.name, servings: fmtServingAmount(c.servings_per_container, "serving") }));
+}
+
+// Name the first container row missing its name or a usable serving count, so a save never drops it
+export function incompleteContainerRow(rows: ContainerDraft[]): string | null {
+  for (const row of rows) {
+    const name = row.name.trim();
+    const servings = parseAmount(row.servings);
+    const hasServings = Number.isFinite(servings) && servings > 0;
+    if (!name && !row.servings.trim()) continue;
+    if (!name) return "Name each container or remove it.";
+    if (!hasServings) return `How many servings does ${name} hold? Enter a number or remove it.`;
+  }
+  return null;
+}
+
+// Build the containers a save sends, skipping rows left fully blank
+export function containersForSave(rows: ContainerDraft[]): { name: string; servings_per_container: number }[] {
+  return rows
+    .map((row) => ({ name: row.name.trim(), servings_per_container: parseAmount(row.servings) }))
+    .filter((row) => row.name && Number.isFinite(row.servings_per_container) && row.servings_per_container > 0);
+}
+
 // AUTO-AMOUNT — fill a serving row's amount when the unit the user just picked is
 // derivable from a sibling row. Every row reads "1 serving = <ups> <unit>", so a
 // same-family sibling converts straight across: a food anchored on g:45 that gains
@@ -5691,6 +5783,7 @@ export function CreateFoodWizard({
   const [c, setC] = useState("");
   const [f, setF] = useState("");
   const [servings, setServings] = useState<ServingDraft[]>([{ unit: "g", ups: "" }]);
+  const [containers, setContainers] = useState<ContainerDraft[]>([]);
   // Nutrition reference basis + the optional single portion (100g/100ml bases).
   const [basis, setBasis] = useState<WizardBasis>("serving");
   const [portionAmount, setPortionAmount] = useState(""); // weight/volume of one portion, in the base unit
@@ -5905,6 +5998,7 @@ export function CreateFoodWizard({
       setC(saved.c);
       setF(saved.f);
       setServings(saved.servings);
+      setContainers(saved.containers ?? []);
       setBasis(saved.basis);
       setPortionAmount(saved.portionAmount);
       setPortionQty(saved.portionQty);
@@ -5941,6 +6035,7 @@ export function CreateFoodWizard({
       c,
       f,
       servings,
+      containers,
       basis,
       portionAmount,
       portionQty,
@@ -5952,7 +6047,7 @@ export function CreateFoodWizard({
     });
   }, [
     draftRestored, draftHost, step, name, brand, barcodeUpc, sourceUrl, imageSourceUrl,
-    isGlobal, kcal, p, c, f, servings, basis, portionAmount, portionQty, portionName,
+    isGlobal, kcal, p, c, f, servings, containers, basis, portionAmount, portionQty, portionName,
     nutrientAmounts, icon, servingSizeStated, tempUnits,
   ]);
 
@@ -6174,6 +6269,15 @@ export function CreateFoodWizard({
       })
     );
   }
+  function addContainer() {
+    setContainers((prev) => [...prev, { name: "", servings: "" }]);
+  }
+  function updateContainer(i: number, patch: Partial<ContainerDraft>) {
+    setContainers((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  }
+  function removeContainer(i: number) {
+    setContainers((prev) => prev.filter((_, idx) => idx !== i));
+  }
   function removeServing(i: number) {
     setServings((prev) => prev.filter((_, idx) => idx !== i));
   }
@@ -6227,6 +6331,12 @@ export function CreateFoodWizard({
       setStep(1);
       return;
     }
+    const incompleteContainer = incompleteContainerRow(containers);
+    if (incompleteContainer) {
+      toast.error(incompleteContainer);
+      setStep(1);
+      return;
+    }
     if (dupFood) {
       toast.error(`Already in your library: ${dupFood.name}`);
       setStep(0);
@@ -6253,6 +6363,7 @@ export function CreateFoodWizard({
           icon,
           omit_default_serving: basis !== "serving",
           servings: saveServings,
+          containers: containersForSave(containers),
           nutrients: Object.entries(nutrientAmounts)
             .map(([nutrient_id, amount]) => ({ nutrient_id, amount: Number(amount) }))
             .filter((n) => Number.isFinite(n.amount) && n.amount >= 0),
@@ -6397,32 +6508,55 @@ export function CreateFoodWizard({
       {/* HEADER — close (left), centered title, progress bar below. */}
       <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--solid-background)", padding: "0.75rem 1rem 0.5rem" }}>
 
-        {/* HEADER ROW — X left, title centered; X is vertically centered with it. */}
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={() => {
-              // Closing deliberately discards the draft — only an abnormal
-              // teardown should ever leave one behind to resume.
-              clearCreateFoodDraft();
-              onCancel();
-            }}
-            aria-label="Cancel"
-            disabled={isSaving}
-            style={{ display: "flex", background: "transparent", border: "none", padding: 6, marginLeft: -6, cursor: "pointer", color: "var(--color-primary)" }}
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <span className="text-page-title" style={{ flex: 1, textAlign: "center" }}>Create Food</span>
-          {/* SPACER — balances the close button so the title stays centered. */}
-          <span style={{ width: 20 }} />
-        </div>
+        {/* HEADER COLUMN — as wide as the step content below */}
+        <div className="fg-wizard-head">
 
-        {/* PROGRESS BAR */}
-        <div className="wizard-progress" style={{ marginTop: "0.75rem" }} aria-label={`Step ${step + 1} of ${WIZARD_TOTAL_STEPS}`}>
-          {WIZARD_STEPS.map((_, i) => (
-            <span key={i} data-filled={i <= step ? "true" : "false"} />
-          ))}
+          {draftHost === "page" ? (
+            <>
+
+              {/* BREADCRUMBS — leaving discards the draft, as the logger's close button does */}
+              <Breadcrumbs
+                className="breadcrumbs-inline"
+                label="New Food"
+                onNavigate={(href) => {
+                  clearCreateFoodDraft();
+                  router.push(href);
+                }}
+              />
+
+              {/* PAGE TITLE */}
+              <h1 className="text-page-title fg-recipe-title fg-wizard-title">New Food</h1>
+            </>
+          ) : (
+
+            /* HEADER ROW — X left, title centered; X is vertically centered with it. */
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  // Closing deliberately discards the draft — only an abnormal
+                  // teardown should ever leave one behind to resume.
+                  clearCreateFoodDraft();
+                  onCancel();
+                }}
+                aria-label="Cancel"
+                disabled={isSaving}
+                style={{ display: "flex", background: "transparent", border: "none", padding: 6, marginLeft: -6, cursor: "pointer", color: "var(--color-primary)" }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <span className="text-page-title" style={{ flex: 1, textAlign: "center" }}>New Food</span>
+              {/* SPACER — balances the close button so the title stays centered. */}
+              <span style={{ width: 20 }} />
+            </div>
+          )}
+
+          {/* PROGRESS BAR */}
+          <div className="wizard-progress" style={{ marginTop: "0.75rem" }} aria-label={`Step ${step + 1} of ${WIZARD_TOTAL_STEPS}`}>
+            {WIZARD_STEPS.map((_, i) => (
+              <span key={i} data-filled={i <= step ? "true" : "false"} />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -6701,11 +6835,26 @@ export function CreateFoodWizard({
                     }}
                   />
                 )}
-                <Button className="btn-off" onClick={addServing} style={{ alignSelf: "flex-start" }}>
+                <Button className="btn-off btn-sm self-start" onClick={addServing}>
                   <Plus className="w-4 h-4" /> Add unit
                 </Button>
               </div>
             )}
+
+            {/* CONTAINERS */}
+            <section className="fg-food-edit-section">
+              <label className="text-label">Containers</label>
+
+              {/* CONTAINER ROWS */}
+              {containers.length > 0 && (
+                <ContainerEditor rows={containers} onChange={updateContainer} onRemove={removeContainer} rowIdPrefix="cf-ctr" />
+              )}
+
+              {/* ADD CONTAINER */}
+              <Button className="btn-off btn-sm self-start" onClick={addContainer}>
+                <Plus className="w-4 h-4" /> Add container
+              </Button>
+            </section>
 
             {/* 100g / 100ml BASIS — optional single portion. */}
             {basis !== "serving" && (
@@ -6924,6 +7073,7 @@ export function FoodForm({
   onClose,
   onSaved,
   variant = "modal",
+  saveBarSlot,
 }: {
   // When set, the form loads + PUTs that food (edit mode). When null/undefined, POSTs a new food (create mode).
   foodId?: string | null;
@@ -6938,6 +7088,7 @@ export function FoodForm({
   // food, barcode-miss. "page" renders it inline as an integrated full-page edit
   // mode on the food details page (no overlay; its own bottom action bar).
   variant?: "modal" | "page";
+  saveBarSlot?: HTMLElement | null; // where the page variant pins its save bar, outside the page's scroll
 }) {
   const isEdit = !!foodId;
 
@@ -6954,6 +7105,7 @@ export function FoodForm({
   const [c, setC] = useState("");
   const [f, setF] = useState("");
   const [servings, setServings] = useState<ServingDraft[]>(isEdit ? [] : [{ unit: "g", ups: "" }]);
+  const [containers, setContainers] = useState<ContainerDraft[]>([]);
   // Units a scan proposed that aren't in the catalog yet; created on save only if
   // a serving row still uses one (see saveTempUnits).
   const [tempUnits, setTempUnits] = useState<FoodUnit[]>([]);
@@ -7323,6 +7475,7 @@ export function FoodForm({
         for (const n of data.nutrients ?? []) loaded[n.nutrient_id] = String(n.amount);
         setNutrientAmounts(loaded);
         setIcon(data.icon ?? null);
+        setContainers(containerDrafts(data.containers ?? []));
       })
       .catch(() => {
         if (!cancelled) toast.error("Failed to load food");
@@ -7359,6 +7512,15 @@ export function FoodForm({
   function removeServing(i: number) {
     setServings((prev) => prev.filter((_, idx) => idx !== i));
   }
+  function addContainer() {
+    setContainers((prev) => [...prev, { name: "", servings: "" }]);
+  }
+  function updateContainer(i: number, patch: Partial<ContainerDraft>) {
+    setContainers((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  }
+  function removeContainer(i: number) {
+    setContainers((prev) => prev.filter((_, idx) => idx !== i));
+  }
 
   async function handleSave() {
     // A save is already in flight — see savingRef.
@@ -7387,6 +7549,11 @@ export function FoodForm({
       toast.error(servingRowConflictMessage(servingConflict));
       return;
     }
+    const incompleteContainer = incompleteContainerRow(containers);
+    if (incompleteContainer) {
+      toast.error(incompleteContainer);
+      return;
+    }
     savingRef.current = true;
     setIsSaving(true);
     try {
@@ -7409,6 +7576,7 @@ export function FoodForm({
           // Every row is guaranteed complete by the guard above; the empty-unit
           // filter only drops a row left blank by a deleted custom unit.
           servings: saveServings,
+          containers: containersForSave(containers),
           nutrients: Object.entries(nutrientAmounts)
             .map(([nutrient_id, amount]) => ({ nutrient_id, amount: Number(amount) }))
             .filter((n) => Number.isFinite(n.amount) && n.amount >= 0),
@@ -7428,6 +7596,15 @@ export function FoodForm({
       setIsSaving(false);
     }
   }
+
+  // Compare everything a save sends with what the form loaded, so Save waits for a change
+  const draftKey = JSON.stringify({ name, brand, barcodeUpc, sourceUrl, kcal, p, c, f, icon, servings, containers, nutrientAmounts });
+  const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isLoading && loadedDraftKey === null) setLoadedDraftKey(draftKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+  const isDirty = loadedDraftKey !== null && draftKey !== loadedDraftKey;
 
   // ACTION BUTTONS — Cancel + Save/Create. Rendered in the modal footer (modal
   // variant) or the inline action bar (page variant).
@@ -7518,7 +7695,7 @@ export function FoodForm({
 
           {/* NAME */}
           <div className="flex flex-col gap-1">
-            <label className="text-label" htmlFor="ef-name">Food name</label>
+            <label className="field-label" htmlFor="ef-name">Name</label>
             <input
               id="ef-name"
               className="input-field"
@@ -7531,7 +7708,7 @@ export function FoodForm({
 
           {/* BRAND */}
           <div className="flex flex-col gap-1">
-            <label className="text-label" htmlFor="ef-brand">Brand (optional)</label>
+            <label className="field-label" htmlFor="ef-brand">Brand</label>
             <input
               id="ef-brand"
               className="input-field"
@@ -7541,10 +7718,23 @@ export function FoodForm({
             />
           </div>
 
-          {/* UPC / BARCODE */}
-          <div className="flex flex-col gap-1">
-            <label className="text-label" htmlFor="ef-upc">UPC / barcode (optional)</label>
-            <div style={{ display: "flex", gap: "0.5rem", alignItems: "stretch" }}>
+          {/* ICON AND UPC */}
+          <div className="fg-food-field-row">
+
+            {/* ICON */}
+            <div className="flex flex-col gap-1">
+              <span className="field-label">Icon</span>
+              <Button className="btn-off fg-recipe-icon-btn" onClick={() => setIsPickingIcon(true)} aria-label="Pick icon" title="Pick icon">
+                {(() => {
+                  const CurrentIcon = resolveFoodIcon(icon);
+                  return <CurrentIcon className="w-5 h-5" />;
+                })()}
+              </Button>
+            </div>
+
+            {/* UPC */}
+            <div className="flex flex-col gap-1 min-w-0 flex-1">
+              <label className="field-label" htmlFor="ef-upc">UPC</label>
               <input
                 id="ef-upc"
                 className="input-field"
@@ -7553,13 +7743,12 @@ export function FoodForm({
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="e.g. 012345678905"
-                style={{ flex: 1, minWidth: 0 }}
               />
               <input
                 ref={barcodeInputRef}
                 type="file"
                 accept="image/*"
-                style={{ display: "none" }}
+                hidden
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) handleScanBarcodeFile(file);
@@ -7572,11 +7761,11 @@ export function FoodForm({
               the food; "Import" re-reads the page and refills the form from it
               (the details page's Resync uses the same link). */}
           <div className="flex flex-col gap-1">
-            <label className="text-label" htmlFor="ef-source-url">Source link (optional)</label>
-            <div style={{ display: "flex", gap: "0.5rem", alignItems: "stretch" }}>
+            <label className="field-label" htmlFor="ef-source-url">Source link</label>
+            <div className="flex items-stretch gap-2">
               <input
                 id="ef-source-url"
-                className="input-field"
+                className="input-field min-w-0 flex-1"
                 type="url"
                 inputMode="url"
                 value={sourceUrl}
@@ -7584,7 +7773,6 @@ export function FoodForm({
                 autoComplete="off"
                 autoCapitalize="off"
                 placeholder="https://brand.com/product-page"
-                style={{ flex: 1, minWidth: 0 }}
               />
               <Button
                 className="btn-off"
@@ -7598,31 +7786,53 @@ export function FoodForm({
             </div>
           </div>
 
-          {/* ICON */}
-          <div className="flex flex-col gap-1">
-            <label className="text-label">Icon</label>
-            <Button className="btn-off" onClick={() => setIsPickingIcon(true)} style={{ alignSelf: "flex-start" }}>
-              {(() => {
-                const CurrentIcon = resolveFoodIcon(icon);
-                return <CurrentIcon size={18} />;
-              })()}
-              Change icon
-            </Button>
-          </div>
+          {/* NUTRITION SUMMARY — follows the nutrition facts typed below */}
+          <MacroSummary
+            kcal={Number(kcal) || 0}
+            protein={Number(p) || 0}
+            fat={Number(f) || 0}
+            carbs={Number(c) || 0}
+            control={<span className="macro-summary-basis">per serving</span>}
+          />
 
-          {/* SERVINGS */}
-          {servings.length > 0 && (
-            <ServingTable
-              tempUnits={tempUnits}
-              rows={servings}
-              onChange={updateServing}
-              onRemove={removeServing}
-              rowIdPrefix="ef-srv"
-            />
-          )}
-          <Button className="btn-off" onClick={addServing} style={{ alignSelf: "flex-start" }}>
-            <Plus className="w-4 h-4" /> Add unit
-          </Button>
+          {/* SERVING SIZES */}
+          <section className="fg-food-edit-section">
+            <h2 className="text-h2 fg-food-section-title">Serving sizes</h2>
+
+            {/* SERVING ROWS */}
+            {servings.length > 0 && (
+              <ServingTable
+                tempUnits={tempUnits}
+                rows={servings}
+                onChange={updateServing}
+                onRemove={removeServing}
+                rowIdPrefix="ef-srv"
+              />
+            )}
+
+            {/* ADD UNIT */}
+            <Button className="btn-off btn-sm self-start" onClick={addServing}>
+              <Plus className="w-4 h-4" /> Add unit
+            </Button>
+          </section>
+
+          {/* CONTAINERS */}
+          <section className="fg-food-edit-section">
+            <h2 className="text-h2 fg-food-section-title">Containers</h2>
+
+            {/* CONTAINER ROWS */}
+            {containers.length > 0 && (
+              <ContainerEditor rows={containers} onChange={updateContainer} onRemove={removeContainer} rowIdPrefix="ef-ctr" />
+            )}
+
+            {/* ADD CONTAINER */}
+            <Button className="btn-off btn-sm self-start" onClick={addContainer}>
+              <Plus className="w-4 h-4" /> Add container
+            </Button>
+          </section>
+
+          {/* NUTRITION FACTS */}
+          <h2 className="text-h2 fg-food-section-title">Nutrition facts</h2>
 
               {/* PER-SERVING NUTRITION FACTS — macros and micros merged into one
                   label-order list. Reads top-to-bottom like a real FDA Nutrition
@@ -7707,28 +7917,23 @@ export function FoodForm({
     </>
   );
 
-  // INTEGRATED PAGE VARIANT — inline full-page edit mode (food details page):
-  // no overlay; the form sits in the page flow with its own bottom action bar.
+  // INTEGRATED PAGE VARIANT — inline full-page edit mode (food details page): the form sits in the page flow, and its
+  // save bar is drawn into the page's slot below the scroll area
   if (variant === "page") {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <>
+
+        {/* PAGE TITLE */}
+        <h1 className="text-page-title fg-recipe-title fg-food-edit-title">Edit Food</h1>
+
+        {/* FORM */}
         {body}
 
-        {/* ACTION BAR */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: "0.5rem",
-            paddingTop: "0.75rem",
-            borderTop: "1px solid var(--card-border)",
-          }}
-        >
-          {actions}
-        </div>
+        {/* SAVE BAR — Save stays disabled until the form differs from the loaded food */}
+        {saveBarSlot && createPortal(<SaveBar onSave={handleSave} onCancel={onClose} isSaveDisabled={isLoading || !isDirty} isSaving={isSaving} />, saveBarSlot)}
 
         {overlays}
-      </div>
+      </>
     );
   }
 
@@ -8195,132 +8400,101 @@ export function MacroTiles({
 export function FoodDetailContent({
   food,
   nutrients,
-  onToggleFavorite,
-  isFaving,
 }: {
   // Recipe-source foods arrive with their ingredients attached (see
   // FoodWithIngredients); every other source is a plain Food.
   food: FoodWithIngredients;
   nutrients: Nutrient[];
-  onToggleFavorite?: () => void;
-  isFaving?: boolean;
 }) {
   // DATA
   const foodNutrients = food.nutrients ?? [];
+  const servingRow = food.servings.find((s) => s.unit === "serving");
+  const basisRow = servingRow ?? food.servings[0];
+  const basisLabel = !basisRow || servingRow ? "per serving" : `per ${fmtServingAmount(basisRow.units_per_serving, basisRow.unit)} ${basisRow.unit}`;
+  const containers = food.containers ?? [];
 
   return (
     <>
-      {/* FOOD IDENTITY CARD */}
-      <div className="sub-card" style={{ padding: "1rem", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
 
-        {/* PHOTO / ICON */}
-        <FoodAvatar food={food} size={32} variant="inline" />
+      {/* FOOD HEADING */}
+      <div className="fg-food-head">
 
-        {/* NAME / BRAND / SOURCE */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="text-primary" style={{ fontWeight: 600, fontSize: "1rem" }}>{food.name}</div>
-          {food.brand && <div className="text-muted" style={{ fontSize: "0.8125rem" }}>{food.brand}</div>}
-          <div className="text-muted" style={{ fontSize: "0.75rem", textTransform: "capitalize" }}>{food.source}</div>
+        {/* PAGE TITLE */}
+        <h1 className="text-page-title fg-recipe-title">
+          <FoodAvatar food={food} variant="inline" className="fg-food-title-avatar" />
+          <span className="fg-food-title-text">
+            <span>{food.name}</span>
+            {food.brand && <span className="fg-food-title-brand">{food.brand}</span>}
+          </span>
+        </h1>
 
-          {/* SOURCE LINK — the page this food's nutrition came from. Opens in a new
-              tab; the host alone is shown so a long URL can't run out of the card
-              (the full link is the title/aria text). */}
-          {food.source_url && (
-            <a
-              className="text-muted"
-              href={food.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={food.source_url}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                fontSize: "0.75rem",
-                textDecoration: "underline",
-                maxWidth: "100%",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <ExternalLink className="w-3 h-3" style={{ flexShrink: 0 }} />
-              {sourceUrlHost(food.source_url)}
-            </a>
-          )}
-        </div>
-
-        {/* FAVORITE */}
-        {onToggleFavorite && (
-          <button
-            type="button"
-            onClick={onToggleFavorite}
-            disabled={isFaving}
-            aria-label={food.is_favorite ? "Remove from favorites" : "Add to favorites"}
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              padding: "0.25rem",
-              color: food.is_favorite ? "var(--fg-cal)" : "var(--color-gray)",
-            }}
-          >
-            <Heart className="w-5 h-5" style={{ fill: food.is_favorite ? "currentColor" : "none" }} />
-          </button>
+        {/* SOURCE LINK — the host only, with the full link as its title */}
+        {food.source_url && (
+          <a className="fg-food-source" href={food.source_url} target="_blank" rel="noopener noreferrer" title={food.source_url}>
+            <ExternalLink className="w-3 h-3" aria-hidden />
+            <span>{sourceUrlHost(food.source_url)}</span>
+          </a>
         )}
       </div>
 
-      {/* MACRO TILES */}
-      <div style={{ marginBottom: "1.25rem" }}>
-        <MacroTiles
-          kcal={food.kcal_per_serving}
-          protein={food.protein_g_per_serving}
-          fat={food.fat_g_per_serving}
-          carbs={food.carbs_g_per_serving}
-        />
-      </div>
+      {/* NUTRITION SUMMARY */}
+      <MacroSummary
+        kcal={food.kcal_per_serving}
+        protein={food.protein_g_per_serving}
+        fat={food.fat_g_per_serving}
+        carbs={food.carbs_g_per_serving}
+        control={<span className="macro-summary-basis">{basisLabel}</span>}
+      />
 
-      {/* SERVINGS SECTION — only for serving-based foods. Foods referenced
-          by a base unit (per-100 g / per-100 ml) carry no canonical
-          "serving" row; their unit grid is just conversion ratios
-          (0.4227 cup, 3.3814 fl oz…), which read as noise here, so hide it. */}
-      {food.servings.length > 0 && food.servings.some((s) => s.unit === "serving") && (
-        <div style={{ marginBottom: "1.25rem" }}>
+      {/* SERVING SIZES — only for serving-based foods, as a per-100 g food's units are conversion ratios */}
+      {servingRow && (
+        <section className="fg-food-section">
+          <h2 className="text-h2 fg-food-section-title">Serving sizes</h2>
 
-          {/* HEADING */}
-          <div className="section-heading" style={{ paddingLeft: 0, marginBottom: "0.5rem" }}>
-            Serving Sizes
-          </div>
-
-          {/* SERVING PILLS */}
-          <div className="flex flex-wrap gap-2">
+          {/* SERVING SIZE CARDS */}
+          <div className="fg-food-tiles">
             {food.servings.map((s) => (
-              <div
-                key={s.id}
-                className="sub-card"
-                style={{ padding: "0.5rem 0.75rem", fontSize: "0.875rem" }}
-              >
-                <span className="text-primary" style={{ fontWeight: 600 }}>{s.units_per_serving}</span>
-                <span className="text-muted"> {s.unit}</span>
+              <div key={s.id} className="fg-food-tile">
+                <span><b>{fmtServingAmount(s.units_per_serving, s.unit)}</b> {s.unit}</span>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* RECIPE INGREDIENTS — recipe-source foods ship their ingredient list on
-          the food payload; surface it here so viewing a recipe (incl. from the
-          diary timeline's "View food") shows what's in it. */}
+      {/* CONTAINERS */}
+      {containers.length > 0 && (
+        <section className="fg-food-section">
+          <h2 className="text-h2 fg-food-section-title">Containers</h2>
+
+          {/* CONTAINER CARDS */}
+          <div className="fg-food-tiles">
+            {containers.map((container) => (
+              <div key={container.id} className="fg-food-tile">
+                <b className="fg-food-tile-name">{container.name}</b>
+                <span>{fmtServingAmount(container.servings_per_container, "serving")} {container.servings_per_container === 1 ? "serving" : "servings"}</span>
+                <span>{Math.round(container.servings_per_container * food.kcal_per_serving)} kcal</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* RECIPE INGREDIENTS — a recipe-source food carries its ingredient list */}
       {food.source === "recipe" && <RecipeIngredientsView ingredients={food.ingredients ?? []} />}
 
-      {/* NUTRIENT BREAKDOWN */}
-      <FoodNutrientBreakdown nutrients={nutrients} foodNutrients={foodNutrients} />
+      {/* NUTRITION — every tracked nutrient, closed until opened */}
+      {foodNutrients.length > 0 && (
+        <CollapsibleSection title="Nutrition">
+          <FoodNutrientBreakdown nutrients={nutrients} foodNutrients={foodNutrients} />
+        </CollapsibleSection>
+      )}
 
-      {/* USAGE — how often this food has been logged (counts + weekly chart) */}
+      {/* USAGE — how often this food has been logged */}
       <FoodUsageCard foodId={food.id} />
 
       {/* USED IN RECIPES — parent recipes that include this food */}
-      <div style={{ marginTop: "1.25rem" }}>
+      <div className="mt-5">
         <RecipeUsageList foodId={food.id} />
       </div>
     </>
@@ -8385,7 +8559,7 @@ export function FoodNutrientBreakdown({
              nutrition overview) instead of a stack of floating cards */
           <div key={section.heading} className="fnb-section fnb-reveal" style={{ animationDelay: `${i * 60}ms` }}>
 
-            {/* SECTION HEADER — title + trailing rule + nutrient count */}
+            {/* SECTION HEADER — title + trailing rule */}
             <div className="fnb-section-head">
 
               {/* TITLE */}
@@ -8393,9 +8567,6 @@ export function FoodNutrientBreakdown({
 
               {/* RULE */}
               <div className="fnb-section-rule" />
-
-              {/* COUNT */}
-              <span className="fnb-section-count">{section.rows.length}</span>
             </div>
 
             {/* GROUPED LIST — divided rows share a single border */}

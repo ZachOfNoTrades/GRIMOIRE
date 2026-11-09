@@ -47,6 +47,8 @@ export type CreateFoodDraft = {
   c: string;
   f: string;
   servings: { unit: string; ups: string }[];
+  // Containers typed so far; absent on drafts written before containers existed.
+  containers?: { name: string; servings: string }[];
   basis: "serving" | "100g" | "100ml";
   portionAmount: string;
   portionQty: string;
@@ -87,6 +89,9 @@ function isWellFormed(draft: unknown): draft is CreateFoodDraft {
     (d.tempUnits === undefined ||
       (Array.isArray(d.tempUnits) &&
         d.tempUnits.every((u) => u && typeof (u as FoodUnit).id === "string" && typeof (u as FoodUnit).name === "string"))) &&
+    (d.containers === undefined ||
+      (Array.isArray(d.containers) &&
+        d.containers.every((c) => c && typeof (c as ContainerRow).name === "string" && typeof (c as ContainerRow).servings === "string"))) &&
     Array.isArray(d.servings) &&
     d.servings.every((s) => s && typeof (s as ServingRow).unit === "string" && typeof (s as ServingRow).ups === "string") &&
     !!d.nutrientAmounts &&
@@ -96,6 +101,7 @@ function isWellFormed(draft: unknown): draft is CreateFoodDraft {
 }
 
 type ServingRow = { unit: string; ups: string };
+type ContainerRow = { name: string; servings: string };
 
 export function readCreateFoodDraft(host: CreateFoodDraftHost): CreateFoodDraft | null {
   if (typeof window === "undefined") return null;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { getFood, updateFood, archiveFood, setFoodFavorite, normalizeSourceUrl, InvalidServingRowsError } from '../../../lib/foodFunctions';
 import { getRecipeIngredients } from '../../../lib/recipeFunctions';
+import { parseContainerList } from '../../../lib/foodContainers';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getAuthorizedUser(request);
@@ -52,6 +53,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
               units_per_serving: Number(s.units_per_serving),
             }))
         : [],
+      containers: parseContainerList(body.containers),
       nutrients: Array.isArray(body.nutrients)
         ? body.nutrients
             // An explicit zero is DATA — "Trans fat 0 g" on a label, or a 0 in an

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedUser } from '@/lib/permissions';
 import { listFoods, createFood, getFood, normalizeSourceUrl, DuplicateBarcodeError, InvalidServingRowsError } from '../../lib/foodFunctions';
 import { saveFoodImageFromUrl } from '../../lib/foodImageFunctions';
+import { parseContainerList } from '../../lib/foodContainers';
 
 export async function GET(request: NextRequest) {
   const session = await getAuthorizedUser(request);
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
               units_per_serving: Number(s.units_per_serving),
             }))
         : [],
+      containers: parseContainerList(body.containers),
       nutrients: Array.isArray(body.nutrients)
         ? body.nutrients
             // An explicit zero is DATA — "Trans fat 0 g" on a label, or a 0 in an
