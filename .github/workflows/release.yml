@@ -1,18 +1,25 @@
 name: release
 
-# Tag and publish the head of `unstable` as the next version. The deploy workflow runs it before each deploy; a
-# manual run releases the head of `unstable`, or the commit it names, right away.
+# Publishes the release for a version tag. It checks the tag, waits for the commit's check run to pass, and
+# publishes a release whose notes are the commits since the release before it, marking a labeled tag as a
+# prerelease. A tag that already has a published release keeps it as it is. The host builds the released tag
+# itself, so the release carries no package.
+# Outputs the version and its target: a tag's label names the target, and a tag with no label targets prod.
+# Runs when the deploy workflow calls it with the tag to release, or as a manual run from a version tag.
+# Needs a GitHub-hosted Ubuntu runner and the run's own token. No secrets.
 on:
   workflow_call:
     inputs:
-      commit:
+      tag:
+        description: Version tag to release, in place of the run's own ref
         type: string
-        required: false
+        default: ""
+    outputs:
+      version:
+        value: ${{ jobs.release.outputs.version }}
+      target:
+        value: ${{ jobs.release.outputs.target }}
   workflow_dispatch:
-    inputs:
-      commit:
-        description: Commit to release instead of the head of unstable
-        required: false
 
 permissions:
   contents: write
@@ -21,49 +28,67 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      target: ${{ steps.version.outputs.target }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ inputs.commit || 'unstable' }}
-          fetch-depth: 0 # Read the commits since the last release
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          fetch-depth: 0
 
-      # Skip a commit that is already released or whose check did not pass
-      - name: Check the commit
+      # Read the version and target from the tag, failing a run that does not start from a version tag
+      - name: Read the version
+        id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then REF_NAME=$INPUT_TAG; REF_TYPE=tag; fi
+          [ "$REF_TYPE" = tag ] || { echo "A release runs only from a version tag, not the branch $REF_NAME" >&2; exit 1; }
+          [[ "$REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-([a-z]+)(\.[0-9]+)?)?$ ]] || { echo "$REF_NAME is not a version tag such as 1.2.3 or 1.2.3-dev.2" >&2; exit 1; }
+          label=${BASH_REMATCH[2]}
+          sha=$(git rev-parse "$REF_NAME^{commit}")
+          {
+            echo "sha=$sha"
+            echo "version=$REF_NAME"
+            echo "target=${label:-prod}"
+            echo "label=$label"
+          } >> "$GITHUB_OUTPUT"
+
+      # Wait for the commit's check run to finish, failing when it does not pass or never starts
+      - name: Wait for the check run
         env:
           GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.version.outputs.sha }}
         run: |
-          sha=$(git rev-parse HEAD)
-          echo "SHA=$sha" >> "$GITHUB_ENV"
-          if [ -n "$(git tag --points-at "$sha" 'v*')" ]; then
-            echo "$sha is already released"; echo "SKIP=true" >> "$GITHUB_ENV"; exit 0
-          fi
-          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$sha&per_page=1" --jq '.workflow_runs[0].conclusion // "none"')
-          if [ "$conclusion" != success ]; then
-            echo "check for $sha is $conclusion"; echo "SKIP=true" >> "$GITHUB_ENV"; exit 0
-          fi
-          echo "SKIP=false" >> "$GITHUB_ENV"
+          for attempt in $(seq 1 120); do
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$SHA&per_page=1" --jq '.workflow_runs[0] // empty | "\(.status) \(.conclusion) \(.html_url)"') || { sleep 15; continue; } # Ask again after a failed request
+            read -r status conclusion url <<< "$run"
+            if [ "$status" = completed ]; then
+              [ "$conclusion" = success ] && { echo "check passed: $url"; exit 0; }
+              echo "The check run for $SHA ended $conclusion: $url" >&2; exit 1
+            fi
+            [ -z "$run" ] && [ "$attempt" -gt 20 ] && { echo "No check run started for $SHA" >&2; exit 1; }
+            sleep 15
+          done
+          echo "The check run for $SHA did not finish in 30 minutes" >&2; exit 1
 
-      # Pick the version, as X.Y.Z-alpha
-      # 1. Raise the highest tagged version: minor when a commit since it starts with "Add", patch otherwise
-      - name: Derive the version
-        if: env.SKIP == 'false'
-        run: |
-          last_tag=$(git tag -l 'v[0-9]*' | sort -V | awk '{ base = $0; sub(/^v/, "", base); sub(/-alpha(\.[0-9]+)?$/, "", base) } base ~ /^[0-9]+\.[0-9]+\.[0-9]+$/ { tag = $0; v = base } END { print tag " " v }')
-          read -r tag last <<< "$last_tag"
-          IFS=. read -r major minor patch <<< "${last:-0.0.0}"
-          range=${tag:+$tag..}$SHA
-          if [ "$(git log --format=%s "$range" | grep -c '^Add ' || true)" -gt 0 ]; then
-            version="$major.$((minor + 1)).0-alpha"
-          else
-            version="$major.$minor.$((patch + 1))-alpha"
-          fi
-          echo "last release $tag, releasing $version"
-          { echo "VERSION_NAME=$version"; echo "RANGE=$range"; } >> "$GITHUB_ENV"
-
+      # Publish the release with the commits since the highest version tag below it as its notes, or use a published one as it is
       - name: Publish the release
-        if: env.SKIP == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          LABEL: ${{ steps.version.outputs.label }}
         run: |
-          git log --format='- %s' "$RANGE" > notes.md
-          gh release create "v$VERSION_NAME" --target "$SHA" --title "$VERSION_NAME" --notes-file notes.md
+          is_draft=$(gh release view "$VERSION" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [ "$is_draft" = false ]; then echo "$VERSION is already published"; exit 0; fi
+          [ "$is_draft" = true ] && gh release delete "$VERSION" --yes
+          previous=$(git tag --list | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+(\.[0-9]+)?)?$' | awk '{ v = $0; sub(/^v/, "", v); print v, $0 }' | sort -V -k1,1 | awk '{ print $2 }' | grep -B1 -x -F "$VERSION" | head -1 || true) # Count the older v-prefixed tags too, to avoid notes spanning the whole history
+          range=$VERSION; [ -n "$previous" ] && [ "$previous" != "$VERSION" ] && range="$previous..$VERSION"
+          git log --no-merges --format='- %s' "$range" > "$RUNNER_TEMP/notes.md"
+          flags=(--verify-tag --title "$VERSION" --notes-file "$RUNNER_TEMP/notes.md")
+          if [ -n "$LABEL" ]; then flags+=(--prerelease); fi
+          gh release create "$VERSION" "${flags[@]}"
