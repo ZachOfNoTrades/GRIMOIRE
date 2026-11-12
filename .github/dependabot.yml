@@ -1,0 +1,24 @@
+# Open grouped pull requests for security updates only
+# NOTE: open-pull-requests-limit 0 turns off version updates; security updates still open
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/nextjs"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
+    groups:
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
