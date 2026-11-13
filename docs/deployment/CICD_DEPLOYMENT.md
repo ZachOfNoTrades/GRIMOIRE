@@ -28,11 +28,13 @@ The workflows read no secrets. Their jobs use the run's own token.
 | Setting | Lives in | Read by |
 | --- | --- | --- |
 | Runner label `grimoire` | The runner's registration | `deploy` |
-| `grimoire-deploy.service` and its deploy script | The host | `deploy`, through one sudoers rule that allows only starting the service |
+| `grimoire-deploy.service` and the launcher `deploy/grimoire-deploy-launcher.sh`, installed as `grimoire-deploy` | The host | `deploy`, through one sudoers rule that allows only starting the service |
+| Deploy script settings (`deploy.env`) | The host | `deploy/grimoire-deploy.sh` |
 | Database and app settings | The host's secrets manager, read by the deploy script and the app | The host |
 
 ## Deployment Model
 
+- The launcher on the host fetches `unstable` and runs `deploy/grimoire-deploy.sh` from it, so every deploy uses the reviewed script, whatever tag it deploys.
 - The deploy script builds the tag's commit into its own release directory, named for the version, and applies the release's pending Flyway migrations with `sql/flyway/migrate.sh`. A failed migration stops the deploy with the live release unchanged.
 - It then points `current` at the release and restarts the app, keeping the release only when an API request that reads the app's database answers twice, and otherwise pointing `current` back at the release before it.
 - Uploaded files and other data the app keeps sit outside the release directories, linked into each release.
