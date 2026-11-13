@@ -9,3 +9,4 @@ cd nextjs && node scripts/regress-golem-session-confirms.mjs
 cd nextjs && node scripts/regress-settings-leave-midload.mjs
 cd nextjs && node scripts/regress-llm-settings-header-wrap.mjs
 sql/flyway/check.sh
+shellcheck -S warning deploy/*.sh
