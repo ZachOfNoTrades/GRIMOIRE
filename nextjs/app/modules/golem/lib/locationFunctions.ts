@@ -168,6 +168,58 @@ export async function updateEquipment(
   }
 }
 
+// Add loadable options to an equipment item, after any it already has
+export async function createEquipmentOptions(
+  equipmentId: string,
+  options: { label: string; value_kg: number | null }[],
+): Promise<EquipmentOption[]> {
+  let pool;
+  try {
+    pool = await getGolemConnection();
+    const maxSortResult = await pool.request()
+      .input('equipmentId', sql.UniqueIdentifier, equipmentId)
+      .query(`
+        SELECT ISNULL((SELECT MAX(sort_order) FROM equipment_options WHERE equipment_id = @equipmentId), 0) AS max_sort
+        FROM equipment WHERE id = @equipmentId
+      `);
+    if (maxSortResult.recordset.length === 0) {
+      throw new Error(`No equipment found for id: '${equipmentId}'`);
+    }
+    let sortOrder: number = maxSortResult.recordset[0].max_sort;
+
+    const created: EquipmentOption[] = [];
+    const transaction = pool.transaction();
+    await transaction.begin();
+    try {
+      for (const option of options) {
+        sortOrder += 1;
+        const result = await transaction.request()
+          .input('equipmentId', sql.UniqueIdentifier, equipmentId)
+          .input('label', sql.NVarChar(50), option.label)
+          .input('valueKg', sql.Decimal(6, 2), option.value_kg)
+          .input('sortOrder', sql.Int, sortOrder)
+          .query(`
+            INSERT INTO equipment_options (equipment_id, label, value_kg, sort_order)
+            OUTPUT INSERTED.id, INSERTED.equipment_id, INSERTED.label, INSERTED.value_kg, INSERTED.sort_order
+            VALUES (@equipmentId, @label, @valueKg, @sortOrder)
+          `);
+        const row = result.recordset[0];
+        created.push({ ...row, value_kg: row.value_kg === null ? null : Number(row.value_kg) });
+      }
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+    return created;
+  } catch (error) {
+    console.error(`Error creating options for equipment ${equipmentId}:`, error);
+    throw error;
+  } finally {
+    if (pool) await closeGolemConnection(pool);
+  }
+}
+
 // =============================
 // Locations
 // =============================

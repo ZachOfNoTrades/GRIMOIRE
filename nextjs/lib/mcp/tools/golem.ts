@@ -87,6 +87,7 @@ import {
   listEquipmentOptions,
   createEquipment,
   updateEquipment,
+  createEquipmentOptions,
 } from '@/app/modules/golem/lib/locationFunctions';
 import { generateSessionTargetsWithEngine } from '@/app/modules/golem/lib/engine/generationService';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '@/app/modules/golem/lib/segmentFunctions';
@@ -1282,6 +1283,33 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
     },
     async ({ equipmentId, name, category, hasOptions, sortOrder }) =>
       json(await updateEquipment(equipmentId, name.trim(), category, hasOptions, sortOrder)),
+  );
+
+  server.registerTool(
+    'golem_create_equipment_options',
+    {
+      description:
+        'Add loadable options (weights, sizes or band levels) to an equipment item, after any it already has. Labels must be unique per item, e.g. "10 lb". valueKg is the load in kg, or null for unweighted levels such as band colors. The item needs has_options=true (golem_update_equipment) before locations can select its options. Returns the created options (with ids).',
+      inputSchema: {
+        equipmentId: z.string().describe('Equipment UUID — find with golem_list_equipment'),
+        options: z
+          .array(
+            z.object({
+              label: z.string().trim().min(1).max(50).describe('Display label, e.g. "10 lb".'),
+              valueKg: z.number().positive().max(9999).nullable().describe('Load in kg, or null.'),
+            }),
+          )
+          .min(1)
+          .describe('Options to add, in display order.'),
+      },
+    },
+    async ({ equipmentId, options }) =>
+      json(
+        await createEquipmentOptions(
+          equipmentId,
+          options.map((option) => ({ label: option.label, value_kg: option.valueKg })),
+        ),
+      ),
   );
 
   // -----------------------------
