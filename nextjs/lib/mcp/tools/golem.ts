@@ -88,6 +88,8 @@ import {
   createEquipment,
   updateEquipment,
   createEquipmentOptions,
+  getLocationWithEquipment,
+  setLocationEquipment,
 } from '@/app/modules/golem/lib/locationFunctions';
 import { generateSessionTargetsWithEngine } from '@/app/modules/golem/lib/engine/generationService';
 import { createGeneratedTargets, deleteAllTargetsForSession } from '@/app/modules/golem/lib/segmentFunctions';
@@ -1206,6 +1208,52 @@ export function registerGolemTools(server: McpServer, ctx: McpContext) {
     async ({ locationId }) => {
       await deleteLocation(userId, locationId);
       return json({ success: true, locationId });
+    },
+  );
+
+  server.registerTool(
+    'golem_get_location_equipment',
+    {
+      description:
+        "A location's equipment: one selection per equipment item it has, with the ids of the options (weights or sizes) picked there. Match ids to names with golem_list_equipment.",
+      inputSchema: { locationId: z.string().describe('Location UUID — find with golem_list_locations') },
+    },
+    async ({ locationId }) => json(await getLocationWithEquipment(userId, locationId)),
+  );
+
+  server.registerTool(
+    'golem_set_location_equipment_item',
+    {
+      description:
+        "Add, change or remove one equipment item at a location, leaving its other equipment as it is. optionIds picks which of the item's options (golem_list_equipment) the location has; [] picks all of them; ignored for items without options. remove: true takes the item off the location. Returns the location's equipment.",
+      inputSchema: {
+        locationId: z.string().describe('Location UUID — find with golem_list_locations'),
+        equipmentId: z.string().describe('Equipment UUID — find with golem_list_equipment'),
+        optionIds: z.array(z.string()).default([]).describe('Option UUIDs the location has; [] for all.'),
+        remove: z.boolean().default(false).describe('true to take the item off the location.'),
+      },
+    },
+    async ({ locationId, equipmentId, optionIds, remove }) => {
+      // Refuse option ids that belong to another equipment item
+      const itemOptionIds = new Set(
+        (await listEquipmentOptions())
+          .filter((option) => option.equipment_id.toLowerCase() === equipmentId.toLowerCase())
+          .map((option) => option.id.toLowerCase()),
+      );
+      const foreignOptionIds = optionIds.filter((optionId) => !itemOptionIds.has(optionId.toLowerCase()));
+      if (foreignOptionIds.length > 0) {
+        throw new Error(`Options not on equipment '${equipmentId}': ${foreignOptionIds.join(', ')}`);
+      }
+
+      const location = await getLocationWithEquipment(userId, locationId);
+      const otherSelections = location.selections.filter(
+        (selection) => selection.equipment_id.toLowerCase() !== equipmentId.toLowerCase(),
+      );
+      const selections = !remove
+        ? [...otherSelections, { equipment_id: equipmentId, option_ids: optionIds }]
+        : otherSelections;
+      await setLocationEquipment(userId, locationId, selections);
+      return json(await getLocationWithEquipment(userId, locationId));
     },
   );
 
