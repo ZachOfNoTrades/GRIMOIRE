@@ -39,6 +39,7 @@ jobs:
       - run: node scripts/regress-llm-settings-header-wrap.mjs
       - run: npm run build
       - run: shellcheck -S warning ../deploy/*.sh
+      - run: ../deploy/regress-deploy-secrets.sh
 
   migrations:
     runs-on: ubuntu-latest
