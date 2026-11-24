@@ -21,29 +21,30 @@ MIRROR=$ROOT/src.git
 LOG=$ROOT/deploy.log
 FONTS=$ROOT/fonts
 TOOLS=$(dirname "$(readlink -f "$0")")
+INFISICAL_IDENTITY_DIR=/etc/infisical
 
 log() { printf '%s %s\n' "$(date -Is)" "$*" | tee -a "$LOG" >&2; }
 
-# Read one secret from Infisical with this host's machine identity
-infisical_secret() {
-  local env=$1 key=$2 auth
-  auth=$(curl -sS --max-time 15 -X POST "$INFISICAL_URL/api/v1/auth/universal-auth/login" \
-    -H 'Content-Type: application/json' \
-    -d "{\"clientId\":\"$(cat /etc/infisical/client-id)\",\"clientSecret\":\"$(cat /etc/infisical/client-secret)\"}" | jq -r '.accessToken // empty')
-  [ -n "$auth" ] || return 1
-  curl -sS --max-time 15 "$INFISICAL_URL/api/v3/secrets/raw?workspaceId=$INFISICAL_WS&environment=$env" \
-    -H "Authorization: Bearer $auth" | jq -r --arg k "$key" '.secrets[] | select(.secretKey == $k) | .secretValue'
+# Log in to Infisical with this host's machine identity and print the access token
+infisical_login() {
+  jq -n --rawfile i "$INFISICAL_IDENTITY_DIR/client-id" --rawfile s "$INFISICAL_IDENTITY_DIR/client-secret" \
+    '{clientId: ($i | sub("[\r\n]+$"; "")), clientSecret: ($s | sub("[\r\n]+$"; ""))}' |
+    curl -sS --max-time 15 -X POST "$INFISICAL_URL/api/v1/auth/universal-auth/login" \
+      -H 'Content-Type: application/json' --data-binary @- | jq -r '.accessToken // empty' # Send the credentials on stdin to avoid exposing them to other accounts through the process list
 }
 
 # Print every secret of one Infisical environment as JSON, read with this host's machine identity
 infisical_secrets() {
   local env=$1 auth
-  auth=$(curl -sS --max-time 15 -X POST "$INFISICAL_URL/api/v1/auth/universal-auth/login" \
-    -H 'Content-Type: application/json' \
-    -d "{\"clientId\":\"$(cat /etc/infisical/client-id)\",\"clientSecret\":\"$(cat /etc/infisical/client-secret)\"}" | jq -r '.accessToken // empty')
+  auth=$(infisical_login)
   [ -n "$auth" ] || return 1
   curl -sS --fail --max-time 15 "$INFISICAL_URL/api/v3/secrets/raw?workspaceId=$INFISICAL_WS&environment=$env" \
-    -H "Authorization: Bearer $auth"
+    -H @<(printf 'Authorization: Bearer %s\n' "$auth") # Pass the token as a header file to avoid exposing it through the process list
+}
+
+# Read one secret from Infisical with this host's machine identity
+infisical_secret() {
+  infisical_secrets "$1" | jq -r --arg k "$2" '.secrets[] | select(.secretKey == $k) | .secretValue'
 }
 
 # Send a failure alert through notify-relay
@@ -51,8 +52,9 @@ notify() {
   local token
   token=$(infisical_secret dev NOTIFY_APP_TOKEN 2>/dev/null) || true
   [ -n "$token" ] || { log "notify failed: no NOTIFY_APP_TOKEN"; return 0; }
-  curl -sS --max-time 30 -X POST "$NOTIFY_URL" -H "X-App-Token: $token" -H 'content-type: application/json' \
-    -d "$(jq -n --arg c "$NOTIFY_CHANNEL" --arg s "$1" --arg b "$2" '{channel: $c, subject: $s, body: $b}')" >/dev/null || log "notify failed: $1"
+  jq -n --arg c "$NOTIFY_CHANNEL" --arg s "$1" --arg b "$2" '{channel: $c, subject: $s, body: $b}' |
+    curl -sS --max-time 30 -X POST "$NOTIFY_URL" -H @<(printf 'X-App-Token: %s\n' "$token") \
+      -H 'content-type: application/json' --data-binary @- >/dev/null || log "notify failed: $1"
 }
 
 release_current() { [ -L "$CURRENT" ] && basename "$(readlink "$CURRENT")" || true; }
@@ -64,16 +66,16 @@ switch_to() {
   mv -Tf "$ROOT/.current-next" "$CURRENT"
 }
 
-# Healthy = an API-key request answers 200 within HEALTH_WINDOW seconds and again 5 s later
+# Check that an API-key request answers 200 within HEALTH_WINDOW seconds and again a moment later
 is_healthy() {
   local key deadline code
   key=$(cat "$API_KEY_FILE")
   deadline=$(( $(date +%s) + HEALTH_WINDOW ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
-    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H "X-API-Key: $key" "$HEALTH_URL" 2>/dev/null || true)
+    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H @<(printf 'X-API-Key: %s\n' "$key") "$HEALTH_URL" 2>/dev/null || true)
     if [ "$code" = 200 ]; then
       sleep 5
-      code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H "X-API-Key: $key" "$HEALTH_URL" 2>/dev/null || true)
+      code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H @<(printf 'X-API-Key: %s\n' "$key") "$HEALTH_URL" 2>/dev/null || true)
       [ "$code" = 200 ]
       return
     fi
