@@ -51,6 +51,7 @@ import {
   DEFAULT_FREEZE_LIMIT,
   DEFAULT_FREEZE_PERIOD,
   DEFAULT_IS_FREEZE_LIMITED,
+  FREEZE_LIMIT_MAX,
   FreezePeriod,
   normalizeFreezePeriod,
 } from '../../types/freezePeriod';
@@ -449,8 +450,8 @@ export async function PUT(request: NextRequest) {
       const numeric = typeof body.freezeLimit === 'number' ? body.freezeLimit
         : typeof body.freezeLimit === 'string' && body.freezeLimit.trim() !== '' ? Number(body.freezeLimit.trim())
           : NaN;
-      if (!Number.isInteger(numeric) || numeric < 0 || numeric > 366) {
-        return NextResponse.json({ error: 'freezeLimit must be a whole number from 0 to 366' }, { status: 400 });
+      if (!Number.isInteger(numeric) || numeric < 0 || numeric > FREEZE_LIMIT_MAX) {
+        return NextResponse.json({ error: `freezeLimit must be a whole number from 0 to ${FREEZE_LIMIT_MAX}` }, { status: 400 });
       }
       freezeLimit = numeric;
     }

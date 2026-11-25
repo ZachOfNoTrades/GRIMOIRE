@@ -10,6 +10,13 @@ export enum FreezePeriod {
 export const DEFAULT_IS_FREEZE_LIMITED = false;
 export const DEFAULT_FREEZE_LIMIT = 2;
 export const DEFAULT_FREEZE_PERIOD = FreezePeriod.month;
+export const FREEZE_LIMIT_MAX = 366; // Matches CK_quest_settings_freeze_limit
+
+export const FREEZE_PERIOD_LABELS: Record<FreezePeriod, string> = {
+  [FreezePeriod.week]: 'Quest week',
+  [FreezePeriod.month]: 'Month',
+  [FreezePeriod.year]: 'Year',
+};
 
 // Read a stored or sent period, falling back to the default for anything unknown
 export function normalizeFreezePeriod(value: unknown): FreezePeriod {
