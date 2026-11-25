@@ -1,13 +1,26 @@
+# Typecheck
 ln -s "$(git config --get remote.origin.url)/nextjs/node_modules" nextjs/node_modules && cd nextjs && npx tsc --noEmit
+# Forage serving rows regression
 cd nextjs && node scripts/regress-forage-serving-rows.mjs
+# Forage percent DV regression
 cd nextjs && node scripts/regress-forage-percent-dv.mjs
+# Number field back-out regression
 cd nextjs && node scripts/regress-number-field-backout.mjs
+# Usage failed load regression
 cd nextjs && node scripts/regress-usage-failed-load.mjs
+# Usage local cost regression
 cd nextjs && node scripts/regress-usage-local-cost.mjs
+# Generation limit regression
 cd nextjs && node scripts/regress-generation-limit.mjs
+# Golem session confirms regression
 cd nextjs && node scripts/regress-golem-session-confirms.mjs
+# Settings leave mid-load regression
 cd nextjs && node scripts/regress-settings-leave-midload.mjs
+# LLM settings header wrap regression
 cd nextjs && node scripts/regress-llm-settings-header-wrap.mjs
+# Flyway base schema check
 sql/flyway/check.sh
+# Deploy script lint
 shellcheck -S warning deploy/*.sh
+# Deploy secrets regression
 deploy/regress-deploy-secrets.sh
