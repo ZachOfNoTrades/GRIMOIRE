@@ -2,7 +2,7 @@ import sql from 'mssql';
 import { getQuestConnection } from './db';
 import { getCurrentDate } from './settingsFunctions';
 import { normalizeWeekStartDay } from './gambleConfig';
-import { freezePeriodRange, normalizeFreezePeriod } from '../types/freezePeriod';
+import { FreezePeriod, freezePeriodRange, normalizeFreezePeriod } from '../types/freezePeriod';
 import { activeOccurrenceStart, effectiveStreak } from './taskFunctions';
 import { Frequency, RepeatMode, TaskKind } from '../types/task';
 
@@ -24,6 +24,38 @@ export interface FreezeDayOptions {
   // (@dateYMD + 1 day). For each, freezeDay stamps deferred_to_date = (@dateYMD + 1). Only
   // dailies belonging to @userId are honoured; unknown / cross-user IDs are silently dropped.
   deferTaskIds?: string[];
+}
+
+export interface FreezeAllowance {
+  limit: number;
+  left: number;
+  period: FreezePeriod;
+}
+
+// Count the freezes left in the period holding a date, or null for a user with no limit
+export async function getFreezeAllowance(userId: string, dateYMD: string): Promise<FreezeAllowance | null> {
+  const pool = await getQuestConnection();
+  const settingsResult = await pool.request()
+    .input('userId', sql.UniqueIdentifier, userId)
+    .query<{ is_freeze_limited: boolean; freeze_limit: number; freeze_period: number; gamble_week_start_day: number }>(
+      `SELECT is_freeze_limited, freeze_limit, freeze_period, gamble_week_start_day
+       FROM quest_settings
+       WHERE user_id = @userId`
+    );
+  const settingsRow = settingsResult.recordset[0];
+  if (!settingsRow?.is_freeze_limited) return null;
+  const period = normalizeFreezePeriod(settingsRow.freeze_period);
+  const range = freezePeriodRange(dateYMD, period, normalizeWeekStartDay(settingsRow.gamble_week_start_day));
+  const countResult = await pool.request()
+    .input('userId', sql.UniqueIdentifier, userId)
+    .input('from', sql.Date, range.from)
+    .input('to', sql.Date, range.to)
+    .query<{ used: number }>(
+      `SELECT COUNT(*) AS used FROM quest_frozen_days
+       WHERE user_id = @userId AND frozen_date BETWEEN @from AND @to`
+    );
+  const limit = Number(settingsRow.freeze_limit);
+  return { limit, left: Math.max(0, limit - Number(countResult.recordset[0]?.used ?? 0)), period };
 }
 
 export async function isFrozenDay(userId: string, dateYMD: string): Promise<boolean> {

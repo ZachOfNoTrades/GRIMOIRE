@@ -79,6 +79,8 @@ import { Mantra } from "../../types/mantra";
 import { evaluateFormula } from "../../lib/formulaEvaluator";
 import { DEFAULT_GAMBLE_WEEK_START_DAY, GAMBLE_COST_STEP, GAMBLE_DIE_SIDES, gambleCostForRoll, weekStartDayName } from "../../lib/gambleConfig";
 import HelpButton from "@/components/ui/HelpButton";
+import { FREEZE_PERIOD_LABELS } from "../../types/freezePeriod";
+import type { FreezeAllowance } from "../../lib/freezeDayFunctions";
 import {
   addDays,
   parseYMD,
@@ -595,6 +597,7 @@ export default function QuestHomePage() {
   const [gambleRollsThisWeek, setGambleRollsThisWeek] = useState(0);
   // Weekday the escalation resets on (0 = Sunday ... 6 = Saturday), from quest settings.
   const [gambleWeekStartDay, setGambleWeekStartDay] = useState(DEFAULT_GAMBLE_WEEK_START_DAY);
+  const [freezeAllowance, setFreezeAllowance] = useState<FreezeAllowance | null>(null);
   const gambleCost = gambleCostForRoll(gambleRollsThisWeek);
   // Holds the face-cycling interval so it can be cleared if the component unmounts mid-roll.
   const gambleCycleRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -768,8 +771,9 @@ export default function QuestHomePage() {
         // server's count rather than assuming it's still whatever this tab last saw.
         setGambleRollsThisWeek(Number(data.gambleRollsThisWeek ?? 0));
         setGambleWeekStartDay(Number(data.gambleWeekStartDay ?? DEFAULT_GAMBLE_WEEK_START_DAY));
-        // The state endpoint no longer applies damage inline — damage now runs when the user
-        // acknowledges the previous-day review. The reviewPending flag drives the modal below.
+        setFreezeAllowance(data.freezeAllowance ?? null);
+        // Open the previous-day review while one is pending
+        // NOTE: Damage runs when the review is acknowledged, not when the state loads
         if (data.reviewPending && typeof data.today === "string") {
           setReviewDate(previousYMD(data.today));
         }
@@ -1761,9 +1765,7 @@ export default function QuestHomePage() {
     }
   }
 
-  // Freeze button: marks reviewDate as a frozen day on the server. Reverses any rewards
-  // already credited for that day and prevents the next damage check from punishing missed
-  // dailies. Server also stamps last_review_ack_date so the modal stays closed.
+  // Freeze the review day, closing the review on success
   async function freezeReviewDay() {
     if (freezingDay || !reviewDate) return;
     setFreezingDay(true);
@@ -1776,6 +1778,10 @@ export default function QuestHomePage() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(typeof body?.error === "string" ? body.error : "Could not freeze day");
+        if (res.status === 409) {
+          setFreezeAllowance((current) => (current ? { ...current, left: 0 } : current)); // Turn off "Freeze yesterday" once the server refuses past the limit
+          setFreezeConfirmOpen(false); // Close the freeze options, as "Yes, freeze" would be refused again
+        }
         setFreezingDay(false);
         return;
       }
@@ -3939,14 +3945,23 @@ export default function QuestHomePage() {
                 {/* FREEZE LINK — hidden once the freeze options panel is open (the panel owns
                     the Cancel/confirm controls). */}
                 {!freezeConfirmOpen ? (
-                  <button
-                    onClick={() => setFreezeConfirmOpen(true)}
-                    disabled={reviewSubmitting || freezingDay}
-                    className="text-xs text-secondary hover:text-primary underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    title="Skip damage for this day; forfeits any rewards credited for it"
-                  >
-                    Freeze yesterday
-                  </button>
+                  <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-2 min-w-0">
+                    <button
+                      onClick={() => setFreezeConfirmOpen(true)}
+                      disabled={reviewSubmitting || freezingDay || freezeAllowance?.left === 0}
+                      className="text-xs text-secondary hover:text-primary underline whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      title="Skip damage for this day; forfeits any rewards credited for it"
+                    >
+                      Freeze yesterday
+                    </button>
+
+                    {/* FREEZES LEFT */}
+                    {freezeAllowance && (
+                      <span className="text-xs text-secondary whitespace-nowrap">
+                        {freezeAllowance.left} of {freezeAllowance.limit} left this {FREEZE_PERIOD_LABELS[freezeAllowance.period].toLowerCase()}
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span />
                 )}
