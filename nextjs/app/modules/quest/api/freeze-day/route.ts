@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
     if (msg.startsWith('Invalid date') || msg.startsWith('Freeze date must be before today')) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+    if (msg.startsWith('Freeze limit reached')) {
+      return NextResponse.json({ error: 'Freeze limit reached' }, { status: 409 }); // Answer a refused freeze as a conflict with the user's limit
+    }
     console.error('Error in POST /quest/api/freeze-day:', error);
     return NextResponse.json({ error: 'Failed to freeze day' }, { status: 500 });
   }

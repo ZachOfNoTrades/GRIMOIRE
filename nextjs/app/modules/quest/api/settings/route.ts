@@ -47,6 +47,14 @@ import {
 } from '../../types/settings';
 import { validateFormula } from '../../lib/formulaEvaluator';
 import { DEFAULT_GAMBLE_WEEK_START_DAY, normalizeWeekStartDay } from '../../lib/gambleConfig';
+import {
+  DEFAULT_FREEZE_LIMIT,
+  DEFAULT_FREEZE_PERIOD,
+  DEFAULT_IS_FREEZE_LIMITED,
+  FREEZE_LIMIT_MAX,
+  FreezePeriod,
+  normalizeFreezePeriod,
+} from '../../types/freezePeriod';
 
 export async function GET(request: Request) {
   const session = await getAuthorizedUser(request);
@@ -102,6 +110,9 @@ export async function GET(request: Request) {
       allDailiesBonusAmount: allDailiesBonus.amount,
       allDailiesBonusLastAwardedDate: allDailiesBonus.lastAwardedDate,
       gambleWeekStartDay,
+      isFreezeLimited: settings ? Boolean(settings.is_freeze_limited) : DEFAULT_IS_FREEZE_LIMITED,
+      freezeLimit: settings ? Number(settings.freeze_limit) : DEFAULT_FREEZE_LIMIT,
+      freezePeriod: settings ? normalizeFreezePeriod(settings.freeze_period) : DEFAULT_FREEZE_PERIOD,
       simulationDate: settings?.simulation_date ?? null,
     });
   } catch (error) {
@@ -426,6 +437,32 @@ export async function PUT(request: NextRequest) {
       gambleWeekStartDay = numeric;
     }
 
+    // Read the freeze limit's switch, day count and period, keeping the saved value for any left out
+    let isFreezeLimited: boolean = existing ? Boolean(existing.is_freeze_limited) : DEFAULT_IS_FREEZE_LIMITED;
+    if (body?.isFreezeLimited !== undefined && body?.isFreezeLimited !== null) {
+      if (typeof body.isFreezeLimited !== 'boolean') {
+        return NextResponse.json({ error: 'isFreezeLimited must be true or false' }, { status: 400 });
+      }
+      isFreezeLimited = body.isFreezeLimited;
+    }
+    let freezeLimit: number = existing ? Number(existing.freeze_limit) : DEFAULT_FREEZE_LIMIT;
+    if (body?.freezeLimit !== undefined && body?.freezeLimit !== null) {
+      const numeric = typeof body.freezeLimit === 'number' ? body.freezeLimit
+        : typeof body.freezeLimit === 'string' && body.freezeLimit.trim() !== '' ? Number(body.freezeLimit.trim())
+          : NaN;
+      if (!Number.isInteger(numeric) || numeric < 0 || numeric > FREEZE_LIMIT_MAX) {
+        return NextResponse.json({ error: `freezeLimit must be a whole number from 0 to ${FREEZE_LIMIT_MAX}` }, { status: 400 });
+      }
+      freezeLimit = numeric;
+    }
+    let freezePeriod: FreezePeriod = existing ? normalizeFreezePeriod(existing.freeze_period) : DEFAULT_FREEZE_PERIOD;
+    if (body?.freezePeriod !== undefined && body?.freezePeriod !== null) {
+      if (typeof body.freezePeriod !== 'number' || FreezePeriod[body.freezePeriod] === undefined) {
+        return NextResponse.json({ error: 'freezePeriod must be 0 (week), 1 (month) or 2 (year)' }, { status: 400 });
+      }
+      freezePeriod = body.freezePeriod as FreezePeriod;
+    }
+
     const saved = await upsertSettings(session.user.id!, {
       factors: parsedFactors as QuestFactors,
       damageFactor,
@@ -456,6 +493,9 @@ export async function PUT(request: NextRequest) {
       allDailiesBonusEnabled,
       allDailiesBonusAmount,
       gambleWeekStartDay,
+      isFreezeLimited,
+      freezeLimit,
+      freezePeriod,
     });
 
     return NextResponse.json({
@@ -506,6 +546,9 @@ export async function PUT(request: NextRequest) {
       allDailiesBonusAmount: Number(saved.all_dailies_bonus_amount),
       allDailiesBonusLastAwardedDate: saved.all_dailies_bonus_last_awarded_date ?? null,
       gambleWeekStartDay: normalizeWeekStartDay(saved.gamble_week_start_day),
+      isFreezeLimited: Boolean(saved.is_freeze_limited),
+      freezeLimit: Number(saved.freeze_limit),
+      freezePeriod: normalizeFreezePeriod(saved.freeze_period),
     });
   } catch (error) {
     console.error('Error in PUT /quest/api/settings:', error);

@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Coins, Heart, History, Flame, Repeat, Skull, Sparkles, Bell, Send, CalendarClock, Trophy, Quote, Plus, Pencil, Trash2, Check, X, Dices } from "lucide-react";
+import { Settings, Coins, Heart, History, Flame, Repeat, Skull, Sparkles, Bell, Send, CalendarClock, Trophy, Quote, Plus, Pencil, Trash2, Check, X, Dices, Snowflake } from "lucide-react";
 import toast, { Toaster } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
+import NumberField from "@/components/ui/NumberField";
 import { SettingsToggleRow, SettingsTimeRow } from "@/components/settings/SettingsList";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { EmailDeliveryStatus } from "@/components/settings/EmailDeliveryStatus";
@@ -42,6 +43,7 @@ import {
   DifficultyMap,
 } from "../../types/settings";
 import { Mantra, MANTRA_MAX_LENGTH } from "../../types/mantra";
+import { FreezePeriod, FREEZE_PERIOD_LABELS, FREEZE_LIMIT_MAX, DEFAULT_IS_FREEZE_LIMITED, DEFAULT_FREEZE_LIMIT, DEFAULT_FREEZE_PERIOD, normalizeFreezePeriod } from "../../types/freezePeriod";
 import {
   DEFAULT_GAMBLE_WEEK_START_DAY,
   GAMBLE_COST,
@@ -121,6 +123,9 @@ export default function QuestSettingsPage() {
   const [allDailiesBonusAmountInput, setAllDailiesBonusAmountInput] = useState<string>(String(DEFAULT_ALL_DAILIES_BONUS_AMOUNT));
   // Weekday the short-rest price escalation resets on (0 = Sunday ... 6 = Saturday).
   const [gambleWeekStartDay, setGambleWeekStartDay] = useState<number>(DEFAULT_GAMBLE_WEEK_START_DAY);
+  const [isFreezeLimited, setIsFreezeLimited] = useState<boolean>(DEFAULT_IS_FREEZE_LIMITED);
+  const [freezeLimit, setFreezeLimit] = useState<number | null>(DEFAULT_FREEZE_LIMIT);
+  const [freezePeriod, setFreezePeriod] = useState<FreezePeriod>(DEFAULT_FREEZE_PERIOD);
   // Mantras are saved by their own endpoints the moment you add/edit/delete one, so they are
   // deliberately NOT part of `fingerprint()` / the Save button.
   const [newMantraInput, setNewMantraInput] = useState<string>("");
@@ -177,6 +182,9 @@ export default function QuestSettingsPage() {
     adbe: allDailiesBonusEnabled,
     adba: allDailiesBonusAmountInput,
     gwsd: gambleWeekStartDay,
+    ifl: isFreezeLimited,
+    fl: freezeLimit,
+    fp: freezePeriod,
     fid: forceDraftId,
     sd: simulationDate,
     h: health,
@@ -228,6 +236,9 @@ export default function QuestSettingsPage() {
           setAllDailiesBonusEnabled(Boolean(data.allDailiesBonusEnabled ?? DEFAULT_ALL_DAILIES_BONUS_ENABLED));
           setAllDailiesBonusAmountInput(String(data.allDailiesBonusAmount ?? DEFAULT_ALL_DAILIES_BONUS_AMOUNT));
           setGambleWeekStartDay(normalizeWeekStartDay(data.gambleWeekStartDay));
+          setIsFreezeLimited(Boolean(data.isFreezeLimited ?? DEFAULT_IS_FREEZE_LIMITED));
+          setFreezeLimit(Number(data.freezeLimit ?? DEFAULT_FREEZE_LIMIT));
+          setFreezePeriod(normalizeFreezePeriod(data.freezePeriod));
           setSimulationDate(data.simulationDate ?? "");
         } else {
           setError("Failed to load settings");
@@ -597,6 +608,10 @@ export default function QuestSettingsPage() {
       setError("All dailies bonus amount must be a non-negative number");
       return false;
     }
+    if (isFreezeLimited && (freezeLimit === null || !Number.isInteger(freezeLimit) || freezeLimit < 0 || freezeLimit > FREEZE_LIMIT_MAX)) {
+      setError(`Freeze days must be a whole number from 0 to ${FREEZE_LIMIT_MAX}`);
+      return false;
+    }
     if (advancedMode) {
       const dailyErr = validateFormula(dailyRewardFormulaInput);
       if (dailyErr) {
@@ -667,6 +682,9 @@ export default function QuestSettingsPage() {
             allDailiesBonusEnabled,
             allDailiesBonusAmount,
             gambleWeekStartDay,
+            isFreezeLimited,
+            freezeLimit: freezeLimit ?? undefined, // Leave out an emptied field while the limit is off, to avoid overwriting the stored limit
+            freezePeriod,
           }),
         }),
       );
@@ -1506,6 +1524,68 @@ export default function QuestSettingsPage() {
           </label>
           <p className="text-xs text-secondary mt-3">
             Short-rest prices reset every {WEEKDAY_NAMES[normalizeWeekStartDay(gambleWeekStartDay)]}. Applies on Save.
+          </p>
+        </section>
+
+        {/* FREEZES CARD */}
+        <section className="card mb-6">
+          <h2 className="text-card-title mb-2">
+            <Snowflake className="w-5 h-5 text-sky-400" />
+            Freezes
+          </h2>
+          <p className="text-secondary text-sm mb-4">
+            A frozen day takes no damage and pays no rewards.
+          </p>
+
+          {/* LIMIT TOGGLE */}
+          <label className="flex items-center gap-2 mb-4 cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={isFreezeLimited}
+              onChange={(e) => setIsFreezeLimited(e.target.checked)}
+              className="w-4 h-4 cursor-pointer"
+            />
+            <span className="text-sm">Limit freezes</span>
+          </label>
+
+          {/* LIMIT FIELDS */}
+          <div className="flex flex-wrap items-end gap-4">
+
+            {/* DAYS */}
+            <label className="flex flex-col gap-1 w-fit">
+              <span className={`text-xs text-secondary ${!isFreezeLimited ? "opacity-50" : ""}`}>Days</span>
+              <NumberField
+                onFocus={(e) => e.currentTarget.select()}
+                min={0}
+                max={FREEZE_LIMIT_MAX}
+                step={1}
+                integer
+                value={freezeLimit}
+                onValueChange={setFreezeLimit}
+                disabled={!isFreezeLimited}
+                className="h-9 w-24 px-2 rounded border border-gray-600 bg-transparent text-sm tabular-nums disabled:opacity-50"
+              />
+            </label>
+
+            {/* PERIOD */}
+            <label className="flex flex-col gap-1 w-fit">
+              <span className={`text-xs text-secondary ${!isFreezeLimited ? "opacity-50" : ""}`}>Per</span>
+              <select
+                value={freezePeriod}
+                onChange={(e) => setFreezePeriod(normalizeFreezePeriod(Number(e.target.value)))}
+                disabled={!isFreezeLimited}
+                className="h-9 px-2 rounded border border-gray-600 bg-transparent text-sm disabled:opacity-50"
+              >
+                {(Object.keys(FREEZE_PERIOD_LABELS).map(Number) as FreezePeriod[]).map((period) => (
+                  <option key={period} value={period}>
+                    {FREEZE_PERIOD_LABELS[period]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="text-xs text-secondary mt-3">
+            Applies on Save.
           </p>
         </section>
 

@@ -24,3 +24,5 @@ sql/flyway/check.sh
 shellcheck -S warning deploy/*.sh
 # Deploy secrets regression
 deploy/regress-deploy-secrets.sh
+# Quest freeze period regression
+cd nextjs && node scripts/regress-quest-freeze-period.mjs
