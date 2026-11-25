@@ -74,3 +74,46 @@ On every push, the `migrations` check builds all six databases from their base s
 
 `sql/flyway/migrate.sh <migrate | baseline | info | validate> [database...]` runs a Flyway command on the databases named in `SQL_<DATABASE>_DB`, with the login in `SQL_SERVER_USER` and `SQL_SERVER_PASSWORD`. It runs Flyway from its official Docker image, pinned by digest.
 
+## Code Conventions
+
+### Layout
+
+Each module under `nextjs/app/modules/<slug>/` holds `api/` (routes), `lib/` (queries), `types/`, `components/` and `ui/` (pages).
+
+### Styling
+
+- New code takes its colors from the design system classes in `globals.css`, such as `.btn`, `.card`, `.badge-*` and `.alert-*`, not hex or rgb values or Tailwind color classes in JSX.
+- A color no class covers gets a new class in `globals.css`.
+- `Button` already applies `btn`, so pass only the variant: `className="btn-blue"`.
+- Navigate with `useRouter().push()`, never `window.location.href`.
+
+### Pages
+
+- Group state declarations under `// DATA` (read from the database), `// INPUT` (typed by a user) and `// STATE` (drives the interface, with derived values below it), separated by blank lines.
+- Every page and table has a loading placeholder, and every table has an empty-result row.
+- Modals sit at the end of the returned JSX.
+- A file download shows no success toast.
+
+### API Routes
+
+- A route that needs a signed-in user reads it with `getAuthorizedUser` and answers 401 without one.
+- A route only a signed-in browser may use, such as one that manages a user's API keys, reads the session with `getAuthorizedSession`, which an API key cannot pass.
+- An empty list from a lib function is returned as is.
+- A missing single record answers 404.
+
+### Lib Functions
+
+- An empty list logs a warning and returns: `` console.warn(`No tasks found for user id: '${userId}'`) ``.
+- A missing single record returns `null` or throws, and the route answers 404: `` throw new Error(`No module found for id: '${moduleId}'`) ``.
+- Values in log and error messages are wrapped in single quotes.
+
+### Database
+
+- Queries are raw SQL through `mssql`, with no ORM, and every value is passed with `.input()`.
+- SQL keywords are uppercase; multi-line queries use template literals.
+- The global `lib/db.ts` and any module's own `lib/db.ts` keep one shared pool, which callers never close. A module without one uses `getMainConnection`.
+- Transactions run `begin()`, then the work, then `commit()`, with `rollback()` on an error.
+
+### Permissions
+
+- Admin-only pages are wrapped in `PermissionGuardServer`, which checks `isAdmin()`, or `PermissionGuardClient`, which checks the session's `globalAdmin` flag.
