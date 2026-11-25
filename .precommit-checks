@@ -10,3 +10,4 @@ cd nextjs && node scripts/regress-settings-leave-midload.mjs
 cd nextjs && node scripts/regress-llm-settings-header-wrap.mjs
 sql/flyway/check.sh
 shellcheck -S warning deploy/*.sh
+cd nextjs && node scripts/regress-quest-freeze-period.mjs

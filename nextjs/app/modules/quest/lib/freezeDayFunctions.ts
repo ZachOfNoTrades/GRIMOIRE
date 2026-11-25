@@ -1,6 +1,8 @@
 import sql from 'mssql';
 import { getQuestConnection } from './db';
 import { getCurrentDate } from './settingsFunctions';
+import { normalizeWeekStartDay } from './gambleConfig';
+import { freezePeriodRange, normalizeFreezePeriod } from '../types/freezePeriod';
 import { activeOccurrenceStart, effectiveStreak } from './taskFunctions';
 import { Frequency, RepeatMode, TaskKind } from '../types/task';
 
@@ -131,12 +133,40 @@ export async function freezeDay(userId: string, dateYMD: string, options: Freeze
   const tx = pool.transaction();
   await tx.begin();
   try {
-    // Reserve the freeze marker first. PK on (user_id, frozen_date) means a racing insert
+    // Lock the settings row and read the freeze limit, holding the lock until the transaction ends
+    // NOTE: The lock comes before the insert to avoid two freezes in one period both passing the count
+    const limitResult = await tx.request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .query<{ is_freeze_limited: boolean; freeze_limit: number; freeze_period: number; gamble_week_start_day: number }>(
+        `SELECT is_freeze_limited, freeze_limit, freeze_period, gamble_week_start_day
+         FROM quest_settings WITH (UPDLOCK, HOLDLOCK)
+         WHERE user_id = @userId`
+      );
+    const limitRow = limitResult.recordset[0];
+
+    // Reserve the freeze marker. PK on (user_id, frozen_date) means a racing insert
     // throws a duplicate-key error — let it bubble; the caller treats it as "already frozen".
     await tx.request()
       .input('userId', sql.UniqueIdentifier, userId)
       .input('date', sql.Date, dateYMD)
       .query(`INSERT INTO quest_frozen_days (user_id, frozen_date) VALUES (@userId, @date)`);
+
+    // Refuse the freeze when it takes the period past the user's limit; a user with no settings row or no limit skips the count
+    if (limitRow?.is_freeze_limited) {
+      const freezeLimit = Number(limitRow.freeze_limit);
+      const range = freezePeriodRange(dateYMD, normalizeFreezePeriod(limitRow.freeze_period), normalizeWeekStartDay(limitRow.gamble_week_start_day));
+      const countResult = await tx.request()
+        .input('userId', sql.UniqueIdentifier, userId)
+        .input('from', sql.Date, range.from)
+        .input('to', sql.Date, range.to)
+        .query<{ used: number }>(
+          `SELECT COUNT(*) AS used FROM quest_frozen_days
+           WHERE user_id = @userId AND frozen_date BETWEEN @from AND @to`
+        );
+      if (Number(countResult.recordset[0]?.used ?? 0) > freezeLimit) {
+        throw new Error(`Freeze limit reached: '${freezeLimit}' per period from '${range.from}' to '${range.to}'`);
+      }
+    }
 
     // Tasks completed ON the frozen date. Earlier completions (whose streak happens to extend
     // through this date) are handled by the streak-preservation sweep below; here we only undo
