@@ -9,13 +9,13 @@ import {
 } from '../../lib/userStateFunctions';
 import { getCurrentDate, getGambleWeekStartDay } from '../../lib/settingsFunctions';
 import { gambleCostForRoll } from '../../lib/gambleConfig';
+import { getFreezeAllowance } from '../../lib/freezeDayFunctions';
+import { addDays } from '../../lib/scheduleClient';
 
 export async function GET(request: Request) {
   const session = await getAuthorizedUser(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-    // Damage check is deferred until the user acknowledges the previous-day review modal so
-    // they get a chance to backdate any forgotten completions before HP is deducted.
     const state = await ensureUserState(session.user.id!);
     const today = await getCurrentDate(session.user.id!);
     const reviewPending = (state.last_review_ack_date ?? '') < today;
@@ -28,6 +28,7 @@ export async function GET(request: Request) {
     // can name the day the escalation resets on.
     const gambleRollsThisWeek = await getGambleRollsThisWeek(session.user.id!, today);
     const gambleWeekStartDay = await getGambleWeekStartDay(session.user.id!);
+    const freezeAllowance = reviewPending ? await getFreezeAllowance(session.user.id!, addDays(today, -1)) : null; // Freezes left for the day the review covers
     return NextResponse.json({
       state,
       damage: null,
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
       gambleRollsThisWeek,
       gambleCost: gambleCostForRoll(gambleRollsThisWeek),
       gambleWeekStartDay,
+      freezeAllowance,
     });
   } catch (error) {
     console.error('Error in GET /quest/api/state:', error);

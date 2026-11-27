@@ -33,6 +33,7 @@ import {
 } from '../types/settings';
 import type { TodoBonusConfig } from './todoBonusFunctions';
 import { DEFAULT_GAMBLE_WEEK_START_DAY, normalizeWeekStartDay } from './gambleConfig';
+import { FreezePeriod } from '../types/freezePeriod';
 
 const SETTINGS_COLUMNS = `user_id,
   factor_easy, factor_medium, factor_hard, factor_max,
@@ -57,6 +58,7 @@ const SETTINGS_COLUMNS = `user_id,
   all_dailies_bonus_enabled, all_dailies_bonus_amount,
   CONVERT(VARCHAR(10), all_dailies_bonus_last_awarded_date, 23) AS all_dailies_bonus_last_awarded_date,
   gamble_week_start_day,
+  is_freeze_limited, freeze_limit, freeze_period,
   ts_created, ts_modified`;
 
 const SETTINGS_OUTPUT_COLUMNS = `INSERTED.user_id,
@@ -81,6 +83,7 @@ const SETTINGS_OUTPUT_COLUMNS = `INSERTED.user_id,
   INSERTED.all_dailies_bonus_enabled, INSERTED.all_dailies_bonus_amount,
   CONVERT(VARCHAR(10), INSERTED.all_dailies_bonus_last_awarded_date, 23) AS all_dailies_bonus_last_awarded_date,
   INSERTED.gamble_week_start_day,
+  INSERTED.is_freeze_limited, INSERTED.freeze_limit, INSERTED.freeze_period,
   INSERTED.ts_created, INSERTED.ts_modified`;
 
 export async function getSettings(userId: string): Promise<QuestSettings | null> {
@@ -246,6 +249,9 @@ export interface UpsertSettingsInput {
   allDailiesBonusEnabled: boolean;
   allDailiesBonusAmount: number;
   gambleWeekStartDay: number;
+  isFreezeLimited: boolean;
+  freezeLimit: number;
+  freezePeriod: FreezePeriod;
 }
 
 // Retroactive daily-completion config. enabled gates the feature, multiplier is the fraction of
@@ -544,6 +550,9 @@ export async function upsertSettings(userId: string, input: UpsertSettingsInput)
     .input('allDailiesBonusEnabled', sql.Bit, input.allDailiesBonusEnabled ? 1 : 0)
     .input('allDailiesBonusAmount', sql.Decimal(10, 2), input.allDailiesBonusAmount)
     .input('gambleWeekStartDay', sql.TinyInt, normalizeWeekStartDay(input.gambleWeekStartDay))
+    .input('isFreezeLimited', sql.Bit, input.isFreezeLimited ? 1 : 0)
+    .input('freezeLimit', sql.Int, Math.round(input.freezeLimit))
+    .input('freezePeriod', sql.TinyInt, input.freezePeriod)
     .query<QuestSettings>(
       `MERGE INTO quest_settings AS dest
        USING (SELECT @userId AS user_id) AS source
@@ -576,6 +585,7 @@ export async function upsertSettings(userId: string, input: UpsertSettingsInput)
                     all_dailies_bonus_enabled = @allDailiesBonusEnabled,
                     all_dailies_bonus_amount = @allDailiesBonusAmount,
                     gamble_week_start_day = @gambleWeekStartDay,
+                    is_freeze_limited = @isFreezeLimited, freeze_limit = @freezeLimit, freeze_period = @freezePeriod,
                     ts_modified = GETDATE()
        WHEN NOT MATCHED THEN
          INSERT (user_id, factor_easy, factor_medium, factor_hard, factor_max,
@@ -592,7 +602,8 @@ export async function upsertSettings(userId: string, input: UpsertSettingsInput)
                  reminders_enabled,
                  retro_completion_enabled, retro_completion_multiplier, retro_lookback_days,
                  all_dailies_bonus_enabled, all_dailies_bonus_amount,
-                 gamble_week_start_day)
+                 gamble_week_start_day,
+                 is_freeze_limited, freeze_limit, freeze_period)
          VALUES (@userId, @fEasy, @fMed, @fHard, @fMax,
                  @damage,
                  @cEasy, @cMed, @cHard, @cMax,
@@ -607,7 +618,8 @@ export async function upsertSettings(userId: string, input: UpsertSettingsInput)
                  @remindersEnabled,
                  @retroEnabled, @retroMultiplier, @retroLookbackDays,
                  @allDailiesBonusEnabled, @allDailiesBonusAmount,
-                 @gambleWeekStartDay)
+                 @gambleWeekStartDay,
+                 @isFreezeLimited, @freezeLimit, @freezePeriod)
        OUTPUT ${SETTINGS_OUTPUT_COLUMNS};`
     );
   if (result.recordset.length === 0) {

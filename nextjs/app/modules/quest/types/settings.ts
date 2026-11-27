@@ -64,6 +64,10 @@ export interface QuestSettings {
   // Weekday the quest week starts on (0 = Sunday ... 6 = Saturday). Currently the reset boundary
   // for the short-rest ("gamble for health") price escalation.
   gamble_week_start_day: number;
+  // Determines if freezes are limited. false = any number of days may be frozen, true = at most freeze_limit days per freeze_period
+  is_freeze_limited: boolean;
+  freeze_limit: number; // Days that may be frozen in each period, such as 2
+  freeze_period: number; // A FreezePeriod: 0 = quest week, 1 = month, 2 = year
   ts_created: Date;
   ts_modified: Date;
 }
