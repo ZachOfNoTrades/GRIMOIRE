@@ -3942,10 +3942,10 @@ export default function QuestHomePage() {
               {/* FOOTER */}
               <div className="flex justify-between items-center gap-3 px-5 py-3 border-t quest-divider">
 
-                {/* FREEZE LINK — hidden once the freeze options panel is open (the panel owns
-                    the Cancel/confirm controls). */}
+                {/* FREEZE LINK */}
+                {/* NOTE: Hidden while the freeze options are open, as they hold their own Cancel and confirm */}
                 {!freezeConfirmOpen ? (
-                  <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-2 min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
                     <button
                       onClick={() => setFreezeConfirmOpen(true)}
                       disabled={reviewSubmitting || freezingDay || freezeAllowance?.left === 0}
